@@ -18,6 +18,7 @@ class SaleOrderLine(models.Model):
         return super()._get_display_price_ignore_combo()
     @api.depends('product_id', 'product_uom_id', 'product_uom_qty')
     def _compute_discount(self):
+        # We need to compute discount ourselves from the pricelist item BEFORE the OCA module wipes it out
         res = super()._compute_discount()
         for line in self:
             if not line.product_id or line.display_type or not line.order_id.pricelist_id:
@@ -33,8 +34,29 @@ class SaleOrderLine(models.Model):
             if pricelist_item and hasattr(pricelist_item, 'discount_active') and pricelist_item.discount_active:
                 if hasattr(line, 'discount1'):
                     line.discount1 = pricelist_item.discount1
-                    line.discount2 = pricelist_item.discount2
-                    line.discount3 = pricelist_item.discount3
+                    line.discount2 = getattr(pricelist_item, 'discount2', 0.0)
+                    line.discount3 = getattr(pricelist_item, 'discount3', 0.0)
                     if hasattr(line, '_get_final_discount'):
                         line.discount = line._get_final_discount()
+        return res
+
+    @api.depends('discount')
+    def _compute_discounts(self):
+        res = super(SaleOrderLine, self)._compute_discounts() if hasattr(super(SaleOrderLine, self), '_compute_discounts') else None
+        for line in self:
+            if not line.product_id or line.display_type or not line.order_id.pricelist_id:
+                continue
+            pricelist_item = line.pricelist_item_id
+            if not pricelist_item:
+                pricelist_item_id = line.order_id.pricelist_id._get_product_rule(
+                    product=line.product_id,
+                    **line._get_pricelist_kwargs()
+                )
+                if pricelist_item_id:
+                    pricelist_item = line.env['product.pricelist.item'].browse(pricelist_item_id)
+            if pricelist_item and hasattr(pricelist_item, 'discount_active') and pricelist_item.discount_active:
+                if hasattr(line, 'discount1'):
+                    line.discount1 = pricelist_item.discount1
+                    line.discount2 = getattr(pricelist_item, 'discount2', 0.0)
+                    line.discount3 = getattr(pricelist_item, 'discount3', 0.0)
         return res
