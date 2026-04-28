@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_product_import_wizard_form" model="ir.ui.view">
+        <field name="name">product.import.wizard.form</field>
+        <field name="model">product.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Products">
+                <group>
+                    <field name="excel_file" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_import" string="Import" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import Products Wizard</field>
+        <field name="res_model">product.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Menu Item under Inventory / Products or similar.
+         Usually in Odoo 17+ it's under stock.menu_stock_inventory_control or product.menu_product_in_config_stock
+    -->
+    <menuitem id="menu_product_import_wizard"
+              name="RMS Product Import"
+              parent="stock.menu_stock_inventory_control"
+              action="action_product_import_wizard"
+              sequence="100"/>
+</odoo>

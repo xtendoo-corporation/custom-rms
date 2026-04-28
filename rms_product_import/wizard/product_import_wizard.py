@@ -1,0 +1,246 @@
+import base64
+import io
+import logging
+import re
+import openpyxl
+from odoo import models, fields, _
+from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
+
+class ProductImportWizard(models.TransientModel):
+    _name = 'product.import.wizard'
+    _description = 'Product Import Wizard'
+
+    excel_file = fields.Binary(string='Excel File', required=True)
+    file_name = fields.Char(string='File Name')
+
+    def action_import(self):
+        self.ensure_one()
+        if not self.excel_file:
+            raise UserError(_("Please upload an Excel file."))
+
+        try:
+            file_data = base64.b64decode(self.excel_file)
+            wb = openpyxl.load_workbook(io.BytesIO(file_data), data_only=True)
+            sheet = wb.active
+        except Exception as e:
+            raise UserError(_("Invalid file. Error: %s") % str(e))
+
+        # Map headers
+        header = [cell.value for cell in sheet[1]]
+        try:
+            brand_idx = header.index('Marca')
+            ref_idx = header.index('Referencia')
+            name_idx = header.index('Articulo')
+            desc_idx = header.index('Descripcion')
+            family_idx = header.index('Familia')
+            subfamily_idx = header.index('Subfamilia')
+            vendible_idx = header.index('Vendible')
+        except ValueError as e:
+            raise UserError(_("Missing column in Excel: %s") % str(e))
+
+        # Group rows by Clean Reference
+        product_groups = {}
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            if not any(row):
+                continue
+            
+            original_ref = str(row[ref_idx] or '').strip()
+            if not original_ref:
+                continue
+
+            clean_ref = original_ref
+            estado_val = 'Nuevo'
+            if original_ref.startswith('2M-'):
+                clean_ref = original_ref[3:].strip()
+                estado_val = '2 Mano'
+            elif original_ref.startswith('D-'):
+                clean_ref = original_ref[2:].strip()
+                estado_val = 'Demo'
+
+            if clean_ref not in product_groups:
+                product_groups[clean_ref] = []
+            
+            product_groups[clean_ref].append({
+                'original_ref': original_ref,
+                'estado_val': estado_val,
+                'data': row
+            })
+
+        # Statistics
+        created_count = 0
+        updated_count = 0
+
+        for clean_ref, rows in product_groups.items():
+            # 1. Identify "Base Row" (preferably 'Nuevo')
+            base_row_data = next((r for r in rows if r['estado_val'] == 'Nuevo'), rows[0])
+            base_row = base_row_data['data']
+
+            # 2. Categories (from Base Row)
+            brand_name = str(base_row[brand_idx] or '').strip()
+            family_name = str(base_row[family_idx] or '').strip()
+            subfamily_name = str(base_row[subfamily_idx] or '').strip()
+            target_categ = self._get_or_create_categories(brand_name, family_name, subfamily_name)
+
+            # 3. Handle Attributes (Create them if missing)
+            attr_estado = self._get_or_create_attribute('Estado')
+            attr_2mv = self._get_or_create_attribute('2MV')
+
+            # 4. Create/Update Product Template
+            product_tmpl = self.env['product.template'].search([('default_code', '=', clean_ref)], limit=1)
+            
+            # Clean base name (remove "2ª Mano" etc.)
+            base_name = self._cleanup_base_name(str(base_row[name_idx] or clean_ref).strip())
+            
+            tmpl_vals = {
+                'name': base_name,
+                'default_code': clean_ref,
+                'description': str(base_row[desc_idx] or '').strip(),
+                'list_price': 0.0,
+                'standard_price': 0.0,
+                'categ_id': target_categ.id,
+                'purchase_ok': True,
+                'sale_ok': True,
+            }
+
+            if product_tmpl:
+                product_tmpl.write(tmpl_vals)
+                updated_count += 1
+            else:
+                product_tmpl = self.env['product.template'].create(tmpl_vals)
+                created_count += 1
+
+            # 5. Ensure Attribute Lines exist for the Template
+            all_states_in_group = [r['estado_val'] for r in rows]
+            self._update_template_attribute_lines(product_tmpl, attr_estado, all_states_in_group)
+            
+            # 6. Process each Variant specific data
+            for r in rows:
+                row = r['data']
+                estado_val = r['estado_val']
+                
+                # Attribute Value
+                estado_attr_val = self._get_or_create_attribute_value(attr_estado, estado_val)
+                
+                # Find the specific Variant (Product Product)
+                variant = self._get_variant_from_template(product_tmpl, estado_attr_val)
+                if not variant:
+                    continue
+
+                # Update Variant individual reference and cost
+                variant_vals = {
+                    'default_code': clean_ref,
+                    'standard_price': 0.0,
+                }
+                variant.write(variant_vals)
+
+                # Set Price Extra for the variant
+                self._update_attribute_price_extra(product_tmpl, estado_attr_val, 0.0)
+
+                # Handle 2MV attribute (as informative/tag-like No Variant if specified, but if it creates variants it would be complex)
+                # For now, keeping the 2MV logic as informative attribute lines on the template if 01 exists in any row
+                if str(row[vendible_idx]).strip() == '01':
+                    val_vendible = self._get_or_create_attribute_value(attr_2mv, 'Vendible')
+                    self._update_template_attribute_lines(product_tmpl, attr_2mv, ['Vendible'])
+
+                # Update Supplier Info removed because there are no supplier fields in the new format
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Import Completed'),
+                'message': _('%s product templates processed.') % len(product_groups),
+                'sticky': False,
+                'next': {'type': 'ir.actions.act_window_close'},
+            }
+        }
+
+    def _cleanup_base_name(self, name):
+        # Remove patterns like ". 2ª Mano", " SEGUNDA MANO", " (Nuevo)", etc.
+        patterns = [
+            r'\.?\s*2ª\s*Mano\.?',
+            r'\s*SEGUNDA\s*MANO',
+            r'\s*\(Nuevo\)',
+            r'\s*-\s*Nuevo',
+            r'\s*Demo',
+        ]
+        for pattern in patterns:
+            name = re.sub(pattern, '', name, flags=re.IGNORECASE)
+        return name.strip()
+
+    def _get_or_create_categories(self, brand, family, subfamily):
+        parent_id = False
+        if brand:
+            brand_categ = self.env['product.category'].search([('name', '=', brand)], limit=1)
+            if not brand_categ:
+                brand_categ = self.env['product.category'].create({'name': brand})
+            parent_id = brand_categ.id
+        
+        if family:
+            family_categ = self.env['product.category'].search([('name', '=', family), ('parent_id', '=', parent_id)], limit=1)
+            if not family_categ:
+                family_categ = self.env['product.category'].create({'name': family, 'parent_id': parent_id})
+            parent_id = family_categ.id
+            
+        if subfamily:
+            subfamily_categ = self.env['product.category'].search([('name', '=', subfamily), ('parent_id', '=', parent_id)], limit=1)
+            if not subfamily_categ:
+                subfamily_categ = self.env['product.category'].create({'name': subfamily, 'parent_id': parent_id})
+            parent_id = subfamily_categ.id
+            
+        return self.env['product.category'].browse(parent_id) if parent_id else self.env.ref('product.product_category_all')
+
+    def _get_or_create_attribute(self, name):
+        attr = self.env['product.attribute'].search([('name', '=', name)], limit=1)
+        if not attr:
+            attr = self.env['product.attribute'].create({
+                'name': name,
+                'create_variant': 'always' if name == 'Estado' else 'no_variant'
+            })
+        return attr
+
+    def _get_or_create_attribute_value(self, attribute, value_name):
+        val = self.env['product.attribute.value'].search([('attribute_id', '=', attribute.id), ('name', '=', value_name)], limit=1)
+        if not val:
+            val = self.env['product.attribute.value'].create({'attribute_id': attribute.id, 'name': value_name})
+        return val
+
+    def _update_template_attribute_lines(self, product_tmpl, attribute, value_names):
+        line = self.env['product.template.attribute.line'].search([
+            ('product_tmpl_id', '=', product_tmpl.id),
+            ('attribute_id', '=', attribute.id)
+        ], limit=1)
+        
+        value_ids = []
+        for name in value_names:
+            value_ids.append(self._get_or_create_attribute_value(attribute, name).id)
+            
+        if line:
+            # Merge existing values with new ones
+            existing_values = line.value_ids.ids
+            new_values = list(set(existing_values + value_ids))
+            line.write({'value_ids': [(6, 0, new_values)]})
+        else:
+            self.env['product.template.attribute.line'].create({
+                'product_tmpl_id': product_tmpl.id,
+                'attribute_id': attribute.id,
+                'value_ids': [(6, 0, value_ids)]
+            })
+
+    def _get_variant_from_template(self, product_tmpl, attribute_value):
+        # Find the product variant that has this exact attribute value
+        return self.env['product.product'].search([
+            ('product_tmpl_id', '=', product_tmpl.id),
+            ('product_template_attribute_value_ids.product_attribute_value_id', '=', attribute_value.id)
+        ], limit=1)
+
+    def _update_attribute_price_extra(self, product_tmpl, attribute_value, price_extra):
+        # Set the price extra on the product.template.attribute.value record
+        ptav = self.env['product.template.attribute.value'].search([
+            ('product_tmpl_id', '=', product_tmpl.id),
+            ('product_attribute_value_id', '=', attribute_value.id)
+        ], limit=1)
+        if ptav:
+            ptav.write({'price_extra': price_extra})
