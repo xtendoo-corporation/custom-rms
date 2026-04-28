@@ -30,24 +30,29 @@
         </field>
     </record>
 
-    <!-- Herencia del formulario individual de regla de tarifa (product.pricelist.item)
-         Muestra los tres descuentos en el dialogo de edicion. -->
+    <!--
+        Herencia del formulario de regla de tarifa (product.pricelist.item).
+        Este xpath es lo suficientemente genérico para aplicarse a las 3 vistas de formulario
+        (genérica, plantilla de producto y variante de producto).
+    -->
     <record id="product_pricelist_item_form_inherit_triple_discount" model="ir.ui.view">
         <field name="name">product.pricelist.item.form.triple.discount</field>
         <field name="model">product.pricelist.item</field>
         <field name="inherit_id" ref="product.product_pricelist_item_form_view"/>
         <field name="arch" type="xml">
-            <field name="price_round" position="before">
-                <separator string="Descuentos adicionales en cascada"/>
-                <group col="3">
-                    <field name="discount1" string="Descuento 1 (%)"/>
-                    <field name="discount2" string="Descuento 2 (%)"/>
-                    <field name="discount3" string="Descuento 3 (%)"/>
+            <!--
+                Buscamos el grupo que contiene 'compute_price' para añadir nuestros campos.
+                Ocultamos el campo de descuento original para evitar duplicados.
+            -->
+            <xpath expr="//group[field[@name='compute_price']]" position="after">
+                <group string="Descuentos" col="2">
+                    <field name="discount1"/>
+                    <field name="discount2"/>
+                    <field name="discount3"/>
                 </group>
-                <field name="discount_active"
-                    string="Descuentos activos"
-                    widget="boolean_toggle"
-                    readonly="1"/>
+            </xpath>
+            <field name="price_discount" position="attributes">
+                <attribute name="invisible">1</attribute>
             </field>
         </field>
     </record>

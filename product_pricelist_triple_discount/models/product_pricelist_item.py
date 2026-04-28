@@ -1,9 +1,6 @@
 from odoo import models, fields, api
-
-
 class ProductPricelistItem(models.Model):
     _inherit = 'product.pricelist.item'
-
     discount1 = fields.Float(
         string='Descuento 1 (%)',
         digits=(6, 2),
@@ -28,7 +25,6 @@ class ProductPricelistItem(models.Model):
         store=True,
         help='Se activa automáticamente cuando al menos uno de los tres descuentos es mayor que 0.',
     )
-
     @api.depends('discount1', 'discount2', 'discount3')
     def _compute_discount_active(self):
         for record in self:
@@ -37,14 +33,12 @@ class ProductPricelistItem(models.Model):
                 record.discount2 > 0,
                 record.discount3 > 0,
             ])
-
     @api.onchange('discount1', 'discount2', 'discount3')
     def _onchange_triple_discount(self):
         """
         Al introducir cualquier descuento:
         - Activa compute_price en 'percentage'
         - Calcula el descuento combinado en cascada y lo asigna a price_discount
-        Fórmula: descuento_total = 1 - (1 - d1/100) * (1 - d2/100) * (1 - d3/100)
         """
         if self.discount1 > 0 or self.discount2 > 0 or self.discount3 > 0:
             self.compute_price = 'percentage'
@@ -53,16 +47,3 @@ class ProductPricelistItem(models.Model):
                 if d > 0:
                     combined *= (1.0 - d / 100.0)
             self.price_discount = round((1.0 - combined) * 100.0, 6)
-
-    def _compute_price(self, product, quantity, uom, date, currency=None):
-        """
-        Sobreescribe el cálculo de precio para aplicar los tres descuentos en cascada
-        cuando alguno está definido, independientemente del compute_price configurado.
-        """
-        price = super()._compute_price(product, quantity, uom, date, currency=currency)
-        if self.discount1 > 0 or self.discount2 > 0 or self.discount3 > 0:
-            for d in [self.discount1, self.discount2, self.discount3]:
-                if d > 0:
-                    price *= (1.0 - d / 100.0)
-        return price
-

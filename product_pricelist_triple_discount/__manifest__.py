@@ -1,6 +1,6 @@
 {
     'name': 'Product Pricelist Triple Discount',
-    'version': '17.0.1.0.0',
+    'version': '19.0.1.0.0',
     'category': 'Sales/Sales',
     'summary': 'Añade hasta 3 descuentos por regla de tarifa de producto',
     'description': """
@@ -10,7 +10,7 @@
         en cascada.
     """,
     'author': 'Custom RMS',
-    'depends': ['product', 'sale'],
+    'depends': ['product', 'sale', 'sale_triple_discount'],
     'data': [
         'views/product_pricelist_views_inherit.xml',
     ],
