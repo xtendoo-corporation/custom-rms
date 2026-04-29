@@ -45,7 +45,7 @@
                 Ocultamos el campo de descuento original para evitar duplicados.
             -->
             <xpath expr="//group[field[@name='compute_price']]" position="after">
-                <group string="Descuentos" col="2">
+                <group string="Descuentos" invisible="compute_price != 'triple_discount'" col="2" colspan="2">
                     <field name="discount1"/>
                     <field name="discount2"/>
                     <field name="discount3"/>
@@ -53,6 +53,14 @@
             </xpath>
             <field name="price_discount" position="attributes">
                 <attribute name="invisible">1</attribute>
+            </field>
+              <!-- Ocultamos percent_price y date_start cuando es triple_discount -->
+            <field name="percent_price" position="attributes">
+                <!-- Nota: En versiones anteriores a Odoo 17 se usa attrs="{'invisible': [('compute_price', '=', 'triple_discount')]}" -->
+                <attribute name="invisible">compute_price in ('formula', 'triple_discount')</attribute>
+            </field>
+            <field name="date_start" position="attributes">
+                <attribute name="invisible">compute_price == 'triple_discount'</attribute>
             </field>
         </field>
     </record>

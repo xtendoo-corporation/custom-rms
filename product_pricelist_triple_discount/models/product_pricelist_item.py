@@ -25,6 +25,10 @@ class ProductPricelistItem(models.Model):
         store=True,
         help='Se activa automáticamente cuando al menos uno de los tres descuentos es mayor que 0.',
     )
+    compute_price = fields.Selection(
+        selection_add=[('triple_discount', 'Triple Descuento')],
+        ondelete={'triple_discount': 'set default'}
+    )
     @api.depends('discount1', 'discount2', 'discount3')
     def _compute_discount_active(self):
         for record in self:
