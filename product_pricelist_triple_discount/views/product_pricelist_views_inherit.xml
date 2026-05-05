@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Herencia del formulario de tarifa (product.pricelist)
+         Agrega columnas discount1, discount2, discount3 y discount_active
+         dentro del list de item_ids en la pestana Sales Prices. -->
+    <record id="product_pricelist_view_form_inherit_triple_discount" model="ir.ui.view">
+        <field name="name">product.pricelist.form.triple.discount</field>
+        <field name="model">product.pricelist</field>
+        <field name="inherit_id" ref="product.product_pricelist_view"/>
+        <field name="arch" type="xml">
+            <field name="date_end" position="after">
+                <field name="discount1"
+                    string="Desc. 1 (%)"
+                    optional="show"
+                    decoration-warning="discount1 &gt; 0"/>
+                <field name="discount2"
+                    string="Desc. 2 (%)"
+                    optional="show"
+                    decoration-warning="discount2 &gt; 0"/>
+                <field name="discount3"
+                    string="Desc. 3 (%)"
+                    optional="show"
+                    decoration-warning="discount3 &gt; 0"/>
+                <field name="discount_active"
+                    string="Desc. Activo"
+                    widget="boolean_toggle"
+                    optional="show"
+                    readonly="1"/>
+            </field>
+        </field>
+    </record>
+
+    <!--
+        Herencia del formulario de regla de tarifa (product.pricelist.item).
+        Este xpath es lo suficientemente genérico para aplicarse a las 3 vistas de formulario
+        (genérica, plantilla de producto y variante de producto).
+    -->
+    <record id="product_pricelist_item_form_inherit_triple_discount" model="ir.ui.view">
+        <field name="name">product.pricelist.item.form.triple.discount</field>
+        <field name="model">product.pricelist.item</field>
+        <field name="inherit_id" ref="product.product_pricelist_item_form_view"/>
+        <field name="arch" type="xml">
+            <!--
+                Buscamos el grupo que contiene 'compute_price' para añadir nuestros campos.
+                Ocultamos el campo de descuento original para evitar duplicados.
+            -->
+            <xpath expr="//group[field[@name='compute_price']]" position="after">
+                <group string="Descuentos" invisible="compute_price != 'triple_discount'" col="2" colspan="2">
+                    <field name="discount1"/>
+                    <field name="discount2"/>
+                    <field name="discount3"/>
+                </group>
+            </xpath>
+            <field name="price_discount" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </field>
+              <!-- Ocultamos percent_price y date_start cuando es triple_discount -->
+            <field name="percent_price" position="attributes">
+                <!-- Nota: En versiones anteriores a Odoo 17 se usa attrs="{'invisible': [('compute_price', '=', 'triple_discount')]}" -->
+                <attribute name="invisible">compute_price in ('formula', 'triple_discount')</attribute>
+            </field>
+            <field name="date_start" position="attributes">
+                <attribute name="invisible">compute_price == 'triple_discount'</attribute>
+            </field>
+        </field>
+    </record>
+
+</odoo>

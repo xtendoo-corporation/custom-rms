@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Secuencia -->
+    <record id="seq_stock_cession" model="ir.sequence">
+        <field name="name">Cesiones de Mercancia</field>
+        <field name="code">stock.cession</field>
+        <field name="prefix">CES/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+    <!-- Form View -->
+    <record id="view_stock_cession_form" model="ir.ui.view">
+        <field name="name">stock.cession.form</field>
+        <field name="model">stock.cession</field>
+        <field name="arch" type="xml">
+            <form string="Cesion de Mercancia">
+                <header>
+                    <button name="action_confirm" string="Confirmar y Ceder" type="object" class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_cancel" string="Cancelar" type="object" invisible="state != 'draft'"/>
+                    <button name="action_draft" string="Pasar a Borrador" type="object" invisible="state != 'cancel'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="partner_id" readonly="state != 'draft'"/>
+                            <field name="date" readonly="state != 'draft'"/>
+                            <field name="picking_id" invisible="not picking_id"/>
+                        </group>
+                        <group>
+                            <field name="location_src_id" readonly="state != 'draft'"/>
+                            <field name="location_dest_id" readonly="state != 'draft'"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Producto a Ceder">
+                            <group>
+                                <field name="product_id" readonly="state != 'draft'"/>
+                                <label for="quantity"/>
+                                <div class="o_row">
+                                    <field name="quantity" readonly="state != 'draft'"/>
+                                    <field name="uom_id"/>
+                                </div>
+                            </group>
+                        </page>
+                        <page string="Notas">
+                            <field name="notes" placeholder="Motivo de la cesion, condiciones, etc."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <!-- List View -->
+    <record id="view_stock_cession_tree" model="ir.ui.view">
+        <field name="name">stock.cession.list</field>
+        <field name="model">stock.cession</field>
+        <field name="arch" type="xml">
+            <list string="Cesiones de Mercancia" decoration-muted="state=='cancel'" decoration-info="state=='draft'" decoration-success="state=='done'">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="quantity"/>
+                <field name="state" widget="badge" decoration-info="state == 'draft'" decoration-success="state == 'done'"/>
+            </list>
+        </field>
+    </record>
+    <!-- Action -->
+    <record id="action_stock_cession" model="ir.actions.act_window">
+        <field name="name">Cesiones a Clientes</field>
+        <field name="res_model">stock.cession</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Crea una nueva cesion de mercancia.
+            </p>
+            <p>
+                Este modulo te permite sacar material de tu inventario hacia una ubicacion externa o de cliente
+                manteniendo un registro oficial de esa prestacion.
+            </p>
+        </field>
+    </record>
+    <!-- Menuitem -->
+    <menuitem id="menu_stock_cession"
+              name="Cesiones Virtuales"
+              parent="stock.menu_stock_warehouse_mgmt"
+              sequence="20"
+              action="action_stock_cession"/>
+</odoo>
