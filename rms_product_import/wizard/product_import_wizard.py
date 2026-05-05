@@ -28,17 +28,22 @@ class ProductImportWizard(models.TransientModel):
             raise UserError(_("Invalid file. Error: %s") % str(e))
 
         # Map headers
-        header = [cell.value for cell in sheet[1]]
+        header_raw = [cell.value for cell in sheet[1]]
+        header = [str(v).strip().lower() if v else '' for v in header_raw]
         try:
-            brand_idx = header.index('Marca')
-            ref_idx = header.index('Referencia')
-            name_idx = header.index('Articulo')
-            desc_idx = header.index('Descripcion')
-            family_idx = header.index('Familia')
-            subfamily_idx = header.index('Subfamilia')
-            vendible_idx = header.index('Vendible')
+            brand_idx = header.index('marca')
+            ref_idx = header.index('referencia')
+            name_idx = header.index('articulo')
+            desc_idx = header.index('descripcion')
+            family_idx = header.index('familia')
+            subfamily_idx = header.index('subfamilia')
+            vendible_idx = header.index('vendible')
         except ValueError as e:
             raise UserError(_("Missing column in Excel: %s") % str(e))
+
+        provider_idx = header.index('proveedor') if 'proveedor' in header else -1
+        purchase_price_idx = header.index('precio de compra') if 'precio de compra' in header else -1
+        sale_price_idx = header.index('precio de venta') if 'precio de venta' in header else -1
 
         # Group rows by Clean Reference
         product_groups = {}
@@ -77,6 +82,9 @@ class ProductImportWizard(models.TransientModel):
             base_row_data = next((r for r in rows if r['estado_val'] == 'Nuevo'), rows[0])
             base_row = base_row_data['data']
 
+            base_sale_price = float(base_row[sale_price_idx] or 0.0) if sale_price_idx >= 0 else 0.0
+            base_purchase_price = float(base_row[purchase_price_idx] or 0.0) if purchase_price_idx >= 0 else 0.0
+
             # 2. Categories (from Base Row)
             brand_name = str(base_row[brand_idx] or '').strip()
             family_name = str(base_row[family_idx] or '').strip()
@@ -97,8 +105,8 @@ class ProductImportWizard(models.TransientModel):
                 'name': base_name,
                 'default_code': clean_ref,
                 'description': str(base_row[desc_idx] or '').strip(),
-                'list_price': 0.0,
-                'standard_price': 0.0,
+                'list_price': base_sale_price,
+                'standard_price': base_purchase_price,
                 'categ_id': target_categ.id,
                 'purchase_ok': True,
                 'sale_ok': True,
@@ -128,15 +136,19 @@ class ProductImportWizard(models.TransientModel):
                 if not variant:
                     continue
 
+                variant_sale_price = float(row[sale_price_idx] or 0.0) if sale_price_idx >= 0 else 0.0
+                variant_purchase_price = float(row[purchase_price_idx] or 0.0) if purchase_price_idx >= 0 else 0.0
+
                 # Update Variant individual reference and cost
                 variant_vals = {
                     'default_code': clean_ref,
-                    'standard_price': 0.0,
+                    'standard_price': variant_purchase_price,
                 }
                 variant.write(variant_vals)
 
                 # Set Price Extra for the variant
-                self._update_attribute_price_extra(product_tmpl, estado_attr_val, 0.0)
+                price_extra = variant_sale_price - base_sale_price
+                self._update_attribute_price_extra(product_tmpl, estado_attr_val, price_extra)
 
                 # Handle 2MV attribute (as informative/tag-like No Variant if specified, but if it creates variants it would be complex)
                 # For now, keeping the 2MV logic as informative attribute lines on the template if 01 exists in any row
@@ -144,7 +156,25 @@ class ProductImportWizard(models.TransientModel):
                     val_vendible = self._get_or_create_attribute_value(attr_2mv, 'Vendible')
                     self._update_template_attribute_lines(product_tmpl, attr_2mv, ['Vendible'])
 
-                # Update Supplier Info removed because there are no supplier fields in the new format
+                # Update Supplier Info
+                if provider_idx >= 0:
+                    provider_name = str(row[provider_idx] or '').strip()
+                    if provider_name:
+                        partner = self.env['res.partner'].search([('name', '=ilike', provider_name)], limit=1)
+                        if partner:
+                            supplier_info = self.env['product.supplierinfo'].search([
+                                ('product_id', '=', variant.id),
+                                ('partner_id', '=', partner.id)
+                            ], limit=1)
+                            if supplier_info:
+                                supplier_info.write({'price': variant_purchase_price})
+                            else:
+                                self.env['product.supplierinfo'].create({
+                                    'partner_id': partner.id,
+                                    'product_id': variant.id,
+                                    'product_tmpl_id': product_tmpl.id,
+                                    'price': variant_purchase_price,
+                                })
 
         return {
             'type': 'ir.actions.client',
