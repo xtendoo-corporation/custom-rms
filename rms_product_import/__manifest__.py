@@ -15,6 +15,7 @@
     'depends': ['product', 'purchase', 'stock'],
     'data': [
         'security/ir.model.access.csv',
+        'data/product_attribute_data.xml',
         'wizard/product_import_wizard_view.xml',
     ],
     'installable': True,

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Atributo: Estado -->
+        <record id="product_attribute_estado" model="product.attribute">
+            <field name="name">Estado</field>
+            <field name="create_variant">always</field>
+            <field name="display_type">radio</field>
+        </record>
+
+        <!-- Valores para Estado -->
+        <record id="product_attribute_value_estado_nuevo" model="product.attribute.value">
+            <field name="name">Nuevo</field>
+            <field name="attribute_id" ref="product_attribute_estado"/>
+        </record>
+
+        <record id="product_attribute_value_estado_2mano" model="product.attribute.value">
+            <field name="name">2 Mano</field>
+            <field name="attribute_id" ref="product_attribute_estado"/>
+        </record>
+
+        <record id="product_attribute_value_estado_demo" model="product.attribute.value">
+            <field name="name">Demo</field>
+            <field name="attribute_id" ref="product_attribute_estado"/>
+        </record>
+
+        <!-- Atributo: 2MV -->
+        <record id="product_attribute_2mv" model="product.attribute">
+            <field name="name">2MV</field>
+            <field name="create_variant">no_variant</field>
+            <field name="display_type">radio</field>
+        </record>
+
+        <!-- Valores para 2MV -->
+        <record id="product_attribute_value_2mv_vendible" model="product.attribute.value">
+            <field name="name">Vendible</field>
+            <field name="attribute_id" ref="product_attribute_2mv"/>
+        </record>
+    </data>
+</odoo>
