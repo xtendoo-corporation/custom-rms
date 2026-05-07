@@ -134,7 +134,7 @@ class ProductImportWizard(models.TransientModel):
                 if not product_tmpl.sale_ok: tmpl_vals['sale_ok'] = True
 
                 if tmpl_vals:
-                    product_tmpl.write(tmpl_vals)
+                    product_tmpl.with_context(create_product_product=False).write(tmpl_vals)
                 updated_count += 1
             else:
                 tmpl_vals = {
@@ -147,13 +147,21 @@ class ProductImportWizard(models.TransientModel):
                     'purchase_ok': True,
                     'sale_ok': True,
                 }
-                product_tmpl = self.env['product.template'].create(tmpl_vals)
+                product_tmpl = self.env['product.template'].with_context(create_product_product=False).create(tmpl_vals)
                 tmpl_by_code[clean_ref] = product_tmpl
                 created_count += 1
 
             # 5. Ensure Attribute Lines exist for the Template
             all_states_in_group = [r['estado_val'] for r in rows]
             self._update_template_attribute_lines(product_tmpl, attr_estado, all_states_in_group, attr_val_cache)
+            
+            # Handle 2MV attribute outside the variant loop
+            has_vendible = any(str(r['data'][vendible_idx]).strip() == '01' for r in rows)
+            if has_vendible:
+                self._update_template_attribute_lines(product_tmpl, attr_2mv, ['Vendible'], attr_val_cache)
+            
+            # Manually trigger variant creation ONCE for the template to avoid intermediate variants
+            product_tmpl._create_variant_ids()
             
             # 6. Process each Variant specific data
             for r in rows:
@@ -184,11 +192,6 @@ class ProductImportWizard(models.TransientModel):
                 # Set Price Extra for the variant
                 price_extra = variant_sale_price - base_sale_price
                 self._update_attribute_price_extra(product_tmpl, estado_attr_val, price_extra)
-
-                # Handle 2MV attribute
-                if str(row[vendible_idx]).strip() == '01':
-                    self._get_or_create_attribute_value(attr_2mv, 'Vendible', attr_val_cache)
-                    self._update_template_attribute_lines(product_tmpl, attr_2mv, ['Vendible'], attr_val_cache)
 
                 # Update Supplier Info
                 if provider_idx >= 0:
@@ -293,11 +296,11 @@ class ProductImportWizard(models.TransientModel):
             
         if line:
             existing_values = line.value_ids.ids
-            new_values = list(set(existing_values + value_ids))
-            if set(existing_values) != set(new_values):
-                line.write({'value_ids': [(6, 0, new_values)]})
+            new_to_add = [v for v in value_ids if v not in existing_values]
+            if new_to_add:
+                line.with_context(create_product_product=False).write({'value_ids': [(4, v) for v in new_to_add]})
         else:
-            self.env['product.template.attribute.line'].create({
+            self.env['product.template.attribute.line'].with_context(create_product_product=False).create({
                 'product_tmpl_id': product_tmpl.id,
                 'attribute_id': attribute.id,
                 'value_ids': [(6, 0, value_ids)]
