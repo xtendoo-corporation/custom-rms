@@ -122,21 +122,31 @@ class ProductImportWizard(models.TransientModel):
             # Clean base name (remove "2ª Mano" etc.)
             base_name = self._cleanup_base_name(str(base_row[name_idx] or clean_ref).strip())
             
-            tmpl_vals = {
-                'name': base_name,
-                'default_code': clean_ref,
-                'description': str(base_row[desc_idx] or '').strip(),
-                'list_price': base_sale_price,
-                'standard_price': base_purchase_price,
-                'categ_id': target_categ.id,
-                'purchase_ok': True,
-                'sale_ok': True,
-            }
-
+            tmpl_vals = {}
             if product_tmpl:
-                product_tmpl.write(tmpl_vals)
+                if product_tmpl.name != base_name: tmpl_vals['name'] = base_name
+                if product_tmpl.default_code != clean_ref: tmpl_vals['default_code'] = clean_ref
+                if product_tmpl.description != str(base_row[desc_idx] or '').strip(): tmpl_vals['description'] = str(base_row[desc_idx] or '').strip()
+                if product_tmpl.list_price != base_sale_price: tmpl_vals['list_price'] = base_sale_price
+                if product_tmpl.standard_price != base_purchase_price: tmpl_vals['standard_price'] = base_purchase_price
+                if product_tmpl.categ_id.id != target_categ.id: tmpl_vals['categ_id'] = target_categ.id
+                if not product_tmpl.purchase_ok: tmpl_vals['purchase_ok'] = True
+                if not product_tmpl.sale_ok: tmpl_vals['sale_ok'] = True
+
+                if tmpl_vals:
+                    product_tmpl.write(tmpl_vals)
                 updated_count += 1
             else:
+                tmpl_vals = {
+                    'name': base_name,
+                    'default_code': clean_ref,
+                    'description': str(base_row[desc_idx] or '').strip(),
+                    'list_price': base_sale_price,
+                    'standard_price': base_purchase_price,
+                    'categ_id': target_categ.id,
+                    'purchase_ok': True,
+                    'sale_ok': True,
+                }
                 product_tmpl = self.env['product.template'].create(tmpl_vals)
                 tmpl_by_code[clean_ref] = product_tmpl
                 created_count += 1
@@ -162,11 +172,14 @@ class ProductImportWizard(models.TransientModel):
                 variant_purchase_price = float(row[purchase_price_idx] or 0.0) if purchase_price_idx >= 0 else 0.0
 
                 # Update Variant individual reference and cost
-                variant_vals = {
-                    'default_code': clean_ref,
-                    'standard_price': variant_purchase_price,
-                }
-                variant.write(variant_vals)
+                variant_vals = {}
+                if variant.default_code != clean_ref:
+                    variant_vals['default_code'] = clean_ref
+                if variant.standard_price != variant_purchase_price:
+                    variant_vals['standard_price'] = variant_purchase_price
+                
+                if variant_vals:
+                    variant.write(variant_vals)
 
                 # Set Price Extra for the variant
                 price_extra = variant_sale_price - base_sale_price
@@ -183,12 +196,10 @@ class ProductImportWizard(models.TransientModel):
                     if provider_name:
                         partner = partner_by_name_lower.get(provider_name.lower())
                         if partner:
-                            supplier_info = self.env['product.supplierinfo'].search([
-                                ('product_id', '=', variant.id),
-                                ('partner_id', '=', partner.id)
-                            ], limit=1)
+                            supplier_info = variant.seller_ids.filtered(lambda s: s.partner_id.id == partner.id)
                             if supplier_info:
-                                supplier_info.write({'price': variant_purchase_price})
+                                if supplier_info[0].price != variant_purchase_price:
+                                    supplier_info[0].write({'price': variant_purchase_price})
                             else:
                                 self.env['product.supplierinfo'].create({
                                     'partner_id': partner.id,
@@ -283,7 +294,8 @@ class ProductImportWizard(models.TransientModel):
         if line:
             existing_values = line.value_ids.ids
             new_values = list(set(existing_values + value_ids))
-            line.write({'value_ids': [(6, 0, new_values)]})
+            if set(existing_values) != set(new_values):
+                line.write({'value_ids': [(6, 0, new_values)]})
         else:
             self.env['product.template.attribute.line'].create({
                 'product_tmpl_id': product_tmpl.id,
@@ -292,15 +304,16 @@ class ProductImportWizard(models.TransientModel):
             })
 
     def _get_variant_from_template(self, product_tmpl, attribute_value):
-        return self.env['product.product'].search([
-            ('product_tmpl_id', '=', product_tmpl.id),
-            ('product_template_attribute_value_ids.product_attribute_value_id', '=', attribute_value.id)
-        ], limit=1)
+        for variant in product_tmpl.product_variant_ids:
+            for ptav in variant.product_template_attribute_value_ids:
+                if ptav.product_attribute_value_id.id == attribute_value.id:
+                    return variant
+        return False
 
     def _update_attribute_price_extra(self, product_tmpl, attribute_value, price_extra):
-        ptav = self.env['product.template.attribute.value'].search([
-            ('product_tmpl_id', '=', product_tmpl.id),
-            ('product_attribute_value_id', '=', attribute_value.id)
-        ], limit=1)
-        if ptav:
-            ptav.write({'price_extra': price_extra})
+        for line in product_tmpl.attribute_line_ids:
+            for ptav in line.product_template_value_ids:
+                if ptav.product_attribute_value_id.id == attribute_value.id:
+                    if ptav.price_extra != price_extra:
+                        ptav.write({'price_extra': price_extra})
+                    return
