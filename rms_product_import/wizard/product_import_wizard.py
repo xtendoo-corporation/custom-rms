@@ -47,6 +47,8 @@ class ProductImportWizard(models.TransientModel):
 
         # Group rows by Clean Reference
         product_groups = {}
+        supplier_names = set()
+
         for row in sheet.iter_rows(min_row=2, values_only=True):
             if not any(row):
                 continue
@@ -73,9 +75,28 @@ class ProductImportWizard(models.TransientModel):
                 'data': row
             })
 
+            if provider_idx >= 0:
+                p_name = str(row[provider_idx] or '').strip()
+                if p_name:
+                    supplier_names.add(p_name)
+
         # Statistics
         created_count = 0
         updated_count = 0
+
+        # OPTIMIZATION: Caches to prevent CPU timeout from 1000s of SQL reads
+        categ_cache = {}
+        attr_cache = {}
+        attr_val_cache = {}
+        
+        # Prefetch templates
+        all_codes = list(product_groups.keys())
+        existing_tmpls = self.env['product.template'].search([('default_code', 'in', all_codes)])
+        tmpl_by_code = {t.default_code: t for t in existing_tmpls if t.default_code}
+
+        # Prefetch partners
+        existing_partners = self.env['res.partner'].search([('name', 'in', list(supplier_names))])
+        partner_by_name_lower = {p.name.strip().lower(): p for p in existing_partners if p.name}
 
         for clean_ref, rows in product_groups.items():
             # 1. Identify "Base Row" (preferably 'Nuevo')
@@ -89,14 +110,14 @@ class ProductImportWizard(models.TransientModel):
             brand_name = str(base_row[brand_idx] or '').strip()
             family_name = str(base_row[family_idx] or '').strip()
             subfamily_name = str(base_row[subfamily_idx] or '').strip()
-            target_categ = self._get_or_create_categories(brand_name, family_name, subfamily_name)
+            target_categ = self._get_or_create_categories(brand_name, family_name, subfamily_name, categ_cache)
 
             # 3. Handle Attributes (Create them if missing)
-            attr_estado = self._get_or_create_attribute('Estado')
-            attr_2mv = self._get_or_create_attribute('2MV')
+            attr_estado = self._get_or_create_attribute('Estado', attr_cache)
+            attr_2mv = self._get_or_create_attribute('2MV', attr_cache)
 
             # 4. Create/Update Product Template
-            product_tmpl = self.env['product.template'].search([('default_code', '=', clean_ref)], limit=1)
+            product_tmpl = tmpl_by_code.get(clean_ref)
             
             # Clean base name (remove "2ª Mano" etc.)
             base_name = self._cleanup_base_name(str(base_row[name_idx] or clean_ref).strip())
@@ -117,11 +138,12 @@ class ProductImportWizard(models.TransientModel):
                 updated_count += 1
             else:
                 product_tmpl = self.env['product.template'].create(tmpl_vals)
+                tmpl_by_code[clean_ref] = product_tmpl
                 created_count += 1
 
             # 5. Ensure Attribute Lines exist for the Template
             all_states_in_group = [r['estado_val'] for r in rows]
-            self._update_template_attribute_lines(product_tmpl, attr_estado, all_states_in_group)
+            self._update_template_attribute_lines(product_tmpl, attr_estado, all_states_in_group, attr_val_cache)
             
             # 6. Process each Variant specific data
             for r in rows:
@@ -129,7 +151,7 @@ class ProductImportWizard(models.TransientModel):
                 estado_val = r['estado_val']
                 
                 # Attribute Value
-                estado_attr_val = self._get_or_create_attribute_value(attr_estado, estado_val)
+                estado_attr_val = self._get_or_create_attribute_value(attr_estado, estado_val, attr_val_cache)
                 
                 # Find the specific Variant (Product Product)
                 variant = self._get_variant_from_template(product_tmpl, estado_attr_val)
@@ -150,17 +172,16 @@ class ProductImportWizard(models.TransientModel):
                 price_extra = variant_sale_price - base_sale_price
                 self._update_attribute_price_extra(product_tmpl, estado_attr_val, price_extra)
 
-                # Handle 2MV attribute (as informative/tag-like No Variant if specified, but if it creates variants it would be complex)
-                # For now, keeping the 2MV logic as informative attribute lines on the template if 01 exists in any row
+                # Handle 2MV attribute
                 if str(row[vendible_idx]).strip() == '01':
-                    val_vendible = self._get_or_create_attribute_value(attr_2mv, 'Vendible')
-                    self._update_template_attribute_lines(product_tmpl, attr_2mv, ['Vendible'])
+                    self._get_or_create_attribute_value(attr_2mv, 'Vendible', attr_val_cache)
+                    self._update_template_attribute_lines(product_tmpl, attr_2mv, ['Vendible'], attr_val_cache)
 
                 # Update Supplier Info
                 if provider_idx >= 0:
                     provider_name = str(row[provider_idx] or '').strip()
                     if provider_name:
-                        partner = self.env['res.partner'].search([('name', '=ilike', provider_name)], limit=1)
+                        partner = partner_by_name_lower.get(provider_name.lower())
                         if partner:
                             supplier_info = self.env['product.supplierinfo'].search([
                                 ('product_id', '=', variant.id),
@@ -188,7 +209,6 @@ class ProductImportWizard(models.TransientModel):
         }
 
     def _cleanup_base_name(self, name):
-        # Remove patterns like ". 2ª Mano", " SEGUNDA MANO", " (Nuevo)", etc.
         patterns = [
             r'\.?\s*2ª\s*Mano\.?',
             r'\s*SEGUNDA\s*MANO',
@@ -200,7 +220,11 @@ class ProductImportWizard(models.TransientModel):
             name = re.sub(pattern, '', name, flags=re.IGNORECASE)
         return name.strip()
 
-    def _get_or_create_categories(self, brand, family, subfamily):
+    def _get_or_create_categories(self, brand, family, subfamily, categ_cache):
+        cache_key = (brand, family, subfamily)
+        if cache_key in categ_cache:
+            return categ_cache[cache_key]
+
         parent_id = False
         if brand:
             brand_categ = self.env['product.category'].search([('name', '=', brand)], limit=1)
@@ -220,24 +244,33 @@ class ProductImportWizard(models.TransientModel):
                 subfamily_categ = self.env['product.category'].create({'name': subfamily, 'parent_id': parent_id})
             parent_id = subfamily_categ.id
             
-        return self.env['product.category'].browse(parent_id) if parent_id else self.env.ref('product.product_category_all')
+        result = self.env['product.category'].browse(parent_id) if parent_id else self.env.ref('product.product_category_all')
+        categ_cache[cache_key] = result
+        return result
 
-    def _get_or_create_attribute(self, name):
+    def _get_or_create_attribute(self, name, attr_cache):
+        if name in attr_cache:
+            return attr_cache[name]
         attr = self.env['product.attribute'].search([('name', '=', name)], limit=1)
         if not attr:
             attr = self.env['product.attribute'].create({
                 'name': name,
                 'create_variant': 'always' if name == 'Estado' else 'no_variant'
             })
+        attr_cache[name] = attr
         return attr
 
-    def _get_or_create_attribute_value(self, attribute, value_name):
+    def _get_or_create_attribute_value(self, attribute, value_name, attr_val_cache):
+        cache_key = (attribute.id, value_name)
+        if cache_key in attr_val_cache:
+            return attr_val_cache[cache_key]
         val = self.env['product.attribute.value'].search([('attribute_id', '=', attribute.id), ('name', '=', value_name)], limit=1)
         if not val:
             val = self.env['product.attribute.value'].create({'attribute_id': attribute.id, 'name': value_name})
+        attr_val_cache[cache_key] = val
         return val
 
-    def _update_template_attribute_lines(self, product_tmpl, attribute, value_names):
+    def _update_template_attribute_lines(self, product_tmpl, attribute, value_names, attr_val_cache):
         line = self.env['product.template.attribute.line'].search([
             ('product_tmpl_id', '=', product_tmpl.id),
             ('attribute_id', '=', attribute.id)
@@ -245,10 +278,9 @@ class ProductImportWizard(models.TransientModel):
         
         value_ids = []
         for name in value_names:
-            value_ids.append(self._get_or_create_attribute_value(attribute, name).id)
+            value_ids.append(self._get_or_create_attribute_value(attribute, name, attr_val_cache).id)
             
         if line:
-            # Merge existing values with new ones
             existing_values = line.value_ids.ids
             new_values = list(set(existing_values + value_ids))
             line.write({'value_ids': [(6, 0, new_values)]})
@@ -260,14 +292,12 @@ class ProductImportWizard(models.TransientModel):
             })
 
     def _get_variant_from_template(self, product_tmpl, attribute_value):
-        # Find the product variant that has this exact attribute value
         return self.env['product.product'].search([
             ('product_tmpl_id', '=', product_tmpl.id),
             ('product_template_attribute_value_ids.product_attribute_value_id', '=', attribute_value.id)
         ], limit=1)
 
     def _update_attribute_price_extra(self, product_tmpl, attribute_value, price_extra):
-        # Set the price extra on the product.template.attribute.value record
         ptav = self.env['product.template.attribute.value'].search([
             ('product_tmpl_id', '=', product_tmpl.id),
             ('product_attribute_value_id', '=', attribute_value.id)
