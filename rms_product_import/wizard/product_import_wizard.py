@@ -83,6 +83,9 @@ class ProductImportWizard(models.TransientModel):
         # Statistics
         created_count = 0
         updated_count = 0
+        processed_count = 0
+        total_groups = len(product_groups)
+        _logger.info("RMS Import: Starting processing of %d unique product templates", total_groups)
 
         # OPTIMIZATION: Caches to prevent CPU timeout from 1000s of SQL reads
         categ_cache = {}
@@ -187,7 +190,7 @@ class ProductImportWizard(models.TransientModel):
                     variant_vals['standard_price'] = variant_purchase_price
                 
                 if variant_vals:
-                    variant.write(variant_vals)
+                    variant.with_context(create_product_product=False).write(variant_vals)
 
                 # Set Price Extra for the variant
                 price_extra = variant_sale_price - base_sale_price
@@ -210,6 +213,14 @@ class ProductImportWizard(models.TransientModel):
                                     'product_tmpl_id': product_tmpl.id,
                                     'price': variant_purchase_price,
                                 })
+
+            processed_count += 1
+            if processed_count % 100 == 0:
+                _logger.info("RMS Import: Processed %d / %d templates...", processed_count, total_groups)
+                # Commit explicitly so we don't hold the lock forever
+                self.env.cr.commit()
+
+        _logger.info("RMS Import: Finished! Created %d, Updated %d templates.", created_count, updated_count)
 
         return {
             'type': 'ir.actions.client',
