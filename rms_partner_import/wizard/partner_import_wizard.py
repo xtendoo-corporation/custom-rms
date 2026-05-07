@@ -53,14 +53,27 @@ class PartnerImportWizard(models.TransientModel):
         Country = self.env['res.country']
         State = self.env['res.country.state']
         
-        imported_count = 0
+        # 1. OPTIMIZACIÓN: Cargar todos los países y provincias en memoria (Diccionarios)
+        country_records = Country.search([])
+        country_map = {c.name.strip().lower(): c.id for c in country_records if c.name}
+        
+        state_records = State.search([])
+        state_map = {}
+        for s in state_records:
+            if s.name:
+                key_with_country = (s.name.strip().lower(), s.country_id.id)
+                key_without_country = (s.name.strip().lower(), False)
+                state_map[key_with_country] = s.id
+                if key_without_country not in state_map:
+                    state_map[key_without_country] = s.id
+
+        vals_list = []
 
         for row in data_rows:
             if not row or not any(row):
                 continue
             
             def get_val(*keywords):
-                # Busca por varias posibles palabras clave (ej: 'nif', 'cif')
                 for kw in keywords:
                     for h_name, idx in header_map.items():
                         if kw in h_name:
@@ -70,7 +83,7 @@ class PartnerImportWizard(models.TransientModel):
 
             nif = get_val('nif', 'cif')
             nombre_comercial = get_val('comercial')
-            # 'nombre' puede chocar con 'nombre_comercial', así que buscamos la columna exacta si es posible
+            
             nombre = ''
             for h_name, idx in header_map.items():
                 if h_name == 'nombre':
@@ -78,7 +91,6 @@ class PartnerImportWizard(models.TransientModel):
                     nombre = str(val).strip() if val is not None else ''
                     break
             
-            # Fallback por si la columna no se llama exactamente "nombre"
             if not nombre:
                 nombre = get_val('nombre')
 
@@ -101,34 +113,53 @@ class PartnerImportWizard(models.TransientModel):
                 'company_type': 'company',
             }
 
-            # Asignamos el nombre comercial al campo 'comercial' si existe en la base de datos
             if nombre_comercial and 'comercial' in Partner._fields:
                 vals['comercial'] = nombre_comercial
 
-            # Insertamos el NIF tal cual, sin validar ni poner prefijos
             if nif:
                 vals['vat'] = nif
 
-            # Búsqueda de país
+            # 2. OPTIMIZACIÓN: Búsqueda de país en diccionario de memoria
             country_id = False
             if pais_name:
-                country = Country.search([('name', 'ilike', pais_name)], limit=1)
-                if country:
-                    country_id = country.id
+                p_lower = pais_name.strip().lower()
+                country_id = country_map.get(p_lower)
+                if not country_id:
+                    # Búsqueda parcial si no hay coincidencia exacta
+                    for c_name, c_id in country_map.items():
+                        if p_lower in c_name or c_name in p_lower:
+                            country_id = c_id
+                            break
+                if country_id:
                     vals['country_id'] = country_id
 
-            # Búsqueda de provincia
+            # 3. OPTIMIZACIÓN: Búsqueda de provincia en diccionario de memoria
             if provincia_name:
-                domain = [('name', 'ilike', provincia_name)]
-                if country_id:
-                    domain.append(('country_id', '=', country_id))
-                state = State.search(domain, limit=1)
-                if state:
-                    vals['state_id'] = state.id
+                s_lower = provincia_name.strip().lower()
+                state_id = state_map.get((s_lower, country_id))
+                if not state_id:
+                    state_id = state_map.get((s_lower, False))
+                
+                if not state_id:
+                    # Búsqueda parcial
+                    for (st_name, st_c_id), st_id in state_map.items():
+                        if (not st_c_id or st_c_id == country_id) and (s_lower in st_name or st_name in s_lower):
+                            state_id = st_id
+                            break
+                
+                if state_id:
+                    vals['state_id'] = state_id
 
-            # Creamos el registro, saltándose las validaciones por el contexto
-            Partner.create(vals)
-            imported_count += 1
+            vals_list.append(vals)
+
+        # 4. OPTIMIZACIÓN: Creación en lote (Batch Create)
+        # En lugar de crear 4500 registros 1 a 1, pasamos la lista completa a Odoo
+        # Esto reduce 4500 consultas SQL INSERT a prácticamente 1 consulta gigante.
+        if vals_list:
+            # Si son 4500, Odoo las gestiona perfectamente en un batch
+            Partner.create(vals_list)
+        
+        imported_count = len(vals_list)
 
         return {
             'type': 'ir.actions.client',
