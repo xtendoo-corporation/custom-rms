@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Interceptamos la llamada al reporte -->
+    <template id="report_saleorder_raw_inherit_rms" inherit_id="sale.report_saleorder_raw">
+        <xpath expr="//t[@t-call='sale.report_saleorder_document']" position="replace">
+            <t t-if="doc.company_id.rms_template_selection == 'rms'">
+                <t t-call="rms_document_format.rms_document_template" t-lang="doc.partner_id.lang"/>
+            </t>
+            <t t-else="">
+                <t t-call="sale.report_saleorder_document" t-lang="doc.partner_id.lang"/>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- Nueva Plantilla RMS Custom -->
+    <template id="rms_document_template">
+        <t t-call="web.basic_layout">
+            <style>
+                .rms_page {
+                    font-family: 'Helvetica', 'Arial', sans-serif;
+                    font-size: 10px;
+                    color: #000;
+                }
+                .rms_header_table {
+                    width: 100%;
+                    border: none;
+                    margin-bottom: 5px;
+                }
+                .rms_budget_number {
+                    font-size: 24px;
+                    font-weight: bold;
+                    text-align: right;
+                }
+                .rms_date_block {
+                    text-align: right;
+                    margin-top: 5px;
+                }
+                .rms_date_label {
+                    font-weight: bold;
+                    margin-right: 20px;
+                }
+                .rms_address_table {
+                    width: 100%;
+                    border: none;
+                    margin-top: 20px;
+                }
+                .rms_address_cell {
+                    width: 50%;
+                    vertical-align: top;
+                    line-height: 1.3;
+                }
+                .rms_table th {
+                    background-color: #fff;
+                    border-top: 1.5px solid #000 !important;
+                    border-bottom: 1.5px solid #000 !important;
+                    padding: 4px !important;
+                }
+                .rms_table td {
+                    border: none !important;
+                    padding: 3px 2px !important;
+                }
+                .rms_totals_table {
+                    width: 100%;
+                    border: 1.5px solid #000;
+                    border-collapse: collapse;
+                    margin-bottom: 10px;
+                }
+                .rms_totals_table th, .rms_totals_table td {
+                    border: 1.2px solid #000;
+                    text-align: center;
+                    padding: 6px;
+                }
+                .rms_totals_table th {
+                    font-size: 9px;
+                    font-weight: bold;
+                }
+                .rms_totals_table td {
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+                .footer {
+                    width: 100%;
+                }
+            </style>
+
+            <div class="page rms_page">
+                <!-- LOGOS SUPERIORES -->
+                <table class="rms_header_table">
+                    <tr>
+                        <td style="width: 50%;">
+                            <img t-if="doc.company_id.logo" t-att-src="image_data_uri(doc.company_id.logo)" style="max-height: 70px; width: auto;"/>
+                        </td>
+                        <td style="width: 50%; text-align: right;">
+                            <img t-if="doc.company_id.rms_header_logo_right" t-att-src="image_data_uri(doc.company_id.rms_header_logo_right)" style="max-height: 90px; width: auto;"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- NÚMERO DE PRESUPUESTO Y FECHA -->
+                <div class="rms_budget_number">
+                    PRESUPUESTO <span t-field="doc.name"/>
+                </div>
+                <div class="rms_date_block">
+                    <span class="rms_date_label">FECHA</span>
+                    <span t-field="doc.date_order" t-options='{"widget": "date", "format": "dd/MM/yy"}'/>
+                </div>
+
+                <!-- BLOQUES DE DIRECCIÓN -->
+                <table class="rms_address_table">
+                    <tr>
+                        <td class="rms_address_cell">
+                            <strong><span t-field="doc.company_id.name"/></strong><br/>
+                            CIF: <span t-field="doc.company_id.vat"/><br/>
+                            <span t-field="doc.company_id.street"/><br/>
+                            <span t-field="doc.company_id.zip"/> <span t-field="doc.company_id.city"/><br/>
+                            <span t-field="doc.company_id.state_id.name"/><br/>
+                            TELEF.: <span t-field="doc.company_id.phone"/><br/>
+                            <span t-field="doc.company_id.email"/>
+                        </td>
+                        <td class="rms_address_cell" style="padding-left: 20px;">
+                            <strong><span t-field="doc.partner_id.name"/></strong><br/>
+                            <t t-if="doc.partner_id.ref">Cod. Cliente: <span t-field="doc.partner_id.ref"/> </t>
+                            CIF: <span t-field="doc.partner_id.vat"/><br/>
+                            <span t-field="doc.partner_id.street"/><br/>
+                            <span t-field="doc.partner_id.zip"/> <span t-field="doc.partner_id.city"/><br/>
+                            <span t-field="doc.partner_id.state_id.name"/><br/>
+                            <span t-field="doc.partner_id.phone"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- TABLA DE PRODUCTOS -->
+                <table class="table table-sm rms_table mt-4">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">Código</th>
+                            <th style="width: 8%; text-align: center;">Cant.</th>
+                            <th style="width: 37%;">Descripción</th>
+                            <th style="width: 12%; text-align: right;">PVP sin IVA</th>
+                            <th style="width: 8%; text-align: center;">%Dto1</th>
+                            <th style="width: 8%; text-align: center;">%Dto2</th>
+                            <th style="width: 12%; text-align: right;">Total Neto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="doc.order_line" t-as="line">
+                            <t t-if="not line.display_type">
+                                <td><span t-field="line.product_id.default_code"/></td>
+                                <td style="text-align: center;"><span t-field="line.product_uom_qty" t-options='{"widget": "float", "precision": 2}'/></td>
+                                <td><span t-field="line.name"/></td>
+                                <td style="text-align: right;"><span t-field="line.price_unit" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                                <td style="text-align: center;">
+                                    <span t-if="line.discount1 > 0" t-field="line.discount1" t-options='{"widget": "float", "precision": 2}'/>
+                                </td>
+                                <td style="text-align: center;">
+                                    <span t-if="line.discount2 > 0" t-field="line.discount2" t-options='{"widget": "float", "precision": 2}'/>
+                                </td>
+                                <td style="text-align: right;">
+                                    <span t-field="line.price_subtotal" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
+                                </td>
+                            </t>
+                            <t t-if="line.display_type == 'line_section'">
+                                <td colspan="7" style="background-color: #f2f2f2; font-weight: bold;">
+                                    <span t-field="line.name"/>
+                                </td>
+                            </t>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="mt-2">
+                    <p>Este presupuesto tiene una validez de 30 días. Solo se efectuará el pedido si se confirma por escrito.</p>
+                </div>
+
+                <!-- PIE DE PÁGINA (Ahora incluye los totales) -->
+                <div class="footer o_standard_footer">
+                    <!-- TOTALES MOVIDOS AQUÍ -->
+                    <div t-if="doc.payment_term_id" class="mb-1">
+                        <strong>Forma de pago:</strong> <span t-field="doc.payment_term_id.name"/>
+                    </div>
+                    <table style="width: 100%; border: 1.5px solid #000; border-collapse: collapse; margin-bottom: 20px;">
+                        <thead>
+                            <tr style="border: 1.2px solid #000;">
+                                <th style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 9px; font-weight: bold;">Total Base</th>
+                                <th style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 9px; font-weight: bold;">% Dto Especial</th>
+                                <th style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 9px; font-weight: bold;">Importe Dto Especial</th>
+                                <th style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 9px; font-weight: bold;">Bases Imponibles</th>
+                                <th style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 9px; font-weight: bold;">% IVA</th>
+                                <th style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 9px; font-weight: bold;">Imp. IVA</th>
+                                <th style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 9px; font-weight: bold;">TOTAL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border: 1.2px solid #000;">
+                                <td style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 11px; font-weight: bold;"><span t-field="doc.amount_untaxed" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                                <td style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 11px; font-weight: bold;">0,00</td>
+                                <td style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 11px; font-weight: bold;">0,00</td>
+                                <td style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 11px; font-weight: bold;"><span t-field="doc.amount_untaxed" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                                <td style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 11px; font-weight: bold;">
+                                    <t t-set="tax_names" t-value="', '.join(doc.order_line.tax_ids.mapped('name'))"/>
+                                    <span t-esc="tax_names"/>
+                                </td>
+                                <td style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 11px; font-weight: bold;"><span t-field="doc.amount_tax" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                                <td style="border: 1.2px solid #000; text-align: center; padding: 6px; font-size: 14px; font-weight: bold;"><span t-field="doc.amount_total" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Faldón y Texto Legal -->
+                    <img t-if="doc.company_id.rms_footer_logos" t-att-src="image_data_uri(doc.company_id.rms_footer_logos)" style="height: 170px; width: 100%; display: block; margin: 0 auto; object-fit: contain;"/>
+                    <div style="font-size: 10px; text-align: center; margin-top: 5px;">
+                        <p>Como responsable del tratamiento de sus datos, tratamos la información que nos facilita con el fin de prestarles el servicio solicitado y realizar la facturación del mismo. Se conservarán un plazo mínimo de 5 años. No se cederán a terceros, salvo obligación legal. Puede ejercer sus derechos a través del siguiente correo: info@rmsproaudio.com o a la dirección postal C/ Leonardo Da Vinci, 11 Teatro Cartuja Center 41092 Sevilla.</p>
+                        <p><span t-field="doc.company_id.name"/> CIF: <span t-field="doc.company_id.vat"/></p>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

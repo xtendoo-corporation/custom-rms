@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_inherit_rms" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.rms</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="sale.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='sale_management']//block[@name='quotation_order_setting_container']" position="after">
+                <block title="RMS Document Format" name="rms_document_format_setting_container">
+                    <setting title="RMS Template Configuration" help="Select the template and upload custom logos for RMS documents.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label string="Selected Template" for="rms_template_selection" class="col-lg-3 o_light_label"/>
+                                <field name="rms_template_selection" required="1"/>
+                            </div>
+                            <div class="row mt16" invisible="rms_template_selection != 'rms'">
+                                <label string="Header Logo (Right)" for="rms_header_logo_right" class="col-lg-3 o_light_label"/>
+                                <field name="rms_header_logo_right" widget="image" class="oe_avatar"/>
+                            </div>
+                            <div class="row mt16" invisible="rms_template_selection != 'rms'">
+                                <label string="Footer Brands Ribbon" for="rms_footer_logos" class="col-lg-3 o_light_label"/>
+                                <field name="rms_footer_logos" widget="image"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>
