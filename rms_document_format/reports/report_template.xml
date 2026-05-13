@@ -161,13 +161,19 @@
                                 <td><span t-esc="line.name.replace('[' + (line.product_id.default_code or '') + '] ', '')"/></td>
                                 <td style="text-align: right;"><span t-field="line.price_unit" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
                                 <td style="text-align: center;">
-                                    <span t-if="line.discount1 > 0" t-field="line.discount1" t-options='{"widget": "float", "precision": 0}'/>%
+                                    <t t-if="line.discount1 > 0">
+                                        <span t-field="line.discount1" t-options='{"widget": "float", "precision": 0}'/>%
+                                    </t>
                                 </td>
                                 <td style="text-align: center;">
-                                    <span t-if="line.discount2 > 0" t-field="line.discount2" t-options='{"widget": "float", "precision": 0}'/>%
+                                    <t t-if="line.discount2 > 0">
+                                        <span t-field="line.discount2" t-options='{"widget": "float", "precision": 0}'/>%
+                                    </t>
                                 </td>
                                 <td style="text-align: center;">
-                                    <span t-if="line.discount3 > 0" t-field="line.discount3" t-options='{"widget": "float", "precision": 0}'/>%
+                                    <t t-if="line.discount3 > 0">
+                                        <span t-field="line.discount3" t-options='{"widget": "float", "precision": 0}'/>%
+                                    </t>
                                 </td>
                                 <td style="text-align: right;">
                                     <span t-field="line.price_subtotal" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
@@ -178,11 +184,19 @@
                                     <span t-field="line.name"/>
                                 </td>
                             </t>
+                            <t t-if="line.display_type == 'line_note'">
+                                <td colspan="8" style="font-style: italic;">
+                                    <span t-field="line.name"/>
+                                </td>
+                            </t>
                         </tr>
                     </tbody>
                 </table>
 
-
+                <!-- NOTAS DEL PRESUPUESTO -->
+                <div t-if="doc.note" style="margin-top: 15px; margin-bottom: 15px; font-size: 11px;">
+                    <span t-field="doc.note"/>
+                </div>
 
                 <!-- PIE DE PÁGINA (Ahora incluye los totales) -->
                 <div class="footer o_standard_footer">
