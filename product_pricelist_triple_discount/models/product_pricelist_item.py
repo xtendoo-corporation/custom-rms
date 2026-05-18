@@ -40,14 +40,19 @@ class ProductPricelistItem(models.Model):
     @api.onchange('discount1', 'discount2', 'discount3')
     def _onchange_triple_discount(self):
         """
-        Al introducir cualquier descuento:
-        - Activa compute_price en 'percentage'
-        - Calcula el descuento combinado en cascada y lo asigna a price_discount
+        Al introducir cualquier descuento calculamos el combinado en cascada
+        y lo asignamos a price_discount y percent_price para que el motor nativo
+        de Odoo (fallback) aplique el descuento correcto en otras apps como TPV o Web.
+        Mantenemos compute_price en 'triple_discount' para no romper la vista.
         """
         if self.discount1 > 0 or self.discount2 > 0 or self.discount3 > 0:
-            self.compute_price = 'percentage'
             combined = 1.0
             for d in [self.discount1, self.discount2, self.discount3]:
                 if d > 0:
                     combined *= (1.0 - d / 100.0)
-            self.price_discount = round((1.0 - combined) * 100.0, 6)
+            
+            val = round((1.0 - combined) * 100.0, 6)
+            if hasattr(self, 'price_discount'):
+                self.price_discount = val
+            if hasattr(self, 'percent_price'):
+                self.percent_price = val
