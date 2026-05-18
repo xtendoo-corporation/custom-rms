@@ -158,7 +158,13 @@
                             <t t-if="not line.display_type">
                                 <td><span t-field="line.product_id.default_code"/></td>
                                 <td style="text-align: center;"><span t-field="line.product_uom_qty" t-options='{"widget": "float", "precision": 2}'/></td>
-                                <td><span t-esc="line.name.replace('[' + (line.product_id.default_code or '') + '] ', '')"/></td>
+                                <td>
+                                    <t t-set="desc" t-value="line.name"/>
+                                    <t t-if="line.product_id">
+                                        <t t-set="desc" t-value="desc.replace(line.product_id.display_name, line.product_id.product_tmpl_id.name).replace('[' + (line.product_id.default_code or '') + '] ', '')"/>
+                                    </t>
+                                    <span t-esc="desc"/>
+                                </td>
                                 <td style="text-align: right;"><span t-field="line.price_unit" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
                                 <td style="text-align: center;">
                                     <t t-if="line.discount1 > 0">
