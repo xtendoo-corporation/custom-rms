@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Heredamos el catálogo de presupuestos para que use el color_field en las líneas de pedido -->
     <record id="product_view_kanban_catalog_no_color" model="ir.ui.view">
         <field name="name">product.view.kanban.catalog.no.color</field>
         <field name="model">product.product</field>
@@ -11,4 +12,87 @@
             </xpath>
         </field>
     </record>
+
+    <!-- Nueva Vista Kanban General de Catálogo (clon visual limpio del catálogo sin JS de orden) -->
+    <record id="product_view_kanban_general_catalog" model="ir.ui.view">
+        <field name="name">product.view.kanban.general.catalog</field>
+        <field name="model">product.product</field>
+        <field name="arch" type="xml">
+            <kanban records_draggable="0" default_order="is_favorite desc, default_code, name, id">
+                <field name="id"/>
+                <templates>
+                    <t t-name="card" class="p-0">
+                        <div class="d-flex flex-grow-1 m-2">
+                            <div class="ps-2 d-flex flex-column m-1 overflow-hidden"
+                                    t-attf-id="product-{{record.id.raw_value}}">
+                                <div class="d-flex">
+                                    <field name="name" class="fw-bold fs-4 text-reset mb-1 me-2"/>
+                                    <field class="mt-1 me-1"
+                                        name="is_favorite"
+                                        widget="boolean_favorite"
+                                        invisible="not is_favorite"
+                                        nolabel="1"
+                                        readonly="1"/>
+                                </div>
+                                <div class="text-muted fs-6 mb-1">
+                                    Precio: <field name="lst_price" widget="monetary"/>
+                                </div>
+                                <field name="product_template_attribute_value_ids"
+                                        widget="many2many_tags"
+                                        domain="[('id', 'in', parent.ids)]"
+                                        groups="product.group_product_variant"
+                                        options="{'color_field': 'color'}"
+                                        invisible="not product_template_attribute_value_ids"/>
+                            </div>
+                            <field
+                                name="image_128"
+                                class="ms-auto"
+                                invisible="not image_128"
+                                widget="image"
+                                options="{'size': [55, 55], 'img_class': 'object-fit-contain'}"
+                                alt="Product"
+                            />
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Acción de Ventana para el Catálogo General -->
+    <record id="action_product_general_catalog" model="ir.actions.act_window">
+        <field name="name">Catálogo de Productos</field>
+        <field name="res_model">product.product</field>
+        <field name="view_mode">kanban,form</field>
+        <field name="view_id" ref="product_view_kanban_general_catalog"/>
+        <field name="search_view_id" ref="product.product_view_search_catalog"/>
+        <field name="context">{"search_default_filter_to_sell": 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No se encontraron productos en el catálogo.
+            </p>
+        </field>
+    </record>
+
+    <!-- Asignación explícita de vistas para la acción -->
+    <record id="action_product_general_catalog_kanban_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="product_view_kanban_general_catalog"/>
+        <field name="act_window_id" ref="action_product_general_catalog"/>
+    </record>
+
+    <record id="action_product_general_catalog_form_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="product.product_normal_form_view"/>
+        <field name="act_window_id" ref="action_product_general_catalog"/>
+    </record>
+
+    <!-- Elemento de Menú en Ventas -> Productos -> Catálogo de Productos -->
+    <menuitem id="menu_product_general_catalog"
+        name="Catálogo de Productos"
+        action="action_product_general_catalog"
+        parent="sale.product_menu_catalog"
+        sequence="3"/>
 </odoo>
