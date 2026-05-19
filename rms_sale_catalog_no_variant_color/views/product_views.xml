@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="product_view_kanban_catalog_no_color" model="ir.ui.view">
+        <field name="name">product.view.kanban.catalog.no.color</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_view_kanban_catalog"/>
+        <field name="arch" type="xml">
+            <!-- Buscamos el campo de las variantes en el catálogo y nos aseguramos de que use el color_field -->
+            <xpath expr="//field[@name='product_template_attribute_value_ids']" position="attributes">
+                <attribute name="options">{'color_field': 'color'}</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>
