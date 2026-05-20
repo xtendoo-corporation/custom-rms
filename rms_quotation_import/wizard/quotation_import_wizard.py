@@ -88,7 +88,7 @@ class QuotationImportWizard(models.TransientModel):
             comercial_raw = get_row_val(row, 'comercial', 'vendedor', 'salesperson')
             comercial_val = str(comercial_raw).strip() if comercial_raw is not None else ''
 
-            total_raw = get_row_val(row, 'total de documento', 'total_documento', 'total_doc', 'total')
+            total_raw = get_row_val(row, 'total presupuesto', 'total de documento', 'total_documento', 'total_doc', 'total')
             try:
                 total_val = float(total_raw) if total_raw is not None else 0.0
             except ValueError:
@@ -165,6 +165,8 @@ class QuotationImportWizard(models.TransientModel):
                     'total_documento': total_val,
                     'lines': []
                 }
+            elif total_val > 0.0 and orders_dict[order_ref].get('total_documento', 0.0) == 0.0:
+                orders_dict[order_ref]['total_documento'] = total_val
 
             orders_dict[order_ref]['lines'].append({
                 'product_ref': product_ref,
@@ -193,30 +195,79 @@ class QuotationImportWizard(models.TransientModel):
             # 2. Resolve Salesperson
             user_id = self._find_salesperson(o_data['comercial_val']) or self.env.user.id
 
-            # 3. Calculate General Discount (discount3) based on target total
-            discount3 = self._calculate_discount3(o_data['lines'], o_data['total_documento'])
-
-            # 4. Resolve Products
+            # 3. Resolve Products first so we can check if they are missing and get pricelist rules
             resolved_lines = []
+            has_missing = False
             for l in o_data['lines']:
                 if l['product_ref']:
                     product = self._find_product_variant(l['product_ref'])
                     if not product:
                         missing_products.add(l['product_ref'])
+                        has_missing = True
                         continue
                     resolved_lines.append((product, l))
                 else:
                     # Note/Section/Description-only line
                     resolved_lines.append((False, l))
 
-            if missing_products or missing_partners:
+            if has_missing:
                 continue
 
-            # 5. Create Sale Order (Quotation)
+            # 4. Apply Default Pricelist Discounts
+            pricelist = partner.property_product_pricelist
+            order_date = o_data['date'] or fields.Datetime.now()
+            
+            lines_with_discounts = []
+            for product, l in resolved_lines:
+                if product:
+                    # Determine base price before discounts
+                    excel_price = l['price']
+                    price_unit = excel_price if excel_price > 0.0 else product.list_price
+                    
+                    # Fetch pricelist rule
+                    d1 = l['discount1']
+                    d2 = l['discount2']
+                    pricelist_item_id = False
+                    
+                    if pricelist:
+                        try:
+                            rule_id = pricelist._get_product_rule(
+                                product=product,
+                                quantity=l['qty'],
+                                partner=partner,
+                                date=order_date,
+                                uom_id=product.uom_id.id
+                            )
+                            if rule_id:
+                                pricelist_item = self.env['product.pricelist.item'].browse(rule_id)
+                                if getattr(pricelist_item, 'discount_active', False):
+                                    d1 = pricelist_item.discount1
+                                    d2 = getattr(pricelist_item, 'discount2', 0.0)
+                                    pricelist_item_id = rule_id
+                        except Exception as e:
+                            _logger.warning("Error fetching pricelist item: %s", str(e))
+                    
+                    lines_with_discounts.append((product, {
+                        'qty': l['qty'],
+                        'price': price_unit,
+                        'discount1': d1,
+                        'discount2': d2,
+                        'pricelist_item_id': pricelist_item_id,
+                        'description': l['description'],
+                    }))
+                else:
+                    # Keep note line as is
+                    lines_with_discounts.append((False, l))
+
+            # 5. Calculate General Discount (discount3) based on target total
+            discount3 = self._calculate_discount3(lines_with_discounts, o_data['total_documento'])
+
+            # 6. Create Sale Order (Quotation)
             order_vals = {
                 'name': ref,  # Set the quotation number exactly as in the Excel sheet
                 'partner_id': partner.id,
-                'date_order': o_data['date'] or fields.Datetime.now(),
+                'pricelist_id': pricelist.id if pricelist else False,
+                'date_order': order_date,
                 'user_id': user_id,
                 'client_order_ref': ref,
             }
@@ -224,36 +275,45 @@ class QuotationImportWizard(models.TransientModel):
             order = self.env['sale.order'].create(order_vals)
             created_orders |= order
 
-            # 6. Create Lines
+            # 7. Create Lines
             line_model = self.env['sale.order.line']
             line_fields = line_model._fields
             
-            for product, l in resolved_lines:
-                line_vals = {
-                    'order_id': order.id,
-                    'product_uom_qty': l['qty'],
-                    'price_unit': l['price'],
-                }
-                
+            for product, l in lines_with_discounts:
                 if product:
-                    line_vals['product_id'] = product.id
-                    price_unit = l['price'] if l['price'] > 0.0 else product.list_price
-                    line_vals['price_unit'] = price_unit
-                    line_vals['name'] = l['description'] or product.get_product_multiline_description_sale()
+                    line_vals = {
+                        'order_id': order.id,
+                        'product_id': product.id,
+                        'product_uom_qty': l['qty'],
+                        'price_unit': l['price'],
+                        'name': l['description'] or product.get_product_multiline_description_sale(),
+                    }
+                    
+                    if l.get('pricelist_item_id'):
+                        line_vals['pricelist_item_id'] = l['pricelist_item_id']
 
                     # Apply Discounts
                     if 'discount1' in line_fields:
                         line_vals['discount1'] = l['discount1']
                         line_vals['discount2'] = l['discount2']
                         line_vals['discount3'] = discount3
+                        
+                        # Set Odoo's standard combined discount field to avoid it being recalculated incorrectly
+                        combined_disc = (1.0 - (1.0 - l['discount1']/100.0) * (1.0 - l['discount2']/100.0) * (1.0 - discount3/100.0)) * 100.0
+                        line_vals['discount'] = round(combined_disc, 4)
                     elif 'discount' in line_fields:
                         combined_disc = (1.0 - (1.0 - l['discount1']/100.0) * (1.0 - l['discount2']/100.0) * (1.0 - discount3/100.0)) * 100.0
                         line_vals['discount'] = round(combined_disc, 4)
+                        
+                    line_model.create(line_vals)
                 else:
-                    # Custom text/description-only line
-                    line_vals['name'] = l['description']
-
-                line_model.create(line_vals)
+                    # Note/Description-only line
+                    line_vals = {
+                        'order_id': order.id,
+                        'display_type': 'line_note',
+                        'name': l['description'],
+                    }
+                    line_model.create(line_vals)
 
         # Handle errors/notifications
         if missing_partners or missing_products:
@@ -387,7 +447,9 @@ class QuotationImportWizard(models.TransientModel):
             return 0.0
             
         sum_intermediate = 0.0
-        for line in lines_data:
+        for product, line in lines_data:
+            if not product:
+                continue
             qty = line['qty']
             price = line['price']
             d1 = line['discount1']
