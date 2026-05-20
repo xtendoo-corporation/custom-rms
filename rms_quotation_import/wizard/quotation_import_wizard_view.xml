@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Form View -->
+    <record id="view_rms_quotation_import_wizard" model="ir.ui.view">
+        <field name="name">rms.quotation.import.wizard.form</field>
+        <field name="model">rms.quotation.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Importar Presupuestos (Excel)">
+                <group>
+                    <field name="filename" invisible="1"/>
+                    <field name="file" filename="filename" widget="binary"/>
+                </group>
+                <div class="alert alert-info" role="alert">
+                    <h4 class="alert-heading">Instrucciones de Importación:</h4>
+                    <p class="mb-0">
+                        El archivo Excel debe contener las siguientes columnas (el importador buscará nombres similares de forma inteligente):
+                    </p>
+                    <ul>
+                        <li><strong>Pedido / Referencia</strong>: Para agrupar las líneas en el mismo presupuesto.</li>
+                        <li><strong>Cliente / NIF / CIF</strong>: Identificación del cliente.</li>
+                        <li><strong>Producto / Referencia</strong>: Código de producto (soporta prefijos antiguos 2M- y D-).</li>
+                        <li><strong>Cantidad / Cant</strong>: Unidades a presupuestar.</li>
+                        <li><strong>Precio / Unitario</strong>: Precio de venta unitario.</li>
+                        <li><strong>Dto1 / Dto2</strong>: Descuentos de primer y segundo nivel.</li>
+                        <li><strong>Total de Documento / Total</strong>: Importe final deseado para el presupuesto (el importador calculará y aplicará el tercer descuento necesario automáticamente).</li>
+                    </ul>
+                </div>
+                <footer>
+                    <button name="action_import" string="Importar" type="object" class="btn-primary"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Window Action -->
+    <record id="action_rms_quotation_import_wizard" model="ir.actions.act_window">
+        <field name="name">Importar Presupuestos (RMS)</field>
+        <field name="res_model">rms.quotation.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Menu Item under Sales -> Orders -->
+    <menuitem id="menu_rms_quotation_import"
+              name="Importar Presupuestos (RMS)"
+              parent="sale.menu_sale_quotations"
+              action="action_rms_quotation_import_wizard"
+              sequence="200"/>
+</odoo>

@@ -64,3 +64,6 @@ class ProductTemplateAttributeValue(models.Model):
     def _compute_color(self):
         for record in self:
             record.color = record.product_attribute_value_id.color or 0
+
+
+
