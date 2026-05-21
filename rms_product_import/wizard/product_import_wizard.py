@@ -92,10 +92,21 @@ class ProductImportWizard(models.TransientModel):
         attr_cache = {}
         attr_val_cache = {}
         
-        # Prefetch templates
+        # Prefetch templates and variants to find templates by code.
+        # Since templates with multiple variants may have default_code = False in Odoo, we search for variants first.
         all_codes = list(product_groups.keys())
+        existing_variants = self.env['product.product'].search([('default_code', 'in', all_codes)])
+        tmpl_by_code = {}
+        for variant in existing_variants:
+            if variant.default_code and variant.product_tmpl_id:
+                tmpl_by_code[variant.default_code] = variant.product_tmpl_id
+        
+        # Fallback to search templates directly, just in case
         existing_tmpls = self.env['product.template'].search([('default_code', 'in', all_codes)])
-        tmpl_by_code = {t.default_code: t for t in existing_tmpls if t.default_code}
+        for tmpl in existing_tmpls:
+            if tmpl.default_code and tmpl.default_code not in tmpl_by_code:
+                tmpl_by_code[tmpl.default_code] = tmpl
+
 
         # Prefetch partners
         existing_partners = self.env['res.partner'].search([('name', 'in', list(supplier_names))])
@@ -318,10 +329,21 @@ class ProductImportWizard(models.TransientModel):
             })
 
     def _get_variant_from_template(self, product_tmpl, attribute_value):
+        # 1. Search in the template's in-memory/cached variants
         for variant in product_tmpl.product_variant_ids:
             for ptav in variant.product_template_attribute_value_ids:
                 if ptav.product_attribute_value_id.id == attribute_value.id:
                     return variant
+        
+        # 2. Database fallback in case the cache is out of sync or the variant is archived
+        variant = self.env['product.product'].with_context(active_test=False).search([
+            ('product_tmpl_id', '=', product_tmpl.id),
+            ('product_template_attribute_value_ids.product_attribute_value_id', '=', attribute_value.id)
+        ], limit=1)
+        if variant:
+            if not variant.active:
+                variant.write({'active': True})
+            return variant
         return False
 
     def _update_attribute_price_extra(self, product_tmpl, attribute_value, price_extra):
