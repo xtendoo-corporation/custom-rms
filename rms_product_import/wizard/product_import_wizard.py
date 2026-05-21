@@ -30,20 +30,29 @@ class ProductImportWizard(models.TransientModel):
         # Map headers
         header_raw = [cell.value for cell in sheet[1]]
         header = [str(v).strip().lower() if v else '' for v in header_raw]
-        try:
-            brand_idx = header.index('marca')
-            ref_idx = header.index('referencia')
-            name_idx = header.index('articulo')
-            desc_idx = header.index('descripcion')
-            family_idx = header.index('familia')
-            subfamily_idx = header.index('subfamilia')
-            vendible_idx = header.index('vendible')
-        except ValueError as e:
-            raise UserError(_("Missing column in Excel: %s") % str(e))
 
-        provider_idx = header.index('proveedor') if 'proveedor' in header else -1
-        purchase_price_idx = header.index('precio de compra') if 'precio de compra' in header else -1
-        sale_price_idx = header.index('precio de venta') if 'precio de venta' in header else -1
+        def get_column_idx(primary_name, fallback_keywords, required=False):
+            if primary_name in header:
+                return header.index(primary_name)
+            for kw in fallback_keywords:
+                for idx, h_name in enumerate(header):
+                    if kw in h_name:
+                        return idx
+            if required:
+                raise UserError(_("Missing required column in Excel: %s") % primary_name)
+            return -1
+
+        brand_idx = get_column_idx('marca', ['marca', 'brand'], required=True)
+        ref_idx = get_column_idx('referencia', ['referencia', 'ref', 'código', 'codigo', 'reference'], required=True)
+        name_idx = get_column_idx('articulo', ['articulo', 'artículo', 'producto', 'nombre', 'name'], required=True)
+        desc_idx = get_column_idx('descripcion', ['descripcion', 'descripción', 'description'], required=True)
+        family_idx = get_column_idx('familia', ['familia', 'family'], required=True)
+        subfamily_idx = get_column_idx('subfamilia', ['subfamilia', 'subfamily'], required=True)
+        vendible_idx = get_column_idx('vendible', ['vendible'], required=True)
+
+        provider_idx = get_column_idx('proveedor', ['proveedor', 'proveedores', 'provider'])
+        purchase_price_idx = get_column_idx('precio de compra', ['precio de compra', 'precio compra', 'p. compra', 'coste', 'costo', 'precio coste', 'precio de coste', 'purchase price'])
+        sale_price_idx = get_column_idx('precio de venta', ['precio de venta', 'precio venta', 'p. venta', 'pvp', 'precio tarifa', 'precio de tarifa', 'precio', 'sale price'])
 
         # Group rows by Clean Reference
         product_groups = {}
@@ -117,8 +126,8 @@ class ProductImportWizard(models.TransientModel):
             base_row_data = next((r for r in rows if r['estado_val'] == 'Nuevo'), rows[0])
             base_row = base_row_data['data']
 
-            base_sale_price = float(base_row[sale_price_idx] or 0.0) if sale_price_idx >= 0 else 0.0
-            base_purchase_price = float(base_row[purchase_price_idx] or 0.0) if purchase_price_idx >= 0 else 0.0
+            base_sale_price = self._parse_price(base_row[sale_price_idx]) if sale_price_idx >= 0 else 0.0
+            base_purchase_price = self._parse_price(base_row[purchase_price_idx]) if purchase_price_idx >= 0 else 0.0
 
             # 2. Categories (from Base Row)
             brand_name = str(base_row[brand_idx] or '').strip()
@@ -190,8 +199,8 @@ class ProductImportWizard(models.TransientModel):
                 if not variant:
                     continue
 
-                variant_sale_price = float(row[sale_price_idx] or 0.0) if sale_price_idx >= 0 else 0.0
-                variant_purchase_price = float(row[purchase_price_idx] or 0.0) if purchase_price_idx >= 0 else 0.0
+                variant_sale_price = self._parse_price(row[sale_price_idx]) if sale_price_idx >= 0 else 0.0
+                variant_purchase_price = self._parse_price(row[purchase_price_idx]) if purchase_price_idx >= 0 else 0.0
 
                 # Update Variant individual reference and cost
                 variant_vals = {}
@@ -255,6 +264,29 @@ class ProductImportWizard(models.TransientModel):
         for pattern in patterns:
             name = re.sub(pattern, '', name, flags=re.IGNORECASE)
         return name.strip()
+
+    def _parse_price(self, val):
+        if val is None:
+            return 0.0
+        if isinstance(val, (int, float)):
+            return float(val)
+        val_str = str(val).strip()
+        if not val_str or val_str == '-':
+            return 0.0
+        # Clean currency symbols, spaces, etc.
+        val_str = val_str.replace('€', '').replace(' ', '')
+        # Handle Spanish formatting:
+        # If there's a dot and a comma (e.g. 1.250,50), remove dot and replace comma with dot
+        if '.' in val_str and ',' in val_str:
+            val_str = val_str.replace('.', '').replace(',', '.')
+        elif ',' in val_str:
+            val_str = val_str.replace(',', '.')
+        
+        try:
+            return float(val_str)
+        except ValueError:
+            _logger.warning("Could not parse price value: %s, defaulting to 0.0", val)
+            return 0.0
 
     def _get_or_create_categories(self, brand, family, subfamily, categ_cache):
         cache_key = (brand, family, subfamily)
