@@ -143,14 +143,14 @@
                 <table class="table table-sm rms_table">
                     <thead>
                         <tr>
-                            <th style="width: 10%;">Código</th>
-                            <th style="width: 5%; text-align: center;">Cant.</th>
+                            <th style="width: 15%;">Código</th>
+                            <th style="width: 4%; text-align: center;">Cant.</th>
                             <th style="width: 48%;">Descripción</th>
                             <th style="width: 12%; text-align: right;">PVP sin IVA</th>
-                            <th style="width: 5%; text-align: center;">Dto1</th>
-                            <th style="width: 5%; text-align: center;">Dto2</th>
-                            <th style="width: 5%; text-align: center;">Dto3</th>
-                            <th style="width: 10%; text-align: right;">Total Neto</th>
+                            <th style="width: 4%; text-align: center;">Dto1</th>
+                            <th style="width: 4%; text-align: center;">Dto2</th>
+                            <th style="width: 4%; text-align: center;">Dto3</th>
+                            <th style="width: 9%; text-align: right;">Total Neto</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -191,7 +191,8 @@
                                 </td>
                             </t>
                             <t t-if="line.display_type == 'line_note'">
-                                <td colspan="8" style="font-style: italic;">
+                                <td colspan="2"/>
+                                <td colspan="6" style="font-style: italic;">
                                     <span t-field="line.name"/>
                                 </td>
                             </t>
