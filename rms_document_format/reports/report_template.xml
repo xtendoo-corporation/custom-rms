@@ -56,7 +56,6 @@
                     table-layout: fixed;
                     border-collapse: collapse;
                     margin-top: 20px;
-                    border-bottom: 1.5px solid #000;
                 }
                 .rms_table th {
                     background-color: #fff;
@@ -143,14 +142,14 @@
                 <table class="table table-sm rms_table">
                     <thead>
                         <tr>
-                            <th style="width: 15%;">Código</th>
+                            <th style="width: 13%;">Código</th>
                             <th style="width: 4%; text-align: center;">Cant.</th>
-                            <th style="width: 48%;">Descripción</th>
+                            <th style="width: 49%;">Descripción</th>
                             <th style="width: 12%; text-align: right;">PVP sin IVA</th>
-                            <th style="width: 4%; text-align: center;">Dto1</th>
-                            <th style="width: 4%; text-align: center;">Dto2</th>
-                            <th style="width: 4%; text-align: center;">Dto3</th>
-                            <th style="width: 9%; text-align: right;">Total Neto</th>
+                            <th style="width: 5%; text-align: center;">Dto1</th>
+                            <th style="width: 5%; text-align: center;">Dto2</th>
+                            <th style="width: 5%; text-align: center;">Dto3</th>
+                            <th style="width: 7%; text-align: right;">Total Neto</th>
                         </tr>
                     </thead>
                     <tbody>
