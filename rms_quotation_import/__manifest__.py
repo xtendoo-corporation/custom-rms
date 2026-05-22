@@ -12,10 +12,11 @@
         - Applies line-level discounts (dto1, dto2) and computes the required general discount (applied as discount3 on all lines) to match the target document total exactly.
     """,
     'author': 'Antigravity',
-    'depends': ['sale', 'product', 'stock'],
+    'depends': ['sale', 'product', 'stock', 'crm', 'sale_crm'],
     'data': [
         'security/ir.model.access.csv',
         'wizard/quotation_import_wizard_view.xml',
+        'views/sale_order_actions.xml',
     ],
     'installable': True,
     'application': False,
