@@ -89,6 +89,21 @@
         <field name="act_window_id" ref="action_product_general_catalog"/>
     </record>
 
+    <!-- Heredamos la vista de búsqueda del catálogo para eliminar el límite de 200 categorías y etiquetas -->
+    <record id="product_view_search_catalog_inherit_limit" model="ir.ui.view">
+        <field name="name">product.view.search.catalog.inherit.limit</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_view_search_catalog"/>
+        <field name="arch" type="xml">
+            <xpath expr="//searchpanel/field[@name='categ_id']" position="attributes">
+                <attribute name="limit">false</attribute>
+            </xpath>
+            <xpath expr="//searchpanel/field[@name='product_tag_ids']" position="attributes">
+                <attribute name="limit">false</attribute>
+            </xpath>
+        </field>
+    </record>
+
     <!-- Elemento de Menú en Ventas -> Productos -> Catálogo de Productos -->
     <menuitem id="menu_product_general_catalog"
         name="Catálogo de Productos"
