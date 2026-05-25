@@ -52,8 +52,9 @@ class PartnerImportWizard(models.TransientModel):
         Partner = self.env['res.partner'].with_context(no_vat_validation=True)
         Country = self.env['res.country']
         State = self.env['res.country.state']
+        User = self.env['res.users']
         
-        # 1. OPTIMIZACIÓN: Cargar todos los países y provincias en memoria (Diccionarios)
+        # 1. OPTIMIZACIÓN: Cargar todos los países, provincias y comerciales/usuarios en memoria
         country_records = Country.search([])
         country_map = {c.name.strip().lower(): c.id for c in country_records if c.name}
         
@@ -67,6 +68,9 @@ class PartnerImportWizard(models.TransientModel):
                 if key_without_country not in state_map:
                     state_map[key_without_country] = s.id
 
+        user_records = User.search([])
+        user_map = {u.name.strip().lower(): u.id for u in user_records if u.name}
+
         vals_list = []
 
         for row in data_rows:
@@ -74,6 +78,13 @@ class PartnerImportWizard(models.TransientModel):
                 continue
             
             def get_val(*keywords):
+                # 1. Coincidencia exacta primero (insensible a mayúsculas/minúsculas)
+                for kw in keywords:
+                    for h_name, idx in header_map.items():
+                        if kw == h_name:
+                            val = row[idx]
+                            return str(val).strip() if val is not None else ''
+                # 2. Coincidencia parcial si no hay exacta
                 for kw in keywords:
                     for h_name, idx in header_map.items():
                         if kw in h_name:
@@ -82,7 +93,7 @@ class PartnerImportWizard(models.TransientModel):
                 return ''
 
             nif = get_val('nif', 'cif')
-            nombre_comercial = get_val('comercial')
+            nombre_comercial = get_val('nombre comercial', 'nom. comercial', 'comercial')
             
             nombre = ''
             for h_name, idx in header_map.items():
@@ -100,6 +111,7 @@ class PartnerImportWizard(models.TransientModel):
             provincia_name = get_val('provincia')
             pais_name = get_val('pais')
             email = get_val('email')
+            vendedor_name = get_val('nombre vendedor', 'vendedor', 'comercial')
 
             if not nombre:
                 continue
@@ -113,11 +125,25 @@ class PartnerImportWizard(models.TransientModel):
                 'company_type': 'company',
             }
 
-            if nombre_comercial and 'comercial' in Partner._fields:
+            if 'comercial' in Partner._fields:
                 vals['comercial'] = nombre_comercial
 
             if nif:
                 vals['vat'] = nif
+
+            # Mapeo de Vendedor (Comercial)
+            user_id = False
+            if vendedor_name:
+                v_lower = vendedor_name.strip().lower()
+                user_id = user_map.get(v_lower)
+                if not user_id:
+                    # Búsqueda parcial si no hay coincidencia exacta
+                    for u_name, u_id in user_map.items():
+                        if v_lower in u_name or u_name in v_lower:
+                            user_id = u_id
+                            break
+                if user_id:
+                    vals['user_id'] = user_id
 
             # 2. OPTIMIZACIÓN: Búsqueda de país en diccionario de memoria
             country_id = False
@@ -152,21 +178,68 @@ class PartnerImportWizard(models.TransientModel):
 
             vals_list.append(vals)
 
-        # 4. OPTIMIZACIÓN: Creación en lote (Batch Create)
-        # En lugar de crear 4500 registros 1 a 1, pasamos la lista completa a Odoo
-        # Esto reduce 4500 consultas SQL INSERT a prácticamente 1 consulta gigante.
-        if vals_list:
-            # Si son 4500, Odoo las gestiona perfectamente en un batch
-            Partner.create(vals_list)
+        # 4. OPTIMIZACIÓN: Búsqueda masiva de potenciales contactos existentes para evitar duplicaciones
+        imported_vats = {v['vat'] for v in vals_list if v.get('vat')}
+        imported_names = {v['name'] for v in vals_list if v.get('name')}
         
-        imported_count = len(vals_list)
+        existing_domain = []
+        if imported_vats:
+            existing_domain.append(('vat', 'in', list(imported_vats)))
+        if imported_names:
+            existing_domain.append(('name', 'in', list(imported_names)))
+            
+        existing_map = {}
+        if existing_domain:
+            if len(existing_domain) > 1:
+                existing_domain = ['|'] + existing_domain
+            
+            existing_partners = Partner.search(existing_domain)
+            for p in existing_partners:
+                p_comercial = p.comercial if 'comercial' in Partner._fields else ''
+                key = (
+                    (p.vat or '').strip().lower(),
+                    (p.name or '').strip().lower(),
+                    (p.comercial or '').strip().lower() if 'comercial' in Partner._fields else ''
+                )
+                if key not in existing_map:
+                    existing_map[key] = p
+
+        # 5. Separación en creación o actualización
+        created_count = 0
+        updated_count = 0
+        to_create = []
+
+        for vals in vals_list:
+            nif = vals.get('vat', '')
+            nombre = vals.get('name', '')
+            nombre_comercial = vals.get('comercial', '') if 'comercial' in Partner._fields else ''
+            
+            key = (
+                nif.strip().lower(),
+                nombre.strip().lower(),
+                nombre_comercial.strip().lower()
+            )
+            
+            existing_partner = existing_map.get(key)
+            if existing_partner:
+                # Actualizar el contacto existente (excluyendo 'company_type' que ya está configurado)
+                write_vals = {k: v for k, v in vals.items() if k != 'company_type'}
+                existing_partner.write(write_vals)
+                updated_count += 1
+            else:
+                to_create.append(vals)
+                created_count += 1
+
+        # Creación en lote para los nuevos registros
+        if to_create:
+            Partner.create(to_create)
 
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Importación completada'),
-                'message': _('Se han importado %s empresas exitosamente.') % imported_count,
+                'message': _('Se han creado %s empresas y actualizado %s empresas exitosamente.') % (created_count, updated_count),
                 'sticky': False,
                 'type': 'success',
             }
