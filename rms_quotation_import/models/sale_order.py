@@ -50,6 +50,13 @@ class SaleOrder(models.Model):
             
             opp_name = _("%s - Oportunidad %s") % (partner.name, month_year)
             
+            # Get salesperson (user_id) from the orders
+            user_id = False
+            for order in orders:
+                if order.user_id:
+                    user_id = order.user_id.id
+                    break
+            
             # Search for an existing opportunity for this partner and with this name
             opp = crm_lead_model.search([
                 ('partner_id', '=', partner.id),
@@ -58,12 +65,17 @@ class SaleOrder(models.Model):
             ], limit=1)
             
             if not opp:
-                opp = crm_lead_model.create({
+                opp_vals = {
                     'name': opp_name,
                     'partner_id': partner.id,
                     'type': 'opportunity',
-                })
+                }
+                if user_id:
+                    opp_vals['user_id'] = user_id
+                opp = crm_lead_model.create(opp_vals)
                 created_opp_count += 1
+            elif user_id and opp.user_id.id != user_id:
+                opp.write({'user_id': user_id})
             
             opportunity_ids.add(opp.id)
             

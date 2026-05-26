@@ -139,10 +139,14 @@ class QuotationImportWizard(models.TransientModel):
                 qty = 1.0 if product_ref else 0.0
 
             price_raw = get_row_val(row, 'precio unitario', 'precio', 'price_unit', 'unitario', 'price')
-            try:
-                price = float(price_raw) if price_raw is not None else 0.0
-            except ValueError:
-                price = 0.0
+            has_price = False
+            price = 0.0
+            if price_raw is not None and str(price_raw).strip() != '':
+                try:
+                    price = float(price_raw)
+                    has_price = True
+                except ValueError:
+                    price = 0.0
 
             d1_raw = get_row_val(row, 'dto1', 'dto 1', 'descuento1', 'discount1')
             try:
@@ -172,6 +176,7 @@ class QuotationImportWizard(models.TransientModel):
                 'product_ref': product_ref,
                 'qty': qty,
                 'price': price,
+                'has_price': has_price,
                 'discount1': d1,
                 'discount2': d2,
                 'description': description
@@ -181,6 +186,77 @@ class QuotationImportWizard(models.TransientModel):
             raise UserError(_("No se encontraron líneas de pedido válidas para importar en el archivo."))
 
         # Process each order
+        DiscountProduct = self.env['product.product']
+        discount_product = DiscountProduct.search([('default_code', '=', 'DESCUENTO')], limit=1)
+        if not discount_product:
+            discount_product = DiscountProduct.search([('type', '=', 'service')], limit=1)
+        if not discount_product:
+            discount_product = DiscountProduct.create({
+                'name': 'Descuento Comercial',
+                'type': 'service',
+                'default_code': 'DESCUENTO',
+                'list_price': 0.0,
+            })
+
+        # PERFORMANCE OPTIMIZATION: Collect unique values and pre-fetch them in bulk
+        unique_partners = set()
+        unique_comerciales = set()
+        unique_products = set()
+        for ref, o_data in orders_dict.items():
+            if o_data.get('partner_val'):
+                unique_partners.add(o_data['partner_val'].strip())
+            if o_data.get('comercial_val'):
+                unique_comerciales.add(o_data['comercial_val'].strip())
+            for line in o_data.get('lines', []):
+                if line.get('product_ref'):
+                    unique_products.add(line['product_ref'].strip())
+
+        # Bulk pre-fetch Partners
+        partner_cache = {}
+        if unique_partners:
+            partners = self.env['res.partner'].search([
+                '|', ('vat', 'in', list(unique_partners)), ('name', 'in', list(unique_partners))
+            ])
+            for p in partners:
+                if p.vat:
+                    partner_cache[p.vat.strip()] = p
+                if p.name:
+                    partner_cache[p.name.strip()] = p
+
+        # Bulk pre-fetch Comerciales
+        salesperson_cache = {}
+        if unique_comerciales:
+            users = self.env['res.users'].search([
+                '|', ('name', 'in', list(unique_comerciales)), ('partner_id.name', 'in', list(unique_comerciales))
+            ])
+            for u in users:
+                if u.name:
+                    salesperson_cache[u.name.strip()] = u.id
+                if u.partner_id and u.partner_id.name:
+                    salesperson_cache[u.partner_id.name.strip()] = u.id
+
+        # Bulk pre-fetch Products
+        product_cache = {}
+        pre_fetched_products = {}
+        if unique_products:
+            clean_refs = set()
+            for ref in unique_products:
+                clean_ref = ref
+                if ref.startswith('2M-'):
+                    clean_ref = ref[3:].strip()
+                elif ref.startswith('D-'):
+                    clean_ref = ref[2:].strip()
+                clean_refs.add(clean_ref)
+                clean_refs.add(ref)
+
+            products = self.env['product.product'].search([
+                '|', ('default_code', 'in', list(clean_refs)), ('barcode', 'in', list(clean_refs))
+            ])
+            for p in products:
+                if p.default_code:
+                    pre_fetched_products.setdefault(p.default_code.strip(), []).append(p)
+                if p.barcode:
+                    pre_fetched_products.setdefault(p.barcode.strip(), []).append(p)
         created_orders = self.env['sale.order'].with_context(
             mail_create_nosubscribe=True,
             mail_create_nolog=True,
@@ -192,20 +268,20 @@ class QuotationImportWizard(models.TransientModel):
 
         for ref, o_data in orders_dict.items():
             # 1. Resolve Customer
-            partner = self._find_partner(o_data['partner_val'])
+            partner = self._find_partner(o_data['partner_val'], partner_cache=partner_cache)
             if not partner:
                 missing_partners.add(o_data['partner_val'])
                 continue
 
             # 2. Resolve Salesperson
-            user_id = self._find_salesperson(o_data['comercial_val']) or self.env.user.id
+            user_id = self._find_salesperson(o_data['comercial_val'], salesperson_cache=salesperson_cache) or self.env.user.id
 
             # 3. Resolve Products first so we can check if they are missing and get pricelist rules
             resolved_lines = []
             has_missing = False
             for l in o_data['lines']:
                 if l['product_ref']:
-                    product = self._find_product_variant(l['product_ref'])
+                    product = self._find_product_variant(l['product_ref'], product_cache=product_cache, pre_fetched_products=pre_fetched_products)
                     if not product:
                         missing_products.add(l['product_ref'])
                         has_missing = True
@@ -227,7 +303,8 @@ class QuotationImportWizard(models.TransientModel):
                 if product:
                     # Determine base price before discounts
                     excel_price = l['price']
-                    price_unit = excel_price if excel_price != 0.0 else product.list_price
+                    has_price = l.get('has_price', False)
+                    price_unit = excel_price if has_price else product.list_price
                     
                     lines_with_discounts.append((product, {
                         'qty': l['qty'],
@@ -259,6 +336,7 @@ class QuotationImportWizard(models.TransientModel):
                 if sum_intermediate > untaxed_target:
                     discount_amount = sum_intermediate - untaxed_target
                     discount_line_vals = {
+                        'product_id': discount_product.id,
                         'name': _('Descuento comercial para cuadrar presupuesto'),
                         'product_uom_qty': 1.0,
                         'price_unit': -round(discount_amount, 2),
@@ -336,6 +414,8 @@ class QuotationImportWizard(models.TransientModel):
                 
                 line_model.create(discount_line_vals)
 
+
+
         # Handle errors/notifications
         if missing_partners or missing_products:
             error_msg = []
@@ -376,52 +456,72 @@ class QuotationImportWizard(models.TransientModel):
                     continue
         return False
 
-    def _find_partner(self, partner_val):
+    def _find_partner(self, partner_val, partner_cache=None):
         if not partner_val:
             return False
         partner_val = partner_val.strip()
+        
+        # Check cache
+        if partner_cache is not None and partner_val in partner_cache:
+            return partner_cache[partner_val]
+            
         Partner = self.env['res.partner']
+        partner = False
         
         # 1. Match by VAT/NIF
-        partner = Partner.search([('vat', '=', partner_val)], limit=1)
-        if partner:
-            return partner
-            
-        # 2. Match by exact name (case-insensitive)
-        partner = Partner.search([('name', '=ilike', partner_val)], limit=1)
-        if partner:
-            return partner
-            
-        # 3. Match by partial name (ilike)
-        partner = Partner.search([('name', 'ilike', partner_val)], limit=1)
-        if partner:
-            return partner
-            
-        return False
+        partner_res = Partner.search([('vat', '=', partner_val)], limit=1)
+        if partner_res:
+            partner = partner_res
+        else:
+            # 2. Match by exact name (case-insensitive)
+            partner_res = Partner.search([('name', '=ilike', partner_val)], limit=1)
+            if partner_res:
+                partner = partner_res
+            else:
+                # 3. Match by partial name (ilike)
+                partner_res = Partner.search([('name', 'ilike', partner_val)], limit=1)
+                if partner_res:
+                    partner = partner_res
+                    
+        if partner_cache is not None:
+            partner_cache[partner_val] = partner
+        return partner
 
-    def _find_salesperson(self, comercial_val):
+    def _find_salesperson(self, comercial_val, salesperson_cache=None):
         if not comercial_val:
             return False
         comercial_val = comercial_val.strip()
+        
+        # Check cache
+        if salesperson_cache is not None and comercial_val in salesperson_cache:
+            return salesperson_cache[comercial_val]
+            
         User = self.env['res.users']
+        user_id = False
         
         # 1. Match by User name
         user = User.search([('name', '=ilike', comercial_val)], limit=1)
         if user:
-            return user.id
-            
-        # 2. Match by Partner name
-        user = User.search([('partner_id.name', '=ilike', comercial_val)], limit=1)
-        if user:
-            return user.id
-            
-        return False
+            user_id = user.id
+        else:
+            # 2. Match by Partner name
+            user = User.search([('partner_id.name', '=ilike', comercial_val)], limit=1)
+            if user:
+                user_id = user.id
+                
+        if salesperson_cache is not None:
+            salesperson_cache[comercial_val] = user_id
+        return user_id
 
-    def _find_product_variant(self, original_ref):
+    def _find_product_variant(self, original_ref, product_cache=None, pre_fetched_products=None):
         if not original_ref:
             return False
-        
         original_ref = original_ref.strip()
+        
+        # Check cache
+        if product_cache is not None and original_ref in product_cache:
+            return product_cache[original_ref]
+            
         clean_ref = original_ref
         estado_val = 'Nuevo'
         
@@ -432,36 +532,51 @@ class QuotationImportWizard(models.TransientModel):
             clean_ref = original_ref[2:].strip()
             estado_val = 'Demo'
             
-        Product = self.env['product.product']
-        
-        # 1. Search by clean code
-        variants = Product.search([('default_code', '=', clean_ref)])
-        
-        # 2. Search by original code if clean code yields nothing
+        # Get variants from pre-fetched pool if available, otherwise search DB
+        variants = []
+        if pre_fetched_products is not None:
+            variants = pre_fetched_products.get(clean_ref) or []
+            if not variants:
+                variants = pre_fetched_products.get(original_ref) or []
+                
         if not variants:
-            variants = Product.search([('default_code', '=', original_ref)])
-            
-        if not variants:
-            return False
-            
-        if len(variants) == 1:
-            return variants[0]
-            
-        # 3. If multiple variants, filter by 'Estado' attribute
-        for variant in variants:
-            for ptav in variant.product_template_attribute_value_ids:
-                if ptav.attribute_id.name == 'Estado' and ptav.product_attribute_value_id.name == estado_val:
-                    return variant
-                    
-        # 4. Fallback to 'Nuevo' variant
-        if estado_val != 'Nuevo':
-            for variant in variants:
-                for ptav in variant.product_template_attribute_value_ids:
-                    if ptav.attribute_id.name == 'Estado' and ptav.product_attribute_value_id.name == 'Nuevo':
-                        return variant
+            # Fallback to DB search
+            Product = self.env['product.product']
+            variants = Product.search([('default_code', '=', clean_ref)])
+            if not variants:
+                variants = Product.search([('default_code', '=', original_ref)])
+                
+        variant_res = False
+        if variants:
+            if len(variants) == 1:
+                variant_res = variants[0]
+            else:
+                # 3. If multiple variants, filter by 'Estado' attribute
+                for variant in variants:
+                    for ptav in variant.product_template_attribute_value_ids:
+                        if ptav.attribute_id.name == 'Estado' and ptav.product_attribute_value_id.name == estado_val:
+                            variant_res = variant
+                            break
+                    if variant_res:
+                        break
                         
-        # 5. Last resort fallback
-        return variants[0]
+                # 4. Fallback to 'Nuevo' variant
+                if not variant_res and estado_val != 'Nuevo':
+                    for variant in variants:
+                        for ptav in variant.product_template_attribute_value_ids:
+                            if ptav.attribute_id.name == 'Estado' and ptav.product_attribute_value_id.name == 'Nuevo':
+                                variant_res = variant
+                                break
+                        if variant_res:
+                            break
+                            
+                # 5. Last resort fallback
+                if not variant_res:
+                    variant_res = variants[0]
+                    
+        if product_cache is not None:
+            product_cache[original_ref] = variant_res
+        return variant_res
 
     def _calculate_discount3(self, lines_data, target_total):
         if not target_total or target_total <= 0.0:
