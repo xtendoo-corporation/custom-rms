@@ -48,8 +48,14 @@ class PartnerImportWizard(models.TransientModel):
         # Mapeo de columnas con nombres aproximados (en minúsculas)
         header_map = {str(k).strip().lower(): v for v, k in enumerate(header) if k}
         
-        # ¡AQUÍ ESTÁ LA MAGIA! Pasamos no_vat_validation=True al entorno
-        Partner = self.env['res.partner'].with_context(no_vat_validation=True)
+        # ¡AQUÍ ESTÁ LA MAGIA! Pasamos no_vat_validation=True y desactivamos el chatter/notificaciones
+        Partner = self.env['res.partner'].with_context(
+            no_vat_validation=True,
+            mail_create_nosubscribe=True,
+            mail_create_nolog=True,
+            mail_notrack=True,
+            tracking_disable=True
+        )
         Country = self.env['res.country']
         State = self.env['res.country.state']
         User = self.env['res.users']

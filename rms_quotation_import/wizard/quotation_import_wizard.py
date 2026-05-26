@@ -181,7 +181,12 @@ class QuotationImportWizard(models.TransientModel):
             raise UserError(_("No se encontraron líneas de pedido válidas para importar en el archivo."))
 
         # Process each order
-        created_orders = self.env['sale.order']
+        created_orders = self.env['sale.order'].with_context(
+            mail_create_nosubscribe=True,
+            mail_create_nolog=True,
+            mail_notrack=True,
+            tracking_disable=True
+        )
         missing_partners = set()
         missing_products = set()
 
@@ -273,7 +278,12 @@ class QuotationImportWizard(models.TransientModel):
             created_orders |= order
 
             # 7. Create Lines
-            line_model = self.env['sale.order.line']
+            line_model = self.env['sale.order.line'].with_context(
+                mail_create_nosubscribe=True,
+                mail_create_nolog=True,
+                mail_notrack=True,
+                tracking_disable=True
+            )
             line_fields = line_model._fields
             
             for product, l in lines_with_discounts:
