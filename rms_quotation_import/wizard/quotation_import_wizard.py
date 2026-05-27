@@ -55,13 +55,32 @@ class QuotationImportWizard(models.TransientModel):
         # 2. Map headers using lowercased fuzzy search
         header_map = {str(k).strip().lower(): v for v, k in enumerate(header) if k}
 
-        def get_row_val(row, *keywords):
+        def get_row_val(row, *keywords, exclude=None):
             for kw in keywords:
+                # 1. Try exact matches first to prevent collisions (e.g. 'cliente' matching 'cif cliente')
                 for h_name, idx in header_map.items():
+                    if exclude and any(ex in h_name for ex in exclude):
+                        continue
+                    if kw == h_name:
+                        return row[idx]
+                # 2. Try partial substring matches
+                for h_name, idx in header_map.items():
+                    if exclude and any(ex in h_name for ex in exclude):
+                        continue
                     if kw in h_name:
-                        val = row[idx]
-                        return val
+                        return row[idx]
             return None
+
+        # Check if there is a dedicated code/reference column in the headers
+        has_dedicated_ref_column = False
+        ref_keywords = ['referencia_producto', 'código producto', 'código', 'referencia', 'ref']
+        for kw in ref_keywords:
+            for h_name in header_map:
+                if kw in h_name:
+                    has_dedicated_ref_column = True
+                    break
+            if has_dedicated_ref_column:
+                break
 
         # Group data into orders
         orders_dict = {}
@@ -81,7 +100,12 @@ class QuotationImportWizard(models.TransientModel):
             order_ref_raw = get_row_val(row, 'referencia', 'pedido', 'referencia_pedido', 'presupuesto')
             order_ref = str(order_ref_raw).strip() if order_ref_raw is not None else ''
 
-            partner_raw = get_row_val(row, 'cif cliente', 'cliente', 'partner', 'nif', 'cif')
+            # Try to get CIF/NIF first, then fall back to Cliente/Partner name (excluding columns with CIF/NIF), and finally use the original unified keywords list
+            partner_raw = get_row_val(row, 'cif cliente', 'nif', 'cif')
+            if partner_raw is None or str(partner_raw).strip() == '':
+                partner_raw = get_row_val(row, 'cliente', 'partner', exclude=['cif', 'nif'])
+            if partner_raw is None or str(partner_raw).strip() == '':
+                partner_raw = get_row_val(row, 'cif cliente', 'cliente', 'partner', 'nif', 'cif')
             partner_val = str(partner_raw).strip() if partner_raw is not None else ''
 
             date_raw = get_row_val(row, 'fecha creación', 'fecha', 'date')
@@ -122,10 +146,18 @@ class QuotationImportWizard(models.TransientModel):
                 last_total = total_val
 
             # Line level values
-            product_ref_raw = get_row_val(row, 'producto', 'referencia_producto', 'ref', 'código', 'product')
+            if has_dedicated_ref_column:
+                product_ref_raw = get_row_val(row, 'referencia_producto', 'código producto', 'código', 'referencia', 'ref')
+            else:
+                product_ref_raw = get_row_val(row, 'producto', 'product')
             product_ref = str(product_ref_raw).strip() if product_ref_raw is not None else ''
 
+            # Search description/name headers
             desc_raw = get_row_val(row, 'definición', 'descripcion', 'artículo', 'description', 'name')
+            if desc_raw is None or str(desc_raw).strip() == '':
+                # If there is a dedicated code/ref column in the headers, then the generic 'producto' column contains the description
+                if has_dedicated_ref_column:
+                    desc_raw = get_row_val(row, 'producto', 'product')
             description = str(desc_raw).strip() if desc_raw is not None else ''
 
             if not product_ref and not description:
@@ -484,15 +516,32 @@ class QuotationImportWizard(models.TransientModel):
         if partner_res:
             partner = partner_res
         else:
-            # 2. Match by exact name (case-insensitive)
-            partner_res = Partner.search([('name', '=ilike', partner_val)], limit=1)
-            if partner_res:
-                partner = partner_res
-            else:
-                # 3. Match by partial name (ilike)
-                partner_res = Partner.search([('name', 'ilike', partner_val)], limit=1)
+            # Parse "(NOMBRE COMERCIAL) NOMBRE" format
+            import re
+            match = re.match(r'^\((.*?)\)\s*(.*)$', partner_val)
+            search_terms = [partner_val]
+            if match:
+                comercial_name = match.group(1).strip()
+                legal_name = match.group(2).strip()
+                if legal_name:
+                    search_terms.append(legal_name)
+                if comercial_name:
+                    search_terms.append(comercial_name)
+
+            # Try to match by each name term
+            for term in search_terms:
+                if not term:
+                    continue
+                # 2. Match by exact name (case-insensitive)
+                partner_res = Partner.search([('name', '=ilike', term)], limit=1)
                 if partner_res:
                     partner = partner_res
+                    break
+                # 3. Match by partial name (ilike)
+                partner_res = Partner.search([('name', 'ilike', term)], limit=1)
+                if partner_res:
+                    partner = partner_res
+                    break
                     
         if partner_cache is not None:
             partner_cache[partner_val] = partner
