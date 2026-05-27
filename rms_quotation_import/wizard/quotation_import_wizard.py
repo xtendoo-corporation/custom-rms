@@ -160,6 +160,12 @@ class QuotationImportWizard(models.TransientModel):
             except ValueError:
                 d2 = 0.0
 
+            d3_raw = get_row_val(row, 'dto3', 'dto 3', 'descuento3', 'discount3')
+            try:
+                d3 = float(d3_raw) if d3_raw is not None else 0.0
+            except ValueError:
+                d3 = 0.0
+
             # Initialize order in dict
             if order_ref not in orders_dict:
                 orders_dict[order_ref] = {
@@ -179,6 +185,7 @@ class QuotationImportWizard(models.TransientModel):
                 'has_price': has_price,
                 'discount1': d1,
                 'discount2': d2,
+                'discount3': d3,
                 'description': description
             })
 
@@ -257,12 +264,13 @@ class QuotationImportWizard(models.TransientModel):
                     pre_fetched_products.setdefault(p.default_code.strip(), []).append(p)
                 if p.barcode:
                     pre_fetched_products.setdefault(p.barcode.strip(), []).append(p)
-        created_orders = self.env['sale.order'].with_context(
+        order_model = self.env['sale.order'].with_context(
             mail_create_nosubscribe=True,
             mail_create_nolog=True,
             mail_notrack=True,
             tracking_disable=True
         )
+        created_orders = self.env['sale.order']
         missing_partners = set()
         missing_products = set()
 
@@ -311,6 +319,7 @@ class QuotationImportWizard(models.TransientModel):
                         'price': price_unit,
                         'discount1': l['discount1'],
                         'discount2': l['discount2'],
+                        'discount3': l['discount3'],
                         'pricelist_item_id': False,
                         'description': l['description'],
                     }))
@@ -322,7 +331,7 @@ class QuotationImportWizard(models.TransientModel):
             sum_intermediate = 0.0
             for product, l in lines_with_discounts:
                 if product:
-                    sum_intermediate += l['qty'] * l['price'] * (1.0 - l['discount1']/100.0) * (1.0 - l['discount2']/100.0)
+                    sum_intermediate += l['qty'] * l['price'] * (1.0 - l['discount1']/100.0) * (1.0 - l['discount2']/100.0) * (1.0 - l['discount3']/100.0)
             
             target_total = o_data['total_documento']
             discount_line_vals = {}
@@ -334,13 +343,14 @@ class QuotationImportWizard(models.TransientModel):
                     untaxed_target = target_total
                 
                 if sum_intermediate > untaxed_target:
-                    discount_amount = sum_intermediate - untaxed_target
-                    discount_line_vals = {
-                        'product_id': discount_product.id,
-                        'name': _('Descuento comercial para cuadrar presupuesto'),
-                        'product_uom_qty': 1.0,
-                        'price_unit': -round(discount_amount, 2),
-                    }
+                    discount_amount = round(sum_intermediate - untaxed_target, 2)
+                    if discount_amount >= 0.01:
+                        discount_line_vals = {
+                            'product_id': discount_product.id,
+                            'name': _('Descuento comercial para cuadrar presupuesto'),
+                            'product_uom_qty': 1.0,
+                            'price_unit': -discount_amount,
+                        }
 
             # 6. Create Sale Order (Quotation)
             order_vals = {
@@ -352,7 +362,7 @@ class QuotationImportWizard(models.TransientModel):
                 'client_order_ref': ref,
             }
 
-            order = self.env['sale.order'].create(order_vals)
+            order = order_model.create(order_vals)
             created_orders |= order
 
             # 7. Create Lines
@@ -374,17 +384,18 @@ class QuotationImportWizard(models.TransientModel):
                         'name': l['description'] or product.get_product_multiline_description_sale(),
                     }
                     
-                    # Apply Discounts (leave discount3/Dto3 in 0)
+                    # Apply Discounts (Dto1, Dto2, and Dto3)
                     if 'discount1' in line_fields:
                         line_vals['discount1'] = l['discount1']
                         line_vals['discount2'] = l['discount2']
-                        line_vals['discount3'] = 0.0
+                        if 'discount3' in line_fields:
+                            line_vals['discount3'] = l['discount3']
                         
                         # Set Odoo's standard combined discount field to avoid it being recalculated incorrectly
-                        combined_disc = (1.0 - (1.0 - l['discount1']/100.0) * (1.0 - l['discount2']/100.0)) * 100.0
+                        combined_disc = (1.0 - (1.0 - l['discount1']/100.0) * (1.0 - l['discount2']/100.0) * (1.0 - l.get('discount3', 0.0)/100.0)) * 100.0
                         line_vals['discount'] = round(combined_disc, 4)
                     elif 'discount' in line_fields:
-                        combined_disc = (1.0 - (1.0 - l['discount1']/100.0) * (1.0 - l['discount2']/100.0)) * 100.0
+                        combined_disc = (1.0 - (1.0 - l['discount1']/100.0) * (1.0 - l['discount2']/100.0) * (1.0 - l.get('discount3', 0.0)/100.0)) * 100.0
                         line_vals['discount'] = round(combined_disc, 4)
                         
                     line_model.create(line_vals)

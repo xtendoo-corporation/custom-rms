@@ -39,7 +39,12 @@ class SaleOrder(models.Model):
                 }
             groups[key]['orders'] |= order
 
-        crm_lead_model = self.env['crm.lead']
+        crm_lead_model = self.env['crm.lead'].with_context(
+            mail_create_nosubscribe=True,
+            mail_create_nolog=True,
+            mail_notrack=True,
+            tracking_disable=True
+        )
         created_opp_count = 0
         opportunity_ids = set()
 
@@ -75,12 +80,22 @@ class SaleOrder(models.Model):
                 opp = crm_lead_model.create(opp_vals)
                 created_opp_count += 1
             elif user_id and opp.user_id.id != user_id:
-                opp.write({'user_id': user_id})
+                opp.with_context(
+                    mail_create_nosubscribe=True,
+                    mail_create_nolog=True,
+                    mail_notrack=True,
+                    tracking_disable=True
+                ).write({'user_id': user_id})
             
             opportunity_ids.add(opp.id)
             
             # Link all grouped sale orders to the opportunity
-            orders.write({'opportunity_id': opp.id})
+            orders.with_context(
+                mail_create_nosubscribe=True,
+                mail_create_nolog=True,
+                mail_notrack=True,
+                tracking_disable=True
+            ).write({'opportunity_id': opp.id})
 
         return {
             'type': 'ir.actions.client',
