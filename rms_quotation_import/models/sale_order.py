@@ -109,3 +109,31 @@ class SaleOrder(models.Model):
                 'type': 'success',
             }
         }
+
+    def action_update_salesperson_from_partner(self):
+        # Ensure we have active records selected
+        if not self:
+            raise UserError(_("Por favor, selecciona al menos un presupuesto."))
+            
+        updated_count = 0
+        for order in self:
+            if order.partner_id and order.partner_id.user_id:
+                if order.user_id != order.partner_id.user_id:
+                    order.with_context(
+                        mail_create_nosubscribe=True,
+                        mail_create_nolog=True,
+                        mail_notrack=True,
+                        tracking_disable=True
+                    ).write({'user_id': order.partner_id.user_id.id})
+                    updated_count += 1
+                    
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Actualizar Comercial desde Cliente'),
+                'message': _('Se ha actualizado el comercial en %d presupuestos.') % updated_count,
+                'sticky': False,
+                'type': 'success',
+            }
+        }
