@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_multi_role" model="ir.ui.view">
+        <field name="name">res.partner.form.multi.role</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <!-- Ocultamos el campo nativo type en el formulario hijo -->
+            <xpath expr="//field[@name='child_ids']/form//field[@name='type']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            
+            <!-- Insertamos nuestros checkboxes donde estaba el campo type -->
+            <xpath expr="//field[@name='child_ids']/form//field[@name='type']" position="after">
+                <div class="o_row" style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">
+                    <div>
+                        <field name="is_role_contact" nolabel="1"/>
+                        <label for="is_role_contact" string="Contacto" class="font-weight-bold" style="margin-left: 5px;"/>
+                    </div>
+                    <div>
+                        <field name="is_role_invoice" nolabel="1"/>
+                        <label for="is_role_invoice" string="Facturación" class="font-weight-bold" style="margin-left: 5px;"/>
+                    </div>
+                    <div>
+                        <field name="is_role_delivery" nolabel="1"/>
+                        <label for="is_role_delivery" string="Entrega de mercancía" class="font-weight-bold" style="margin-left: 5px;"/>
+                    </div>
+                    <div>
+                        <field name="is_role_pricelist" nolabel="1"/>
+                        <label for="is_role_pricelist" string="Lista de precios" class="font-weight-bold" style="margin-left: 5px;"/>
+                    </div>
+                    <div>
+                        <field name="is_role_technical" nolabel="1"/>
+                        <label for="is_role_technical" string="Cuestiones técnicas" class="font-weight-bold" style="margin-left: 5px;"/>
+                    </div>
+                    <div>
+                        <field name="is_role_presentation" nolabel="1"/>
+                        <label for="is_role_presentation" string="Presentación de productos" class="font-weight-bold" style="margin-left: 5px;"/>
+                    </div>
+                </div>
+            </xpath>
+
+            <!-- Aseguramos que la dirección nativa se muestre cuando corresponda a Facturación o Envío -->
+            <!-- Intentamos localizar el contenedor de la dirección para forzar su visibilidad -->
+            <xpath expr="//field[@name='child_ids']/form//div[hasclass('o_address_format')]" position="attributes">
+                <attribute name="invisible">not is_role_invoice and not is_role_delivery</attribute>
+            </xpath>
+
+            <!-- Añadimos los campos dinámicos específicos en grupos en la parte inferior del formulario -->
+            <xpath expr="//field[@name='child_ids']/form//sheet" position="inside">
+                <group invisible="not is_role_invoice and not is_role_delivery and not is_role_pricelist and not is_role_technical and not is_role_presentation">
+                    <group string="Facturación" invisible="not is_role_invoice">
+                        <field name="custom_invoice_address" placeholder="Indique la dirección de facturación..."/>
+                    </group>
+                    <group string="Entrega de mercancía" invisible="not is_role_delivery">
+                        <field name="custom_delivery_address" placeholder="Indique la dirección de envío..."/>
+                    </group>
+                    <group string="Configuración de Tarifas" invisible="not is_role_pricelist">
+                        <field name="role_pricelist_notes" placeholder="Indique aquí detalles de la lista de precios a aplicar..."/>
+                    </group>
+                    <group string="Cuestiones Técnicas" invisible="not is_role_technical">
+                        <field name="technical_notes" placeholder="Añada aquí las notas técnicas..."/>
+                    </group>
+                    <group string="Presentación de Productos" invisible="not is_role_presentation">
+                        <field name="presentation_requirements" placeholder="Detalle los requisitos de presentación..."/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
