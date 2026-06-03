@@ -12,59 +12,63 @@
             
             <!-- Insertamos nuestros checkboxes donde estaba el campo type -->
             <xpath expr="//field[@name='child_ids']/form//field[@name='type']" position="after">
-                <div class="o_row" style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">
-                    <div>
-                        <field name="is_role_contact" nolabel="1"/>
-                        <label for="is_role_contact" string="Contacto" class="font-weight-bold" style="margin-left: 5px;"/>
-                    </div>
-                    <div>
-                        <field name="is_role_invoice" nolabel="1"/>
-                        <label for="is_role_invoice" string="Facturación" class="font-weight-bold" style="margin-left: 5px;"/>
-                    </div>
-                    <div>
-                        <field name="is_role_delivery" nolabel="1"/>
-                        <label for="is_role_delivery" string="Entrega de mercancía" class="font-weight-bold" style="margin-left: 5px;"/>
-                    </div>
-                    <div>
-                        <field name="is_role_pricelist" nolabel="1"/>
-                        <label for="is_role_pricelist" string="Lista de precios" class="font-weight-bold" style="margin-left: 5px;"/>
-                    </div>
-                    <div>
-                        <field name="is_role_technical" nolabel="1"/>
-                        <label for="is_role_technical" string="Cuestiones técnicas" class="font-weight-bold" style="margin-left: 5px;"/>
-                    </div>
-                    <div>
-                        <field name="is_role_presentation" nolabel="1"/>
-                        <label for="is_role_presentation" string="Presentación de productos" class="font-weight-bold" style="margin-left: 5px;"/>
-                    </div>
-                </div>
+                <field name="rms_role_ids" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}" placeholder="Añadir roles (Ej. Facturación, Envío...)" class="mb-3 w-100"/>
             </xpath>
 
-            <!-- Aseguramos que la dirección nativa se muestre cuando corresponda a Facturación o Envío -->
-            <!-- Intentamos localizar el contenedor de la dirección para forzar su visibilidad -->
-            <xpath expr="//field[@name='child_ids']/form//div[hasclass('o_address_format')]" position="attributes">
+            <!-- Aseguramos que el grupo de dirección nativo se muestre cuando corresponda -->
+            <xpath expr="//field[@name='child_ids']/form//group[@name='other_info']" position="attributes">
                 <attribute name="invisible">not is_role_invoice and not is_role_delivery</attribute>
             </xpath>
 
-            <!-- Añadimos los campos dinámicos específicos en grupos en la parte inferior del formulario -->
+            <!-- Usamos un Notebook (Pestañas) al final de la ficha para acomodar todos los campos sin generar scroll -->
             <xpath expr="//field[@name='child_ids']/form//sheet" position="inside">
-                <group invisible="not is_role_invoice and not is_role_delivery and not is_role_pricelist and not is_role_technical and not is_role_presentation">
-                    <group string="Facturación" invisible="not is_role_invoice">
-                        <field name="custom_invoice_address" placeholder="Indique la dirección de facturación..."/>
-                    </group>
-                    <group string="Entrega de mercancía" invisible="not is_role_delivery">
-                        <field name="custom_delivery_address" placeholder="Indique la dirección de envío..."/>
-                    </group>
-                    <group string="Configuración de Tarifas" invisible="not is_role_pricelist">
-                        <field name="role_pricelist_notes" placeholder="Indique aquí detalles de la lista de precios a aplicar..."/>
-                    </group>
-                    <group string="Cuestiones Técnicas" invisible="not is_role_technical">
-                        <field name="technical_notes" placeholder="Añada aquí las notas técnicas..."/>
-                    </group>
-                    <group string="Presentación de Productos" invisible="not is_role_presentation">
-                        <field name="presentation_requirements" placeholder="Detalle los requisitos de presentación..."/>
-                    </group>
-                </group>
+                <notebook invisible="not is_role_invoice and not is_role_delivery and not is_role_pricelist and not is_role_technical and not is_role_general">
+                    <page name="role_invoice" string="Facturación" invisible="not is_role_invoice">
+                        <group>
+                            <field name="custom_invoice_address" placeholder="Dirección de facturación adicional (multilínea)..."/>
+                        </group>
+                    </page>
+                    <page name="role_delivery" string="Envío" invisible="not is_role_delivery">
+                        <group>
+                            <field name="custom_delivery_address" placeholder="Dirección de envío adicional (multilínea)..."/>
+                        </group>
+                    </page>
+                    <page name="role_pricelist" string="Precios" invisible="not is_role_pricelist">
+                        <group>
+                            <field name="role_pricelist_notes" placeholder="Detalles de precios/tarifas..."/>
+                        </group>
+                    </page>
+                    <page name="role_technical" string="Técnicos" invisible="not is_role_technical">
+                        <group>
+                            <field name="technical_notes" placeholder="Notas técnicas..."/>
+                        </group>
+                    </page>
+                    <page name="role_general" string="General" invisible="not is_role_general">
+                        <group>
+                            <field name="general_notes" placeholder="Notas de comunicación general..."/>
+                        </group>
+                    </page>
+                </notebook>
+            </xpath>
+
+            <!-- Declarar los campos en la vista Kanban para poder usarlos en las plantillas -->
+            <xpath expr="//field[@name='child_ids']/kanban/field[@name='type']" position="after">
+                <field name="is_role_invoice"/>
+                <field name="is_role_delivery"/>
+                <field name="is_role_pricelist"/>
+                <field name="is_role_technical"/>
+                <field name="is_role_general"/>
+            </xpath>
+
+            <!-- Inyectar los iconos de las categorías en la tarjeta Kanban debajo del nombre -->
+            <xpath expr="//field[@name='child_ids']/kanban//field[@name='name']" position="after">
+                <div class="mt-2 mb-1">
+                    <i t-if="record.is_role_invoice.raw_value" class="fa fa-lg fa-file-text-o me-2 text-primary" title="Contacto de facturación"/>
+                    <i t-if="record.is_role_delivery.raw_value" class="fa fa-lg fa-truck me-2 text-success" title="Dirección de entrega"/>
+                    <i t-if="record.is_role_pricelist.raw_value" class="fa fa-lg fa-tag me-2 text-info" title="Listas de precios"/>
+                    <i t-if="record.is_role_technical.raw_value" class="fa fa-lg fa-wrench me-2 text-warning" title="Técnicos"/>
+                    <i t-if="record.is_role_general.raw_value" class="fa fa-lg fa-comments me-2 text-secondary" title="Comunicación general"/>
+                </div>
             </xpath>
         </field>
     </record>

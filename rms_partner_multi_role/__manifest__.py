@@ -13,6 +13,8 @@
     'website': 'https://xtendoo.es',
     'depends': ['base', 'contacts'],
     'data': [
+        'security/ir.model.access.csv',
+        'data/role_data.xml',
         'views/res_partner_views.xml',
     ],
     'installable': True,
