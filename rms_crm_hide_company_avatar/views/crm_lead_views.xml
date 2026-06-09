@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="crm_case_kanban_view_leads_hide_company_avatar" model="ir.ui.view">
+        <field name="name">crm.lead.kanban.hide.company.avatar</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_case_kanban_view_leads"/>
+        <field name="arch" type="xml">
+            <xpath expr="//t[@t-name='card']/div[field[@name='partner_id' and @widget='many2one_avatar']][field[@name='partner_id' and not(@widget)]]" position="replace">
+                <div class="d-flex" invisible="not partner_id">
+                    <field name="partner_id" class="text-truncate"/>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>
