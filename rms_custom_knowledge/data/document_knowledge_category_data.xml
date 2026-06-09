@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="document_knowledge_category_general" model="document.knowledge.category">
+        <field name="name">General</field>
+        <field name="description">Directorio raiz para articulos de conocimiento.</field>
+    </record>
+</odoo>

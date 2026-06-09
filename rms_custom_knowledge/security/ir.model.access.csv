@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_document_knowledge_category_internal,document.knowledge.category.internal,model_document_knowledge_category,base.group_user,1,0,0,0
+access_document_knowledge_category_manager,document.knowledge.category.manager,model_document_knowledge_category,rms_custom_knowledge.group_knowledge_manager,1,1,1,1
+access_ir_attachment_knowledge_manager,ir.attachment.knowledge.manager,base.model_ir_attachment,rms_custom_knowledge.group_knowledge_manager,1,1,1,1

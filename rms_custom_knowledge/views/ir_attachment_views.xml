@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_attachment_knowledge_tree_primary" model="ir.ui.view">
+        <field name="name">ir.attachment.knowledge.list.primary</field>
+        <field name="model">ir.attachment</field>
+        <field name="inherit_id" ref="base.view_attachment_tree"/>
+        <field name="mode">primary</field>
+        <field name="priority" eval="99"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="replace">
+                <list string="Articulos de Conocimiento">
+                    <field name="name"/>
+                    <field name="knowledge_category_id" string="Directorio"/>
+                    <field name="mimetype"/>
+                    <field name="write_date"/>
+                </list>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_attachment_knowledge_form_primary" model="ir.ui.view">
+        <field name="name">ir.attachment.knowledge.form.primary</field>
+        <field name="model">ir.attachment</field>
+        <field name="inherit_id" ref="base.view_attachment_form"/>
+        <field name="mode">primary</field>
+        <field name="priority" eval="99"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="replace">
+                <form string="Articulo de Conocimiento">
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" placeholder="Titulo del documento"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="is_knowledge_document" invisible="1"/>
+                                <field name="knowledge_category_id" string="Directorio" required="is_knowledge_document" context="{'default_parent_id': False}"/>
+                                <field name="datas" string="Archivo" filename="name" required="is_knowledge_document"/>
+                                <field name="write_uid" string="Ultima version subida por" readonly="1"/>
+                                <field name="last_upload_date_display" string="Fecha de ultima subida" readonly="1"/>
+                                <field name="mimetype" invisible="1"/>
+                                <field name="type" invisible="1"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page string="Vista previa">
+                                <field name="body_html" widget="html" readonly="1" nolabel="1"/>
+                            </page>
+                            <page string="Contenido Markdown anterior" groups="rms_custom_knowledge.group_knowledge_manager" invisible="not body_markdown">
+                                <field name="body_markdown" readonly="1" nolabel="1"/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_attachment_knowledge_search_primary" model="ir.ui.view">
+        <field name="name">ir.attachment.knowledge.search.primary</field>
+        <field name="model">ir.attachment</field>
+        <field name="inherit_id" ref="base.view_attachment_search"/>
+        <field name="mode">primary</field>
+        <field name="priority" eval="99"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="replace">
+                <search string="Buscar articulos de conocimiento">
+                    <field name="name"/>
+                    <field name="knowledge_category_id"/>
+                    <filter string="PDF" name="pdf" domain="[('mimetype', '=', 'application/pdf')]"/>
+                    <filter string="Imagenes" name="images" domain="[('mimetype', '=like', 'image/%')]"/>
+                    <filter string="Texto" name="text" domain="[('mimetype', '=like', 'text/%')]"/>
+                    <group>
+                        <filter string="Directorio" name="group_by_directory" context="{'group_by': 'knowledge_category_id'}"/>
+                    </group>
+                </search>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_knowledge_pdf_list" model="ir.ui.view">
+        <field name="name">ir.attachment.knowledge.pdf.list</field>
+        <field name="model">ir.attachment</field>
+        <field name="arch" type="xml">
+            <list string="Documentos de Conocimiento">
+                <field name="name"/>
+                <field name="knowledge_category_id"/>
+                <field name="mimetype"/>
+                <field name="write_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_knowledge_pdf_form" model="ir.ui.view">
+        <field name="name">ir.attachment.knowledge.pdf.form</field>
+        <field name="model">ir.attachment</field>
+        <field name="arch" type="xml">
+            <form string="Documento de Conocimiento">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Titulo del documento"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="is_knowledge_document" invisible="1"/>
+                            <field name="knowledge_category_id" string="Directorio" required="is_knowledge_document" context="{'default_parent_id': False}"/>
+                            <field name="datas" string="Archivo" filename="name" required="is_knowledge_document"/>
+                            <field name="write_uid" string="Ultima version subida por" readonly="1"/>
+                            <field name="last_upload_date_display" string="Fecha de ultima subida" readonly="1"/>
+                            <field name="mimetype" invisible="1"/>
+                            <field name="type" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Vista previa">
+                            <field name="body_html" widget="html" readonly="1" nolabel="1"/>
+                        </page>
+                        <page string="Contenido Markdown anterior" groups="rms_custom_knowledge.group_knowledge_manager">
+                            <field name="body_markdown" readonly="1" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_knowledge_pdf_search" model="ir.ui.view">
+        <field name="name">ir.attachment.knowledge.pdf.search</field>
+        <field name="model">ir.attachment</field>
+        <field name="arch" type="xml">
+            <search string="Buscar documentos de conocimiento">
+                <field name="name"/>
+                <field name="knowledge_category_id"/>
+                <filter string="PDF" name="pdf" domain="[('mimetype', '=', 'application/pdf')]"/>
+                <filter string="Imagenes" name="images" domain="[('mimetype', '=like', 'image/%')]"/>
+                <filter string="Texto" name="text" domain="[('mimetype', '=like', 'text/%')]"/>
+                <group>
+                    <filter string="Directorio" name="group_by_directory" context="{'group_by': 'knowledge_category_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_knowledge_pdf" model="ir.actions.act_window">
+        <field name="name">Documentos de Conocimiento</field>
+        <field name="res_model">ir.attachment</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('is_knowledge_document', '=', True)]</field>
+        <field name="context">{'default_is_knowledge_document': True, 'search_default_group_by_directory': 1}</field>
+        <field name="search_view_id" ref="view_attachment_knowledge_search_primary"/>
+    </record>
+
+    <record id="action_knowledge_pdf_list_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_attachment_knowledge_tree_primary"/>
+        <field name="act_window_id" ref="action_knowledge_pdf"/>
+    </record>
+
+    <record id="action_knowledge_pdf_form_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_attachment_knowledge_form_primary"/>
+        <field name="act_window_id" ref="action_knowledge_pdf"/>
+    </record>
+
+    <record id="document_knowledge.knowledge_action_documents" model="ir.actions.act_window">
+        <field name="name">Articulos de Conocimiento</field>
+        <field name="res_model">ir.attachment</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('is_knowledge_document', '=', True)]</field>
+        <field name="context">{'default_is_knowledge_document': True, 'search_default_group_by_directory': 1}</field>
+        <field name="view_id" ref="view_attachment_knowledge_tree_primary"/>
+        <field name="search_view_id" ref="view_attachment_knowledge_search_primary"/>
+    </record>
+
+    <record id="action_document_knowledge_documents_list_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_attachment_knowledge_tree_primary"/>
+        <field name="act_window_id" ref="document_knowledge.knowledge_action_documents"/>
+    </record>
+
+    <record id="action_document_knowledge_documents_form_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_attachment_knowledge_form_primary"/>
+        <field name="act_window_id" ref="document_knowledge.knowledge_action_documents"/>
+    </record>
+</odoo>
