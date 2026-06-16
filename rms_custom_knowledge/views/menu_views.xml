@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="document_knowledge.menu_document"
+              name="Articulos"
+              parent="document_knowledge.menu_document_section"
+              action="document_knowledge.knowledge_action_documents"
+              sequence="0"/>
+
+    <menuitem id="menu_knowledge_directories"
+              name="Directorios"
+              parent="document_knowledge.menu_document_section"
+              action="action_document_knowledge_category"
+              sequence="20"/>
+</odoo>

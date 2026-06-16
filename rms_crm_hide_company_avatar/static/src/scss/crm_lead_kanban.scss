@@ -1,0 +1,4 @@
+.o_opportunity_kanban .o_kanban_record [name="partner_id"].o_field_many2one_avatar .o_m2o_avatar,
+.o_opportunity_kanban .o_kanban_record [name="partner_id"].o_field_many2one_avatar_kanban .o_m2o_avatar {
+    display: none !important;
+}

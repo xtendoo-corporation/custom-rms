@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_form_show_access_groups_without_debug" model="ir.ui.view">
+        <field name="name">res.users.form.show.access.groups.without.debug</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='access_rights']/field[@name='group_ids'][@widget='res_user_group_ids'][@groups='!base.group_no_one']" position="attributes">
+                <attribute name="invisible"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

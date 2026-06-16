@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_document_knowledge_category_list" model="ir.ui.view">
+        <field name="name">document.knowledge.category.list</field>
+        <field name="model">document.knowledge.category</field>
+        <field name="arch" type="xml">
+            <list string="Directorios">
+                <field name="complete_name"/>
+                <field name="parent_id"/>
+                <field name="document_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_document_knowledge_category_form" model="ir.ui.view">
+        <field name="name">document.knowledge.category.form</field>
+        <field name="model">document.knowledge.category</field>
+        <field name="arch" type="xml">
+            <form string="Directorio">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Nombre del directorio"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <field name="parent_id"/>
+                        <field name="description" placeholder="Descripcion del directorio"/>
+                    </group>
+                    <notebook>
+                        <page string="Subdirectorios">
+                            <field name="child_ids" context="{'default_parent_id': id}">
+                                <list editable="bottom">
+                                    <field name="name"/>
+                                    <field name="document_count"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Documentos">
+                            <field name="attachment_ids" context="{'default_knowledge_category_id': id, 'default_is_knowledge_document': True}">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="mimetype"/>
+                                    <field name="write_date"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_document_knowledge_category" model="ir.actions.act_window">
+        <field name="name">Directorios</field>
+        <field name="res_model">document.knowledge.category</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>
