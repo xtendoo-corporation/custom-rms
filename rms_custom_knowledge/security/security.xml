@@ -1,16 +1,87 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="group_knowledge_contributor" model="res.groups">
+        <field name="name">Knowledge Uploaders</field>
+        <field name="privilege_id" eval="False"/>
+    </record>
+
     <record id="group_knowledge_manager" model="res.groups">
-        <field name="name">Gestor de Conocimiento</field>
-        <field name="implied_ids" eval="[(4, ref('document_knowledge.group_ir_attachment_user'))]"/>
+        <field name="name">Knowledge Managers</field>
+        <field name="privilege_id" eval="False"/>
         <field name="user_ids" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
     </record>
 
-    <record id="rule_document_knowledge_category_internal_read" model="ir.rule">
-        <field name="name">Knowledge directories: internal users read all</field>
-        <field name="model_id" ref="model_document_knowledge_category"/>
+    <record id="document_knowledge.group_document_user" model="res.groups">
+        <field name="privilege_id" eval="False"/>
+    </record>
+
+    <record id="document_knowledge.group_ir_attachment_user" model="res.groups">
+        <field name="privilege_id" eval="False"/>
+    </record>
+
+    <!-- Remove stale security records from previous iterations. -->
+    <delete model="ir.model.access" search="[('model_id.model', '=', 'document.knowledge.access'), ('group_id', '=', ref('rms_custom_knowledge.group_knowledge_contributor'))]"/>
+    <delete model="ir.model.access" search="[('name', 'in', ['document.knowledge.access.native.manager', 'document.knowledge.category.native.manager', 'ir.attachment.knowledge.native.manager'])]"/>
+    <delete model="ir.rule" search="[('name', 'in', ['Knowledge directories: global RMS read guard', 'Knowledge documents: global RMS read guard'])]"/>
+
+    <record id="access_document_knowledge_access_manager" model="ir.model.access">
+        <field name="name">document.knowledge.access.manager</field>
+        <field name="model_id" ref="model_document_knowledge_access"/>
+        <field name="group_id" ref="rms_custom_knowledge.group_knowledge_manager"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="access_document_knowledge_access_system" model="ir.model.access">
+        <field name="name">document.knowledge.access.system</field>
+        <field name="model_id" ref="model_document_knowledge_access"/>
+        <field name="group_id" ref="base.group_system"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_document_knowledge_access_internal_own_read" model="ir.rule">
+        <field name="name">Knowledge directory access: users read own permissions</field>
+        <field name="model_id" ref="model_document_knowledge_access"/>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(6, 0, [ref('base.group_user')])]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_document_knowledge_access_manager_all" model="ir.rule">
+        <field name="name">Knowledge directory access: managers full access</field>
+        <field name="model_id" ref="model_document_knowledge_access"/>
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        <field name="groups" eval="[(6, 0, [ref('rms_custom_knowledge.group_knowledge_manager')])]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_document_knowledge_access_system_all" model="ir.rule">
+        <field name="name">Knowledge directory access: administrators full access</field>
+        <field name="model_id" ref="model_document_knowledge_access"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(6, 0, [ref('base.group_system')])]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_document_knowledge_category_internal_read" model="ir.rule">
+        <field name="name">Knowledge directories: restricted users explicit read</field>
+        <field name="model_id" ref="model_document_knowledge_category"/>
+        <field name="domain_force">[('access_line_ids.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(6, 0, [ref('base.group_user')])]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -21,32 +92,65 @@
         <field name="name">Knowledge directories: managers full access</field>
         <field name="model_id" ref="model_document_knowledge_category"/>
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('rms_custom_knowledge.group_knowledge_manager'))]"/>
+        <field name="groups" eval="[(6, 0, [ref('rms_custom_knowledge.group_knowledge_manager')])]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
         <field name="perm_unlink" eval="True"/>
     </record>
 
+    <record id="rule_document_knowledge_category_contributor_all" model="ir.rule">
+        <field name="name">Knowledge directories: uploaders global access</field>
+        <field name="model_id" ref="model_document_knowledge_category"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(6, 0, [ref('rms_custom_knowledge.group_knowledge_contributor')])]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
     <record id="rule_knowledge_pdf_internal_read" model="ir.rule">
-        <field name="name">Knowledge documents and business attachments: internal users read</field>
+        <field name="name">Knowledge documents: restricted users explicit read</field>
         <field name="model_id" ref="base.model_ir_attachment"/>
-        <field name="domain_force">['|', ('is_knowledge_document', '=', True), '&amp;', ('res_model', '!=', False), ('res_model', 'not like', 'ir.%')]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        <field name="domain_force">[('knowledge_category_id.access_line_ids.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(6, 0, [ref('base.group_user')])]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
         <field name="perm_unlink" eval="False"/>
     </record>
 
-    <record id="rule_knowledge_pdf_manager_all" model="ir.rule">
-        <field name="name">Knowledge PDFs: managers full access</field>
+    <record id="rule_knowledge_pdf_internal_upload" model="ir.rule">
+        <field name="name">Knowledge documents: restricted users explicit upload</field>
         <field name="model_id" ref="base.model_ir_attachment"/>
-        <field name="domain_force">[('is_knowledge_document', '=', True)]</field>
-        <field name="groups" eval="[(4, ref('rms_custom_knowledge.group_knowledge_manager'))]"/>
+        <field name="domain_force">['&amp;', ('knowledge_category_id.access_line_ids.user_id', '=', user.id), ('knowledge_category_id.access_line_ids.permission', '=', 'read_upload')]</field>
+        <field name="groups" eval="[(6, 0, [ref('base.group_user')])]"/>
+        <field name="perm_read" eval="False"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_knowledge_pdf_manager_all" model="ir.rule">
+        <field name="name">Knowledge documents: managers full access</field>
+        <field name="model_id" ref="base.model_ir_attachment"/>
+        <field name="domain_force">[('knowledge_category_id', '!=', False)]</field>
+        <field name="groups" eval="[(6, 0, [ref('rms_custom_knowledge.group_knowledge_manager')])]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
         <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_knowledge_pdf_contributor_all" model="ir.rule">
+        <field name="name">Knowledge documents: uploaders global read and upload</field>
+        <field name="model_id" ref="base.model_ir_attachment"/>
+        <field name="domain_force">[('knowledge_category_id', '!=', False)]</field>
+        <field name="groups" eval="[(6, 0, [ref('rms_custom_knowledge.group_knowledge_contributor')])]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
     </record>
 </odoo>

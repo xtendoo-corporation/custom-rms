@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_users_form_show_access_groups_without_debug" model="ir.ui.view">
-        <field name="name">res.users.form.show.access.groups.without.debug</field>
-        <field name="model">res.users</field>
-        <field name="inherit_id" ref="base.view_users_form"/>
+    <record id="view_knowledge_configuration_hide_native_access" model="ir.ui.view">
+        <field name="name">res.config.settings.hide.native.document.knowledge.access</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="document_knowledge.view_knowledge_configuration"/>
         <field name="arch" type="xml">
-            <xpath expr="//page[@name='access_rights']/field[@name='group_ids'][@widget='res_user_group_ids'][@groups='!base.group_no_one']" position="attributes">
-                <attribute name="invisible"/>
+            <xpath expr="//setting[@id='attachment_user']" position="attributes">
+                <attribute name="groups">base.group_no_one</attribute>
             </xpath>
         </field>
     </record>

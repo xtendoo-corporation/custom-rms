@@ -2,10 +2,12 @@ import base64
 import html
 import io
 import re
+import zipfile
+import xml.etree.ElementTree as ET
 
 from odoo import _, api, fields, models
+from odoo.osv import expression
 from odoo.exceptions import AccessError
-
 
 class IrAttachment(models.Model):
     _inherit = 'ir.attachment'
@@ -26,7 +28,6 @@ class IrAttachment(models.Model):
         string='Directory',
         index=True,
         ondelete='restrict',
-        default=_default_knowledge_category_id,
     )
     body_markdown = fields.Text(
         string='Markdown Content',
@@ -42,10 +43,31 @@ class IrAttachment(models.Model):
         string='Preview URL',
         compute='_compute_preview_url',
     )
+    knowledge_preview_is_image = fields.Boolean(
+        string='Image Preview',
+        compute='_compute_knowledge_preview_card',
+    )
+    knowledge_file_icon_class = fields.Char(
+        string='File Icon',
+        compute='_compute_knowledge_preview_card',
+    )
     last_upload_date_display = fields.Char(
         string='Fecha de ultima subida',
         compute='_compute_last_upload_date_display',
     )
+
+    user_can_upload_here = fields.Boolean(
+        string='Puede subir aqui',
+        compute='_compute_user_can_upload_here',
+    )
+    is_saved_knowledge_document = fields.Boolean(
+        string='Documento guardado',
+        compute='_compute_is_saved_knowledge_document',
+    )
+
+    def _compute_is_saved_knowledge_document(self):
+        for attachment in self:
+            attachment.is_saved_knowledge_document = bool(attachment.id)
 
     @api.depends('write_date')
     def _compute_last_upload_date_display(self):
@@ -60,6 +82,14 @@ class IrAttachment(models.Model):
         if not self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager'):
             raise AccessError(_('Only Knowledge Managers can manage knowledge documents.'))
 
+    @api.depends('knowledge_category_id')
+    @api.depends_context('uid')
+    def _compute_user_can_upload_here(self):
+        categories = self.mapped('knowledge_category_id')
+        uploadable_category_ids = categories._get_user_uploadable_category_ids(categories.ids) if categories else set()
+        for attachment in self:
+            attachment.user_can_upload_here = attachment.knowledge_category_id.id in uploadable_category_ids
+
     @api.depends('datas', 'mimetype', 'name', 'is_knowledge_document')
     def _compute_body_html(self):
         for attachment in self:
@@ -70,23 +100,165 @@ class IrAttachment(models.Model):
         for attachment in self:
             attachment.preview_url = attachment._get_knowledge_preview_url()
 
+    @api.depends('mimetype', 'name')
+    def _compute_knowledge_preview_card(self):
+        for attachment in self:
+            mimetype = attachment.mimetype or ''
+            filename = (attachment.name or '').lower()
+            attachment.knowledge_preview_is_image = mimetype.startswith('image/')
+            attachment.knowledge_file_icon_class = attachment._get_knowledge_file_icon_class(mimetype, filename)
+
     @api.model_create_multi
     def create(self, vals_list):
-        if any(vals.get('is_knowledge_document') for vals in vals_list):
-            self._check_knowledge_manager_access()
         for vals in vals_list:
-            if vals.get('is_knowledge_document'):
+            if self._values_create_knowledge_document(vals):
+                self._check_knowledge_upload_access_for_values(vals)
+                vals['is_knowledge_document'] = True
                 vals['body_markdown'] = False
         return super().create(vals_list)
 
+    @api.model
+    def _get_user_readable_knowledge_category_ids(self):
+        if (
+            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
+            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
+        ):
+            return self.env['document.knowledge.category'].search([]).ids
+        return self.env['document.knowledge.category'].search([
+            ('access_line_ids.user_id', '=', self.env.uid),
+        ]).ids
+
+    @api.model
+    def search_panel_select_range(self, field_name, **kwargs):
+        if (
+            field_name == 'knowledge_category_id'
+            and not self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
+            and not self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
+        ):
+            kwargs = dict(kwargs)
+            kwargs['comodel_domain'] = [
+                ('access_line_ids.user_id', '=', self.env.uid),
+            ] + kwargs.get('comodel_domain', [])
+        return super().search_panel_select_range(field_name, **kwargs)
+
+    @api.model
+    def _get_knowledge_view_domain(self):
+        domain = [
+            ('knowledge_category_id', '!=', False),
+            ('name', 'not ilike', 'web.assets'),
+            ('name', 'not ilike', 'bus.websocket'),
+        ]
+        if (
+            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
+            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
+        ):
+            return domain
+
+        category_ids = self.env['document.knowledge.access'].sudo().search([
+            ('user_id', '=', self.env.uid),
+        ]).mapped('category_id').ids
+        if not category_ids:
+            return [('id', '=', 0)]
+        return expression.AND([domain, [('knowledge_category_id', 'in', category_ids)]])
+
+    @api.model
+    def _domain_targets_knowledge_documents(self, domain):
+        for item in domain or []:
+            if isinstance(item, (list, tuple)):
+                if item and isinstance(item[0], str) and item[0] in (
+                    'knowledge_category_id',
+                    'knowledge_category_id.access_line_ids.user_id',
+                    'is_knowledge_document',
+                ):
+                    return True
+                if self._domain_targets_knowledge_documents(item):
+                    return True
+        return False
+
+    @api.model
+    def _must_apply_knowledge_view_domain(self, domain):
+        return bool(
+            self.env.context.get('rms_knowledge_mode')
+            or self.env.context.get('default_is_knowledge_document')
+            or self._domain_targets_knowledge_documents(domain)
+        )
+
+    @api.model
+    def _search(self, domain, offset=0, limit=None, order=None, *, active_test=True, bypass_access=False):
+        if not bypass_access and self._must_apply_knowledge_view_domain(domain):
+            domain = expression.AND([domain, self._get_knowledge_view_domain()])
+            return super()._search(
+                domain,
+                offset=offset,
+                limit=limit,
+                order=order,
+                active_test=active_test,
+                bypass_access=True,
+            )
+        return super()._search(
+            domain,
+            offset=offset,
+            limit=limit,
+            order=order,
+            active_test=active_test,
+            bypass_access=bypass_access,
+        )
+
+    def _get_rms_knowledge_accessible_attachments(self, operation):
+        knowledge_attachment_ids = set(self.sudo().filtered('knowledge_category_id').ids)
+        if not knowledge_attachment_ids:
+            return self.browse()
+
+        knowledge_attachments = self.browse(knowledge_attachment_ids)
+        if self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager'):
+            return knowledge_attachments
+        if operation == 'unlink':
+            return self.browse()
+        if self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor'):
+            return knowledge_attachments
+
+        sudo_knowledge_attachments = knowledge_attachments.sudo()
+        access_domain = [
+            ('user_id', '=', self.env.uid),
+            ('category_id', 'in', sudo_knowledge_attachments.mapped('knowledge_category_id').ids),
+        ]
+        if operation in ('write', 'create', 'unlink'):
+            access_domain.append(('permission', '=', 'read_upload'))
+
+        allowed_category_ids = set(
+            self.env['document.knowledge.access'].sudo().search(access_domain).mapped('category_id').ids
+        )
+        allowed_attachment_ids = set(
+            sudo_knowledge_attachments.filtered(
+                lambda attachment: attachment.knowledge_category_id.id in allowed_category_ids
+            ).ids
+        )
+        return self.browse(allowed_attachment_ids)
+
+    def _check_access(self, operation):
+        allowed_knowledge_attachments = self._get_rms_knowledge_accessible_attachments(operation)
+        remaining = self - allowed_knowledge_attachments
+        if not remaining:
+            return None
+        return super(IrAttachment, remaining)._check_access(operation)
+
     def write(self, vals):
-        touches_knowledge_document = vals.get('is_knowledge_document') or any(self.mapped('is_knowledge_document'))
-        if touches_knowledge_document:
-            self._check_knowledge_manager_access()
-        if vals.get('datas') and touches_knowledge_document:
+        if vals.get('knowledge_category_id') and not vals.get('is_knowledge_document'):
+            vals = dict(vals)
+            vals['is_knowledge_document'] = True
+
+        knowledge_attachments = self.filtered('is_knowledge_document')
+        if vals.get('is_knowledge_document') or vals.get('knowledge_category_id'):
+            knowledge_attachments |= self
+
+        if knowledge_attachments:
+            for attachment in knowledge_attachments:
+                attachment._check_knowledge_upload_access_for_write(vals)
+
+        if vals.get('datas') and knowledge_attachments:
             vals = dict(vals)
             vals['body_markdown'] = False
-            self._unlink_html_preview_attachments()
+            knowledge_attachments._unlink_html_preview_attachments()
         return super().write(vals)
 
     def unlink(self):
@@ -95,6 +267,42 @@ class IrAttachment(models.Model):
             self._unlink_html_preview_attachments()
         return super().unlink()
 
+    @api.model
+    def _values_create_knowledge_document(self, vals):
+        return bool(
+            vals.get('is_knowledge_document')
+            or self.env.context.get('default_is_knowledge_document')
+            or vals.get('knowledge_category_id')
+        )
+
+    @api.model
+    def _get_knowledge_category_from_values(self, vals):
+        category_id = vals.get('knowledge_category_id') or self.env.context.get('default_knowledge_category_id')
+        if category_id:
+            return self.env['document.knowledge.category'].browse(category_id).exists()
+        return self._default_knowledge_category_id()
+
+    @api.model
+    def _check_knowledge_upload_access_for_values(self, vals):
+        category = self._get_knowledge_category_from_values(vals)
+        if not category or not category._check_user_can_upload_here():
+            raise AccessError(_('No tienes permisos para subir archivos en este directorio.'))
+
+    def _check_knowledge_upload_access_for_write(self, vals):
+        self.ensure_one()
+        if self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager'):
+            return
+
+        if 'is_knowledge_document' in vals and not vals.get('knowledge_category_id'):
+            raise AccessError(_('No tienes permisos para cambiar el estado Knowledge de este archivo.'))
+
+        categories = self.knowledge_category_id
+        if vals.get('knowledge_category_id'):
+            categories |= self.env['document.knowledge.category'].browse(vals['knowledge_category_id']).exists()
+
+        if not categories or any(not category._check_user_can_upload_here() for category in categories):
+            raise AccessError(_('No tienes permisos para modificar archivos en este directorio.'))
+
     def _get_knowledge_preview_url(self):
         self.ensure_one()
         if not self.datas or not self.id:
@@ -102,11 +310,35 @@ class IrAttachment(models.Model):
 
         mimetype = self.mimetype or ''
         filename = (self.name or '').lower()
-        if self._is_textual_preview_file(mimetype, filename) or self._is_excel_file(mimetype, filename):
+        if (
+            self._is_textual_preview_file(mimetype, filename)
+            or self._is_excel_file(mimetype, filename)
+            or self._is_word_file(mimetype, filename)
+        ):
             return False
         if mimetype.startswith('image/'):
             return '/web/image/ir.attachment/%s/datas' % self.id
         return '/web/content/%s?download=false' % self.id
+
+    @api.model
+    def _get_knowledge_file_icon_class(self, mimetype, filename):
+        if mimetype == 'application/pdf' or filename.endswith('.pdf'):
+            return 'fa fa-file-pdf-o'
+        if self._is_excel_file(mimetype, filename) or filename.endswith(('.ods', '.csv')):
+            return 'fa fa-file-excel-o'
+        if self._is_word_file(mimetype, filename):
+            return 'fa fa-file-word-o'
+        if mimetype.startswith('text/') or self._is_textual_preview_file(mimetype, filename):
+            return 'fa fa-file-text-o'
+        if mimetype.startswith('image/'):
+            return 'fa fa-file-image-o'
+        if mimetype.startswith('video/'):
+            return 'fa fa-file-video-o'
+        if mimetype.startswith('audio/'):
+            return 'fa fa-file-audio-o'
+        if filename.endswith(('.zip', '.rar', '.7z', '.tar', '.gz')):
+            return 'fa fa-file-archive-o'
+        return 'fa fa-file-o'
 
     def _get_knowledge_preview_html(self):
         self.ensure_one()
@@ -120,6 +352,8 @@ class IrAttachment(models.Model):
         title = html.escape(self.name or _("Document"))
         if self._is_excel_file(mimetype, filename):
             return self._wrap_preview_inline_html(self._get_excel_preview_body())
+        if self._is_word_file(mimetype, filename):
+            return self._wrap_preview_inline_html(self._get_word_preview_body())
         if self._is_textual_preview_file(mimetype, filename):
             return self._wrap_preview_inline_html(self._get_textual_preview_body())
 
@@ -234,6 +468,163 @@ class IrAttachment(models.Model):
                 <table style="border-collapse: collapse; table-layout: fixed; width: max-content;">%s%s</table>
             </div>
         </div>""" % (html.escape(note), ''.join(colgroup), ''.join(rows))
+
+    def _get_word_preview_body(self):
+        self.ensure_one()
+        mimetype = self.mimetype or ""
+        filename = (self.name or "").lower()
+        if not self._is_modern_word_file(mimetype, filename):
+            return self._preview_empty_html(_("Word .doc preview is not supported. Please upload a .docx file."))
+
+        raw_content = self._get_raw_content()
+        if not raw_content:
+            return self._preview_empty_html(_("No readable content found in this file."))
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(raw_content)) as document_zip:
+                document_xml = document_zip.read('word/document.xml')
+                relationships = self._get_docx_relationships(document_zip)
+        except (KeyError, zipfile.BadZipFile):
+            return self._preview_empty_html(_("This Word file could not be previewed."))
+
+        try:
+            document = ET.fromstring(document_xml)
+        except ET.ParseError:
+            return self._preview_empty_html(_("This Word file could not be previewed."))
+
+        body = document.find(self._docx_tag('body'))
+        if body is None:
+            return self._preview_empty_html(_("No readable content found in this file."))
+
+        blocks = []
+        for child in body:
+            if child.tag == self._docx_tag('p'):
+                paragraph = self._docx_paragraph_to_html(child, relationships)
+                if paragraph:
+                    blocks.append(paragraph)
+            elif child.tag == self._docx_tag('tbl'):
+                table = self._docx_table_to_html(child, relationships)
+                if table:
+                    blocks.append(table)
+            if len(blocks) >= 300:
+                blocks.append('<p class="text-muted">%s</p>' % html.escape(_("Preview limited to the first 300 blocks.")))
+                break
+
+        if not blocks:
+            return self._preview_empty_html(_("No readable content found in this file."))
+
+        return '<div class="o_rms_knowledge_word_preview">%s</div>' % ''.join(blocks)
+
+    @api.model
+    def _get_docx_relationships(self, document_zip):
+        try:
+            rels_xml = document_zip.read('word/_rels/document.xml.rels')
+        except KeyError:
+            return {}
+
+        try:
+            rels = ET.fromstring(rels_xml)
+        except ET.ParseError:
+            return {}
+
+        relationships = {}
+        for rel in rels:
+            rel_id = rel.attrib.get('Id')
+            target = rel.attrib.get('Target')
+            if rel_id and target:
+                relationships[rel_id] = target
+        return relationships
+
+    @api.model
+    def _docx_paragraph_to_html(self, paragraph, relationships):
+        content = self._docx_inline_content_to_html(paragraph, relationships)
+        if not content:
+            return ''
+
+        style = self._docx_paragraph_style(paragraph)
+        normalized_style = re.sub(r'[^a-z0-9]', '', style.lower())
+        if normalized_style in ('title',):
+            return '<h1>%s</h1>' % content
+        if normalized_style.startswith('heading'):
+            level_match = re.search(r'heading(\d+)', normalized_style)
+            level = int(level_match.group(1)) if level_match else 2
+            level = max(1, min(level, 6))
+            return '<h%s>%s</h%s>' % (level, content, level)
+        if paragraph.find('.//' + self._docx_tag('numPr')) is not None:
+            return '<p style="margin-left: 24px;">&bull; %s</p>' % content
+        return '<p>%s</p>' % content
+
+    @api.model
+    def _docx_table_to_html(self, table, relationships):
+        rows = []
+        for row in table.findall(self._docx_tag('tr')):
+            cells = []
+            for cell in row.findall(self._docx_tag('tc')):
+                cell_blocks = []
+                for paragraph in cell.findall(self._docx_tag('p')):
+                    paragraph_html = self._docx_inline_content_to_html(paragraph, relationships)
+                    if paragraph_html:
+                        cell_blocks.append('<div>%s</div>' % paragraph_html)
+                cells.append('<td style="border: 1px solid #d1d5db; padding: 6px 8px; vertical-align: top;">%s</td>' % ''.join(cell_blocks))
+            if cells:
+                rows.append('<tr>%s</tr>' % ''.join(cells))
+        if not rows:
+            return ''
+        return '<div style="overflow: auto; margin: 12px 0;"><table style="border-collapse: collapse; width: 100%;">%s</table></div>' % ''.join(rows)
+
+    @api.model
+    def _docx_inline_content_to_html(self, element, relationships):
+        fragments = []
+        for child in element:
+            if child.tag == self._docx_tag('r'):
+                fragments.append(self._docx_run_to_html(child))
+            elif child.tag == self._docx_tag('hyperlink'):
+                link_content = self._docx_inline_content_to_html(child, relationships)
+                rel_id = child.attrib.get(self._docx_rel_tag('id'))
+                href = relationships.get(rel_id, '')
+                if href.startswith(('http://', 'https://', 'mailto:')):
+                    fragments.append('<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>' % (html.escape(href, quote=True), link_content))
+                else:
+                    fragments.append(link_content)
+        return ''.join(fragment for fragment in fragments if fragment)
+
+    @api.model
+    def _docx_run_to_html(self, run):
+        pieces = []
+        for child in run:
+            if child.tag == self._docx_tag('t'):
+                pieces.append(html.escape(child.text or ''))
+            elif child.tag == self._docx_tag('tab'):
+                pieces.append('&emsp;')
+            elif child.tag == self._docx_tag('br'):
+                pieces.append('<br/>')
+
+        content = ''.join(pieces)
+        if not content:
+            return ''
+
+        properties = run.find(self._docx_tag('rPr'))
+        if properties is not None:
+            if properties.find(self._docx_tag('b')) is not None:
+                content = '<strong>%s</strong>' % content
+            if properties.find(self._docx_tag('i')) is not None:
+                content = '<em>%s</em>' % content
+            if properties.find(self._docx_tag('u')) is not None:
+                content = '<u>%s</u>' % content
+        return content
+
+    @api.model
+    def _docx_paragraph_style(self, paragraph):
+        style = paragraph.find('./%s/%s' % (self._docx_tag('pPr'), self._docx_tag('pStyle')))
+        return style.attrib.get(self._docx_tag('val'), '') if style is not None else ''
+
+    @api.model
+    def _docx_tag(self, tag):
+        return '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}%s' % tag
+
+    @api.model
+    def _docx_rel_tag(self, tag):
+        return '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}%s' % tag
 
     @api.model
     def _get_excel_table_ranges(self, sheet, range_boundaries):
@@ -380,6 +771,21 @@ th, td { border: 1px solid #d1d5db; padding: 6px 8px; }
         return """<div class="o_rms_knowledge_preview o_rms_knowledge_preview_iframe">
             <iframe srcdoc="%s" title="%s" sandbox="allow-popups allow-popups-to-escape-sandbox" style="width: 100%%; min-height: 72vh; border: 0;"></iframe>
         </div>""" % (html.escape(html_document, quote=True), title)
+
+    @api.model
+    def _is_word_file(self, mimetype, filename):
+        return mimetype in (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-word.document.macroEnabled.12",
+            "application/msword",
+        ) or filename.endswith((".docx", ".docm", ".dotx", ".dotm", ".doc"))
+
+    @api.model
+    def _is_modern_word_file(self, mimetype, filename):
+        return mimetype in (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-word.document.macroEnabled.12",
+        ) or filename.endswith((".docx", ".docm", ".dotx", ".dotm"))
 
     @api.model
     def _is_excel_file(self, mimetype, filename):

@@ -1,4 +1,8 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_ir_attachment_knowledge_restricted_user,ir.attachment.knowledge.restricted.user,base.model_ir_attachment,base.group_user,1,1,1,0
 access_document_knowledge_category_internal,document.knowledge.category.internal,model_document_knowledge_category,base.group_user,1,0,0,0
+access_document_knowledge_access_internal_read,document.knowledge.access.internal.read,model_document_knowledge_access,base.group_user,1,0,0,0
 access_document_knowledge_category_manager,document.knowledge.category.manager,model_document_knowledge_category,rms_custom_knowledge.group_knowledge_manager,1,1,1,1
 access_ir_attachment_knowledge_manager,ir.attachment.knowledge.manager,base.model_ir_attachment,rms_custom_knowledge.group_knowledge_manager,1,1,1,1
+access_document_knowledge_category_contributor,document.knowledge.category.contributor,model_document_knowledge_category,rms_custom_knowledge.group_knowledge_contributor,1,1,1,0
+access_ir_attachment_knowledge_contributor,ir.attachment.knowledge.contributor,base.model_ir_attachment,rms_custom_knowledge.group_knowledge_contributor,1,1,1,0

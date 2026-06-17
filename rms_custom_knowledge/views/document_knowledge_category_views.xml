@@ -1,5 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
+    <record id="view_document_knowledge_access_list" model="ir.ui.view">
+        <field name="name">document.knowledge.access.list</field>
+        <field name="model">document.knowledge.access</field>
+        <field name="arch" type="xml">
+            <list string="Permisos de directorio" create="1" edit="1" delete="1">
+                <field name="category_id" optional="hide"/>
+                <field name="user_id"/>
+                <field name="permission"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_document_knowledge_access_form" model="ir.ui.view">
+        <field name="name">document.knowledge.access.form</field>
+        <field name="model">document.knowledge.access</field>
+        <field name="arch" type="xml">
+            <form string="Permiso de directorio">
+                <sheet>
+                    <group>
+                        <field name="category_id" readonly="1"/>
+                        <field name="user_id"/>
+                        <field name="permission"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
     <record id="view_document_knowledge_category_list" model="ir.ui.view">
         <field name="name">document.knowledge.category.list</field>
         <field name="model">document.knowledge.category</field>
@@ -26,6 +55,7 @@
                     <group>
                         <field name="parent_id"/>
                         <field name="description" placeholder="Descripcion del directorio"/>
+                        <field name="user_can_upload_here" invisible="1"/>
                     </group>
                     <notebook>
                         <page string="Subdirectorios">
@@ -37,12 +67,28 @@
                             </field>
                         </page>
                         <page string="Documentos">
-                            <field name="attachment_ids" context="{'default_knowledge_category_id': id, 'default_is_knowledge_document': True}">
+                            <field name="attachment_ids" context="{'default_knowledge_category_id': id, 'default_is_knowledge_document': True}" readonly="not user_can_upload_here">
                                 <list>
                                     <field name="name"/>
                                     <field name="mimetype"/>
                                     <field name="write_date"/>
                                 </list>
+                            </field>
+                        </page>
+                        <page string="Permisos" groups="rms_custom_knowledge.group_knowledge_manager">
+                            <field name="access_line_ids" groups="rms_custom_knowledge.group_knowledge_manager" context="{'default_category_id': id}" mode="list,form">
+                                <list create="1" edit="1" delete="1">
+                                    <field name="category_id" invisible="1"/>
+                                    <field name="user_id"/>
+                                    <field name="permission"/>
+                                </list>
+                                <form string="Permiso de directorio">
+                                    <group>
+                                        <field name="category_id" invisible="1" readonly="1"/>
+                                        <field name="user_id"/>
+                                        <field name="permission"/>
+                                    </group>
+                                </form>
                             </field>
                         </page>
                     </notebook>
@@ -54,6 +100,12 @@
     <record id="action_document_knowledge_category" model="ir.actions.act_window">
         <field name="name">Directorios</field>
         <field name="res_model">document.knowledge.category</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="action_document_knowledge_access" model="ir.actions.act_window">
+        <field name="name">Permisos de directorio</field>
+        <field name="res_model">document.knowledge.access</field>
         <field name="view_mode">list,form</field>
     </record>
 </odoo>

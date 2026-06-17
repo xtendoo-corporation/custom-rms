@@ -15,8 +15,16 @@
         'data/document_knowledge_category_data.xml',
         'views/document_knowledge_category_views.xml',
         'views/ir_attachment_views.xml',
+        'views/res_users_views.xml',
         'views/menu_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'rms_custom_knowledge/static/src/css/knowledge_kanban.css',
+            'rms_custom_knowledge/static/src/js/knowledge_binary_field.js',
+            'rms_custom_knowledge/static/src/xml/knowledge_binary_field.xml',
+        ],
+    },
     'installable': True,
     'application': False,
     'license': 'AGPL-3',

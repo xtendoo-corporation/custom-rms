@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.osv import expression
 
 
 class DocumentKnowledgeCategory(models.Model):
@@ -32,6 +33,15 @@ class DocumentKnowledgeCategory(models.Model):
         'knowledge_category_id',
         string='Documents',
     )
+    access_line_ids = fields.One2many(
+        'document.knowledge.access',
+        'category_id',
+        string='Permisos por usuario',
+    )
+    user_can_upload_here = fields.Boolean(
+        string='Puede subir aqui',
+        compute='_compute_user_can_upload_here',
+    )
     description = fields.Text(translate=True)
     document_count = fields.Integer(compute='_compute_document_count')
 
@@ -55,3 +65,92 @@ class DocumentKnowledgeCategory(models.Model):
         counts = {category.id: count for category, count in grouped}
         for category in self:
             category.document_count = counts.get(category.id, 0)
+
+    @api.model
+    def _get_user_readable_category_ids(self):
+        if (
+            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
+            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
+        ):
+            return self.sudo().search([]).ids
+        return self.env['document.knowledge.access'].sudo().search([
+            ('user_id', '=', self.env.uid),
+        ]).mapped('category_id').ids
+
+    @api.model
+    def _get_user_readable_category_domain(self):
+        if (
+            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
+            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
+        ):
+            return []
+
+        category_ids = self.env['document.knowledge.access'].sudo().search([
+            ('user_id', '=', self.env.uid),
+        ]).mapped('category_id').ids
+        if not category_ids:
+            return [('id', '=', 0)]
+        return [('id', 'in', category_ids)]
+
+    @api.model
+    def _search(self, domain, offset=0, limit=None, order=None, *, active_test=True, bypass_access=False):
+        if not self.env.su and not bypass_access:
+            domain = expression.AND([domain, self._get_user_readable_category_domain()])
+            return super()._search(
+                domain,
+                offset=offset,
+                limit=limit,
+                order=order,
+                active_test=active_test,
+                bypass_access=True,
+            )
+        return super()._search(
+            domain,
+            offset=offset,
+            limit=limit,
+            order=order,
+            active_test=active_test,
+            bypass_access=bypass_access,
+        )
+
+    @api.depends_context('uid')
+    def _compute_user_can_upload_here(self):
+        uploadable_category_ids = self._get_user_uploadable_category_ids(self.ids)
+        for category in self:
+            category.user_can_upload_here = category.id in uploadable_category_ids
+
+    @api.model
+    def _get_user_uploadable_category_ids(self, category_ids=None):
+        if (
+            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
+            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
+        ):
+            if category_ids is None:
+                return set(self.search([]).ids)
+            return set(category_ids)
+
+        domain = [
+            ('user_id', '=', self.env.uid),
+            ('permission', '=', 'read_upload'),
+        ]
+        if category_ids is not None:
+            domain.append(('category_id', 'in', category_ids))
+
+        return set(
+            self.env['document.knowledge.access'].sudo().search(domain).mapped('category_id').ids
+        )
+
+    def _check_user_can_upload_here(self):
+        self.ensure_one()
+        if (
+            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
+            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
+        ):
+            return True
+        if not self.id:
+            return False
+        return bool(self.env['document.knowledge.access'].sudo().search_count([
+            ('category_id', '=', self.id),
+            ('user_id', '=', self.env.uid),
+            ('permission', '=', 'read_upload'),
+        ]))

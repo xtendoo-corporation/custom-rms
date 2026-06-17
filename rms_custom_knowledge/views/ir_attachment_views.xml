@@ -36,8 +36,10 @@
                         <group>
                             <group>
                                 <field name="is_knowledge_document" invisible="1"/>
+                                <field name="user_can_upload_here" invisible="1"/>
+                                <field name="is_saved_knowledge_document" invisible="1"/>
                                 <field name="knowledge_category_id" string="Directorio" required="is_knowledge_document" context="{'default_parent_id': False}"/>
-                                <field name="datas" string="Archivo" filename="name" required="is_knowledge_document"/>
+                                <field name="datas" string="Archivo" widget="knowledge_binary" filename="name" required="is_knowledge_document" invisible="is_saved_knowledge_document or (is_knowledge_document and not user_can_upload_here)"/>
                                 <field name="write_uid" string="Ultima version subida por" readonly="1"/>
                                 <field name="last_upload_date_display" string="Fecha de ultima subida" readonly="1"/>
                                 <field name="mimetype" invisible="1"/>
@@ -58,6 +60,44 @@
         </field>
     </record>
 
+    <record id="view_attachment_knowledge_kanban_primary" model="ir.ui.view">
+        <field name="name">ir.attachment.knowledge.kanban.primary</field>
+        <field name="model">ir.attachment</field>
+        <field name="arch" type="xml">
+            <kanban string="Articulos de Conocimiento" class="o_rms_knowledge_kanban" default_order="write_date desc">
+                <field name="id"/>
+                <field name="name"/>
+                <field name="knowledge_category_id"/>
+                <field name="mimetype"/>
+                <field name="write_date"/>
+                <field name="last_upload_date_display"/>
+                <field name="knowledge_preview_is_image"/>
+                <field name="knowledge_file_icon_class"/>
+                <templates>
+                    <t t-name="card" class="o_rms_knowledge_card flex-row align-items-center">
+                        <div class="o_rms_knowledge_thumb flex-shrink-0">
+                            <img t-if="record.knowledge_preview_is_image.raw_value"
+                                 t-att-src="'/web/image/ir.attachment/' + record.id.raw_value + '/datas'"
+                                 t-att-alt="record.name.value"/>
+                            <i t-else="" t-att-class="record.knowledge_file_icon_class.raw_value"/>
+                        </div>
+                        <div class="o_rms_knowledge_card_body min-w-0">
+                            <div class="o_rms_knowledge_card_title">
+                                <field name="name"/>
+                            </div>
+                            <div class="o_rms_knowledge_card_meta">
+                                <span t-if="record.last_upload_date_display.raw_value">
+                                    <i class="fa fa-clock-o me-1"/>
+                                    <field name="last_upload_date_display"/>
+                                </span>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
     <record id="view_attachment_knowledge_search_primary" model="ir.ui.view">
         <field name="name">ir.attachment.knowledge.search.primary</field>
         <field name="model">ir.attachment</field>
@@ -75,6 +115,9 @@
                     <group>
                         <filter string="Directorio" name="group_by_directory" context="{'group_by': 'knowledge_category_id'}"/>
                     </group>
+                    <searchpanel>
+                        <field name="knowledge_category_id" string="Directorios" enable_counters="1" expand="1"/>
+                    </searchpanel>
                 </search>
             </xpath>
         </field>
@@ -107,8 +150,10 @@
                     <group>
                         <group>
                             <field name="is_knowledge_document" invisible="1"/>
+                            <field name="user_can_upload_here" invisible="1"/>
+                            <field name="is_saved_knowledge_document" invisible="1"/>
                             <field name="knowledge_category_id" string="Directorio" required="is_knowledge_document" context="{'default_parent_id': False}"/>
-                            <field name="datas" string="Archivo" filename="name" required="is_knowledge_document"/>
+                            <field name="datas" string="Archivo" widget="knowledge_binary" filename="name" required="is_knowledge_document" invisible="is_saved_knowledge_document or (is_knowledge_document and not user_can_upload_here)"/>
                             <field name="write_uid" string="Ultima version subida por" readonly="1"/>
                             <field name="last_upload_date_display" string="Fecha de ultima subida" readonly="1"/>
                             <field name="mimetype" invisible="1"/>
@@ -141,6 +186,9 @@
                 <group>
                     <filter string="Directorio" name="group_by_directory" context="{'group_by': 'knowledge_category_id'}"/>
                 </group>
+                <searchpanel>
+                    <field name="knowledge_category_id" string="Directorios" enable_counters="1" expand="1"/>
+                </searchpanel>
             </search>
         </field>
     </record>
@@ -148,16 +196,19 @@
     <record id="action_knowledge_pdf" model="ir.actions.act_window">
         <field name="name">Documentos de Conocimiento</field>
         <field name="res_model">ir.attachment</field>
-        <field name="view_mode">list,form</field>
-        <field name="domain">[('is_knowledge_document', '=', True)]</field>
-        <field name="context">{'default_is_knowledge_document': True, 'search_default_group_by_directory': 1}</field>
+        <field name="view_mode">kanban,form</field>
+        <field name="domain">['&amp;', '&amp;', ('knowledge_category_id', '!=', False), ('name', 'not ilike', 'web.assets'), ('name', 'not ilike', 'bus.websocket')]</field>
+        <field name="context">{'default_is_knowledge_document': True, 'rms_knowledge_mode': True}</field>
+        <field name="view_id" ref="view_attachment_knowledge_kanban_primary"/>
         <field name="search_view_id" ref="view_attachment_knowledge_search_primary"/>
     </record>
 
-    <record id="action_knowledge_pdf_list_view" model="ir.actions.act_window.view">
+    <delete model="ir.actions.act_window.view" search="[('act_window_id', '=', ref('rms_custom_knowledge.action_knowledge_pdf')), ('view_mode', '=', 'kanban')]"/>
+
+    <record id="action_knowledge_pdf_kanban_view" model="ir.actions.act_window.view">
         <field name="sequence" eval="1"/>
-        <field name="view_mode">list</field>
-        <field name="view_id" ref="view_attachment_knowledge_tree_primary"/>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_attachment_knowledge_kanban_primary"/>
         <field name="act_window_id" ref="action_knowledge_pdf"/>
     </record>
 
@@ -171,17 +222,19 @@
     <record id="document_knowledge.knowledge_action_documents" model="ir.actions.act_window">
         <field name="name">Articulos de Conocimiento</field>
         <field name="res_model">ir.attachment</field>
-        <field name="view_mode">list,form</field>
-        <field name="domain">[('is_knowledge_document', '=', True)]</field>
-        <field name="context">{'default_is_knowledge_document': True, 'search_default_group_by_directory': 1}</field>
-        <field name="view_id" ref="view_attachment_knowledge_tree_primary"/>
+        <field name="view_mode">kanban,form</field>
+        <field name="domain">['&amp;', '&amp;', ('knowledge_category_id', '!=', False), ('name', 'not ilike', 'web.assets'), ('name', 'not ilike', 'bus.websocket')]</field>
+        <field name="context">{'default_is_knowledge_document': True, 'rms_knowledge_mode': True}</field>
+        <field name="view_id" ref="view_attachment_knowledge_kanban_primary"/>
         <field name="search_view_id" ref="view_attachment_knowledge_search_primary"/>
     </record>
 
-    <record id="action_document_knowledge_documents_list_view" model="ir.actions.act_window.view">
+    <delete model="ir.actions.act_window.view" search="[('act_window_id', '=', ref('document_knowledge.knowledge_action_documents')), ('view_mode', '=', 'kanban')]"/>
+
+    <record id="action_document_knowledge_documents_kanban_view" model="ir.actions.act_window.view">
         <field name="sequence" eval="1"/>
-        <field name="view_mode">list</field>
-        <field name="view_id" ref="view_attachment_knowledge_tree_primary"/>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_attachment_knowledge_kanban_primary"/>
         <field name="act_window_id" ref="document_knowledge.knowledge_action_documents"/>
     </record>
 

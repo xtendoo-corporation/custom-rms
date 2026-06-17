@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_custom_knowledge.KnowledgeBinaryField">
+        <t t-if="!props.readonly">
+            <t t-if="props.record.data[props.name]">
+                <div class="w-100 d-inline-flex gap-1 o_rms_knowledge_binary_field">
+                    <FileUploader
+                        acceptedFileExtensions="props.acceptedFileExtensions"
+                        allowedMIMETypes="props.allowedMIMETypes"
+                        onUploaded.bind="update"
+                    >
+                        <t t-set-slot="toggler">
+                            <input type="text" class="o_input" t-att-value="fileName" readonly="readonly" />
+                            <button
+                                class="btn btn-link btn-sm lh-1 fa fa-pencil o_select_file_button"
+                                data-tooltip="Cambiar archivo"
+                                aria-label="Cambiar archivo"
+                            >
+                            </button>
+                        </t>
+                        <button
+                            class="btn btn-link btn-sm lh-1 fa fa-trash o_clear_file_button"
+                            data-tooltip="Quitar archivo"
+                            aria-label="Quitar archivo"
+                            t-on-click="() => this.update({})"
+                        >
+                        </button>
+                    </FileUploader>
+                </div>
+            </t>
+            <t t-else="">
+                <label class="o_select_file_button btn btn-primary">
+                    <FileUploader
+                        acceptedFileExtensions="props.acceptedFileExtensions"
+                        allowedMIMETypes="props.allowedMIMETypes"
+                        onUploaded.bind="update"
+                    >
+                        <t t-set-slot="toggler">
+                            Subir archivo
+                        </t>
+                    </FileUploader>
+                </label>
+            </t>
+        </t>
+        <t t-elif="props.record.resId and props.record.data[props.name]">
+            <span class="o_rms_knowledge_binary_readonly">
+                <span class="fa fa-file-o me-2"/>
+                <t t-if="fileName" t-esc="fileName"/>
+            </span>
+        </t>
+    </t>
+</templates>
