@@ -39,4 +39,3 @@ class IrMailServer(models.Model):
 
         # 3. Si todos los correos son de @rmsproaudio.com, continúa el envío normal
         return super(IrMailServer, self).send_email(message, *args, **kwargs)
-filtro de dominio
