@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="state_new" model="product.state">
+            <field name="name">Nuevo</field>
+            <field name="code">new</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="state_demo" model="product.state">
+            <field name="name">Demo</field>
+            <field name="code">demo</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="state_ex_demo" model="product.state">
+            <field name="name">Ex-Demo</field>
+            <field name="code">ex_demo</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="state_second_hand" model="product.state">
+            <field name="name">2ª Mano</field>
+            <field name="code">second_hand</field>
+            <field name="sequence">40</field>
+        </record>
+        <record id="state_discontinued" model="product.state">
+            <field name="name">Descontinuado</field>
+            <field name="code">discontinued</field>
+            <field name="sequence">50</field>
+        </record>
+    </data>
+</odoo>

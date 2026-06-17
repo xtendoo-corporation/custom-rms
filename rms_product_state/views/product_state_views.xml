@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_product_state_list" model="ir.ui.view">
+        <field name="name">product.state.list</field>
+        <field name="model">product.state</field>
+        <field name="arch" type="xml">
+            <list string="Estados de Producto" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_state_form" model="ir.ui.view">
+        <field name="name">product.state.form</field>
+        <field name="model">product.state</field>
+        <field name="arch" type="xml">
+            <form string="Estado de Producto">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                        </group>
+                        <group>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_state" model="ir.actions.act_window">
+        <field name="name">Estados de Producto</field>
+        <field name="res_model">product.state</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Crea un nuevo estado de producto.
+            </p>
+            <p>
+                Los estados de producto definen las reglas de venta, precios y comportamiento de los artículos.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_product_state_config"
+              name="Estados de Producto"
+              parent="stock.menu_product_in_config_stock"
+              sequence="10"
+              action="action_product_state"/>
+</odoo>

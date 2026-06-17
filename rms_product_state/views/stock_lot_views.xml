@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_production_lot_form_inherit_rms_product_state" model="ir.ui.view">
+        <field name="name">stock.lot.form.inherit.rms.product.state</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='ref']" position="after">
+                <field name="product_state_code" invisible="1"/>
+                <field name="product_state_id" options="{'no_create': True, 'no_edit': True}"/>
+                <field name="custom_price" invisible="product_state_code not in ('ex_demo', 'second_hand')"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_production_lot_tree_inherit_rms_product_state" model="ir.ui.view">
+        <field name="name">stock.lot.list.inherit.rms.product.state</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='ref']" position="after">
+                <field name="product_state_id"/>
+                <field name="custom_price" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_product_template_form_inherit_rms_product_state" model="ir.ui.view">
+        <field name="name">product.template.form.inherit.rms.product.state</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='group_general']" position="inside">
+                <field name="product_state_id" options="{'no_create': True, 'no_edit': True}"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
