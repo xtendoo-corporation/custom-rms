@@ -113,7 +113,7 @@
     <record id="rule_knowledge_pdf_internal_read" model="ir.rule">
         <field name="name">Knowledge documents: restricted users explicit read</field>
         <field name="model_id" ref="base.model_ir_attachment"/>
-        <field name="domain_force">[('knowledge_category_id.access_line_ids.user_id', '=', user.id)]</field>
+        <field name="domain_force">['|', ('knowledge_category_id', '=', False), ('knowledge_category_id.access_line_ids.user_id', '=', user.id)]</field>
         <field name="groups" eval="[(6, 0, [ref('base.group_user')])]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
@@ -124,7 +124,7 @@
     <record id="rule_knowledge_pdf_internal_upload" model="ir.rule">
         <field name="name">Knowledge documents: restricted users explicit upload</field>
         <field name="model_id" ref="base.model_ir_attachment"/>
-        <field name="domain_force">['&amp;', ('knowledge_category_id.access_line_ids.user_id', '=', user.id), ('knowledge_category_id.access_line_ids.permission', '=', 'read_upload')]</field>
+        <field name="domain_force">['|', ('knowledge_category_id', '=', False), '&amp;', ('knowledge_category_id.access_line_ids.user_id', '=', user.id), ('knowledge_category_id.access_line_ids.permission', '=', 'read_upload')]</field>
         <field name="groups" eval="[(6, 0, [ref('base.group_user')])]"/>
         <field name="perm_read" eval="False"/>
         <field name="perm_write" eval="True"/>
