@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
 {
-    'name': 'RMS Sale Category Project Managers',
+    'name': 'RMS Sale Category Product Managers',
     'version': '19.0.1.0.0',
     'category': 'Sales/Sales',
-    'summary': 'Subscribe product category project managers to quotations automatically.',
+    'summary': 'Subscribe product category product managers to quotations automatically.',
     'description': """
-        Adds project managers to product categories and automatically subscribes
+        Adds product managers to product categories and automatically subscribes
         them as followers of quotations containing products from those categories.
     """,
     'author': 'Custom RMS',
