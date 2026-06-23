@@ -47,6 +47,15 @@
                             </option>
                         </select>
                     </div>
+                    <div class="o_customer_equipment_map_filter">
+                        <label class="form-label">Modelo de equipo</label>
+                        <select name="equipmentModelId" class="form-select" t-model="state.filters.equipmentModelId" t-on-change="onFilterChange">
+                            <option value="">Todos</option>
+                            <option t-foreach="filterOptions.equipmentModels" t-as="model" t-key="model.id" t-att-value="model.id">
+                                <t t-esc="model.name"/>
+                            </option>
+                        </select>
+                    </div>
                     <button
                         type="button"
                         class="btn btn-link"
@@ -77,9 +86,18 @@
                     >
                         <strong class="d-block" t-esc="partner.name"/>
                         <small class="d-block text-muted text-truncate" t-esc="partner.address"/>
-                        <span class="badge text-bg-primary mt-2">
-                            <t t-esc="partner.equipment.length"/> equipos
-                        </span>
+                        <div class="d-flex flex-wrap gap-1 mt-2">
+                            <span class="badge text-bg-primary">
+                                <t t-esc="partner.equipment.length"/> equipos
+                            </span>
+                            <span
+                                t-foreach="partner.equipment_models"
+                                t-as="model"
+                                t-key="model.id"
+                                class="badge text-bg-secondary"
+                                t-esc="model.name"
+                            />
+                        </div>
                     </button>
                 </aside>
                 <div t-ref="map" class="o_customer_equipment_map_canvas flex-grow-1"/>

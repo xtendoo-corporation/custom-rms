@@ -51,6 +51,7 @@ export class CustomerEquipmentMap extends Component {
             filtersOpen: false,
             filters: {
                 tagId: "",
+                equipmentModelId: "",
             },
         });
         this.markers = new Map();
@@ -76,9 +77,13 @@ export class CustomerEquipmentMap extends Component {
 
     get filterOptions() {
         const tags = new Map();
+        const equipmentModels = new Map();
         for (const partner of this.state.partners) {
             for (const tag of partner.tags) {
                 tags.set(tag.id, tag);
+            }
+            for (const model of partner.equipment_models) {
+                equipmentModels.set(model.id, model);
             }
         }
         const sortedValues = (values) =>
@@ -87,6 +92,7 @@ export class CustomerEquipmentMap extends Component {
             );
         return {
             tags: sortedValues(tags),
+            equipmentModels: sortedValues(equipmentModels),
         };
     }
 
@@ -104,6 +110,14 @@ export class CustomerEquipmentMap extends Component {
             ) {
                 return false;
             }
+            if (
+                filters.equipmentModelId &&
+                !partner.equipment_models.some(
+                    (model) => String(model.id) === filters.equipmentModelId
+                )
+            ) {
+                return false;
+            }
             if (!term) {
                 return true;
             }
@@ -111,6 +125,9 @@ export class CustomerEquipmentMap extends Component {
                 .map((item) => item.name + " " + item.serial_no + " " + item.category)
                 .join(" ");
             const tags = partner.tags.map((tag) => tag.name).join(" ");
+            const equipmentModels = partner.equipment_models
+                .map((model) => model.name)
+                .join(" ");
             return [
                 partner.name,
                 partner.address,
@@ -120,6 +137,7 @@ export class CustomerEquipmentMap extends Component {
                 partner.country?.name || "",
                 partner.industry?.name || "",
                 tags,
+                equipmentModels,
                 equipment,
             ]
                 .join(" ")
@@ -297,6 +315,14 @@ export class CustomerEquipmentMap extends Component {
                 line.textContent = value;
                 container.appendChild(line);
             }
+        }
+        if (partner.equipment_models.length) {
+            const modelsLine = document.createElement("div");
+            modelsLine.className = "mb-2";
+            modelsLine.textContent = "Modelos: " + partner.equipment_models
+                .map((model) => model.name)
+                .join(", ");
+            container.appendChild(modelsLine);
         }
         const equipmentTitle = document.createElement("strong");
         equipmentTitle.textContent = `Equipos instalados: ${partner.equipment.length}`;

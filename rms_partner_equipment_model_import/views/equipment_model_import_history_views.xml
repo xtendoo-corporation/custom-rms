@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_equipment_model_import_history_list" model="ir.ui.view">
+        <field name="name">equipment.model.import.history.list</field>
+        <field name="model">equipment.model.import.history</field>
+        <field name="arch" type="xml">
+            <list string="Histórico de importaciones" create="0" edit="0">
+                <field name="import_date"/>
+                <field name="filename"/>
+                <field name="user_id"/>
+                <field name="state" widget="badge"/>
+                <field name="company_found_count"/>
+                <field name="association_created_count"/>
+                <field name="error_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_equipment_model_import_history_form" model="ir.ui.view">
+        <field name="name">equipment.model.import.history.form</field>
+        <field name="model">equipment.model.import.history</field>
+        <field name="arch" type="xml">
+            <form string="Resultado de importación" create="0" edit="0">
+                <sheet>
+                    <widget
+                        name="web_ribbon"
+                        title="Fallida"
+                        bg_color="text-bg-danger"
+                        invisible="state != 'failed'"
+                    />
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="filename"/>
+                            <field name="import_date"/>
+                        </group>
+                        <group>
+                            <field name="user_id"/>
+                            <field name="state"/>
+                            <field
+                                name="log_file"
+                                filename="log_filename"
+                                widget="binary"
+                            />
+                            <field name="log_filename" invisible="1"/>
+                        </group>
+                    </group>
+                    <group string="Resumen">
+                        <group>
+                            <field name="company_found_count"/>
+                            <field name="company_not_found_count"/>
+                            <field name="model_created_count"/>
+                            <field name="model_existing_count"/>
+                        </group>
+                        <group>
+                            <field name="association_created_count"/>
+                            <field name="association_existing_count"/>
+                            <field name="error_count"/>
+                            <field name="ignored_row_count"/>
+                        </group>
+                    </group>
+                    <group string="Log detallado">
+                        <field name="log_text" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_equipment_model_import_history" model="ir.actions.act_window">
+        <field name="name">Histórico de importaciones</field>
+        <field name="res_model">equipment.model.import.history</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'create': False}</field>
+    </record>
+</odoo>

@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_equipment_model_tag_admin,equipment.model.tag admin,model_equipment_model_tag,base.group_system,1,1,1,1
+access_equipment_model_import_history_admin,equipment.model.import.history admin,model_equipment_model_import_history,base.group_system,1,1,1,1
+access_equipment_model_import_wizard_admin,equipment.model.import.wizard admin,model_equipment_model_import_wizard,base.group_system,1,1,1,1

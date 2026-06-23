@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_equipment_models" model="ir.ui.view">
+        <field name="name">res.partner.form.equipment.models</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/notebook" position="inside">
+                <page
+                    name="equipment_models"
+                    string="Modelos de equipo"
+                    invisible="not is_company"
+                    groups="base.group_system"
+                >
+                    <field
+                        name="equipment_model_tag_ids"
+                        widget="many2many_tags"
+                        options="{'no_create_edit': True}"
+                    />
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

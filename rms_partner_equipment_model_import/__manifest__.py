@@ -1,0 +1,21 @@
+{
+    "name": "RMS Partner Equipment Model Import",
+    "version": "19.0.1.0.0",
+    "category": "Contacts",
+    "summary": "Importa modelos de equipo asociados a compañías desde Excel",
+    "author": "Xtendoo",
+    "website": "https://xtendoo.es",
+    "license": "LGPL-3",
+    "depends": ["base", "contacts"],
+    "external_dependencies": {"python": ["openpyxl"]},
+    "data": [
+        "security/ir.model.access.csv",
+        "views/equipment_model_tag_views.xml",
+        "views/res_partner_views.xml",
+        "views/equipment_model_import_history_views.xml",
+        "wizard/equipment_model_import_wizard_views.xml",
+        "views/menu_views.xml",
+    ],
+    "installable": True,
+    "application": False,
+}
