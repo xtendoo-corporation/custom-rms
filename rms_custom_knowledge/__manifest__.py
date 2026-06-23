@@ -1,6 +1,6 @@
 {
     'name': 'RMS Custom Knowledge',
-    'version': '19.0.4.3.0',
+    'version': '19.0.5.0.0',
     'category': 'Knowledge',
     'summary': 'Extends Documents Knowledge with folders and PDF to Markdown rendering.',
     'description': """
@@ -22,6 +22,7 @@
         'web.assets_backend': [
             'rms_custom_knowledge/static/src/css/knowledge_kanban.css',
             'rms_custom_knowledge/static/src/js/knowledge_binary_field.js',
+            'rms_custom_knowledge/static/src/js/knowledge_subdirectory_one2many.js',
             'rms_custom_knowledge/static/src/xml/knowledge_binary_field.xml',
         ],
     },

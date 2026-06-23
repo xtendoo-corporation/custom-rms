@@ -139,8 +139,16 @@
     align-content: flex-start;
 }
 
-.o_rms_knowledge_directory_kanban .o_kanban_record {
-    width: 360px;
+.o_rms_knowledge_directory_kanban .o_kanban_record.o_kanban_ghost,
+.o_rms_knowledge_folder_kanban .o_kanban_record.o_kanban_ghost,
+.o_rms_knowledge_attachment_inline_kanban .o_kanban_record.o_kanban_ghost {
+    display: none !important;
+}
+
+.o_rms_knowledge_directory_kanban .o_kanban_record:not(.o_kanban_ghost) {
+    width: 320px;
+    max-width: 320px;
+    flex: 0 0 320px !important;
     min-height: 218px;
     margin: 0;
     border: 1px solid #e6e6e3;
@@ -150,7 +158,7 @@
     transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
 
-.o_rms_knowledge_directory_kanban .o_kanban_record:hover {
+.o_rms_knowledge_directory_kanban .o_kanban_record:not(.o_kanban_ghost):hover {
     border-color: #d4d4d0;
     box-shadow: 0 10px 24px rgba(15, 23, 42, .12);
     transform: translateY(-2px);
@@ -394,7 +402,7 @@
     align-content: flex-start;
 }
 
-.o_rms_knowledge_folder_kanban .o_kanban_record {
+.o_rms_knowledge_folder_kanban .o_kanban_record:not(.o_kanban_ghost) {
     width: 100%;
     max-width: 900px;
     margin: 0;
@@ -405,7 +413,7 @@
     box-shadow: none;
 }
 
-.o_rms_knowledge_folder_kanban .o_kanban_record:hover {
+.o_rms_knowledge_folder_kanban .o_kanban_record:not(.o_kanban_ghost):hover {
     background: #f8f9fa;
     box-shadow: none;
 }
@@ -433,7 +441,7 @@
     min-width: 0;
 }
 
-.o_rms_knowledge_attachment_inline_kanban .o_kanban_record {
+.o_rms_knowledge_attachment_inline_kanban .o_kanban_record:not(.o_kanban_ghost) {
     width: 100%;
     max-width: 900px;
     margin: 0;
@@ -480,8 +488,10 @@
         gap: 14px;
     }
 
-    .o_rms_knowledge_directory_kanban .o_kanban_record {
+    .o_rms_knowledge_directory_kanban .o_kanban_record:not(.o_kanban_ghost) {
         width: 100%;
+        max-width: none;
+        flex-basis: 100% !important;
     }
 
     .o_rms_knowledge_directory_form_cover {
@@ -499,8 +509,8 @@
         padding-left: 16px;
     }
 
-    .o_rms_knowledge_folder_kanban .o_kanban_record,
-    .o_rms_knowledge_attachment_inline_kanban .o_kanban_record {
+    .o_rms_knowledge_folder_kanban .o_kanban_record:not(.o_kanban_ghost),
+    .o_rms_knowledge_attachment_inline_kanban .o_kanban_record:not(.o_kanban_ghost) {
         width: 100%;
         max-width: none;
     }

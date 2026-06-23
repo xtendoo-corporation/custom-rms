@@ -170,6 +170,8 @@ class DocumentKnowledgeCategory(models.Model):
         ]))
 
     def action_open_knowledge_category(self):
+        if not self:
+            return False
         self.ensure_one()
         form_view = self.env.ref(
             'rms_custom_knowledge.view_document_knowledge_category_form'
@@ -182,4 +184,23 @@ class DocumentKnowledgeCategory(models.Model):
             'view_mode': 'form',
             'views': [(form_view.id, 'form')],
             'target': 'current',
+        }
+
+    def action_create_knowledge_subdirectory(self):
+        self.ensure_one()
+        form_view = self.env.ref(
+            'rms_custom_knowledge.view_document_knowledge_subdirectory_form'
+        )
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Nueva carpeta',
+            'res_model': self._name,
+            'view_mode': 'form',
+            'views': [(form_view.id, 'form')],
+            'target': 'new',
+            'context': {
+                **self.env.context,
+                'default_parent_id': self.id,
+                'default_icon': '📁',
+            },
         }
