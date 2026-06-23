@@ -6,6 +6,16 @@
         <field name="model">product.product</field>
         <field name="inherit_id" ref="product.product_view_kanban_catalog"/>
         <field name="arch" type="xml">
+            <!-- Add default_code field to the query -->
+            <xpath expr="//kanban/field[@name='id']" position="after">
+                <field name="default_code"/>
+            </xpath>
+            <!-- Add default_code right under the product name -->
+            <xpath expr="//field[@name='name']/.." position="after">
+                <div t-if="record.default_code.raw_value" class="text-muted fs-6 mb-1">
+                    Ref: <field name="default_code"/>
+                </div>
+            </xpath>
             <!-- Buscamos el campo de las variantes en el catálogo y nos aseguramos de que use el color_field -->
             <xpath expr="//field[@name='product_template_attribute_value_ids']" position="attributes">
                 <attribute name="options">{'color_field': 'color'}</attribute>
@@ -20,6 +30,7 @@
         <field name="arch" type="xml">
             <kanban records_draggable="0" default_order="is_favorite desc, default_code, name, id">
                 <field name="id"/>
+                <field name="default_code"/>
                 <templates>
                     <t t-name="card" class="p-0">
                         <div class="d-flex flex-grow-1 m-2">
@@ -33,6 +44,9 @@
                                         invisible="not is_favorite"
                                         nolabel="1"
                                         readonly="1"/>
+                                </div>
+                                <div t-if="record.default_code.raw_value" class="text-muted fs-6 mb-1">
+                                    Ref: <field name="default_code"/>
                                 </div>
                                 <div class="text-muted fs-6 mb-1">
                                     Precio: <field name="lst_price" widget="monetary"/>
