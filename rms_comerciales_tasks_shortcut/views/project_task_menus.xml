@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <menuitem
+            id="menu_comerciales_my_tasks"
+            name="Mis Tareas"
+            action="project.action_view_my_task"
+            web_icon="project,static/description/icon.png"
+            sequence="10"
+        />
+    </data>
+</odoo>
