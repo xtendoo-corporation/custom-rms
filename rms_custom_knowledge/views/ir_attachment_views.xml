@@ -39,11 +39,13 @@
                                 <field name="user_can_upload_here" invisible="1"/>
                                 <field name="is_saved_knowledge_document" invisible="1"/>
                                 <field name="knowledge_category_id" string="Directorio" required="is_knowledge_document" context="{'default_parent_id': False}"/>
-                                <field name="datas" string="Archivo" widget="knowledge_binary" filename="name" required="is_knowledge_document" invisible="is_saved_knowledge_document or (is_knowledge_document and not user_can_upload_here)"/>
+                                <field name="type" string="Tipo de recurso" widget="radio" readonly="is_saved_knowledge_document" options="{'horizontal': true}"/>
+                                <field name="url" string="Enlace externo" widget="url" placeholder="https://drive.google.com/..." required="type == 'url'" invisible="type != 'url'"/>
+                                <button name="action_open_knowledge_url" type="object" string="Abrir enlace" icon="fa-external-link" class="btn-primary" invisible="type != 'url' or not url or not is_saved_knowledge_document"/>
+                                <field name="datas" string="Archivo" widget="knowledge_binary" filename="name" required="is_knowledge_document and type == 'binary'" invisible="type != 'binary' or is_saved_knowledge_document or (is_knowledge_document and not user_can_upload_here)"/>
                                 <field name="write_uid" string="Ultima version subida por" readonly="1"/>
                                 <field name="last_upload_date_display" string="Fecha de ultima subida" readonly="1"/>
                                 <field name="mimetype" invisible="1"/>
-                                <field name="type" invisible="1"/>
                             </group>
                         </group>
                         <notebook>
@@ -71,6 +73,8 @@
                 <field name="mimetype"/>
                 <field name="write_date"/>
                 <field name="last_upload_date_display"/>
+                <field name="type"/>
+                <field name="url"/>
                 <field name="knowledge_preview_is_image"/>
                 <field name="knowledge_file_icon_class"/>
                 <templates>
@@ -92,6 +96,13 @@
                                 </span>
                             </div>
                         </div>
+                        <button t-if="record.type.raw_value === 'url'"
+                                type="object"
+                                name="action_open_knowledge_url"
+                                class="btn btn-link ms-auto"
+                                title="Abrir enlace">
+                            <i class="fa fa-external-link"/>
+                        </button>
                     </t>
                 </templates>
             </kanban>
@@ -112,6 +123,7 @@
                     <filter string="PDF" name="pdf" domain="[('mimetype', '=', 'application/pdf')]"/>
                     <filter string="Imagenes" name="images" domain="[('mimetype', '=like', 'image/%')]"/>
                     <filter string="Texto" name="text" domain="[('mimetype', '=like', 'text/%')]"/>
+                    <filter string="Enlaces" name="external_links" domain="[('type', '=', 'url')]"/>
                     <group>
                         <filter string="Directorio" name="group_by_directory" context="{'group_by': 'knowledge_category_id'}"/>
                     </group>
@@ -153,11 +165,13 @@
                             <field name="user_can_upload_here" invisible="1"/>
                             <field name="is_saved_knowledge_document" invisible="1"/>
                             <field name="knowledge_category_id" string="Directorio" required="is_knowledge_document" context="{'default_parent_id': False}"/>
-                            <field name="datas" string="Archivo" widget="knowledge_binary" filename="name" required="is_knowledge_document" invisible="is_saved_knowledge_document or (is_knowledge_document and not user_can_upload_here)"/>
+                            <field name="type" string="Tipo de recurso" widget="radio" readonly="is_saved_knowledge_document" options="{'horizontal': true}"/>
+                            <field name="url" string="Enlace externo" widget="url" placeholder="https://drive.google.com/..." required="type == 'url'" invisible="type != 'url'"/>
+                            <button name="action_open_knowledge_url" type="object" string="Abrir enlace" icon="fa-external-link" class="btn-primary" invisible="type != 'url' or not url or not is_saved_knowledge_document"/>
+                            <field name="datas" string="Archivo" widget="knowledge_binary" filename="name" required="is_knowledge_document and type == 'binary'" invisible="type != 'binary' or is_saved_knowledge_document or (is_knowledge_document and not user_can_upload_here)"/>
                             <field name="write_uid" string="Ultima version subida por" readonly="1"/>
                             <field name="last_upload_date_display" string="Fecha de ultima subida" readonly="1"/>
                             <field name="mimetype" invisible="1"/>
-                            <field name="type" invisible="1"/>
                         </group>
                     </group>
                     <notebook>
@@ -183,6 +197,7 @@
                 <filter string="PDF" name="pdf" domain="[('mimetype', '=', 'application/pdf')]"/>
                 <filter string="Imagenes" name="images" domain="[('mimetype', '=like', 'image/%')]"/>
                 <filter string="Texto" name="text" domain="[('mimetype', '=like', 'text/%')]"/>
+                <filter string="Enlaces" name="external_links" domain="[('type', '=', 'url')]"/>
                 <group>
                     <filter string="Directorio" name="group_by_directory" context="{'group_by': 'knowledge_category_id'}"/>
                 </group>

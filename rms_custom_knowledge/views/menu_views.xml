@@ -1,18 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="document_knowledge.menu_document_section" model="ir.ui.menu">
-        <field name="group_ids" eval="[(6, 0, [ref('base.group_user')])]"/>
+    <menuitem id="document_knowledge.menu_document_root"
+              name="Conocimiento"
+              action="action_document_knowledge_category"
+              groups="base.group_user"
+              web_icon="document_knowledge,static/description/icon.png"
+              sequence="116"/>
+
+    <menuitem id="document_knowledge.menu_document_section"
+              name="Biblioteca"
+              parent="document_knowledge.menu_document_root"
+              action="action_document_knowledge_library"
+              groups="rms_custom_knowledge.group_knowledge_manager"
+              sequence="10"/>
+
+    <record id="document_knowledge.menu_document" model="ir.ui.menu">
+        <field name="active" eval="False"/>
     </record>
 
-    <menuitem id="document_knowledge.menu_document"
-              name="Articulos"
-              parent="document_knowledge.menu_document_section"
-              action="document_knowledge.knowledge_action_documents"
-              sequence="0"/>
+    <record id="menu_knowledge_directories" model="ir.ui.menu">
+        <field name="name">Directorios</field>
+        <field name="parent_id" ref="document_knowledge.menu_document_section"/>
+        <field name="action" ref="action_document_knowledge_category"/>
+        <field name="active" eval="False"/>
+    </record>
 
-    <menuitem id="menu_knowledge_directories"
-              name="Directorios"
-              parent="document_knowledge.menu_document_section"
-              action="action_document_knowledge_category"
-              sequence="20"/>
+    <record id="menu_knowledge_directory_permissions" model="ir.ui.menu">
+        <field name="name">Permisos de directorio</field>
+        <field name="parent_id" ref="document_knowledge.menu_document_section"/>
+        <field name="action" ref="action_document_knowledge_access"/>
+        <field name="active" eval="False"/>
+    </record>
 </odoo>

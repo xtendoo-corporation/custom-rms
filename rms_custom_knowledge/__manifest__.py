@@ -1,6 +1,6 @@
 {
     'name': 'RMS Custom Knowledge',
-    'version': '19.0.1.0.0',
+    'version': '19.0.4.3.0',
     'category': 'Knowledge',
     'summary': 'Extends Documents Knowledge with folders and PDF to Markdown rendering.',
     'description': """
@@ -26,6 +26,6 @@
         ],
     },
     'installable': True,
-    'application': False,
+    'application': True,
     'license': 'AGPL-3',
 }

@@ -11,6 +11,20 @@ class DocumentKnowledgeCategory(models.Model):
     _order = 'complete_name, id'
 
     name = fields.Char(required=True, translate=True)
+    cover_image = fields.Image(
+        string='Imagen de portada',
+        max_width=1920,
+        max_height=1080,
+        attachment=True,
+    )
+    icon = fields.Char(
+        string='Icono',
+        default='📁',
+        help=(
+            'Emoji o carácter corto utilizado para identificar visualmente '
+            'el directorio.'
+        ),
+    )
     complete_name = fields.Char(
         compute='_compute_complete_name',
         recursive=True,
@@ -154,3 +168,18 @@ class DocumentKnowledgeCategory(models.Model):
             ('user_id', '=', self.env.uid),
             ('permission', '=', 'read_upload'),
         ]))
+
+    def action_open_knowledge_category(self):
+        self.ensure_one()
+        form_view = self.env.ref(
+            'rms_custom_knowledge.view_document_knowledge_category_form'
+        )
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.display_name,
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'views': [(form_view.id, 'form')],
+            'target': 'current',
+        }

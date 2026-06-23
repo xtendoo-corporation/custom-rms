@@ -4,10 +4,11 @@ import io
 import re
 import zipfile
 import xml.etree.ElementTree as ET
+from urllib.parse import urlsplit
 
 from odoo import _, api, fields, models
 from odoo.osv import expression
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 
 class IrAttachment(models.Model):
     _inherit = 'ir.attachment'
@@ -90,27 +91,91 @@ class IrAttachment(models.Model):
         for attachment in self:
             attachment.user_can_upload_here = attachment.knowledge_category_id.id in uploadable_category_ids
 
-    @api.depends('datas', 'mimetype', 'name', 'is_knowledge_document')
+    @api.depends('datas', 'mimetype', 'name', 'is_knowledge_document', 'type', 'url')
     def _compute_body_html(self):
         for attachment in self:
             attachment.body_html = attachment._get_knowledge_preview_html()
 
-    @api.depends('datas', 'mimetype', 'name', 'is_knowledge_document')
+    @api.depends('datas', 'mimetype', 'name', 'is_knowledge_document', 'type', 'url')
     def _compute_preview_url(self):
         for attachment in self:
             attachment.preview_url = attachment._get_knowledge_preview_url()
 
-    @api.depends('mimetype', 'name')
+    @api.depends('mimetype', 'name', 'type')
     def _compute_knowledge_preview_card(self):
         for attachment in self:
             mimetype = attachment.mimetype or ''
             filename = (attachment.name or '').lower()
-            attachment.knowledge_preview_is_image = mimetype.startswith('image/')
-            attachment.knowledge_file_icon_class = attachment._get_knowledge_file_icon_class(mimetype, filename)
+            attachment.knowledge_preview_is_image = (
+                attachment.type != 'url' and mimetype.startswith('image/')
+            )
+            attachment.knowledge_file_icon_class = (
+                'fa fa-link'
+                if attachment.type == 'url'
+                else attachment._get_knowledge_file_icon_class(mimetype, filename)
+            )
+
+    @api.constrains('type', 'url', 'is_knowledge_document', 'knowledge_category_id')
+    def _check_knowledge_external_url(self):
+        for attachment in self:
+            if not attachment.is_knowledge_document or attachment.type != 'url':
+                continue
+            if not attachment._is_valid_knowledge_external_url():
+                raise ValidationError(
+                    _(
+                        'Indica una URL web completa y válida que comience por '
+                        'https:// o http://.'
+                    )
+                )
+
+    def _is_valid_knowledge_external_url(self):
+        self.ensure_one()
+        if not self.url:
+            return False
+        url = self.url.strip()
+        if any(character.isspace() for character in url):
+            return False
+        try:
+            parsed_url = urlsplit(url)
+            hostname = parsed_url.hostname
+        except ValueError:
+            return False
+        return parsed_url.scheme.lower() in ('https', 'http') and bool(hostname)
+
+    def action_open_knowledge_url(self):
+        self.ensure_one()
+        if self.type != 'url' or not self._is_valid_knowledge_external_url():
+            raise ValidationError(_('Este recurso no contiene un enlace externo.'))
+        return {
+            'type': 'ir.actions.act_url',
+            'url': self.url.strip(),
+            'target': 'new',
+        }
+
+    def action_open_knowledge_preview(self):
+        self.ensure_one()
+        form_view = self.env.ref(
+            'rms_custom_knowledge.view_attachment_knowledge_form_primary'
+        )
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.display_name,
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'views': [(form_view.id, 'form')],
+            'target': 'current',
+            'context': {
+                **self.env.context,
+                'rms_knowledge_mode': True,
+            },
+        }
 
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
+            if isinstance(vals.get('url'), str):
+                vals['url'] = vals['url'].strip()
             if self._values_create_knowledge_document(vals):
                 self._check_knowledge_upload_access_for_values(vals)
                 vals['is_knowledge_document'] = True
@@ -243,6 +308,9 @@ class IrAttachment(models.Model):
         return super(IrAttachment, remaining)._check_access(operation)
 
     def write(self, vals):
+        if isinstance(vals.get('url'), str):
+            vals = dict(vals)
+            vals['url'] = vals['url'].strip()
         if vals.get('knowledge_category_id') and not vals.get('is_knowledge_document'):
             vals = dict(vals)
             vals['is_knowledge_document'] = True
@@ -305,6 +373,8 @@ class IrAttachment(models.Model):
 
     def _get_knowledge_preview_url(self):
         self.ensure_one()
+        if self.type == 'url':
+            return self.url.strip() if self._is_valid_knowledge_external_url() else False
         if not self.datas or not self.id:
             return False
 
@@ -342,6 +412,23 @@ class IrAttachment(models.Model):
 
     def _get_knowledge_preview_html(self):
         self.ensure_one()
+        if self.type == 'url':
+            if not self._is_valid_knowledge_external_url():
+                return self._preview_empty_html(
+                    _('Añade una URL web válida para abrir el enlace.')
+                )
+            safe_url = html.escape(self.url.strip(), quote=True)
+            safe_name = html.escape(self.name or _('Enlace externo'))
+            return """<div class="o_rms_knowledge_external_link_preview">
+                <div class="o_rms_knowledge_external_link_preview_icon">
+                    <i class="fa fa-link"></i>
+                </div>
+                <h3>%s</h3>
+                <p class="text-muted">%s</p>
+                <a class="btn btn-primary" href="%s" target="_blank" rel="noopener noreferrer">
+                    <i class="fa fa-external-link me-1"></i> Abrir enlace
+                </a>
+            </div>""" % (safe_name, safe_url, safe_url)
         if not self.datas:
             return self._preview_empty_html(_("Upload a file to preview it here."))
         if not self.id:

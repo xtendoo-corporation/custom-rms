@@ -34,6 +34,7 @@
         <field name="model">document.knowledge.category</field>
         <field name="arch" type="xml">
             <list string="Directorios">
+                <field name="icon" optional="show"/>
                 <field name="complete_name"/>
                 <field name="parent_id"/>
                 <field name="document_count"/>
@@ -41,42 +42,248 @@
         </field>
     </record>
 
+    <record id="view_document_knowledge_category_kanban" model="ir.ui.view">
+        <field name="name">document.knowledge.category.kanban.gallery</field>
+        <field name="model">document.knowledge.category</field>
+        <field name="arch" type="xml">
+            <kanban string="Directorios" class="o_rms_knowledge_directory_kanban" default_order="name, id">
+                <field name="id"/>
+                <field name="name"/>
+                <field name="cover_image"/>
+                <field name="icon"/>
+                <templates>
+                    <t t-name="card" class="o_rms_knowledge_directory_card p-0 overflow-hidden">
+                        <div class="o_rms_knowledge_directory_cover">
+                            <field t-if="record.cover_image.raw_value"
+                                   name="cover_image"
+                                   widget="image"
+                                   options="{'img_class': 'o_rms_knowledge_directory_cover_image'}"
+                                   alt="Portada del directorio"/>
+                            <div t-else="" class="o_rms_knowledge_directory_cover_placeholder">
+                                <i class="fa fa-folder-open-o"/>
+                            </div>
+                        </div>
+                        <div class="o_rms_knowledge_directory_card_body">
+                            <span t-if="record.icon.raw_value" class="o_rms_knowledge_directory_icon">
+                                <field name="icon"/>
+                            </span>
+                            <span t-else="" class="o_rms_knowledge_directory_icon">📁</span>
+                            <strong class="o_rms_knowledge_directory_name">
+                                <field name="name"/>
+                            </strong>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
     <record id="view_document_knowledge_category_form" model="ir.ui.view">
         <field name="name">document.knowledge.category.form</field>
         <field name="model">document.knowledge.category</field>
         <field name="arch" type="xml">
-            <form string="Directorio">
+            <form string="Directorio" class="o_rms_knowledge_browser_form">
                 <sheet>
+                    <field name="user_can_upload_here" invisible="1"/>
+                    <div class="o_rms_knowledge_browser_header">
+                        <div class="o_rms_knowledge_browser_title d-flex align-items-center gap-3">
+                            <span class="o_rms_knowledge_browser_folder_icon">
+                                <i class="fa fa-folder-open"/>
+                            </span>
+                            <div class="oe_title flex-grow-1 mb-0">
+                                <h1 class="mb-0">
+                                    <field name="name" placeholder="Nombre del directorio"/>
+                                </h1>
+                                <field name="parent_id"
+                                       class="text-muted"
+                                       placeholder="Directorio raíz"/>
+                            </div>
+                        </div>
+                        <field name="description"
+                               class="o_rms_knowledge_browser_description"
+                               nolabel="1"
+                               placeholder="Añade una descripción para este directorio..."/>
+                    </div>
+
+                    <div class="o_rms_knowledge_browser_section">
+                        <div class="o_rms_knowledge_browser_section_title">
+                            <i class="fa fa-folder-o me-2"/>Carpetas
+                        </div>
+                        <field name="child_ids"
+                               mode="kanban"
+                               widget="one2many"
+                               nolabel="1"
+                               add-label="Añadir carpeta"
+                               context="{'default_parent_id': id}">
+                            <kanban class="o_rms_knowledge_folder_kanban"
+                                    can_open="0"
+                                    quick_create="false">
+                                <field name="name"/>
+                                <field name="document_count"/>
+                                <templates>
+                                    <t t-name="card" class="o_rms_knowledge_folder_card p-0">
+                                        <button type="object"
+                                                name="action_open_knowledge_category"
+                                                class="o_rms_knowledge_folder_button">
+                                            <span class="o_rms_knowledge_folder_card_icon">
+                                                <i class="fa fa-folder"/>
+                                            </span>
+                                            <span class="o_rms_knowledge_folder_card_content">
+                                                <strong class="d-block text-truncate">
+                                                    <field name="name"/>
+                                                </strong>
+                                                <small class="text-muted">
+                                                    <field name="document_count"/> archivos
+                                                </small>
+                                            </span>
+                                            <i class="fa fa-angle-right text-muted ms-auto"/>
+                                        </button>
+                                    </t>
+                                </templates>
+                            </kanban>
+                            <form string="Nuevo subdirectorio">
+                                <sheet>
+                                    <group>
+                                        <field name="icon" placeholder="📁"/>
+                                        <field name="name"/>
+                                        <field name="parent_id" readonly="1"/>
+                                        <field name="cover_image" widget="image"/>
+                                        <field name="description"/>
+                                    </group>
+                                </sheet>
+                            </form>
+                        </field>
+                    </div>
+
+                    <div class="o_rms_knowledge_browser_section">
+                        <div class="o_rms_knowledge_browser_section_title">
+                            <i class="fa fa-files-o me-2"/>Archivos y enlaces
+                        </div>
+                        <field name="attachment_ids"
+                               mode="kanban"
+                               widget="one2many"
+                               nolabel="1"
+                               add-label="Añadir archivo o enlace"
+                               context="{'default_knowledge_category_id': id, 'default_is_knowledge_document': True, 'rms_knowledge_mode': True}"
+                               readonly="not user_can_upload_here">
+                            <kanban class="o_rms_knowledge_attachment_inline_kanban"
+                                    default_order="write_date desc"
+                                    can_open="0">
+                                <field name="id"/>
+                                <field name="name"/>
+                                <field name="type"/>
+                                <field name="url"/>
+                                <field name="mimetype"/>
+                                <field name="last_upload_date_display"/>
+                                <field name="knowledge_preview_is_image"/>
+                                <field name="knowledge_file_icon_class"/>
+                                <templates>
+                                    <t t-name="card" class="o_rms_knowledge_inline_file_card flex-row align-items-center">
+                                        <button type="object"
+                                                name="action_open_knowledge_preview"
+                                                class="o_rms_knowledge_file_preview_button">
+                                            <span class="o_rms_knowledge_inline_file_thumb flex-shrink-0">
+                                                <img t-if="record.knowledge_preview_is_image.raw_value"
+                                                     t-att-src="'/web/image/ir.attachment/' + record.id.raw_value + '/datas'"
+                                                     t-att-alt="record.name.value"/>
+                                                <i t-else="" t-att-class="record.knowledge_file_icon_class.raw_value"/>
+                                            </span>
+                                            <span class="min-w-0 flex-grow-1 text-start">
+                                                <strong class="d-block text-truncate">
+                                                    <field name="name"/>
+                                                </strong>
+                                                <small t-if="record.last_upload_date_display.raw_value" class="text-muted">
+                                                    <field name="last_upload_date_display"/>
+                                                </small>
+                                            </span>
+                                        </button>
+                                        <button t-if="record.type.raw_value === 'url'"
+                                                type="object"
+                                                name="action_open_knowledge_url"
+                                                class="btn btn-link ms-auto"
+                                                title="Abrir enlace">
+                                            <i class="fa fa-external-link"/>
+                                        </button>
+                                    </t>
+                                </templates>
+                            </kanban>
+                            <list>
+                                <field name="name"/>
+                                <field name="type" string="Tipo"/>
+                                <field name="url" widget="url" optional="show"/>
+                                <field name="mimetype"/>
+                                <field name="write_date"/>
+                            </list>
+                            <form string="Archivo de conocimiento">
+                                <sheet>
+                                    <group>
+                                        <field name="is_knowledge_document" invisible="1"/>
+                                        <field name="user_can_upload_here" invisible="1"/>
+                                        <field name="is_saved_knowledge_document" invisible="1"/>
+                                        <field name="knowledge_category_id" invisible="1"/>
+                                        <field name="name" placeholder="Nombre del archivo"/>
+                                        <field name="type"
+                                               string="Tipo de recurso"
+                                               widget="radio"
+                                               readonly="is_saved_knowledge_document"
+                                               options="{'horizontal': true}"/>
+                                        <field name="url"
+                                               string="Enlace externo"
+                                               widget="url"
+                                               placeholder="https://drive.google.com/..."
+                                               required="type == 'url'"
+                                               invisible="type != 'url'"/>
+                                        <button name="action_open_knowledge_url"
+                                                type="object"
+                                                string="Abrir enlace"
+                                                icon="fa-external-link"
+                                                class="btn-primary"
+                                                invisible="type != 'url' or not url or not is_saved_knowledge_document"/>
+                                        <field name="datas"
+                                               string="Archivo"
+                                               widget="knowledge_binary"
+                                               filename="name"
+                                               required="is_knowledge_document and type == 'binary'"
+                                               invisible="type != 'binary' or is_saved_knowledge_document or (is_knowledge_document and not user_can_upload_here)"/>
+                                        <field name="mimetype" invisible="1"/>
+                                    </group>
+                                </sheet>
+                            </form>
+                        </field>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_document_knowledge_category_admin_form" model="ir.ui.view">
+        <field name="name">document.knowledge.category.admin.form</field>
+        <field name="model">document.knowledge.category</field>
+        <field name="arch" type="xml">
+            <form string="Administrar directorio">
+                <sheet>
+                    <field name="cover_image"
+                           widget="image"
+                           class="oe_avatar"
+                           options="{'preview_image': 'cover_image'}"/>
                     <div class="oe_title">
+                        <label for="name"/>
                         <h1>
+                            <field name="icon" class="w-auto" placeholder="📁"/>
                             <field name="name" placeholder="Nombre del directorio"/>
                         </h1>
                     </div>
                     <group>
                         <field name="parent_id"/>
-                        <field name="description" placeholder="Descripcion del directorio"/>
-                        <field name="user_can_upload_here" invisible="1"/>
+                        <field name="complete_name" readonly="1"/>
+                        <field name="document_count" readonly="1"/>
+                        <field name="description"/>
                     </group>
                     <notebook>
-                        <page string="Subdirectorios">
-                            <field name="child_ids" context="{'default_parent_id': id}">
-                                <list editable="bottom">
-                                    <field name="name"/>
-                                    <field name="document_count"/>
-                                </list>
-                            </field>
-                        </page>
-                        <page string="Documentos">
-                            <field name="attachment_ids" context="{'default_knowledge_category_id': id, 'default_is_knowledge_document': True}" readonly="not user_can_upload_here">
-                                <list>
-                                    <field name="name"/>
-                                    <field name="mimetype"/>
-                                    <field name="write_date"/>
-                                </list>
-                            </field>
-                        </page>
                         <page string="Permisos" groups="rms_custom_knowledge.group_knowledge_manager">
-                            <field name="access_line_ids" groups="rms_custom_knowledge.group_knowledge_manager" context="{'default_category_id': id}" mode="list,form">
+                            <field name="access_line_ids"
+                                   context="{'default_category_id': id}"
+                                   mode="list,form">
                                 <list create="1" edit="1" delete="1">
                                     <field name="category_id" invisible="1"/>
                                     <field name="user_id"/>
@@ -98,9 +305,47 @@
     </record>
 
     <record id="action_document_knowledge_category" model="ir.actions.act_window">
-        <field name="name">Directorios</field>
+        <field name="name">Conocimiento</field>
+        <field name="res_model">document.knowledge.category</field>
+        <field name="view_mode">kanban,form</field>
+        <field name="domain">[('parent_id', '=', False)]</field>
+        <field name="context">{'default_parent_id': False}</field>
+        <field name="view_id" ref="view_document_knowledge_category_kanban"/>
+    </record>
+
+    <record id="action_document_knowledge_category_kanban_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_document_knowledge_category_kanban"/>
+        <field name="act_window_id" ref="action_document_knowledge_category"/>
+    </record>
+
+    <record id="action_document_knowledge_category_form_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_document_knowledge_category_form"/>
+        <field name="act_window_id" ref="action_document_knowledge_category"/>
+    </record>
+
+    <record id="action_document_knowledge_library" model="ir.actions.act_window">
+        <field name="name">Biblioteca</field>
         <field name="res_model">document.knowledge.category</field>
         <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_document_knowledge_category_list"/>
+    </record>
+
+    <record id="action_document_knowledge_library_list_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_document_knowledge_category_list"/>
+        <field name="act_window_id" ref="action_document_knowledge_library"/>
+    </record>
+
+    <record id="action_document_knowledge_library_form_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_document_knowledge_category_admin_form"/>
+        <field name="act_window_id" ref="action_document_knowledge_library"/>
     </record>
 
     <record id="action_document_knowledge_access" model="ir.actions.act_window">
