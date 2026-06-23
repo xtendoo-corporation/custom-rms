@@ -1,0 +1,115 @@
+.o_customer_equipment_map {
+    min-height: 0;
+
+    .o_customer_equipment_map_toolbar {
+        min-height: 58px;
+        flex-wrap: wrap;
+
+        input {
+            width: 420px;
+            max-width: 40vw;
+        }
+    }
+
+    .o_customer_equipment_map_filters {
+        background: var(--body-bg, #fff);
+    }
+
+    .o_customer_equipment_map_filter {
+        min-width: 180px;
+        flex: 1 1 180px;
+
+        .form-label {
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+    }
+
+    .o_customer_equipment_map_content {
+        min-height: 0;
+    }
+
+    .o_customer_equipment_map_sidebar {
+        width: 320px;
+        flex: 0 0 320px;
+        background: var(--body-bg, #fff);
+    }
+
+    .o_customer_equipment_map_partner {
+        color: inherit;
+
+        &:hover,
+        &:focus {
+            background-color: rgba(0, 0, 0, 0.04) !important;
+            outline: 0;
+        }
+    }
+
+    .o_customer_equipment_map_canvas {
+        min-width: 0;
+        min-height: 500px;
+        z-index: 0;
+    }
+}
+
+.o_customer_equipment_map_marker {
+    background: transparent;
+    border: 0;
+
+    &::before {
+        content: "";
+        position: absolute;
+        inset: 0 0 8px;
+        border-radius: 50% 50% 50% 0;
+        background: #714b67;
+        border: 2px solid #fff;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+        transform: rotate(-45deg);
+    }
+
+    span {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        width: 34px;
+        height: 34px;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-weight: 700;
+    }
+}
+
+.o_customer_equipment_map_popup {
+    h5 {
+        margin-bottom: 0.5rem;
+    }
+
+    ul {
+        max-height: 150px;
+        overflow-y: auto;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .o_customer_equipment_map {
+        .o_customer_equipment_map_toolbar {
+            align-items: stretch !important;
+            flex-direction: column;
+
+            .ms-auto {
+                width: 100%;
+                margin-left: 0 !important;
+            }
+
+            input {
+                width: 100%;
+            }
+        }
+
+        .o_customer_equipment_map_sidebar {
+            display: none;
+        }
+    }
+}

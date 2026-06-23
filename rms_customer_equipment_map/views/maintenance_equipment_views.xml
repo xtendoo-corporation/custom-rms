@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="maintenance_equipment_view_form_customer" model="ir.ui.view">
+        <field name="name">maintenance.equipment.form.customer</field>
+        <field name="model">maintenance.equipment</field>
+        <field name="inherit_id" ref="maintenance.hr_equipment_view_form"/>
+        <field name="arch" type="xml">
+            <field name="category_id" position="after">
+                <field name="partner_id" position="move"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="maintenance_equipment_view_list_customer" model="ir.ui.view">
+        <field name="name">maintenance.equipment.list.customer</field>
+        <field name="model">maintenance.equipment</field>
+        <field name="inherit_id" ref="maintenance.hr_equipment_view_tree"/>
+        <field name="arch" type="xml">
+            <field name="partner_id" position="attributes">
+                <attribute name="string">Cliente / Ubicación</attribute>
+                <attribute name="column_invisible">False</attribute>
+                <attribute name="optional">show</attribute>
+            </field>
+        </field>
+    </record>
+
+    <record id="maintenance_equipment_view_search_customer" model="ir.ui.view">
+        <field name="name">maintenance.equipment.search.customer</field>
+        <field name="model">maintenance.equipment</field>
+        <field name="inherit_id" ref="maintenance.hr_equipment_view_search"/>
+        <field name="arch" type="xml">
+            <field name="owner_user_id" position="after">
+                <field name="partner_id" string="Cliente / Ubicación"/>
+            </field>
+            <filter name="vendor" position="attributes">
+                <attribute name="string">Cliente / Ubicación</attribute>
+            </filter>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_customer_equipment_map.CustomerEquipmentMap">
+        <div class="o_customer_equipment_map h-100 d-flex flex-column">
+            <div class="o_customer_equipment_map_toolbar d-flex align-items-center gap-3 px-3 py-2 border-bottom bg-view">
+                <h2 class="mb-0">Clientes en mapa</h2>
+                <button
+                    type="button"
+                    class="btn btn-primary"
+                    t-att-disabled="state.geolocating"
+                    t-on-click="onBulkGeolocate"
+                >
+                    <i class="fa fa-map-marker me-1"/>
+                    <t t-if="state.geolocating">
+                        Geolocalizando <t t-esc="state.geolocationDone"/>/<t t-esc="state.geolocationTotal"/>
+                    </t>
+                    <t t-else="">Geolocalizar todos</t>
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    t-on-click="toggleFilters"
+                >
+                    <i class="fa fa-filter me-1"/> Filtros
+                    <span t-if="activeFilterCount" class="badge text-bg-primary ms-1" t-esc="activeFilterCount"/>
+                </button>
+                <div class="ms-auto">
+                    <input
+                        type="search"
+                        class="form-control"
+                        placeholder="Buscar cliente, equipo o número de serie..."
+                        t-on-input="onSearchInput"
+                    />
+                </div>
+            </div>
+            <div
+                t-if="state.filtersOpen"
+                class="o_customer_equipment_map_filters border-bottom px-3 py-3"
+            >
+                <div class="d-flex flex-wrap gap-3 align-items-end">
+                    <div class="o_customer_equipment_map_filter">
+                        <label class="form-label">Etiqueta</label>
+                        <select name="tagId" class="form-select" t-model="state.filters.tagId" t-on-change="onFilterChange">
+                            <option value="">Todas</option>
+                            <option t-foreach="filterOptions.tags" t-as="tag" t-key="tag.id" t-att-value="tag.id">
+                                <t t-esc="tag.name"/>
+                            </option>
+                        </select>
+                    </div>
+                    <button
+                        type="button"
+                        class="btn btn-link"
+                        t-att-disabled="!activeFilterCount"
+                        t-on-click="clearFilters"
+                    >
+                        Limpiar filtros
+                    </button>
+                </div>
+            </div>
+            <div class="o_customer_equipment_map_content d-flex flex-grow-1 overflow-hidden">
+                <aside class="o_customer_equipment_map_sidebar border-end overflow-auto">
+                    <div class="px-3 py-2 text-muted border-bottom">
+                        <t t-esc="filteredPartners.length"/> clientes geolocalizados
+                    </div>
+                    <t t-if="!filteredPartners.length">
+                        <div class="p-4 text-center text-muted">
+                            No hay clientes geolocalizados que coincidan con la búsqueda.
+                        </div>
+                    </t>
+                    <button
+                        t-foreach="filteredPartners"
+                        t-as="partner"
+                        t-key="partner.id"
+                        type="button"
+                        class="o_customer_equipment_map_partner w-100 text-start border-0 border-bottom p-3 bg-transparent"
+                        t-on-click="() => this.focusPartner(partner.id)"
+                    >
+                        <strong class="d-block" t-esc="partner.name"/>
+                        <small class="d-block text-muted text-truncate" t-esc="partner.address"/>
+                        <span class="badge text-bg-primary mt-2">
+                            <t t-esc="partner.equipment.length"/> equipos
+                        </span>
+                    </button>
+                </aside>
+                <div t-ref="map" class="o_customer_equipment_map_canvas flex-grow-1"/>
+            </div>
+        </div>
+    </t>
+</templates>
