@@ -27,73 +27,60 @@ class EquipmentModelImportWizard(models.TransientModel):
 
     excel_file = fields.Binary(string="Archivo Excel", required=True)
     filename = fields.Char(string="Nombre del archivo", required=True)
+    state = fields.Selection(
+        selection=[("upload", "Archivo"), ("preview", "Comprobación")],
+        default="upload",
+        required=True,
+    )
+    preview_log = fields.Text(string="Comprobación", readonly=True)
 
     def action_import(self):
+        return self.action_preview()
+
+    def action_preview(self):
         self.ensure_one()
         self._check_admin_access()
-
-        if not self.excel_file:
-            raise UserError(_("Debes seleccionar un archivo Excel .xlsx."))
-        if not self.filename or not self.filename.lower().endswith(".xlsx"):
-            raise UserError(_("Solo se admiten archivos con extensión .xlsx."))
-        if not openpyxl:
-            raise UserError(
-                _("La librería Python 'openpyxl' no está instalada en el servidor.")
-            )
-
         try:
-            workbook = openpyxl.load_workbook(
-                io.BytesIO(base64.b64decode(self.excel_file)),
-                read_only=True,
-                data_only=True,
-            )
-            rows = workbook.active.iter_rows(values_only=True)
-            header_map = {}
-            header_row_number = 0
-            detected_headers = []
-            required_headers = {
-                self._normalize_header(COMPANY_COLUMN),
-                self._normalize_header(MODEL_COLUMN),
-            }
-
-            for row_number, candidate_row in enumerate(rows, start=1):
-                candidate_map = {
-                    self._normalize_header(value): index
-                    for index, value in enumerate(candidate_row)
-                    if self._normalize_header(value)
-                }
-                if len(candidate_map) > len(detected_headers):
-                    detected_headers = [
-                        self._cell_text(candidate_row, index)
-                        for index in candidate_map.values()
-                    ]
-                if required_headers.issubset(candidate_map):
-                    header_map = candidate_map
-                    header_row_number = row_number
-                    break
-                if row_number >= HEADER_SCAN_LIMIT:
-                    break
-
-            if not header_map:
-                detected_text = ", ".join(detected_headers) or _("ninguna")
-                return self._create_failed_history(
-                    _(
-                        "No se encontraron las columnas obligatorias en las "
-                        "primeras %(limit)s filas: %(required)s.\n"
-                        "Encabezados detectados: %(detected)s"
-                    )
-                    % {
-                        "limit": HEADER_SCAN_LIMIT,
-                        "required": ", ".join((COMPANY_COLUMN, MODEL_COLUMN)),
-                        "detected": detected_text,
-                    }
-                )
-
-            return self._process_rows(
+            rows, company_index, model_index, header_row_number = self._read_import_rows()
+            log_text, values = self._process_rows(
                 rows,
-                header_map[self._normalize_header(COMPANY_COLUMN)],
-                header_map[self._normalize_header(MODEL_COLUMN)],
+                company_index,
+                model_index,
                 start_row=header_row_number + 1,
+                dry_run=True,
+            )
+        except UserError:
+            raise
+        except Exception as error:
+            _logger.exception("Error reading equipment model import file")
+            raise UserError(
+                _("No se ha podido leer el archivo Excel: %s") % error
+            ) from error
+
+        self.write({"state": "preview", "preview_log": log_text})
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Comprobar importación"),
+            "res_model": self._name,
+            "res_id": self.id,
+            "view_mode": "form",
+            "target": "new",
+            "context": self.env.context,
+        }
+
+    def action_confirm_import(self):
+        self.ensure_one()
+        self._check_admin_access()
+        if self.state != "preview":
+            raise UserError(_("Primero debes comprobar el archivo antes de importarlo."))
+        try:
+            rows, company_index, model_index, header_row_number = self._read_import_rows()
+            log_text, values = self._process_rows(
+                rows,
+                company_index,
+                model_index,
+                start_row=header_row_number + 1,
+                dry_run=False,
             )
         except UserError:
             raise
@@ -103,11 +90,88 @@ class EquipmentModelImportWizard(models.TransientModel):
                 _("No se ha podido leer el archivo Excel: %s") % error
             )
 
+        history = self.env["equipment.model.import.history"].create(
+            {
+                **values,
+                "name": _("Importación %s") % self.filename,
+                "filename": self.filename,
+                "state": "done",
+                "log_text": log_text,
+                "log_file": base64.b64encode(log_text.encode("utf-8")),
+                "log_filename": self._log_filename(),
+            }
+        )
+        return self._history_action(history)
+
     def _check_admin_access(self):
         if not self.env.user.has_group("base.group_system"):
             raise UserError(_("Solo los administradores pueden ejecutar esta importación."))
 
-    def _process_rows(self, rows, company_index, model_index, start_row=2):
+    def _read_import_rows(self):
+        if not self.excel_file:
+            raise UserError(_("Debes seleccionar un archivo Excel .xlsx."))
+        if not self.filename or not self.filename.lower().endswith(".xlsx"):
+            raise UserError(_("Solo se admiten archivos con extensión .xlsx."))
+        if not openpyxl:
+            raise UserError(
+                _("La librería Python openpyxl no está instalada en el servidor.")
+            )
+
+        workbook = openpyxl.load_workbook(
+            io.BytesIO(base64.b64decode(self.excel_file)),
+            read_only=True,
+            data_only=True,
+        )
+        rows = workbook.active.iter_rows(values_only=True)
+        header_map = {}
+        header_row_number = 0
+        detected_headers = []
+        required_headers = {
+            self._normalize_header(COMPANY_COLUMN),
+            self._normalize_header(MODEL_COLUMN),
+        }
+
+        for row_number, candidate_row in enumerate(rows, start=1):
+            candidate_map = {
+                self._normalize_header(value): index
+                for index, value in enumerate(candidate_row)
+                if self._normalize_header(value)
+            }
+            if len(candidate_map) > len(detected_headers):
+                detected_headers = [
+                    self._cell_text(candidate_row, index)
+                    for index in candidate_map.values()
+                ]
+            if required_headers.issubset(candidate_map):
+                header_map = candidate_map
+                header_row_number = row_number
+                break
+            if row_number >= HEADER_SCAN_LIMIT:
+                break
+
+        if not header_map:
+            detected_text = ", ".join(detected_headers) or _("ninguna")
+            raise UserError(
+                _(
+                    "No se encontraron las columnas obligatorias en las "
+                    "primeras %(limit)s filas: %(required)s.\n"
+                    "Encabezados detectados: %(detected)s"
+                )
+                % {
+                    "limit": HEADER_SCAN_LIMIT,
+                    "required": ", ".join((COMPANY_COLUMN, MODEL_COLUMN)),
+                    "detected": detected_text,
+                }
+            )
+
+        return (
+            rows,
+            header_map[self._normalize_header(COMPANY_COLUMN)],
+            header_map[self._normalize_header(MODEL_COLUMN)],
+            header_row_number,
+        )
+
+    def _process_rows(self, rows, company_index, model_index, start_row=2, dry_run=False):
         Partner = self.env["res.partner"].with_context(active_test=False)
         Tag = self.env["equipment.model.tag"].with_context(active_test=False)
 
@@ -122,6 +186,8 @@ class EquipmentModelImportWizard(models.TransientModel):
             for tag in Tag.search([])
             if tag.normalized_name
         }
+        planned_tags = set()
+        planned_associations = set()
 
         companies_found = set()
         companies_not_found = set()
@@ -131,9 +197,12 @@ class EquipmentModelImportWizard(models.TransientModel):
         associations_existing = 0
         errors = 0
         ignored_rows = 0
+        title = _("COMPROBACIÓN PREVIA") if dry_run else _("IMPORTACIÓN EJECUTADA")
         log_lines = [
+            title,
             _("Archivo: %s") % self.filename,
             _("Usuario: %s") % self.env.user.display_name,
+            _("Coincidencias de empresa y modelo sin distinguir mayúsculas/minúsculas."),
             "",
         ]
 
@@ -190,38 +259,71 @@ class EquipmentModelImportWizard(models.TransientModel):
                 if tag.id not in models_created:
                     models_existing.add(tag.id)
                 if not tag.active:
-                    tag.active = True
+                    if not dry_run:
+                        tag.active = True
                     log_lines.append(
-                        _("Fila %s: se reactivó el modelo %s.")
+                        _("Fila %s: se reactivará el modelo %s.")
+                        % (row_number, tag.name)
+                        if dry_run
+                        else _("Fila %s: se reactivó el modelo %s.")
                         % (row_number, tag.name)
                     )
+                tag_key = tag.id
+                tag_display_name = tag.name
             else:
-                tag = Tag.create({"name": model_name})
-                tags_by_name[normalized_model] = tag
-                models_created.add(tag.id)
-                log_lines.append(
-                    _("Fila %s: modelo creado: %s.") % (row_number, tag.name)
-                )
+                if normalized_model in planned_tags:
+                    models_existing.add(normalized_model)
+                    log_lines.append(
+                        _("Fila %s: el modelo %s ya está previsto en este archivo.")
+                        % (row_number, model_name)
+                    )
+                elif dry_run:
+                    planned_tags.add(normalized_model)
+                    models_created.add(normalized_model)
+                    log_lines.append(
+                        _("Fila %s: se creará el modelo: %s.")
+                        % (row_number, model_name)
+                    )
+                else:
+                    tag = Tag.create({"name": model_name})
+                    tags_by_name[normalized_model] = tag
+                    models_created.add(tag.id)
+                    log_lines.append(
+                        _("Fila %s: modelo creado: %s.") % (row_number, tag.name)
+                    )
+                tag_key = normalized_model if not tag else tag.id
+                tag_display_name = model_name if not tag else tag.name
 
-            if tag in partner.equipment_model_tag_ids:
+            association_key = (partner.id, tag_key)
+            association_exists = bool(tag and tag in partner.equipment_model_tag_ids)
+            if association_exists or association_key in planned_associations:
                 associations_existing += 1
                 log_lines.append(
                     _("Fila %(row)s: la asociación %(company)s / %(model)s ya existía.")
                     % {
                         "row": row_number,
                         "company": partner.display_name,
-                        "model": tag.name,
+                        "model": tag_display_name,
                     }
                 )
             else:
-                partner.write({"equipment_model_tag_ids": [(4, tag.id)]})
+                if not dry_run:
+                    partner.write({"equipment_model_tag_ids": [(4, tag.id)]})
+                planned_associations.add(association_key)
                 associations_created += 1
                 log_lines.append(
-                    _("Fila %(row)s: asociación creada: %(company)s / %(model)s.")
+                    _("Fila %(row)s: se creará la asociación %(company)s / %(model)s.")
                     % {
                         "row": row_number,
                         "company": partner.display_name,
-                        "model": tag.name,
+                        "model": tag_display_name,
+                    }
+                    if dry_run
+                    else _("Fila %(row)s: asociación creada: %(company)s / %(model)s.")
+                    % {
+                        "row": row_number,
+                        "company": partner.display_name,
+                        "model": tag_display_name,
                     }
                 )
 
@@ -230,33 +332,29 @@ class EquipmentModelImportWizard(models.TransientModel):
             _("RESUMEN"),
             _("Empresas encontradas: %s") % len(companies_found),
             _("Empresas no encontradas: %s") % len(companies_not_found),
-            _("Modelos creados: %s") % len(models_created),
+            _("Modelos a crear: %s") % len(models_created)
+            if dry_run
+            else _("Modelos creados: %s") % len(models_created),
             _("Modelos ya existentes: %s") % len(models_existing),
-            _("Asociaciones creadas: %s") % associations_created,
+            _("Asociaciones a crear: %s") % associations_created
+            if dry_run
+            else _("Asociaciones creadas: %s") % associations_created,
             _("Asociaciones ya existentes: %s") % associations_existing,
             _("Errores: %s") % errors,
             _("Filas vacías ignoradas: %s") % ignored_rows,
         ]
         log_text = "\n".join(log_lines + summary)
-        history = self.env["equipment.model.import.history"].create(
-            {
-                "name": _("Importación %s") % self.filename,
-                "filename": self.filename,
-                "state": "done",
-                "company_found_count": len(companies_found),
-                "company_not_found_count": len(companies_not_found),
-                "model_created_count": len(models_created),
-                "model_existing_count": len(models_existing),
-                "association_created_count": associations_created,
-                "association_existing_count": associations_existing,
-                "error_count": errors,
-                "ignored_row_count": ignored_rows,
-                "log_text": log_text,
-                "log_file": base64.b64encode(log_text.encode("utf-8")),
-                "log_filename": self._log_filename(),
-            }
-        )
-        return self._history_action(history)
+        values = {
+            "company_found_count": len(companies_found),
+            "company_not_found_count": len(companies_not_found),
+            "model_created_count": len(models_created),
+            "model_existing_count": len(models_existing),
+            "association_created_count": associations_created,
+            "association_existing_count": associations_existing,
+            "error_count": errors,
+            "ignored_row_count": ignored_rows,
+        }
+        return log_text, values
 
     def _create_failed_history(self, message):
         log_text = "%s\n\n%s" % (_("IMPORTACIÓN FALLIDA"), message)

@@ -32,8 +32,8 @@ class TestEquipmentModelImport(TransactionCase):
         workbook.save(stream)
         return base64.b64encode(stream.getvalue())
 
-    def _run_import(self, rows, headers=None, preamble=None):
-        wizard = self.env["equipment.model.import.wizard"].create(
+    def _wizard(self, rows, headers=None, preamble=None):
+        return self.env["equipment.model.import.wizard"].create(
             {
                 "excel_file": self._xlsx(
                     rows, headers=headers, preamble=preamble
@@ -41,14 +41,33 @@ class TestEquipmentModelImport(TransactionCase):
                 "filename": "equipos.xlsx",
             }
         )
-        action = wizard.action_import()
+
+    def _run_import(self, rows, headers=None, preamble=None):
+        wizard = self._wizard(rows, headers=headers, preamble=preamble)
+        wizard.action_preview()
+        action = wizard.action_confirm_import()
         return self.env["equipment.model.import.history"].browse(action["res_id"])
+
+    def test_preview_does_not_modify_data_until_confirmation(self):
+        wizard = self._wizard([("vitel, s.a.", "galaxy 816")])
+
+        action = wizard.action_preview()
+
+        self.assertEqual(action["res_id"], wizard.id)
+        self.assertEqual(wizard.state, "preview")
+        self.assertIn("COMPROBACIÓN PREVIA", wizard.preview_log)
+        self.assertFalse(
+            self.env["equipment.model.tag"].search(
+                [("normalized_name", "=", "galaxy 816")]
+            )
+        )
+        self.assertFalse(self.company.equipment_model_tag_ids)
 
     def test_import_normalizes_names_and_avoids_duplicates(self):
         history = self._run_import(
             [
                 ("  vitel,   s.a.  ", "GALAXY 816"),
-                ("VITEL, S.A.", " galaxy   816 "),
+                ("vitel, s.a.", " galaxy   816 "),
                 ("VITEL, S.A.", "ULTRA-X20"),
             ]
         )
@@ -59,6 +78,17 @@ class TestEquipmentModelImport(TransactionCase):
         self.assertEqual(history.association_created_count, 2)
         self.assertEqual(history.association_existing_count, 1)
         self.assertEqual(len(self.company.equipment_model_tag_ids), 2)
+
+    def test_existing_model_match_is_case_insensitive(self):
+        existing_model = self.env["equipment.model.tag"].create(
+            {"name": "Galaxy 816"}
+        )
+
+        history = self._run_import([("vitel, s.a.", "GALAXY 816")])
+
+        self.assertEqual(history.model_created_count, 0)
+        self.assertEqual(history.model_existing_count, 1)
+        self.assertEqual(self.company.equipment_model_tag_ids, existing_model)
 
     def test_missing_and_ambiguous_companies_are_not_modified(self):
         self.env["res.partner"].create(
@@ -97,14 +127,11 @@ class TestEquipmentModelImport(TransactionCase):
         self.assertEqual(history.state, "done")
         self.assertEqual(history.association_created_count, 1)
 
-    def test_missing_columns_create_failed_history(self):
-        history = self._run_import(
+    def test_missing_columns_raise_user_error(self):
+        wizard = self._wizard(
             [("VITEL, S.A.", "GALAXY 816")],
             headers=["Empresa", "Modelo"],
         )
 
-        self.assertEqual(history.state, "failed")
-        self.assertEqual(history.error_count, 1)
-        self.assertIn(
-            "No se encontraron las columnas obligatorias", history.log_text
-        )
+        with self.assertRaisesRegex(Exception, "No se encontraron las columnas"):
+            wizard.action_preview()

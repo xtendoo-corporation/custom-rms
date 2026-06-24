@@ -5,26 +5,46 @@
         <field name="model">equipment.model.import.wizard</field>
         <field name="arch" type="xml">
             <form string="Importar modelos de equipo">
+                <field name="state" invisible="1"/>
                 <group>
                     <field
                         name="excel_file"
                         filename="filename"
                         widget="binary"
                         options="{'accepted_file_extensions': '.xlsx'}"
+                        readonly="state == 'preview'"
                     />
                     <field name="filename" invisible="1"/>
                 </group>
-                <div class="alert alert-info" role="alert">
+                <div class="alert alert-info" role="alert" invisible="state == 'preview'">
                     El archivo Excel debe contener las columnas
                     <strong>Account Lookup: Account Name</strong> y
                     <strong>Model: Model Name</strong>.
                 </div>
+                <group invisible="state != 'preview'">
+                    <field name="preview_log" nolabel="1" readonly="1"/>
+                </group>
                 <footer>
                     <button
-                        name="action_import"
-                        string="Importar"
+                        name="action_preview"
+                        string="Comprobar"
                         type="object"
                         class="btn-primary"
+                        invisible="state == 'preview'"
+                    />
+                    <button
+                        name="action_confirm_import"
+                        string="Confirmar importación"
+                        type="object"
+                        class="btn-primary"
+                        invisible="state != 'preview'"
+                    />
+                    <button
+                        name="action_preview"
+                        string="Volver a comprobar"
+                        type="object"
+                        class="btn-secondary"
+                        invisible="state != 'preview'"
                     />
                     <button string="Cancelar" special="cancel" class="btn-secondary"/>
                 </footer>
