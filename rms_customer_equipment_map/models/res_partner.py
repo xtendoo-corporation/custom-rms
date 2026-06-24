@@ -135,13 +135,17 @@ class ResPartner(models.Model):
                 }
             )
 
-        equipment_models_by_partner = {
-            partner.id: [
-                {"id": model.id, "name": model.display_name}
-                for model in partner.equipment_model_tag_ids
-            ]
-            for partner in partners.sudo()
-        }
+        equipment_models_by_partner = defaultdict(list)
+        if "equipment_model_tag_ids" in self._fields:
+            equipment_models_by_partner.update(
+                {
+                    partner.id: [
+                        {"id": model.id, "name": model.display_name}
+                        for model in partner.equipment_model_tag_ids
+                    ]
+                    for partner in partners.sudo()
+                }
+            )
 
         return [
             {

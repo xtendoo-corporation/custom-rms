@@ -1,6 +1,6 @@
 {
     "name": "Customer Equipment Map",
-    "version": "19.0.5.0.0",
+    "version": "19.0.6.0.0",
     "category": "Services/Maintenance",
     "summary": "Geolocaliza clientes y vincula sus equipos instalados",
     "author": "Xtendoo",
@@ -11,7 +11,6 @@
         "contacts",
         "base_geolocalize",
         "maintenance",
-        "rms_partner_equipment_model_import",
     ],
     "data": [
         "views/maintenance_equipment_views.xml",
