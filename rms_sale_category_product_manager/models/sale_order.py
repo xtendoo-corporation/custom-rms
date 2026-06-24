@@ -22,13 +22,27 @@ class SaleOrder(models.Model):
     @api.depends('order_line.product_id', 'order_line.product_id.categ_id', 'order_line.product_id.categ_id.product_manager_ids')
     def _compute_category_product_manager_ids(self):
         for order in self:
-            users = order.order_line.product_id.categ_id.product_manager_ids
+            categories = order.order_line.product_id.categ_id
+            all_categories = self.env['product.category']
+            for categ in categories:
+                current = categ
+                while current:
+                    all_categories |= current
+                    current = current.parent_id
+            users = all_categories.product_manager_ids
             order.category_product_manager_ids = [(6, 0, users.ids)]
 
     @api.onchange('order_line', 'order_line.product_id')
     def _onchange_category_product_manager_ids(self):
         for order in self:
-            users = order.order_line.product_id.categ_id.product_manager_ids
+            categories = order.order_line.product_id.categ_id
+            all_categories = self.env['product.category']
+            for categ in categories:
+                current = categ
+                while current:
+                    all_categories |= current
+                    current = current.parent_id
+            users = all_categories.product_manager_ids
             order.category_product_manager_ids = [(6, 0, users.ids)]
 
     @api.model_create_multi
