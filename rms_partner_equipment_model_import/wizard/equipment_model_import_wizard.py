@@ -370,6 +370,9 @@ class EquipmentModelImportWizard(models.TransientModel):
                                     "candidate_partner_ids": [
                                         (6, 0, matching_partners.ids)
                                     ],
+                                    "candidate_names": "\n".join(
+                                        matching_partners.mapped("display_name")
+                                    ),
                                 },
                             )
                         )
@@ -591,6 +594,7 @@ class EquipmentModelImportPreviewLine(models.TransientModel):
         string="Candidatas",
         readonly=True,
     )
+    candidate_names = fields.Text(string="Candidatas", readonly=True)
     selected_partner_id = fields.Many2one(
         comodel_name="res.partner",
         string="Empresa correcta",

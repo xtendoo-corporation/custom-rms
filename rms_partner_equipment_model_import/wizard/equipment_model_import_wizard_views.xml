@@ -33,17 +33,15 @@
                             <field name="row_number" readonly="1"/>
                             <field name="company_name" readonly="1"/>
                             <field name="model_name" readonly="1"/>
-                            <field
-                                name="candidate_partner_ids"
-                                widget="many2many_tags"
-                                readonly="1"
-                            />
-                            <field name="skip_import"/>
+                            <field name="candidate_partner_ids" invisible="1"/>
                             <field
                                 name="selected_partner_id"
+                                string="Empresa correcta"
                                 domain="[('id', 'in', candidate_partner_ids)]"
-                                options="{'no_create': True, 'no_open': True}"
+                                options="{'no_create': True, 'no_create_edit': True, 'no_open': True}"
                             />
+                            <field name="skip_import"/>
+                            <field name="candidate_names" readonly="1"/>
                         </list>
                     </field>
                 </group>

@@ -136,6 +136,8 @@ class TestEquipmentModelImport(TransactionCase):
         self.assertEqual(len(wizard.preview_line_ids), 1)
         self.assertEqual(wizard.preview_line_ids.row_number, 2)
         self.assertEqual(len(wizard.preview_line_ids.candidate_partner_ids), 2)
+        self.assertIn("Control Remoto S.L.", wizard.preview_line_ids.candidate_names)
+        self.assertIn("Control Industrial S.L.", wizard.preview_line_ids.candidate_names)
         self.assertIn("compañías candidatas", wizard.preview_log)
         with self.assertRaisesRegex(Exception, "seleccionar una compañía"):
             wizard.action_confirm_import()
