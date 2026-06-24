@@ -90,6 +90,118 @@ class TestEquipmentModelImport(TransactionCase):
         self.assertEqual(history.model_existing_count, 1)
         self.assertEqual(self.company.equipment_model_tag_ids, existing_model)
 
+    def test_company_match_ignores_legal_suffixes_in_preview_and_import(self):
+        company = self.env["res.partner"].create(
+            {
+                "name": "Control Remoto S.L.",
+                "is_company": True,
+            }
+        )
+        wizard = self._wizard([("control remoto", "GALAXY 816")])
+
+        wizard.action_preview()
+
+        self.assertIn(
+            "Excel 'control remoto' -> Odoo 'Control Remoto S.L.'",
+            wizard.preview_log,
+        )
+        self.assertFalse(company.equipment_model_tag_ids)
+
+        action = wizard.action_confirm_import()
+        history = self.env["equipment.model.import.history"].browse(action["res_id"])
+
+        self.assertEqual(history.error_count, 0)
+        self.assertEqual(history.company_found_count, 1)
+        self.assertEqual(
+            company.equipment_model_tag_ids.mapped("name"), ["GALAXY 816"]
+        )
+
+    def test_partial_company_match_requires_selecting_candidate(self):
+        self.env["res.partner"].create(
+            {
+                "name": "Control Remoto S.L.",
+                "is_company": True,
+            }
+        )
+        self.env["res.partner"].create(
+            {
+                "name": "Control Industrial S.L.",
+                "is_company": True,
+            }
+        )
+        wizard = self._wizard([("control", "GALAXY 816")])
+
+        wizard.action_preview()
+
+        self.assertEqual(len(wizard.preview_line_ids), 1)
+        self.assertEqual(wizard.preview_line_ids.row_number, 2)
+        self.assertEqual(len(wizard.preview_line_ids.candidate_partner_ids), 2)
+        self.assertIn("compañías candidatas", wizard.preview_log)
+        with self.assertRaisesRegex(Exception, "seleccionar una compañía"):
+            wizard.action_confirm_import()
+        self.assertFalse(
+            self.env["equipment.model.tag"].search(
+                [("normalized_name", "=", "galaxy 816")]
+            )
+        )
+
+    def test_selected_candidate_is_used_on_confirmation(self):
+        remote = self.env["res.partner"].create(
+            {
+                "name": "Control Remoto S.L.",
+                "is_company": True,
+            }
+        )
+        industrial = self.env["res.partner"].create(
+            {
+                "name": "Control Industrial S.L.",
+                "is_company": True,
+            }
+        )
+        wizard = self._wizard([("control", "GALAXY 816")])
+
+        wizard.action_preview()
+        wizard.preview_line_ids.selected_partner_id = remote
+        action = wizard.action_confirm_import()
+        history = self.env["equipment.model.import.history"].browse(action["res_id"])
+
+        self.assertEqual(history.error_count, 0)
+        self.assertIn("empresa seleccionada manualmente", history.log_text)
+        self.assertEqual(
+            remote.equipment_model_tag_ids.mapped("name"), ["GALAXY 816"]
+        )
+        self.assertFalse(industrial.equipment_model_tag_ids)
+
+    def test_candidate_line_can_be_skipped_on_confirmation(self):
+        remote = self.env["res.partner"].create(
+            {
+                "name": "Control Remoto S.L.",
+                "is_company": True,
+            }
+        )
+        industrial = self.env["res.partner"].create(
+            {
+                "name": "Control Industrial S.L.",
+                "is_company": True,
+            }
+        )
+        wizard = self._wizard([("control", "GALAXY 816")])
+
+        wizard.action_preview()
+        wizard.preview_line_ids.skip_import = True
+        action = wizard.action_confirm_import()
+        history = self.env["equipment.model.import.history"].browse(action["res_id"])
+
+        self.assertEqual(history.error_count, 0)
+        self.assertIn("no importada por decisión manual", history.log_text)
+        self.assertFalse(remote.equipment_model_tag_ids)
+        self.assertFalse(industrial.equipment_model_tag_ids)
+        self.assertFalse(
+            self.env["equipment.model.tag"].search(
+                [("normalized_name", "=", "galaxy 816")]
+            )
+        )
+
     def test_missing_and_ambiguous_companies_are_not_modified(self):
         self.env["res.partner"].create(
             {

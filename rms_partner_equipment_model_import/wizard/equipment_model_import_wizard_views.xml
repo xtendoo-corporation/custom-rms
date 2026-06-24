@@ -24,6 +24,29 @@
                 <group invisible="state != 'preview'">
                     <field name="preview_log" nolabel="1" readonly="1"/>
                 </group>
+                <group
+                    string="Empresas con varias candidatas"
+                    invisible="state != 'preview' or not preview_line_ids"
+                >
+                    <field name="preview_line_ids" nolabel="1">
+                        <list editable="bottom" create="0" delete="0">
+                            <field name="row_number" readonly="1"/>
+                            <field name="company_name" readonly="1"/>
+                            <field name="model_name" readonly="1"/>
+                            <field
+                                name="candidate_partner_ids"
+                                widget="many2many_tags"
+                                readonly="1"
+                            />
+                            <field name="skip_import"/>
+                            <field
+                                name="selected_partner_id"
+                                domain="[('id', 'in', candidate_partner_ids)]"
+                                options="{'no_create': True, 'no_open': True}"
+                            />
+                        </list>
+                    </field>
+                </group>
                 <footer>
                     <button
                         name="action_preview"

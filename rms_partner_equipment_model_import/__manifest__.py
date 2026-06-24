@@ -1,6 +1,6 @@
 {
     "name": "RMS Partner Equipment Model Import",
-    "version": "19.0.2.0.0",
+    "version": "19.0.4.2.0",
     "category": "Contacts",
     "summary": "Importa modelos de equipo asociados a compañías desde Excel",
     "author": "Xtendoo",

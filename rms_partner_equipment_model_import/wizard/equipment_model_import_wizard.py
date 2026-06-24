@@ -1,6 +1,7 @@
 import base64
 import io
 import logging
+import re
 from collections import defaultdict
 
 from odoo import _, fields, models
@@ -19,6 +20,25 @@ _logger = logging.getLogger(__name__)
 COMPANY_COLUMN = "Account Lookup: Account Name"
 MODEL_COLUMN = "Model: Model Name"
 HEADER_SCAN_LIMIT = 20
+LEGAL_COMPANY_WORDS = {
+    "s",
+    "l",
+    "sl",
+    "slu",
+    "sll",
+    "srl",
+    "a",
+    "sa",
+    "sau",
+    "sc",
+    "scp",
+    "cb",
+    "coop",
+    "cooperativa",
+    "sociedad",
+    "limitada",
+    "anonima",
+}
 
 
 class EquipmentModelImportWizard(models.TransientModel):
@@ -33,6 +53,11 @@ class EquipmentModelImportWizard(models.TransientModel):
         required=True,
     )
     preview_log = fields.Text(string="Comprobación", readonly=True)
+    preview_line_ids = fields.One2many(
+        comodel_name="equipment.model.import.preview.line",
+        inverse_name="wizard_id",
+        string="Empresas con varias candidatas",
+    )
 
     def action_import(self):
         return self.action_preview()
@@ -42,7 +67,7 @@ class EquipmentModelImportWizard(models.TransientModel):
         self._check_admin_access()
         try:
             rows, company_index, model_index, header_row_number = self._read_import_rows()
-            log_text, values = self._process_rows(
+            log_text, values, preview_lines = self._process_rows(
                 rows,
                 company_index,
                 model_index,
@@ -57,7 +82,11 @@ class EquipmentModelImportWizard(models.TransientModel):
                 _("No se ha podido leer el archivo Excel: %s") % error
             ) from error
 
-        self.write({"state": "preview", "preview_log": log_text})
+        self.write({
+            "state": "preview",
+            "preview_log": log_text,
+            "preview_line_ids": [(5, 0, 0)] + preview_lines,
+        })
         return {
             "type": "ir.actions.act_window",
             "name": _("Comprobar importación"),
@@ -73,14 +102,38 @@ class EquipmentModelImportWizard(models.TransientModel):
         self._check_admin_access()
         if self.state != "preview":
             raise UserError(_("Primero debes comprobar el archivo antes de importarlo."))
+        missing_selection_lines = self.preview_line_ids.filtered(
+            lambda line: not line.skip_import and not line.selected_partner_id
+        )
+        if missing_selection_lines:
+            raise UserError(
+                _(
+                    "Debes seleccionar una compañía o marcar No importar "
+                    "para estas filas antes de confirmar: %s"
+                )
+                % ", ".join(str(line.row_number) for line in missing_selection_lines)
+            )
+
+        selected_partners_by_row = {
+            line.row_number: line.selected_partner_id
+            for line in self.preview_line_ids
+            if not line.skip_import
+        }
+        skipped_rows = {
+            line.row_number
+            for line in self.preview_line_ids
+            if line.skip_import
+        }
         try:
             rows, company_index, model_index, header_row_number = self._read_import_rows()
-            log_text, values = self._process_rows(
+            log_text, values, _preview_lines = self._process_rows(
                 rows,
                 company_index,
                 model_index,
                 start_row=header_row_number + 1,
                 dry_run=False,
+                selected_partners_by_row=selected_partners_by_row,
+                skipped_rows=skipped_rows,
             )
         except UserError:
             raise
@@ -171,15 +224,28 @@ class EquipmentModelImportWizard(models.TransientModel):
             header_row_number,
         )
 
-    def _process_rows(self, rows, company_index, model_index, start_row=2, dry_run=False):
+    def _process_rows(
+        self,
+        rows,
+        company_index,
+        model_index,
+        start_row=2,
+        dry_run=False,
+        selected_partners_by_row=None,
+        skipped_rows=None,
+    ):
         Partner = self.env["res.partner"].with_context(active_test=False)
         Tag = self.env["equipment.model.tag"].with_context(active_test=False)
 
         partners_by_name = defaultdict(lambda: Partner)
+        partners_word_index = []
         for partner in Partner.search([("is_company", "=", True)]):
             normalized = normalize_name(partner.name)
             if normalized:
                 partners_by_name[normalized] |= partner
+            match_words = self._company_match_words(partner.name)
+            if match_words:
+                partners_word_index.append((match_words, partner))
 
         tags_by_name = {
             tag.normalized_name: tag
@@ -188,6 +254,9 @@ class EquipmentModelImportWizard(models.TransientModel):
         }
         planned_tags = set()
         planned_associations = set()
+        selected_partners_by_row = selected_partners_by_row or {}
+        skipped_rows = skipped_rows or set()
+        preview_lines = []
 
         companies_found = set()
         companies_not_found = set()
@@ -202,7 +271,10 @@ class EquipmentModelImportWizard(models.TransientModel):
             title,
             _("Archivo: %s") % self.filename,
             _("Usuario: %s") % self.env.user.display_name,
-            _("Coincidencias de empresa y modelo sin distinguir mayúsculas/minúsculas."),
+            _(
+                "Coincidencias sin distinguir mayúsculas/minúsculas "
+                "e ignorando formas jurídicas como S.L. o S.A."
+            ),
             "",
         ]
 
@@ -228,7 +300,12 @@ class EquipmentModelImportWizard(models.TransientModel):
                 continue
 
             normalized_company = normalize_name(company_name)
-            matching_partners = partners_by_name.get(normalized_company, Partner)
+            matching_partners, match_type = self._find_matching_partners(
+                company_name,
+                partners_by_name,
+                partners_word_index,
+                Partner,
+            )
             if not matching_partners:
                 companies_not_found.add(normalized_company)
                 log_lines.append(
@@ -237,21 +314,80 @@ class EquipmentModelImportWizard(models.TransientModel):
                 )
                 continue
             if len(matching_partners) > 1:
-                errors += 1
+                if row_number in skipped_rows:
+                    ignored_rows += 1
+                    log_lines.append(
+                        _(
+                            "Fila %(row)s: no importada por decisión manual: "
+                            "%(company)s / %(model)s."
+                        )
+                        % {
+                            "row": row_number,
+                            "company": company_name,
+                            "model": model_name,
+                        }
+                    )
+                    continue
+                selected_partner = selected_partners_by_row.get(row_number)
+                if selected_partner and selected_partner in matching_partners:
+                    matching_partners = selected_partner
+                    log_lines.append(
+                        _(
+                            "Fila %(row)s: empresa seleccionada manualmente: "
+                            "Excel '%(excel)s' -> Odoo '%(odoo)s'."
+                        )
+                        % {
+                            "row": row_number,
+                            "excel": company_name,
+                            "odoo": selected_partner.display_name,
+                        }
+                    )
+                else:
+                    errors += 1
+                    candidates = ", ".join(matching_partners.mapped("display_name"))
+                    log_lines.append(
+                        _(
+                            "Fila %(row)s: hay %(count)s compañías candidatas para "
+                            "%(company)s; selecciona la compañía correcta en la "
+                            "comprobación previa. Candidatas: %(candidates)s."
+                        )
+                        % {
+                            "row": row_number,
+                            "count": len(matching_partners),
+                            "company": company_name,
+                            "candidates": candidates,
+                        }
+                    )
+                    if dry_run:
+                        preview_lines.append(
+                            (
+                                0,
+                                0,
+                                {
+                                    "row_number": row_number,
+                                    "company_name": company_name,
+                                    "model_name": model_name,
+                                    "candidate_partner_ids": [
+                                        (6, 0, matching_partners.ids)
+                                    ],
+                                },
+                            )
+                        )
+                    continue
+
+            partner = matching_partners
+            if match_type == "words":
                 log_lines.append(
                     _(
-                        "Fila %(row)s: hay %(count)s compañías con el nombre "
-                        "%(company)s; no se ha modificado ninguna."
+                        "Fila %(row)s: empresa relacionada por palabras: "
+                        "Excel '%(excel)s' -> Odoo '%(odoo)s'."
                     )
                     % {
                         "row": row_number,
-                        "count": len(matching_partners),
-                        "company": company_name,
+                        "excel": company_name,
+                        "odoo": partner.display_name,
                     }
                 )
-                continue
-
-            partner = matching_partners
             companies_found.add(partner.id)
             normalized_model = normalize_name(model_name)
             tag = tags_by_name.get(normalized_model)
@@ -354,7 +490,43 @@ class EquipmentModelImportWizard(models.TransientModel):
             "error_count": errors,
             "ignored_row_count": ignored_rows,
         }
-        return log_text, values
+        return log_text, values, preview_lines
+
+    @classmethod
+    def _find_matching_partners(
+        cls, company_name, partners_by_name, partners_word_index, empty_partner
+    ):
+        normalized_company = normalize_name(company_name)
+        exact_matches = partners_by_name.get(normalized_company, empty_partner)
+        if exact_matches:
+            return exact_matches, "exact"
+
+        company_words = cls._company_match_words(company_name)
+        if not company_words:
+            return empty_partner, "none"
+
+        subset_matches = empty_partner
+        partial_matches = empty_partner
+        for partner_words, partner in partners_word_index:
+            common_words = company_words & partner_words
+            if not common_words:
+                continue
+            if company_words <= partner_words or partner_words <= company_words:
+                subset_matches |= partner
+            else:
+                partial_matches |= partner
+
+        if subset_matches:
+            return subset_matches, "words"
+        return partial_matches, "words" if partial_matches else "none"
+
+    @staticmethod
+    def _company_match_words(value):
+        return {
+            word
+            for word in re.findall(r"\w+", normalize_name(value))
+            if word and word not in LEGAL_COMPANY_WORDS
+        }
 
     def _create_failed_history(self, message):
         log_text = "%s\n\n%s" % (_("IMPORTACIÓN FALLIDA"), message)
@@ -396,3 +568,31 @@ class EquipmentModelImportWizard(models.TransientModel):
         return " ".join(
             str(value or "").replace("\ufeff", "").split()
         ).casefold()
+
+
+class EquipmentModelImportPreviewLine(models.TransientModel):
+    _name = "equipment.model.import.preview.line"
+    _description = "Línea de comprobación de importación de modelos"
+    _order = "row_number, id"
+
+    wizard_id = fields.Many2one(
+        comodel_name="equipment.model.import.wizard",
+        required=True,
+        ondelete="cascade",
+    )
+    row_number = fields.Integer(string="Fila", readonly=True)
+    company_name = fields.Char(string="Empresa en Excel", readonly=True)
+    model_name = fields.Char(string="Modelo", readonly=True)
+    candidate_partner_ids = fields.Many2many(
+        comodel_name="res.partner",
+        relation="equipment_import_preview_partner_rel",
+        column1="line_id",
+        column2="partner_id",
+        string="Candidatas",
+        readonly=True,
+    )
+    selected_partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        string="Empresa correcta",
+    )
+    skip_import = fields.Boolean(string="No importar")
