@@ -3,7 +3,7 @@ from odoo import fields, models
 
 class EquipmentModelImportHistory(models.Model):
     _name = "equipment.model.import.history"
-    _description = "Histórico de importación de modelos de equipo"
+    _description = "Histórico de importación de Equipos del Cliente"
     _order = "import_date desc, id desc"
 
     name = fields.Char(string="Importación", required=True, readonly=True)
@@ -37,11 +37,11 @@ class EquipmentModelImportHistory(models.Model):
         readonly=True,
     )
     model_created_count = fields.Integer(
-        string="Modelos creados",
+        string="Equipos del Cliente creados",
         readonly=True,
     )
     model_existing_count = fields.Integer(
-        string="Modelos ya existentes",
+        string="Equipos del Cliente ya existentes",
         readonly=True,
     )
     association_created_count = fields.Integer(

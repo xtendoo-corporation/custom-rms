@@ -235,7 +235,7 @@ class TestEquipmentModelImport(TransactionCase):
                 "\ufeff account   lookup: account\nname ",
                 " MODEL: MODEL NAME ",
             ],
-            preamble=[("Informe de modelos instalados",), ()],
+            preamble=[("Informe de Equipos del Cliente instalados",), ()],
         )
 
         self.assertEqual(history.state, "done")
@@ -244,7 +244,7 @@ class TestEquipmentModelImport(TransactionCase):
     def test_missing_columns_raise_user_error(self):
         wizard = self._wizard(
             [("VITEL, S.A.", "GALAXY 816")],
-            headers=["Empresa", "Modelo"],
+            headers=["Empresa", "Equipo del Cliente"],
         )
 
         with self.assertRaisesRegex(Exception, "No se encontraron las columnas"):

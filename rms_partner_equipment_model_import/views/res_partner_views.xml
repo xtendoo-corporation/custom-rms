@@ -8,7 +8,7 @@
             <xpath expr="//sheet/notebook" position="inside">
                 <page
                     name="equipment_models"
-                    string="Modelos de equipo"
+                    string="Equipos del Cliente"
                     invisible="not is_company"
                     groups="base.group_system"
                 >

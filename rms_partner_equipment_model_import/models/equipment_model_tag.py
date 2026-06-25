@@ -8,7 +8,7 @@ def normalize_name(value):
 
 class EquipmentModelTag(models.Model):
     _name = "equipment.model.tag"
-    _description = "Modelo de equipo"
+    _description = "Equipo del Cliente"
     _order = "name"
 
     name = fields.Char(string="Nombre", required=True, index=True)
@@ -34,7 +34,7 @@ class EquipmentModelTag(models.Model):
 
     _normalized_name_unique = models.Constraint(
         "UNIQUE(normalized_name)",
-        "Ya existe un modelo de equipo con ese nombre.",
+        "Ya existe un Equipo del Cliente con ese nombre.",
     )
 
     @api.depends("partner_ids")

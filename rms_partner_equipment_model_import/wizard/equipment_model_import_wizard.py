@@ -43,7 +43,7 @@ LEGAL_COMPANY_WORDS = {
 
 class EquipmentModelImportWizard(models.TransientModel):
     _name = "equipment.model.import.wizard"
-    _description = "Importar modelos de equipo por compañía"
+    _description = "Importar Equipos del Cliente por compañía"
 
     excel_file = fields.Binary(string="Archivo Excel", required=True)
     filename = fields.Char(string="Nombre del archivo", required=True)
@@ -401,10 +401,10 @@ class EquipmentModelImportWizard(models.TransientModel):
                     if not dry_run:
                         tag.active = True
                     log_lines.append(
-                        _("Fila %s: se reactivará el modelo %s.")
+                        _("Fila %s: se reactivará el Equipo del Cliente %s.")
                         % (row_number, tag.name)
                         if dry_run
-                        else _("Fila %s: se reactivó el modelo %s.")
+                        else _("Fila %s: se reactivó el Equipo del Cliente %s.")
                         % (row_number, tag.name)
                     )
                 tag_key = tag.id
@@ -413,14 +413,14 @@ class EquipmentModelImportWizard(models.TransientModel):
                 if normalized_model in planned_tags:
                     models_existing.add(normalized_model)
                     log_lines.append(
-                        _("Fila %s: el modelo %s ya está previsto en este archivo.")
+                        _("Fila %s: el Equipo del Cliente %s ya está previsto en este archivo.")
                         % (row_number, model_name)
                     )
                 elif dry_run:
                     planned_tags.add(normalized_model)
                     models_created.add(normalized_model)
                     log_lines.append(
-                        _("Fila %s: se creará el modelo: %s.")
+                        _("Fila %s: se creará el Equipo del Cliente: %s.")
                         % (row_number, model_name)
                     )
                 else:
@@ -428,7 +428,7 @@ class EquipmentModelImportWizard(models.TransientModel):
                     tags_by_name[normalized_model] = tag
                     models_created.add(tag.id)
                     log_lines.append(
-                        _("Fila %s: modelo creado: %s.") % (row_number, tag.name)
+                        _("Fila %s: Equipo del Cliente creado: %s.") % (row_number, tag.name)
                     )
                 tag_key = normalized_model if not tag else tag.id
                 tag_display_name = model_name if not tag else tag.name
@@ -471,10 +471,10 @@ class EquipmentModelImportWizard(models.TransientModel):
             _("RESUMEN"),
             _("Empresas encontradas: %s") % len(companies_found),
             _("Empresas no encontradas: %s") % len(companies_not_found),
-            _("Modelos a crear: %s") % len(models_created)
+            _("Equipos del Cliente a crear: %s") % len(models_created)
             if dry_run
-            else _("Modelos creados: %s") % len(models_created),
-            _("Modelos ya existentes: %s") % len(models_existing),
+            else _("Equipos del Cliente creados: %s") % len(models_created),
+            _("Equipos del Cliente ya existentes: %s") % len(models_existing),
             _("Asociaciones a crear: %s") % associations_created
             if dry_run
             else _("Asociaciones creadas: %s") % associations_created,
@@ -575,7 +575,7 @@ class EquipmentModelImportWizard(models.TransientModel):
 
 class EquipmentModelImportPreviewLine(models.TransientModel):
     _name = "equipment.model.import.preview.line"
-    _description = "Línea de comprobación de importación de modelos"
+    _description = "Línea de comprobación de importación de Equipos del Cliente"
     _order = "row_number, id"
 
     wizard_id = fields.Many2one(
@@ -585,7 +585,7 @@ class EquipmentModelImportPreviewLine(models.TransientModel):
     )
     row_number = fields.Integer(string="Fila", readonly=True)
     company_name = fields.Char(string="Empresa en Excel", readonly=True)
-    model_name = fields.Char(string="Modelo", readonly=True)
+    model_name = fields.Char(string="Equipo del Cliente", readonly=True)
     candidate_partner_ids = fields.Many2many(
         comodel_name="res.partner",
         relation="equipment_import_preview_partner_rel",

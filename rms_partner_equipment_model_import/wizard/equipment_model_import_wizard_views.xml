@@ -4,7 +4,7 @@
         <field name="name">equipment.model.import.wizard.form</field>
         <field name="model">equipment.model.import.wizard</field>
         <field name="arch" type="xml">
-            <form string="Importar modelos de equipo">
+            <form string="Importar Equipos del Cliente">
                 <field name="state" invisible="1"/>
                 <group>
                     <field
@@ -74,7 +74,7 @@
     </record>
 
     <record id="action_equipment_model_import_wizard" model="ir.actions.act_window">
-        <field name="name">Importar modelos de equipo</field>
+        <field name="name">Importar Equipos del Cliente</field>
         <field name="res_model">equipment.model.import.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>

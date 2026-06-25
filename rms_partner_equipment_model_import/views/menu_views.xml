@@ -2,7 +2,7 @@
 <odoo>
     <menuitem
         id="menu_equipment_model_import_wizard"
-        name="Importar modelos de equipo"
+        name="Importar Equipos del Cliente"
         parent="contacts.res_partner_menu_config"
         action="action_equipment_model_import_wizard"
         sequence="90"
@@ -10,7 +10,7 @@
     />
     <menuitem
         id="menu_equipment_model_import_history"
-        name="Histórico de modelos importados"
+        name="Histórico de Equipos del Cliente importados"
         parent="contacts.res_partner_menu_config"
         action="action_equipment_model_import_history"
         sequence="91"
@@ -18,7 +18,7 @@
     />
     <menuitem
         id="menu_equipment_model_tag"
-        name="Modelos de equipo"
+        name="Equipos del Cliente"
         parent="contacts.res_partner_menu_config"
         action="action_equipment_model_tag"
         sequence="92"

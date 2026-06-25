@@ -1,7 +1,6 @@
 # RMS Partner Equipment Model Import
 
-Módulo para Odoo 19 Enterprise que importa desde Excel (`.xlsx`) los modelos
-de equipo asociados a compañías existentes.
+Módulo para Odoo 19 Enterprise que importa desde Excel (`.xlsx`) los Equipos del Cliente asociados a compañías existentes.
 
 ## Instalación
 
@@ -11,8 +10,7 @@ de equipo asociados a compañías existentes.
 
 ## Uso
 
-Un administrador abre **Contactos > Configuración > Importar modelos de
-equipo** y selecciona un `.xlsx` con estas columnas exactas:
+Un administrador abre **Contactos > Configuración > Importar Equipos del Cliente** y selecciona un `.xlsx` con estas columnas exactas:
 
 - `Account Lookup: Account Name`
 - `Model: Model Name`
@@ -23,4 +21,4 @@ comparten el mismo nombre normalizado, la fila se omite y se registra como
 error.
 
 Cada ejecución queda disponible en **Contactos > Configuración > Histórico de
-modelos importados**, donde se puede consultar y descargar el log.
+Equipos del Cliente importados**, donde se puede consultar y descargar el log.

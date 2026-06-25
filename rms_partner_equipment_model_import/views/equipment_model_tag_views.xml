@@ -4,7 +4,7 @@
         <field name="name">equipment.model.tag.list</field>
         <field name="model">equipment.model.tag</field>
         <field name="arch" type="xml">
-            <list string="Modelos de equipo">
+            <list string="Equipos del Cliente">
                 <field name="name"/>
                 <field name="partner_count"/>
                 <field name="active"/>
@@ -16,7 +16,7 @@
         <field name="name">equipment.model.tag.form</field>
         <field name="model">equipment.model.tag</field>
         <field name="arch" type="xml">
-            <form string="Modelo de equipo">
+            <form string="Equipo del Cliente">
                 <sheet>
                     <group>
                         <field name="name"/>
@@ -29,7 +29,7 @@
     </record>
 
     <record id="action_equipment_model_tag" model="ir.actions.act_window">
-        <field name="name">Modelos de equipo</field>
+        <field name="name">Equipos del Cliente</field>
         <field name="res_model">equipment.model.tag</field>
         <field name="view_mode">list,form</field>
     </record>

@@ -9,7 +9,7 @@ class ResPartner(models.Model):
         relation="res_partner_equipment_model_tag_rel",
         column1="partner_id",
         column2="equipment_model_tag_id",
-        string="Modelos de equipo",
+        string="Equipos del Cliente",
         groups="base.group_system",
-        help="Modelos de equipo asociados a esta compañía.",
+        help="Equipos del Cliente asociados a esta compañía.",
     )
