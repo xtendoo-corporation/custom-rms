@@ -3,7 +3,7 @@
     <t t-name="rms_customer_equipment_map.CustomerEquipmentMap">
         <div class="o_customer_equipment_map h-100 d-flex flex-column">
             <div class="o_customer_equipment_map_toolbar d-flex align-items-center gap-3 px-3 py-2 border-bottom bg-view">
-                <h2 class="mb-0">Clientes en mapa</h2>
+                <h2 class="mb-0">Mapa de Clientes</h2>
                 <button
                     type="button"
                     class="btn btn-primary"
@@ -16,14 +16,6 @@
                     </t>
                     <t t-else="">Geolocalizar todos</t>
                 </button>
-                <button
-                    type="button"
-                    class="btn btn-outline-secondary"
-                    t-on-click="toggleFilters"
-                >
-                    <i class="fa fa-filter me-1"/> Filtros
-                    <span t-if="activeFilterCount" class="badge text-bg-primary ms-1" t-esc="activeFilterCount"/>
-                </button>
                 <div class="ms-auto">
                     <input
                         type="search"
@@ -31,39 +23,6 @@
                         placeholder="Buscar cliente, equipo o número de serie..."
                         t-on-input="onSearchInput"
                     />
-                </div>
-            </div>
-            <div
-                t-if="state.filtersOpen"
-                class="o_customer_equipment_map_filters border-bottom px-3 py-3"
-            >
-                <div class="d-flex flex-wrap gap-3 align-items-end">
-                    <div class="o_customer_equipment_map_filter">
-                        <label class="form-label">Etiqueta</label>
-                        <select name="tagId" class="form-select" t-model="state.filters.tagId" t-on-change="onFilterChange">
-                            <option value="">Todas</option>
-                            <option t-foreach="filterOptions.tags" t-as="tag" t-key="tag.id" t-att-value="tag.id">
-                                <t t-esc="tag.name"/>
-                            </option>
-                        </select>
-                    </div>
-                    <div class="o_customer_equipment_map_filter">
-                        <label class="form-label">Modelo de equipo</label>
-                        <select name="equipmentModelId" class="form-select" t-model="state.filters.equipmentModelId" t-on-change="onFilterChange">
-                            <option value="">Todos</option>
-                            <option t-foreach="filterOptions.equipmentModels" t-as="model" t-key="model.id" t-att-value="model.id">
-                                <t t-esc="model.name"/>
-                            </option>
-                        </select>
-                    </div>
-                    <button
-                        type="button"
-                        class="btn btn-link"
-                        t-att-disabled="!activeFilterCount"
-                        t-on-click="clearFilters"
-                    >
-                        Limpiar filtros
-                    </button>
                 </div>
             </div>
             <div class="o_customer_equipment_map_content d-flex flex-grow-1 overflow-hidden">
@@ -90,13 +49,6 @@
                             <span class="badge text-bg-primary">
                                 <t t-esc="partner.equipment.length"/> equipos
                             </span>
-                            <span
-                                t-foreach="partner.equipment_models"
-                                t-as="model"
-                                t-key="model.id"
-                                class="badge text-bg-secondary"
-                                t-esc="model.name"
-                            />
                         </div>
                     </button>
                 </aside>

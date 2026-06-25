@@ -48,11 +48,6 @@ export class CustomerEquipmentMap extends Component {
             geolocating: false,
             geolocationDone: 0,
             geolocationTotal: 0,
-            filtersOpen: false,
-            filters: {
-                tagId: "",
-                equipmentModelId: "",
-            },
         });
         this.markers = new Map();
 
@@ -75,58 +70,14 @@ export class CustomerEquipmentMap extends Component {
         });
     }
 
-    get filterOptions() {
-        const tags = new Map();
-        const equipmentModels = new Map();
-        for (const partner of this.state.partners) {
-            for (const tag of partner.tags) {
-                tags.set(tag.id, tag);
-            }
-            for (const model of partner.equipment_models) {
-                equipmentModels.set(model.id, model);
-            }
-        }
-        const sortedValues = (values) =>
-            [...values.values()].sort((left, right) =>
-                left.name.localeCompare(right.name)
-            );
-        return {
-            tags: sortedValues(tags),
-            equipmentModels: sortedValues(equipmentModels),
-        };
-    }
-
-    get activeFilterCount() {
-        return Object.values(this.state.filters).filter(Boolean).length;
-    }
-
     get filteredPartners() {
         const term = this.state.search.trim().toLowerCase();
-        const filters = this.state.filters;
         return this.state.partners.filter((partner) => {
-            if (
-                filters.tagId &&
-                !partner.tags.some((tag) => String(tag.id) === filters.tagId)
-            ) {
-                return false;
-            }
-            if (
-                filters.equipmentModelId &&
-                !partner.equipment_models.some(
-                    (model) => String(model.id) === filters.equipmentModelId
-                )
-            ) {
-                return false;
-            }
             if (!term) {
                 return true;
             }
             const equipment = partner.equipment
                 .map((item) => item.name + " " + item.serial_no + " " + item.category)
-                .join(" ");
-            const tags = partner.tags.map((tag) => tag.name).join(" ");
-            const equipmentModels = partner.equipment_models
-                .map((model) => model.name)
                 .join(" ");
             return [
                 partner.name,
@@ -136,30 +87,12 @@ export class CustomerEquipmentMap extends Component {
                 partner.salesperson?.name || "",
                 partner.country?.name || "",
                 partner.industry?.name || "",
-                tags,
-                equipmentModels,
                 equipment,
             ]
                 .join(" ")
                 .toLowerCase()
                 .includes(term);
         });
-    }
-
-    toggleFilters() {
-        this.state.filtersOpen = !this.state.filtersOpen;
-    }
-
-    onFilterChange(event) {
-        this.state.filters[event.target.name] = event.target.value;
-        this.renderMarkers();
-    }
-
-    clearFilters() {
-        for (const key of Object.keys(this.state.filters)) {
-            this.state.filters[key] = "";
-        }
-        this.renderMarkers();
     }
 
     initializeMap() {
@@ -316,14 +249,6 @@ export class CustomerEquipmentMap extends Component {
                 container.appendChild(line);
             }
         }
-        if (partner.equipment_models.length) {
-            const modelsLine = document.createElement("div");
-            modelsLine.className = "mb-2";
-            modelsLine.textContent = "Modelos: " + partner.equipment_models
-                .map((model) => model.name)
-                .join(", ");
-            container.appendChild(modelsLine);
-        }
         const equipmentTitle = document.createElement("strong");
         equipmentTitle.textContent = `Equipos instalados: ${partner.equipment.length}`;
         container.appendChild(equipmentTitle);
@@ -347,14 +272,6 @@ export class CustomerEquipmentMap extends Component {
         partnerButton.textContent = "Abrir cliente";
         partnerButton.addEventListener("click", () => this.openPartner(partner.id));
         buttons.appendChild(partnerButton);
-        const equipmentButton = document.createElement("button");
-        equipmentButton.type = "button";
-        equipmentButton.className = "btn btn-secondary btn-sm";
-        equipmentButton.textContent = "Ver equipos";
-        equipmentButton.addEventListener("click", () =>
-            this.openEquipment(partner.id, partner.name)
-        );
-        buttons.appendChild(equipmentButton);
         container.appendChild(buttons);
         return container;
     }
@@ -377,17 +294,7 @@ export class CustomerEquipmentMap extends Component {
         });
     }
 
-    openEquipment(partnerId, partnerName) {
-        return this.actionService.doAction({
-            type: "ir.actions.act_window",
-            name: `Equipos de ${partnerName}`,
-            res_model: "maintenance.equipment",
-            views: [[false, "list"], [false, "form"]],
-            domain: [["partner_id", "=", partnerId]],
-            context: { default_partner_id: partnerId },
-            target: "current",
-        });
-    }
+
 }
 
 registry.category("actions").add(

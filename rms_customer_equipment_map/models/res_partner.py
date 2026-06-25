@@ -44,17 +44,33 @@ class ResPartner(models.Model):
         return action
 
     @api.model
+    def _is_customer_equipment_map_admin(self):
+        return self.env.user.has_group("base.group_system")
+
+    @api.model
+    def _customer_equipment_map_partner_model(self):
+        if self._is_customer_equipment_map_admin():
+            return self.sudo()
+        return self
+
+    @api.model
+    def _customer_equipment_map_salesperson_domain(self):
+        if self._is_customer_equipment_map_admin():
+            return []
+        return [("user_id", "=", self.env.user.id)]
+
+    @api.model
     def get_bulk_geolocation_candidates(self):
         self.check_access("read")
-        partners = self.search(
-            [
-                ("active", "=", True),
-                "|",
-                ("partner_latitude", "=", 0.0),
-                ("partner_longitude", "=", 0.0),
-            ],
-            order="name, id",
-        )
+        domain = [
+            ("active", "=", True),
+            *self._customer_equipment_map_salesperson_domain(),
+            "|",
+            ("partner_latitude", "=", 0.0),
+            ("partner_longitude", "=", 0.0),
+        ]
+        Partner = self._customer_equipment_map_partner_model()
+        partners = Partner.search(domain, order="name, id")
         candidates = partners.filtered(
             lambda partner: any(
                 (
@@ -74,7 +90,10 @@ class ResPartner(models.Model):
 
     @api.model
     def bulk_geo_localize_partners(self, partner_ids):
-        partners = self.browse(partner_ids).exists()
+        Partner = self._customer_equipment_map_partner_model()
+        partners = Partner.browse(partner_ids).exists()
+        if not self._is_customer_equipment_map_admin():
+            partners = partners.filtered(lambda partner: partner.user_id == self.env.user)
         partners.check_access("write")
         localized = []
         failed = []
@@ -110,18 +129,21 @@ class ResPartner(models.Model):
 
     @api.model
     def get_customer_equipment_map_data(self):
-        """Return geolocated contacts and their installed equipment."""
+        """Return geolocated contacts allowed in the customer map."""
         self.check_access("read")
-        partners = self.search(
-            [
-                ("partner_latitude", "!=", 0.0),
-                ("partner_longitude", "!=", 0.0),
-            ],
-            order="name, id",
-        )
+        domain = [
+            ("partner_latitude", "!=", 0.0),
+            ("partner_longitude", "!=", 0.0),
+            *self._customer_equipment_map_salesperson_domain(),
+        ]
+        Partner = self._customer_equipment_map_partner_model()
+        partners = Partner.search(domain, order="name, id")
 
         equipment_by_partner = defaultdict(list)
-        equipment = self.env["maintenance.equipment"].search(
+        equipment_model = self.env["maintenance.equipment"]
+        if self._is_customer_equipment_map_admin():
+            equipment_model = equipment_model.sudo()
+        equipment = equipment_model.search(
             [("partner_id", "in", partners.ids)],
             order="name, id",
         )
@@ -135,18 +157,6 @@ class ResPartner(models.Model):
                 }
             )
 
-        equipment_models_by_partner = defaultdict(list)
-        if "equipment_model_tag_ids" in self._fields:
-            equipment_models_by_partner.update(
-                {
-                    partner.id: [
-                        {"id": model.id, "name": model.display_name}
-                        for model in partner.equipment_model_tag_ids
-                    ]
-                    for partner in partners.sudo()
-                }
-            )
-
         return [
             {
                 "id": partner.id,
@@ -156,15 +166,6 @@ class ResPartner(models.Model):
                 "address": partner.contact_address or "",
                 "phone": partner.phone or "",
                 "email": partner.email or "",
-                "tags": [
-                    {
-                        "id": category.id,
-                        "name": category.display_name,
-                        "color": category.color,
-                    }
-                    for category in partner.category_id
-                ],
-                "equipment_models": equipment_models_by_partner[partner.id],
                 "salesperson": {
                     "id": partner.user_id.id,
                     "name": partner.user_id.display_name,

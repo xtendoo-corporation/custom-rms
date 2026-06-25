@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <record id="action_customer_equipment_map" model="ir.actions.client">
-        <field name="name">Clientes en mapa</field>
+        <field name="name">Mapa de Clientes</field>
         <field name="tag">rms_customer_equipment_map.customer_map</field>
     </record>
 
     <menuitem
     id="menu_customer_equipment_map"
-    name="Clientes en mapa"
+    name="Mapa de Clientes"
     action="action_customer_equipment_map"
     sequence="5"
     groups="base.group_user"
-    web_icon="rms_customer_equipment_map,static/description/icon.png"
+    web_icon="rms_customer_equipment_map,static/description/customer_equipment_map_icon.png"
 />
 </odoo>
