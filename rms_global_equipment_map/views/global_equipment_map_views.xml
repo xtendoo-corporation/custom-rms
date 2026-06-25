@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_global_equipment_map" model="ir.actions.client">
+        <field name="name">Mapa Global de Equipos</field>
+        <field name="tag">rms_global_equipment_map.global_map</field>
+    </record>
+
+    <menuitem
+        id="menu_global_equipment_map"
+        name="Mapa Global de Equipos"
+        action="action_global_equipment_map"
+        sequence="6"
+        groups="base.group_user"
+        web_icon="rms_global_equipment_map,static/description/icon.png"
+    />
+</odoo>

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_global_equipment_map.GlobalEquipmentMap">
+        <div class="o_global_equipment_map h-100 d-flex flex-column">
+            <div class="o_global_equipment_map_toolbar d-flex align-items-center gap-3 px-3 py-2 border-bottom bg-view">
+                <h2 class="mb-0">Mapa Global de Equipos</h2>
+                <div class="o_global_equipment_map_searchview d-flex align-items-center flex-grow-1 ms-auto">
+                    <div class="o_global_equipment_map_searchbar d-flex align-items-center flex-wrap flex-grow-1">
+                        <span
+                            t-foreach="selectedEquipmentModels"
+                            t-as="model"
+                            t-key="model.id"
+                            class="o_global_equipment_map_facet badge rounded-pill text-bg-primary me-1 mb-1"
+                        >
+                            <span class="me-1">Equipo del Cliente:</span>
+                            <t t-esc="model.name"/>
+                            <button
+                                type="button"
+                                class="btn-close btn-close-white ms-2"
+                                aria-label="Quitar filtro"
+                                t-on-click="() => this.removeEquipmentModelFilter(model.id)"
+                            />
+                        </span>
+                        <input
+                            type="search"
+                            class="o_global_equipment_map_search_input border-0 flex-grow-1"
+                            placeholder="Buscar cliente o Equipo del Cliente..."
+                            t-on-input="onSearchInput"
+                        />
+                    </div>
+                    <div class="o_global_equipment_map_dropdown position-relative">
+                        <button
+                            type="button"
+                            class="btn btn-outline-secondary o_global_equipment_map_filter_button"
+                            t-on-click="toggleFilters"
+                        >
+                            <i class="fa fa-caret-down"/>
+                            <span t-if="activeFilterCount" class="badge text-bg-primary ms-1" t-esc="activeFilterCount"/>
+                        </button>
+                        <div
+                            t-if="state.filtersOpen"
+                            class="o_global_equipment_map_filter_menu position-absolute end-0 mt-1 bg-view border shadow-sm"
+                        >
+                            <div class="o_global_equipment_map_filter_column">
+                                <div class="o_global_equipment_map_filter_title d-flex align-items-center gap-2 px-3 py-2">
+                                    <i class="fa fa-filter text-primary"/>
+                                    <span>Filtros</span>
+                                </div>
+                                <div class="px-3 pb-2">
+                                    <input
+                                        type="search"
+                                        class="form-control form-control-sm"
+                                        placeholder="Buscar Equipo del Cliente..."
+                                        t-on-input="onModelFilterSearchInput"
+                                    />
+                                </div>
+                                <div class="o_global_equipment_map_filter_options py-1">
+                                    <button
+                                        t-foreach="availableEquipmentModels"
+                                        t-as="model"
+                                        t-key="model.id"
+                                        type="button"
+                                        class="o_global_equipment_map_filter_option btn btn-link text-start w-100 px-3 py-1"
+                                        t-on-click="() => this.toggleEquipmentModelFilter(model.id)"
+                                    >
+                                        <i
+                                            t-att-class="isEquipmentModelSelected(model.id) ? 'fa fa-check-square-o me-2 text-primary' : 'fa fa-square-o me-2 text-muted'"
+                                        />
+                                        <span t-esc="model.name"/>
+                                    </button>
+                                    <div t-if="!availableEquipmentModels.length" class="px-3 py-2 text-muted">
+                                        No hay Equipos del Cliente coincidentes.
+                                    </div>
+                                </div>
+                                <div class="border-top px-3 py-2">
+                                    <button
+                                        type="button"
+                                        class="btn btn-link p-0"
+                                        t-att-disabled="!activeFilterCount"
+                                        t-on-click="clearFilters"
+                                    >
+                                        Limpiar filtros
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="o_global_equipment_map_content d-flex flex-grow-1 overflow-hidden">
+                <aside class="o_global_equipment_map_sidebar border-end overflow-auto">
+                    <div class="px-3 py-2 text-muted border-bottom">
+                        <t t-if="state.loading">Cargando clientes...</t>
+                        <t t-else="">
+                            <t t-esc="filteredPartners.length"/> clientes geolocalizados
+                        </t>
+                    </div>
+                    <t t-if="!state.loading and !filteredPartners.length">
+                        <div class="p-4 text-center text-muted">
+                            No hay clientes geolocalizados que coincidan con la búsqueda.
+                        </div>
+                    </t>
+                    <button
+                        t-foreach="filteredPartners"
+                        t-as="partner"
+                        t-key="partner.id"
+                        type="button"
+                        class="o_global_equipment_map_partner w-100 text-start border-0 border-bottom p-3 bg-transparent"
+                        t-on-click="() => this.focusPartner(partner.id)"
+                    >
+                        <strong class="d-block" t-esc="partner.name"/>
+                        <div class="d-flex flex-wrap gap-1 mt-2">
+                            <span class="badge text-bg-primary">
+                                <t t-esc="partner.equipment_models.length"/> Equipos del Cliente
+                            </span>
+                            <span
+                                t-foreach="partner.equipment_models"
+                                t-as="model"
+                                t-key="model.id"
+                                class="badge text-bg-secondary"
+                                t-esc="model.name"
+                            />
+                        </div>
+                    </button>
+                </aside>
+                <div t-ref="map" class="o_global_equipment_map_canvas flex-grow-1"/>
+            </div>
+        </div>
+    </t>
+</templates>
