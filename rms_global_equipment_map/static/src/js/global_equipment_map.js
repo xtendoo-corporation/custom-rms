@@ -46,6 +46,7 @@ export class GlobalEquipmentMap extends Component {
             modelFilterSearch: "",
             filters: {
                 equipmentModelIds: [],
+                operator: "or",
             },
         });
         this.markers = new Map();
@@ -101,13 +102,19 @@ export class GlobalEquipmentMap extends Component {
     get filteredPartners() {
         const term = this.state.search.trim().toLowerCase();
         const selectedModelIds = this.state.filters.equipmentModelIds;
+        const operator = this.state.filters.operator;
         return this.state.partners.filter((partner) => {
             const partnerModelIds = partner.equipment_models.map((model) => `${model.id}`);
-            if (
-                selectedModelIds.length &&
-                !selectedModelIds.every((modelId) => partnerModelIds.includes(modelId))
-            ) {
-                return false;
+            if (selectedModelIds.length) {
+                if (operator === "and") {
+                    if (!selectedModelIds.every((modelId) => partnerModelIds.includes(modelId))) {
+                        return false;
+                    }
+                } else {
+                    if (!selectedModelIds.some((modelId) => partnerModelIds.includes(modelId))) {
+                        return false;
+                    }
+                }
             }
             if (!term) {
                 return true;
@@ -128,6 +135,11 @@ export class GlobalEquipmentMap extends Component {
 
     onModelFilterSearchInput(event) {
         this.state.modelFilterSearch = event.target.value;
+    }
+
+    onOperatorChange(event) {
+        this.state.filters.operator = event.target.value;
+        this.renderMarkers();
     }
 
     toggleEquipmentModelFilter(modelId) {

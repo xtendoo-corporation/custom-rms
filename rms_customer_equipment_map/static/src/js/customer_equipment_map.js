@@ -48,11 +48,12 @@ export class CustomerEquipmentMap extends Component {
             geolocating: false,
             geolocationDone: 0,
             geolocationTotal: 0,
+            isAdmin: false,
         });
         this.markers = new Map();
 
         onWillStart(async () => {
-            const [partners] = await Promise.all([
+            const [data] = await Promise.all([
                 this.orm.call(
                     "res.partner",
                     "get_customer_equipment_map_data",
@@ -60,7 +61,8 @@ export class CustomerEquipmentMap extends Component {
                 ),
                 loadLeafletStyles(),
             ]);
-            this.state.partners = partners;
+            this.state.partners = data.partners;
+            this.state.isAdmin = data.is_admin;
             this.state.loading = false;
         });
         onMounted(() => this.initializeMap());

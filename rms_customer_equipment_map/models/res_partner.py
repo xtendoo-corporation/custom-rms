@@ -54,17 +54,12 @@ class ResPartner(models.Model):
         return self
 
     @api.model
-    def _customer_equipment_map_salesperson_domain(self):
-        if self._is_customer_equipment_map_admin():
-            return []
-        return [("user_id", "=", self.env.user.id)]
-
-    @api.model
     def get_bulk_geolocation_candidates(self):
         self.check_access("read")
+        if not self._is_customer_equipment_map_admin():
+            raise UserError(_("Only administrators can perform bulk geolocation."))
         domain = [
             ("active", "=", True),
-            *self._customer_equipment_map_salesperson_domain(),
             "|",
             ("partner_latitude", "=", 0.0),
             ("partner_longitude", "=", 0.0),
@@ -90,10 +85,10 @@ class ResPartner(models.Model):
 
     @api.model
     def bulk_geo_localize_partners(self, partner_ids):
+        if not self._is_customer_equipment_map_admin():
+            raise UserError(_("Only administrators can perform bulk geolocation."))
         Partner = self._customer_equipment_map_partner_model()
         partners = Partner.browse(partner_ids).exists()
-        if not self._is_customer_equipment_map_admin():
-            partners = partners.filtered(lambda partner: partner.user_id == self.env.user)
         partners.check_access("write")
         localized = []
         failed = []
@@ -134,16 +129,14 @@ class ResPartner(models.Model):
         domain = [
             ("partner_latitude", "!=", 0.0),
             ("partner_longitude", "!=", 0.0),
-            *self._customer_equipment_map_salesperson_domain(),
         ]
         Partner = self._customer_equipment_map_partner_model()
         partners = Partner.search(domain, order="name, id")
 
         equipment_by_partner = defaultdict(list)
-        equipment_model = self.env["maintenance.equipment"]
-        if self._is_customer_equipment_map_admin():
-            equipment_model = equipment_model.sudo()
-        equipment = equipment_model.search(
+        # Search all equipment with sudo() so that any user with access to
+        # the partner can view all their installed products/equipments.
+        equipment = self.env["maintenance.equipment"].sudo().search(
             [("partner_id", "in", partners.ids)],
             order="name, id",
         )
@@ -157,36 +150,39 @@ class ResPartner(models.Model):
                 }
             )
 
-        return [
-            {
-                "id": partner.id,
-                "name": partner.display_name,
-                "latitude": partner.partner_latitude,
-                "longitude": partner.partner_longitude,
-                "address": partner.contact_address or "",
-                "phone": partner.phone or "",
-                "email": partner.email or "",
-                "salesperson": {
-                    "id": partner.user_id.id,
-                    "name": partner.user_id.display_name,
+        return {
+            "partners": [
+                {
+                    "id": partner.id,
+                    "name": partner.display_name,
+                    "latitude": partner.partner_latitude,
+                    "longitude": partner.partner_longitude,
+                    "address": partner.contact_address or "",
+                    "phone": partner.phone or "",
+                    "email": partner.email or "",
+                    "salesperson": {
+                        "id": partner.user_id.id,
+                        "name": partner.user_id.display_name,
+                    }
+                    if partner.user_id
+                    else False,
+                    "country": {
+                        "id": partner.country_id.id,
+                        "name": partner.country_id.display_name,
+                    }
+                    if partner.country_id
+                    else False,
+                    "industry": {
+                        "id": partner.industry_id.id,
+                        "name": partner.industry_id.display_name,
+                    }
+                    if partner.industry_id
+                    else False,
+                    "company_type": "company" if partner.is_company else "person",
+                    "contact_type": partner.type or "contact",
+                    "equipment": equipment_by_partner[partner.id],
                 }
-                if partner.user_id
-                else False,
-                "country": {
-                    "id": partner.country_id.id,
-                    "name": partner.country_id.display_name,
-                }
-                if partner.country_id
-                else False,
-                "industry": {
-                    "id": partner.industry_id.id,
-                    "name": partner.industry_id.display_name,
-                }
-                if partner.industry_id
-                else False,
-                "company_type": "company" if partner.is_company else "person",
-                "contact_type": partner.type or "contact",
-                "equipment": equipment_by_partner[partner.id],
-            }
-            for partner in partners
-        ]
+                for partner in partners
+            ],
+            "is_admin": self._is_customer_equipment_map_admin(),
+        }

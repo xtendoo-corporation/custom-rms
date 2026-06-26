@@ -5,6 +5,7 @@
             <div class="o_customer_equipment_map_toolbar d-flex align-items-center gap-3 px-3 py-2 border-bottom bg-view">
                 <h2 class="mb-0">Mapa de Clientes</h2>
                 <button
+                    t-if="state.isAdmin"
                     type="button"
                     class="btn btn-primary"
                     t-att-disabled="state.geolocating"
