@@ -1,0 +1,222 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* rms_document_format
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-29 09:10+0000\n"
+"PO-Revision-Date: 2026-06-29 09:10+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "% Dto Especial"
+msgstr "% Special Disc."
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "% IVA"
+msgstr "% VAT"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid ""
+"<br/>\n"
+"                            CIF:"
+msgstr ""
+"<br/>\n"
+"                            VAT ID:"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid ""
+"<br/>\n"
+"                            TELEF.:"
+msgstr ""
+"<br/>\n"
+"                            TEL.:"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "<span class=\"rms_date_label\">FECHA</span>"
+msgstr "<span class=\"rms_date_label\">DATE</span>"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "<strong>Forma de pago:</strong>"
+msgstr "<strong>Payment Term:</strong>"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Bases Imponibles"
+msgstr "Taxable Base"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "CIF:"
+msgstr "VAT ID:"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Cant."
+msgstr "Qty."
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Cod. Cliente:"
+msgstr "Customer Code:"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid ""
+"Como responsable del tratamiento de sus datos, tratamos la información que "
+"nos facilita con el fin de prestarles el servicio solicitado y realizar la "
+"facturación del mismo. Se conservarán un plazo mínimo de 5 años. No se "
+"cederán a terceros, salvo obligación legal. Puede ejercer sus derechos a "
+"través del siguiente correo: info@rmsproaudio.com o a la dirección postal C/"
+" Leonardo Da Vinci, 11 Teatro Cartuja Center 41092 Sevilla."
+msgstr ""
+"As the data controller, we process the information you provide in order to deliver the requested service and bill for it. The data will be kept for a minimum period of 5 years. It will not be transferred to third parties, except under legal obligation. You can exercise your rights via the following email: info@rmsproaudio.com or at the postal address C/ Leonardo Da Vinci, 11 Teatro Cartuja Center 41092 Seville."
+
+#. module: rms_document_format
+#: model:ir.model,name:rms_document_format.model_res_company
+msgid "Companies"
+msgstr "Companies"
+
+#. module: rms_document_format
+#: model:ir.model,name:rms_document_format.model_res_config_settings
+msgid "Config Settings"
+msgstr "Config Settings"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Código"
+msgstr "Code"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Descripción"
+msgstr "Description"
+
+#. module: rms_document_format
+#: model:ir.model.fields,field_description:rms_document_format.field_res_company__display_name
+#: model:ir.model.fields,field_description:rms_document_format.field_res_config_settings__display_name
+msgid "Display Name"
+msgstr "Display Name"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Dto1"
+msgstr "Disc. 1"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Dto2"
+msgstr "Disc. 2"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Dto3"
+msgstr "Disc. 3"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid ""
+"Este presupuesto tiene una validez de 30 días. Solo se efectuará el pedido "
+"si se confirma por escrito."
+msgstr ""
+"This quotation is valid for 30 days. The order will only be processed if confirmed in writing."
+
+#. module: rms_document_format
+#: model:ir.model.fields,field_description:rms_document_format.field_res_company__rms_footer_logos
+#: model:ir.model.fields,field_description:rms_document_format.field_res_config_settings__rms_footer_logos
+#: model_terms:ir.ui.view,arch_db:rms_document_format.res_config_settings_view_form_inherit_rms
+msgid "Footer Brands Ribbon"
+msgstr "Footer Brands Ribbon"
+
+#. module: rms_document_format
+#: model:ir.model.fields,field_description:rms_document_format.field_res_company__rms_header_logo_right
+#: model:ir.model.fields,field_description:rms_document_format.field_res_config_settings__rms_header_logo_right
+#: model_terms:ir.ui.view,arch_db:rms_config_settings_view_form_inherit_rms
+msgid "Header Logo (Right)"
+msgstr "Header Logo (Right)"
+
+#. module: rms_document_format
+#: model:ir.model.fields,field_description:rms_document_format.field_res_company__id
+#: model:ir.model.fields,field_description:rms_document_format.field_res_config_settings__id
+msgid "ID"
+msgstr "ID"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Imp. IVA"
+msgstr "VAT Amount"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Importe Dto Especial"
+msgstr "Special Disc. Amount"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "PRESUPUESTO"
+msgstr "QUOTATION"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "PVP sin IVA"
+msgstr "Price Excl. VAT"
+
+#. module: rms_document_format
+#: model:ir.model.fields.selection,name:rms_document_format.selection__res_company__rms_template_selection__rms
+msgid "RMS Custom Template"
+msgstr "RMS Custom Template"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.res_config_settings_view_form_inherit_rms
+msgid "RMS Document Format"
+msgstr "RMS Document Format"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.res_config_settings_view_form_inherit_rms
+msgid "RMS Template Configuration"
+msgstr "RMS Template Configuration"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.res_config_settings_view_form_inherit_rms
+msgid "Select the template and upload custom logos for RMS documents."
+msgstr "Select the template and upload custom logos for RMS documents."
+
+#. module: rms_document_format
+#: model:ir.model.fields,field_description:rms_document_format.field_res_company__rms_template_selection
+#: model:ir.model.fields,field_description:rms_document_format.field_res_config_settings__rms_template_selection
+#: model_terms:ir.ui.view,arch_db:rms_document_format.res_config_settings_view_form_inherit_rms
+msgid "Selected Template"
+msgstr "Selected Template"
+
+#. module: rms_document_format
+#: model:ir.model.fields.selection,name:rms_document_format.selection__res_company__rms_template_selection__standard
+msgid "Standard Odoo Template"
+msgstr "Standard Odoo Template"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "TOTAL"
+msgstr "TOTAL"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Total Base"
+msgstr "Total Base"
+
+#. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Total Neto"
+msgstr "Net Total"
