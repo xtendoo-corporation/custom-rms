@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <list string="Permisos de directorio" create="1" edit="1" delete="1">
                 <field name="category_id" optional="hide"/>
-                <field name="user_id"/>
+                <field name="group_id"/>
                 <field name="permission"/>
             </list>
         </field>
@@ -21,7 +21,7 @@
                 <sheet>
                     <group>
                         <field name="category_id" readonly="1"/>
-                        <field name="user_id"/>
+                        <field name="group_id"/>
                         <field name="permission"/>
                     </group>
                 </sheet>
@@ -309,13 +309,13 @@
                                    mode="list,form">
                                 <list create="1" edit="1" delete="1">
                                     <field name="category_id" invisible="1"/>
-                                    <field name="user_id"/>
+                                    <field name="group_id"/>
                                     <field name="permission"/>
                                 </list>
                                 <form string="Permiso de directorio">
                                     <group>
                                         <field name="category_id" invisible="1" readonly="1"/>
-                                        <field name="user_id"/>
+                                        <field name="group_id"/>
                                         <field name="permission"/>
                                     </group>
                                 </form>

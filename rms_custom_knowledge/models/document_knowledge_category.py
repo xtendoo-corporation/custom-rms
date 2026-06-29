@@ -1,4 +1,5 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import AccessError
 from odoo.osv import expression
 
 
@@ -81,30 +82,82 @@ class DocumentKnowledgeCategory(models.Model):
             category.document_count = counts.get(category.id, 0)
 
     @api.model
-    def _get_user_readable_category_ids(self):
-        if (
+    def _get_user_permissions(self):
+        # Admin / Knowledge Manager has full access
+        is_manager = (
             self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
-            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
-        ):
-            return self.sudo().search([]).ids
-        return self.env['document.knowledge.access'].sudo().search([
-            ('user_id', '=', self.env.uid),
-        ]).mapped('category_id').ids
+            or self.env.user.has_group('base.group_system')
+        )
+        
+        # Get all categories
+        categories = self.sudo().search([])
+        
+        # Build parent-child relationships and map each category to its explicit access rules
+        access_rules = self.env['document.knowledge.access'].sudo().search([])
+        rules_by_category = {}
+        for rule in access_rules:
+            rules_by_category.setdefault(rule.category_id.id, []).append(rule)
+            
+        general_ref = self.env.ref('rms_custom_knowledge.document_knowledge_category_general', raise_if_not_found=False)
+        general_id = general_ref.id if general_ref else None
+        
+        user_groups = self.env.user.groups_id
+        
+        permissions = {}
+        
+        def compute_perm(cat):
+            if cat.id in permissions:
+                return permissions[cat.id]
+                
+            if is_manager:
+                permissions[cat.id] = 'delete'
+                return 'delete'
+                
+            # Check explicit rules at this level
+            rules = rules_by_category.get(cat.id, [])
+            if rules:
+                user_rules = [r for r in rules if r.group_id in user_groups]
+                if user_rules:
+                    # order: read < write < delete
+                    perm_map = {'read': 1, 'write': 2, 'delete': 3}
+                    max_perm = max(user_rules, key=lambda r: perm_map.get(r.permission, 0)).permission
+                    permissions[cat.id] = max_perm
+                    return max_perm
+                else:
+                    # Explicit rules exist but user is not in any of the groups
+                    permissions[cat.id] = None
+                    return None
+                    
+            # If no explicit rules, inherit from parent
+            if cat.parent_id:
+                parent_perm = compute_perm(cat.parent_id)
+                permissions[cat.id] = parent_perm
+                return parent_perm
+                
+            # If root and no parent:
+            if cat.id == general_id:
+                permissions[cat.id] = 'read'
+                return 'read'
+                
+            permissions[cat.id] = None
+            return None
+
+        for cat in categories:
+            compute_perm(cat)
+            
+        return permissions
+
+    @api.model
+    def _get_user_readable_category_ids(self):
+        perms = self._get_user_permissions()
+        return [cat_id for cat_id, perm in perms.items() if perm]
 
     @api.model
     def _get_user_readable_category_domain(self):
-        if (
-            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
-            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
-        ):
-            return []
-
-        category_ids = self.env['document.knowledge.access'].sudo().search([
-            ('user_id', '=', self.env.uid),
-        ]).mapped('category_id').ids
-        if not category_ids:
+        readable_ids = self._get_user_readable_category_ids()
+        if not readable_ids:
             return [('id', '=', 0)]
-        return [('id', 'in', category_ids)]
+        return [('id', 'in', readable_ids)]
 
     @api.model
     def _search(self, domain, offset=0, limit=None, order=None, *, active_test=True, bypass_access=False):
@@ -129,45 +182,63 @@ class DocumentKnowledgeCategory(models.Model):
 
     @api.depends_context('uid')
     def _compute_user_can_upload_here(self):
-        uploadable_category_ids = self._get_user_uploadable_category_ids(self.ids)
+        perms = self._get_user_permissions()
         for category in self:
-            category.user_can_upload_here = category.id in uploadable_category_ids
+            perm = perms.get(category.id)
+            category.user_can_upload_here = perm in ('write', 'delete')
 
     @api.model
     def _get_user_uploadable_category_ids(self, category_ids=None):
-        if (
-            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
-            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
-        ):
-            if category_ids is None:
-                return set(self.search([]).ids)
-            return set(category_ids)
-
-        domain = [
-            ('user_id', '=', self.env.uid),
-            ('permission', '=', 'read_upload'),
-        ]
+        perms = self._get_user_permissions()
+        uploadable = {cat_id for cat_id, perm in perms.items() if perm in ('write', 'delete')}
         if category_ids is not None:
-            domain.append(('category_id', 'in', category_ids))
-
-        return set(
-            self.env['document.knowledge.access'].sudo().search(domain).mapped('category_id').ids
-        )
+            return uploadable.intersection(category_ids)
+        return uploadable
 
     def _check_user_can_upload_here(self):
         self.ensure_one()
-        if (
-            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
-            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
-        ):
-            return True
-        if not self.id:
-            return False
-        return bool(self.env['document.knowledge.access'].sudo().search_count([
-            ('category_id', '=', self.id),
-            ('user_id', '=', self.env.uid),
-            ('permission', '=', 'read_upload'),
-        ]))
+        perms = self._get_user_permissions()
+        return perms.get(self.id) in ('write', 'delete')
+
+    def _check_access(self, operation):
+        if self.env.su:
+            return super()._check_access(operation)
+            
+        perms = self._get_user_permissions()
+        for category in self:
+            perm = perms.get(category.id)
+            if not perm:
+                raise AccessError(_("No tienes permiso para acceder a este directorio: %s") % category.complete_name)
+                
+            if operation == 'read':
+                continue
+            elif operation in ('write', 'create'):
+                if perm not in ('write', 'delete'):
+                    raise AccessError(_("No tienes permiso para modificar este directorio: %s") % category.complete_name)
+            elif operation == 'unlink':
+                if perm != 'delete':
+                    raise AccessError(_("No tienes permiso para eliminar este directorio: %s") % category.complete_name)
+                    
+        return super()._check_access(operation)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if not self.env.su:
+            for vals in vals_list:
+                parent_id = vals.get('parent_id')
+                if parent_id:
+                    parent = self.browse(parent_id)
+                    perms = parent._get_user_permissions()
+                    perm = perms.get(parent.id)
+                    if perm not in ('write', 'delete'):
+                        raise AccessError(_("No tienes permiso para crear subcarpetas en este directorio."))
+                else:
+                    if not (
+                        self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
+                        or self.env.user.has_group('base.group_system')
+                    ):
+                        raise AccessError(_("Solo los gestores de Knowledge pueden crear directorios raíz."))
+        return super().create(vals_list)
 
     def action_open_knowledge_category(self):
         if not self:

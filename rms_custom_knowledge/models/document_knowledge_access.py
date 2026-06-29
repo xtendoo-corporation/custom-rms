@@ -5,8 +5,8 @@ from odoo.exceptions import AccessError
 class DocumentKnowledgeAccess(models.Model):
     _name = 'document.knowledge.access'
     _description = 'Document Knowledge Directory Access'
-    _rec_name = 'user_id'
-    _order = 'category_id, user_id'
+    _rec_name = 'group_id'
+    _order = 'category_id, group_id'
 
     category_id = fields.Many2one(
         'document.knowledge.category',
@@ -15,27 +15,27 @@ class DocumentKnowledgeAccess(models.Model):
         ondelete='cascade',
         index=True,
     )
-    user_id = fields.Many2one(
-        'res.users',
-        string='Usuario',
+    group_id = fields.Many2one(
+        'res.groups',
+        string='Grupo de usuarios',
         required=True,
         ondelete='cascade',
         index=True,
     )
     permission = fields.Selection(
         [
-            ('read', 'Ver'),
-            ('read_upload', 'Ver y subir archivos'),
+            ('read', 'Lectura'),
+            ('write', 'Lectura y Escritura'),
+            ('delete', 'Lectura, Escritura y Eliminación'),
         ],
         string='Permiso',
         required=True,
         default='read',
     )
 
-    _category_user_unique = models.Constraint(
-        'UNIQUE(category_id, user_id)',
-        'Este usuario ya tiene permisos en este directorio.',
-    )
+    _sql_constraints = [
+        ('category_group_unique', 'UNIQUE(category_id, group_id)', 'Este grupo ya tiene permisos en este directorio.'),
+    ]
 
     def _check_can_manage_knowledge_access(self):
         if not (
@@ -56,3 +56,11 @@ class DocumentKnowledgeAccess(models.Model):
     def unlink(self):
         self._check_can_manage_knowledge_access()
         return super().unlink()
+
+    def init(self):
+        super().init()
+        self.env.cr.execute("""
+            DELETE FROM document_knowledge_access;
+            ALTER TABLE document_knowledge_access DROP CONSTRAINT IF EXISTS document_knowledge_access_category_user_unique;
+            ALTER TABLE document_knowledge_access DROP CONSTRAINT IF EXISTS document_knowledge_access_category_id_user_id_key;
+        """)

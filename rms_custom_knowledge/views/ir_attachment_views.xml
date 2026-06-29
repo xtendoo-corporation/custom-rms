@@ -212,7 +212,7 @@
         <field name="name">Documentos de Conocimiento</field>
         <field name="res_model">ir.attachment</field>
         <field name="view_mode">kanban,form</field>
-        <field name="domain">['&amp;', '&amp;', ('knowledge_category_id', '!=', False), ('name', 'not ilike', 'web.assets'), ('name', 'not ilike', 'bus.websocket')]</field>
+        <field name="domain">[('is_knowledge_document', '=', True)]</field>
         <field name="context">{'default_is_knowledge_document': True, 'rms_knowledge_mode': True}</field>
         <field name="view_id" ref="view_attachment_knowledge_kanban_primary"/>
         <field name="search_view_id" ref="view_attachment_knowledge_search_primary"/>
@@ -238,7 +238,7 @@
         <field name="name">Articulos de Conocimiento</field>
         <field name="res_model">ir.attachment</field>
         <field name="view_mode">kanban,form</field>
-        <field name="domain">['&amp;', '&amp;', ('knowledge_category_id', '!=', False), ('name', 'not ilike', 'web.assets'), ('name', 'not ilike', 'bus.websocket')]</field>
+        <field name="domain">[('is_knowledge_document', '=', True)]</field>
         <field name="context">{'default_is_knowledge_document': True, 'rms_knowledge_mode': True}</field>
         <field name="view_id" ref="view_attachment_knowledge_kanban_primary"/>
         <field name="search_view_id" ref="view_attachment_knowledge_search_primary"/>

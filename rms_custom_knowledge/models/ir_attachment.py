@@ -13,17 +13,14 @@ from odoo.exceptions import AccessError, ValidationError
 class IrAttachment(models.Model):
     _inherit = 'ir.attachment'
 
-    def _default_knowledge_category_id(self):
-        return self.env.ref(
-            'rms_custom_knowledge.document_knowledge_category_general',
-            raise_if_not_found=False,
-        )
-
-    def _get_default_upload_category(self):
-        category_id = self.env.context.get('default_knowledge_category_id')
-        if category_id:
-            return self.env['document.knowledge.category'].browse(category_id).exists()
-        return self._default_knowledge_category_id()
+    def init(self):
+        super().init()
+        # Clean up attachments that are not knowledge documents
+        self.env.cr.execute("""
+            UPDATE ir_attachment
+            SET knowledge_category_id = NULL
+            WHERE is_knowledge_document = FALSE OR is_knowledge_document IS NULL;
+        """)
 
     is_knowledge_document = fields.Boolean(
         string='Knowledge Document',
@@ -35,7 +32,6 @@ class IrAttachment(models.Model):
         string='Directory',
         index=True,
         ondelete='restrict',
-        default=_default_knowledge_category_id,
     )
     body_markdown = fields.Text(
         string='Markdown Content',
@@ -93,14 +89,15 @@ class IrAttachment(models.Model):
     @api.depends('knowledge_category_id')
     @api.depends_context('uid', 'default_knowledge_category_id')
     def _compute_user_can_upload_here(self):
-        categories = self.mapped('knowledge_category_id')
-        default_category = self._get_default_upload_category()
-        if default_category:
-            categories |= default_category
-        uploadable_category_ids = categories._get_user_uploadable_category_ids(categories.ids) if categories else set()
+        default_category_id = self.env.context.get('default_knowledge_category_id')
+        default_category = self.env['document.knowledge.category'].browse(default_category_id).exists() if default_category_id else False
         for attachment in self:
             category = attachment.knowledge_category_id or default_category
-            attachment.user_can_upload_here = category.id in uploadable_category_ids if category else False
+            if category:
+                perms = category._get_user_permissions()
+                attachment.user_can_upload_here = perms.get(category.id) in ('write', 'delete')
+            else:
+                attachment.user_can_upload_here = False
 
     @api.depends('datas', 'mimetype', 'name', 'is_knowledge_document', 'type', 'url')
     def _compute_body_html(self):
@@ -191,18 +188,15 @@ class IrAttachment(models.Model):
                 self._check_knowledge_upload_access_for_values(vals)
                 vals['is_knowledge_document'] = True
                 vals['body_markdown'] = False
+                if not vals.get('knowledge_category_id'):
+                    general_ref = self.env.ref('rms_custom_knowledge.document_knowledge_category_general', raise_if_not_found=False)
+                    if general_ref:
+                        vals['knowledge_category_id'] = general_ref.id
         return super().create(vals_list)
 
     @api.model
     def _get_user_readable_knowledge_category_ids(self):
-        if (
-            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
-            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
-        ):
-            return self.env['document.knowledge.category'].search([]).ids
-        return self.env['document.knowledge.category'].search([
-            ('access_line_ids.user_id', '=', self.env.uid),
-        ]).ids
+        return self.env['document.knowledge.category']._get_user_readable_category_ids()
 
     @api.model
     def search_panel_select_range(self, field_name, **kwargs):
@@ -212,17 +206,16 @@ class IrAttachment(models.Model):
             and not self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
         ):
             kwargs = dict(kwargs)
+            readable_ids = self._get_user_readable_knowledge_category_ids()
             kwargs['comodel_domain'] = [
-                ('access_line_ids.user_id', '=', self.env.uid),
+                ('id', 'in', readable_ids),
             ] + kwargs.get('comodel_domain', [])
         return super().search_panel_select_range(field_name, **kwargs)
 
     @api.model
     def _get_knowledge_view_domain(self):
         domain = [
-            ('knowledge_category_id', '!=', False),
-            ('name', 'not ilike', 'web.assets'),
-            ('name', 'not ilike', 'bus.websocket'),
+            ('is_knowledge_document', '=', True),
         ]
         if (
             self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
@@ -230,12 +223,8 @@ class IrAttachment(models.Model):
         ):
             return domain
 
-        category_ids = self.env['document.knowledge.access'].sudo().search([
-            ('user_id', '=', self.env.uid),
-        ]).mapped('category_id').ids
-        if not category_ids:
-            return [('id', '=', 0)]
-        return expression.AND([domain, [('knowledge_category_id', 'in', category_ids)]])
+        readable_ids = self._get_user_readable_knowledge_category_ids()
+        return expression.AND([domain, [('knowledge_category_id', 'in', readable_ids)]])
 
     @api.model
     def _domain_targets_knowledge_documents(self, domain):
@@ -243,7 +232,6 @@ class IrAttachment(models.Model):
             if isinstance(item, (list, tuple)):
                 if item and isinstance(item[0], str) and item[0] in (
                     'knowledge_category_id',
-                    'knowledge_category_id.access_line_ids.user_id',
                     'is_knowledge_document',
                 ):
                     return True
@@ -280,43 +268,37 @@ class IrAttachment(models.Model):
             bypass_access=bypass_access,
         )
 
-    def _get_rms_knowledge_accessible_attachments(self, operation):
-        knowledge_attachment_ids = set(self.sudo().filtered('knowledge_category_id').ids)
-        if not knowledge_attachment_ids:
-            return self.browse()
-
-        knowledge_attachments = self.browse(knowledge_attachment_ids)
-        if self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager'):
-            return knowledge_attachments
-        if operation == 'unlink':
-            return self.browse()
-        if self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor'):
-            return knowledge_attachments
-
-        sudo_knowledge_attachments = knowledge_attachments.sudo()
-        access_domain = [
-            ('user_id', '=', self.env.uid),
-            ('category_id', 'in', sudo_knowledge_attachments.mapped('knowledge_category_id').ids),
-        ]
-        if operation in ('write', 'create', 'unlink'):
-            access_domain.append(('permission', '=', 'read_upload'))
-
-        allowed_category_ids = set(
-            self.env['document.knowledge.access'].sudo().search(access_domain).mapped('category_id').ids
-        )
-        allowed_attachment_ids = set(
-            sudo_knowledge_attachments.filtered(
-                lambda attachment: attachment.knowledge_category_id.id in allowed_category_ids
-            ).ids
-        )
-        return self.browse(allowed_attachment_ids)
-
     def _check_access(self, operation):
-        allowed_knowledge_attachments = self._get_rms_knowledge_accessible_attachments(operation)
-        remaining = self - allowed_knowledge_attachments
-        if not remaining:
-            return None
-        return super(IrAttachment, remaining)._check_access(operation)
+        if self.env.su:
+            return super()._check_access(operation)
+            
+        knowledge_attachments = self.filtered('is_knowledge_document')
+        non_knowledge_attachments = self - knowledge_attachments
+        
+        if knowledge_attachments:
+            categories = knowledge_attachments.mapped('knowledge_category_id')
+            if categories:
+                perms = categories._get_user_permissions()
+                for attachment in knowledge_attachments:
+                    cat_id = attachment.knowledge_category_id.id
+                    perm = perms.get(cat_id) if cat_id else None
+                    
+                    if not perm:
+                        raise AccessError(_("No tienes permiso para acceder a este documento: %s") % attachment.name)
+                        
+                    if operation == 'read':
+                        continue
+                    elif operation in ('write', 'create'):
+                        if perm not in ('write', 'delete'):
+                            raise AccessError(_("No tienes permiso para modificar documentos en este directorio."))
+                    elif operation == 'unlink':
+                        if perm != 'delete':
+                            raise AccessError(_("No tienes permiso para eliminar documentos de este directorio."))
+                            
+        if non_knowledge_attachments:
+            return super(IrAttachment, non_knowledge_attachments)._check_access(operation)
+            
+        return None
 
     def write(self, vals):
         if isinstance(vals.get('url'), str):
@@ -342,7 +324,7 @@ class IrAttachment(models.Model):
 
     def unlink(self):
         if any(self.mapped('is_knowledge_document')):
-            self._check_knowledge_manager_access()
+            self._check_access('unlink')
             self._unlink_html_preview_attachments()
         return super().unlink()
 
@@ -359,7 +341,7 @@ class IrAttachment(models.Model):
         category_id = vals.get('knowledge_category_id') or self.env.context.get('default_knowledge_category_id')
         if category_id:
             return self.env['document.knowledge.category'].browse(category_id).exists()
-        return self._default_knowledge_category_id()
+        return self.env.ref('rms_custom_knowledge.document_knowledge_category_general', raise_if_not_found=False)
 
     @api.model
     def _check_knowledge_upload_access_for_values(self, vals):
