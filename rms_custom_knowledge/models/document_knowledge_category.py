@@ -101,7 +101,7 @@ class DocumentKnowledgeCategory(models.Model):
         general_ref = self.env.ref('rms_custom_knowledge.document_knowledge_category_general', raise_if_not_found=False)
         general_id = general_ref.id if general_ref else None
         
-        user_groups = self.env.user.groups_id
+        user_groups = self.env.user.all_group_ids
         
         permissions = {}
         
