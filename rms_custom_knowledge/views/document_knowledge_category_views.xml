@@ -242,10 +242,10 @@
                                                 invisible="type != 'url' or not url or not is_saved_knowledge_document"/>
                                         <field name="datas"
                                                string="Archivo"
-                                               widget="knowledge_binary"
+                                               widget="binary"
                                                filename="name"
                                                required="is_knowledge_document and type == 'binary'"
-                                               invisible="type != 'binary' or is_saved_knowledge_document or (is_knowledge_document and not user_can_upload_here)"/>
+                                               invisible="type != 'binary' or is_saved_knowledge_document"/>
                                         <field name="mimetype" invisible="1"/>
                                     </group>
                                 </sheet>

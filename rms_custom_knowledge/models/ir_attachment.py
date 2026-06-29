@@ -19,6 +19,12 @@ class IrAttachment(models.Model):
             raise_if_not_found=False,
         )
 
+    def _get_default_upload_category(self):
+        category_id = self.env.context.get('default_knowledge_category_id')
+        if category_id:
+            return self.env['document.knowledge.category'].browse(category_id).exists()
+        return self._default_knowledge_category_id()
+
     is_knowledge_document = fields.Boolean(
         string='Knowledge Document',
         index=True,
@@ -29,6 +35,7 @@ class IrAttachment(models.Model):
         string='Directory',
         index=True,
         ondelete='restrict',
+        default=_default_knowledge_category_id,
     )
     body_markdown = fields.Text(
         string='Markdown Content',
@@ -84,12 +91,16 @@ class IrAttachment(models.Model):
             raise AccessError(_('Only Knowledge Managers can manage knowledge documents.'))
 
     @api.depends('knowledge_category_id')
-    @api.depends_context('uid')
+    @api.depends_context('uid', 'default_knowledge_category_id')
     def _compute_user_can_upload_here(self):
         categories = self.mapped('knowledge_category_id')
+        default_category = self._get_default_upload_category()
+        if default_category:
+            categories |= default_category
         uploadable_category_ids = categories._get_user_uploadable_category_ids(categories.ids) if categories else set()
         for attachment in self:
-            attachment.user_can_upload_here = attachment.knowledge_category_id.id in uploadable_category_ids
+            category = attachment.knowledge_category_id or default_category
+            attachment.user_can_upload_here = category.id in uploadable_category_ids if category else False
 
     @api.depends('datas', 'mimetype', 'name', 'is_knowledge_document', 'type', 'url')
     def _compute_body_html(self):

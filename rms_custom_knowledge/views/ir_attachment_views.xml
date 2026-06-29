@@ -42,7 +42,7 @@
                                 <field name="type" string="Tipo de recurso" widget="radio" readonly="is_saved_knowledge_document" options="{'horizontal': true}"/>
                                 <field name="url" string="Enlace externo" widget="url" placeholder="https://drive.google.com/..." required="type == 'url'" invisible="type != 'url'"/>
                                 <button name="action_open_knowledge_url" type="object" string="Abrir enlace" icon="fa-external-link" class="btn-primary" invisible="type != 'url' or not url or not is_saved_knowledge_document"/>
-                                <field name="datas" string="Archivo" widget="knowledge_binary" filename="name" required="is_knowledge_document and type == 'binary'" invisible="type != 'binary' or is_saved_knowledge_document or (is_knowledge_document and not user_can_upload_here)"/>
+                                <field name="datas" string="Archivo" widget="binary" filename="name" required="is_knowledge_document and type == 'binary'" invisible="type != 'binary' or is_saved_knowledge_document"/>
                                 <field name="write_uid" string="Ultima version subida por" readonly="1"/>
                                 <field name="last_upload_date_display" string="Fecha de ultima subida" readonly="1"/>
                                 <field name="mimetype" invisible="1"/>
@@ -168,7 +168,7 @@
                             <field name="type" string="Tipo de recurso" widget="radio" readonly="is_saved_knowledge_document" options="{'horizontal': true}"/>
                             <field name="url" string="Enlace externo" widget="url" placeholder="https://drive.google.com/..." required="type == 'url'" invisible="type != 'url'"/>
                             <button name="action_open_knowledge_url" type="object" string="Abrir enlace" icon="fa-external-link" class="btn-primary" invisible="type != 'url' or not url or not is_saved_knowledge_document"/>
-                            <field name="datas" string="Archivo" widget="knowledge_binary" filename="name" required="is_knowledge_document and type == 'binary'" invisible="type != 'binary' or is_saved_knowledge_document or (is_knowledge_document and not user_can_upload_here)"/>
+                            <field name="datas" string="Archivo" widget="binary" filename="name" required="is_knowledge_document and type == 'binary'" invisible="type != 'binary' or is_saved_knowledge_document"/>
                             <field name="write_uid" string="Ultima version subida por" readonly="1"/>
                             <field name="last_upload_date_display" string="Fecha de ultima subida" readonly="1"/>
                             <field name="mimetype" invisible="1"/>
