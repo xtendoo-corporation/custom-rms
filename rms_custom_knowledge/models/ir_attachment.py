@@ -272,49 +272,68 @@ class IrAttachment(models.Model):
         if self.env.su:
             return super()._check_access(operation)
             
-        db_ids = [id_ for id_ in self.ids if isinstance(id_, int)]
-        knowledge_attachments = self.browse()
-        non_knowledge_attachments = self
-        attachment_data = {}  # id: (is_knowledge, category_id, name)
+        # Get the result from core ir.attachment check
+        res = super()._check_access(operation)
         
+        # Read the knowledge fields using direct SQL to prevent recursion
+        db_ids = [id_ for id_ in self.ids if isinstance(id_, int)]
+        attachment_data = {}  # id: (is_knowledge, category_id, name)
         if db_ids:
             self.env.cr.execute(
                 "SELECT id, is_knowledge_document, knowledge_category_id, name FROM ir_attachment WHERE id IN %s",
                 [tuple(db_ids)]
             )
-            rows = self.env.cr.fetchall()
-            knowledge_ids = []
-            for row_id, is_knowledge, cat_id, name in rows:
+            for row_id, is_knowledge, cat_id, name in self.env.cr.fetchall():
                 attachment_data[row_id] = (is_knowledge, cat_id, name)
-                if is_knowledge:
-                    knowledge_ids.append(row_id)
-            if knowledge_ids:
-                knowledge_attachments = self.browse(knowledge_ids)
-                non_knowledge_attachments = self - knowledge_attachments
                 
-        if knowledge_attachments:
-            category_ids = [data[1] for data in attachment_data.values() if data[0] and data[1]]
-            if category_ids:
-                categories = self.env['document.knowledge.category'].browse(category_ids)
-                perms = categories._get_user_permissions()
-                for attachment in knowledge_attachments:
-                    _, cat_id, name = attachment_data.get(attachment.id, (False, False, ''))
-                    perm = perms.get(cat_id) if cat_id else None
-                    
-                    if not perm:
-                        raise AccessError(_("No tienes permiso para acceder a este documento: %s") % (name or ''))
-                        
-                    if operation == 'read':
-                        continue
-                    elif operation in ('write', 'create'):
-                        if perm not in ('write', 'delete'):
-                            raise AccessError(_("No tienes permiso para modificar documentos en este directorio."))
-                    elif operation == 'unlink':
-                        if perm != 'delete':
-                            raise AccessError(_("No tienes permiso para eliminar documentos de este directorio."))
-                            
-        if non_knowledge_attachments:
-            return super(IrAttachment, non_knowledge_attachments)._check_access(operation)
+        # Extract forbidden records from core result
+        forbidden = self.browse()
+        error_func = None
+        if res:
+            forbidden, error_func = res
+            
+        # We need to compute permissions for any knowledge categories involved
+        knowledge_category_ids = set()
+        for att_id, (is_k, cat_id, _) in attachment_data.items():
+            if is_k and cat_id:
+                knowledge_category_ids.add(cat_id)
+                
+        perms = {}
+        if knowledge_category_ids:
+            categories = self.env['document.knowledge.category'].browse(list(knowledge_category_ids))
+            perms = categories._get_user_permissions()
+            
+        new_forbidden_ids = set()
+        
+        # 1. Process non-knowledge attachments: keep the core decision
+        for att_id in self.ids:
+            is_k, cat_id, name = attachment_data.get(att_id, (False, False, ''))
+            if not is_k:
+                if att_id in forbidden.ids:
+                    new_forbidden_ids.add(att_id)
+                continue
+                
+            # 2. Process knowledge attachments: enforce our custom group permissions
+            perm = perms.get(cat_id) if cat_id else None
+            is_forbidden = False
+            if not perm:
+                is_forbidden = True
+            elif operation == 'read':
+                is_forbidden = False
+            elif operation in ('write', 'create'):
+                is_forbidden = perm not in ('write', 'delete')
+            elif operation == 'unlink':
+                is_forbidden = perm != 'delete'
+                
+            if is_forbidden:
+                new_forbidden_ids.add(att_id)
+                
+        if new_forbidden_ids:
+            new_forbidden = self.browse(new_forbidden_ids)
+            if not error_func:
+                def error_func():
+                    return AccessError(_("No tienes permisos suficientes para acceder a estos documentos."))
+            return new_forbidden, error_func
             
         return None
 
@@ -1003,3 +1022,4 @@ th, td { border: 1px solid #d1d5db; padding: 6px 8px; }
         escaped = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'<em>\1</em>', escaped)
         escaped = re.sub(r'\[([^\]]+)\]\((https?://[^)]+)\)', r'<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>', escaped)
         return escaped
+
