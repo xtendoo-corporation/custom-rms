@@ -101,7 +101,7 @@ class DocumentKnowledgeCategory(models.Model):
         general_ref = self.env.ref('rms_custom_knowledge.document_knowledge_category_general', raise_if_not_found=False)
         general_id = general_ref.id if general_ref else None
         
-        user_groups = self.env.user.all_group_ids
+        user_group_ids = set(self.env.user.all_group_ids.ids)
         
         permissions = {}
         
@@ -116,7 +116,7 @@ class DocumentKnowledgeCategory(models.Model):
             # Check explicit rules at this level
             rules = rules_by_category.get(cat.id, [])
             if rules:
-                user_rules = [r for r in rules if r.group_id in user_groups]
+                user_rules = [r for r in rules if r.group_id.id in user_group_ids]
                 if user_rules:
                     # order: read < write < delete
                     perm_map = {'read': 1, 'write': 2, 'delete': 3}
