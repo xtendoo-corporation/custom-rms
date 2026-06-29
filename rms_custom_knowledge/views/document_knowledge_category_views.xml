@@ -303,7 +303,7 @@
                         <field name="description"/>
                     </group>
                     <notebook>
-                        <page string="Permisos" groups="rms_custom_knowledge.group_knowledge_manager">
+                        <page string="Permisos" groups="rms_custom_knowledge.group_knowledge_manager,base.group_system">
                             <field name="access_line_ids"
                                    context="{'default_category_id': id}"
                                    mode="list,form">

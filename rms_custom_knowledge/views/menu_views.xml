@@ -11,7 +11,7 @@
               name="Biblioteca"
               parent="document_knowledge.menu_document_root"
               action="action_document_knowledge_library"
-              groups="rms_custom_knowledge.group_knowledge_manager"
+              groups="rms_custom_knowledge.group_knowledge_manager,base.group_system"
               sequence="10"/>
 
     <record id="document_knowledge.menu_document" model="ir.ui.menu">
