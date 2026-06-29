@@ -272,19 +272,37 @@ class IrAttachment(models.Model):
         if self.env.su:
             return super()._check_access(operation)
             
-        knowledge_attachments = self.filtered('is_knowledge_document')
-        non_knowledge_attachments = self - knowledge_attachments
+        db_ids = [id_ for id_ in self.ids if isinstance(id_, int)]
+        knowledge_attachments = self.browse()
+        non_knowledge_attachments = self
+        attachment_data = {}  # id: (is_knowledge, category_id, name)
         
+        if db_ids:
+            self.env.cr.execute(
+                "SELECT id, is_knowledge_document, knowledge_category_id, name FROM ir_attachment WHERE id IN %s",
+                [tuple(db_ids)]
+            )
+            rows = self.env.cr.fetchall()
+            knowledge_ids = []
+            for row_id, is_knowledge, cat_id, name in rows:
+                attachment_data[row_id] = (is_knowledge, cat_id, name)
+                if is_knowledge:
+                    knowledge_ids.append(row_id)
+            if knowledge_ids:
+                knowledge_attachments = self.browse(knowledge_ids)
+                non_knowledge_attachments = self - knowledge_attachments
+                
         if knowledge_attachments:
-            categories = knowledge_attachments.mapped('knowledge_category_id')
-            if categories:
+            category_ids = [data[1] for data in attachment_data.values() if data[0] and data[1]]
+            if category_ids:
+                categories = self.env['document.knowledge.category'].browse(category_ids)
                 perms = categories._get_user_permissions()
                 for attachment in knowledge_attachments:
-                    cat_id = attachment.knowledge_category_id.id
+                    _, cat_id, name = attachment_data.get(attachment.id, (False, False, ''))
                     perm = perms.get(cat_id) if cat_id else None
                     
                     if not perm:
-                        raise AccessError(_("No tienes permiso para acceder a este documento: %s") % attachment.name)
+                        raise AccessError(_("No tienes permiso para acceder a este documento: %s") % (name or ''))
                         
                     if operation == 'read':
                         continue
