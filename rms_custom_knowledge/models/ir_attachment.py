@@ -248,8 +248,47 @@ class IrAttachment(models.Model):
         )
 
     @api.model
+    def _extract_ids_from_domain(self, domain):
+        ids = []
+        for item in domain or []:
+            if isinstance(item, (list, tuple)):
+                if len(item) == 3 and item[0] == 'id':
+                    operator, value = item[1], item[2]
+                    if operator == '=' and isinstance(value, int):
+                        ids.append(value)
+                    elif operator == 'in' and isinstance(value, (list, tuple, set)):
+                        ids.extend([v for v in value if isinstance(v, int)])
+                else:
+                    ids.extend(self._extract_ids_from_domain(item))
+        return ids
+
+    @api.model
+    def _is_query_targeting_only_knowledge(self, domain):
+        # 1. Check if the domain explicitly targets knowledge fields
+        if self._domain_targets_knowledge_documents(domain):
+            return True
+            
+        # 2. Check context flags
+        if self.env.context.get('rms_knowledge_mode') or self.env.context.get('default_is_knowledge_document'):
+            return True
+            
+        # 3. Check if the domain is querying specific IDs and all of them are knowledge documents
+        ids = self._extract_ids_from_domain(domain)
+        if ids:
+            # Check the database for these IDs
+            self.env.cr.execute(
+                "SELECT COUNT(*) FROM ir_attachment WHERE id IN %s AND (is_knowledge_document = FALSE OR is_knowledge_document IS NULL)",
+                [tuple(ids)]
+            )
+            non_knowledge_count = self.env.cr.fetchone()[0]
+            if non_knowledge_count == 0:
+                return True
+                
+        return False
+
+    @api.model
     def _search(self, domain, offset=0, limit=None, order=None, *, active_test=True, bypass_access=False):
-        if not bypass_access and self._must_apply_knowledge_view_domain(domain):
+        if not bypass_access and self._is_query_targeting_only_knowledge(domain):
             domain = expression.AND([domain, self._get_knowledge_view_domain()])
             return super()._search(
                 domain,
