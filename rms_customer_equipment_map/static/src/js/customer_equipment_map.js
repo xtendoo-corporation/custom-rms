@@ -215,10 +215,11 @@ export class CustomerEquipmentMap extends Component {
         const bounds = [];
         for (const partner of this.filteredPartners) {
             const coordinates = [partner.latitude, partner.longitude];
+            const equipmentCount = partner.equipment.length;
             const marker = window.L.marker(coordinates, {
                 icon: window.L.divIcon({
                     className: "o_customer_equipment_map_marker",
-                    html: `<span>${partner.equipment.length}</span>`,
+                    html: equipmentCount ? `<span>${equipmentCount}</span>` : "",
                     iconSize: [34, 42],
                     iconAnchor: [17, 42],
                     popupAnchor: [0, -40],
