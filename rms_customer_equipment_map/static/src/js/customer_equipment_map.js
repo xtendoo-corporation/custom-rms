@@ -172,7 +172,7 @@ export class CustomerEquipmentMap extends Component {
                     throw new Error(result.error);
                 }
                 if (this.state.geolocationDone < partnerIds.length) {
-                    await new Promise((resolve) => setTimeout(resolve, 1100));
+                    await new Promise((resolve) => setTimeout(resolve, 2200));
                 }
             }
             const data = await this.orm.call(

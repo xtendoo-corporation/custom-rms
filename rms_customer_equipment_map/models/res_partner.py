@@ -115,10 +115,23 @@ class ResPartner(models.Model):
                         {"id": partner.id, "name": partner.display_name}
                     )
             except UserError as error:
+                error_message = str(error)
+                if (
+                    "geolocation server" in error_message.lower()
+                    or "servidor de geolocalización" in error_message.lower()
+                ):
+                    failed.append(
+                        {
+                            "id": partner.id,
+                            "name": partner.display_name,
+                            "error": error_message,
+                        }
+                    )
+                    continue
                 return {
                     "localized_ids": localized,
                     "failed": failed,
-                    "error": str(error),
+                    "error": error_message,
                 }
         return {"localized_ids": localized, "failed": failed, "error": False}
 
