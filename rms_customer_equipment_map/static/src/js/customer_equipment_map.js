@@ -61,7 +61,7 @@ export class CustomerEquipmentMap extends Component {
                 ),
                 loadLeafletStyles(),
             ]);
-            this.state.partners = data.partners;
+            this.state.partners = Array.isArray(data.partners) ? data.partners : [];
             this.state.isAdmin = data.is_admin;
             this.state.loading = false;
         });
@@ -175,11 +175,13 @@ export class CustomerEquipmentMap extends Component {
                     await new Promise((resolve) => setTimeout(resolve, 1100));
                 }
             }
-            this.state.partners = await this.orm.call(
+            const data = await this.orm.call(
                 "res.partner",
                 "get_customer_equipment_map_data",
                 []
             );
+            this.state.partners = Array.isArray(data.partners) ? data.partners : [];
+            this.state.isAdmin = data.is_admin;
             this.renderMarkers();
             const failedMessage = failedNames.length
                 ? " No se encontró la dirección de " + failedNames.length + " contactos."
