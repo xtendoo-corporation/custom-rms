@@ -10,6 +10,5 @@ class ResPartner(models.Model):
         column1="partner_id",
         column2="equipment_model_tag_id",
         string="Equipos del Cliente",
-        groups="base.group_system",
         help="Equipos del Cliente asociados a esta compañía.",
     )

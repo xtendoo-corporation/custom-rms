@@ -10,7 +10,6 @@
                     name="equipment_models"
                     string="Equipos del Cliente"
                     invisible="not is_company"
-                    groups="base.group_system"
                 >
                     <field
                         name="equipment_model_tag_ids"
