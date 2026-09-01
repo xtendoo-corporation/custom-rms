@@ -1,27 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Bloquear apertura de ficha desde el listado -->
-    <record id="view_product_template_list_comerciales" model="ir.ui.view">
-        <field name="name">product.template.list.comerciales</field>
-        <field name="model">product.template</field>
-        <field name="inherit_id" ref="product.product_template_tree_view"/>
-        <field name="groups_id" eval="[(4, ref('custom.comerciales'))]"/>
-        <field name="arch" type="xml">
-            <xpath expr="/list" position="attributes">
-                <attribute name="no_open">1</attribute>
-            </xpath>
-        </field>
-    </record>
-
-    <!-- Vaciar la ficha por si acceden por URL directa -->
+    <!-- Ocultar el contenido de la ficha para el grupo Comerciales, sea cual sea
+         la vía de acceso (clic desde el listado o URL directa). El listado en sí
+         no se modifica: sigue siendo visible y navegable con normalidad. -->
     <record id="view_product_template_form_comerciales" model="ir.ui.view">
         <field name="name">product.template.form.comerciales</field>
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_only_form_view"/>
-        <field name="groups_id" eval="[(4, ref('custom.comerciales'))]"/>
         <field name="arch" type="xml">
             <xpath expr="/form/sheet" position="attributes">
-                <attribute name="invisible">1</attribute>
+                <attribute name="groups">!custom.comerciales</attribute>
+            </xpath>
+            <xpath expr="/form/sheet" position="before">
+                <div class="alert alert-warning" role="alert" groups="custom.comerciales">
+                    No tienes permiso para ver el detalle de esta ficha.
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- El "Catálogo de Productos" (menú personalizado de Ventas) abre el modelo
+         product.product con esta vista, no product.template, así que necesita su
+         propia restricción. -->
+    <record id="view_product_normal_form_comerciales" model="ir.ui.view">
+        <field name="name">product.product.form.comerciales</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_normal_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="/form/sheet" position="attributes">
+                <attribute name="groups">!custom.comerciales</attribute>
+            </xpath>
+            <xpath expr="/form/sheet" position="before">
+                <div class="alert alert-warning" role="alert" groups="custom.comerciales">
+                    No tienes permiso para ver el detalle de esta ficha.
+                </div>
             </xpath>
         </field>
     </record>

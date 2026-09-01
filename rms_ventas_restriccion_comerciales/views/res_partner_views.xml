@@ -1,27 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Bloquear apertura de ficha desde el listado -->
-    <record id="view_partner_list_comerciales" model="ir.ui.view">
-        <field name="name">res.partner.list.comerciales</field>
-        <field name="model">res.partner</field>
-        <field name="inherit_id" ref="base.view_partner_tree"/>
-        <field name="groups_id" eval="[(4, ref('custom.comerciales'))]"/>
-        <field name="arch" type="xml">
-            <xpath expr="/list" position="attributes">
-                <attribute name="no_open">1</attribute>
-            </xpath>
-        </field>
-    </record>
-
-    <!-- Vaciar la ficha por si acceden por URL directa -->
+    <!-- Ocultar el contenido de la ficha para el grupo Comerciales, sea cual sea
+         la vía de acceso (clic desde el listado o URL directa). El listado en sí
+         no se modifica: sigue siendo visible y navegable con normalidad. -->
     <record id="view_partner_form_comerciales" model="ir.ui.view">
         <field name="name">res.partner.form.comerciales</field>
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form"/>
-        <field name="groups_id" eval="[(4, ref('custom.comerciales'))]"/>
         <field name="arch" type="xml">
             <xpath expr="/form/sheet" position="attributes">
-                <attribute name="invisible">1</attribute>
+                <attribute name="groups">!custom.comerciales</attribute>
+            </xpath>
+            <xpath expr="/form/sheet" position="before">
+                <div class="alert alert-warning" role="alert" groups="custom.comerciales">
+                    No tienes permiso para ver el detalle de esta ficha.
+                </div>
             </xpath>
         </field>
     </record>
