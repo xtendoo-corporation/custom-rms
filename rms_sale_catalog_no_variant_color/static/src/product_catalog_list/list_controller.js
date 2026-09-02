@@ -56,4 +56,13 @@ export class ProductCatalogListController extends ListController {
             });
         }
     }
+
+    /**
+     * Clicking a row must not navigate to the product form: interaction
+     * happens through the quantity widget rendered in each row instead,
+     * matching the kanban catalog's "Add"/stepper-only interaction. The
+     * `no_open` arch attribute is not accepted by the list view's RNG
+     * schema in this Odoo version, so this is done in JS instead.
+     */
+    async openRecord() {}
 }
