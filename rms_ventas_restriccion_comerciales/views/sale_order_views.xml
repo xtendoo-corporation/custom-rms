@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Los comerciales ven la lista de precios del presupuesto pero no pueden
+         modificarla. Si necesitan cambiarla, deben avisar a alguien que no
+         esté en el grupo Comerciales (administración, responsable de ventas...). -->
+    <record id="view_order_form_pricelist_readonly_comerciales" model="ir.ui.view">
+        <field name="name">sale.order.form.pricelist.readonly.comerciales</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//label[@for='pricelist_id'][@groups='product.group_product_pricelist']" position="attributes">
+                <attribute name="groups">product.group_product_pricelist,!custom.comerciales</attribute>
+            </xpath>
+            <xpath expr="//div[@groups='product.group_product_pricelist'][@class='o_row']" position="attributes">
+                <attribute name="groups">product.group_product_pricelist,!custom.comerciales</attribute>
+            </xpath>
+            <xpath expr="//div[@groups='product.group_product_pricelist,!custom.comerciales'][@class='o_row']" position="after">
+                <label for="pricelist_id"
+                       groups="custom.comerciales"
+                       invisible="not has_active_pricelist"/>
+                <div groups="custom.comerciales" class="o_row" invisible="not has_active_pricelist">
+                    <field name="pricelist_id"
+                           readonly="1"
+                           force_save="1"
+                           options="{'no_open': True}"
+                           help="No puedes modificar la lista de precios. Si necesitas cambiarla, avisa a un administrador o responsable de ventas."/>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>
