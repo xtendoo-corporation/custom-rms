@@ -8,6 +8,9 @@
 Este módulo hereda la vista kanban del catálogo de productos (usada al agregar líneas a un presupuesto/pedido)
 y elimina la opción 'color_field' de las etiquetas de las variantes de producto. De este modo, todas las
 variantes se muestran con un estilo y color neutro y uniforme.
+
+Además, añade el menú "Catálogo de Productos" (Ventas > Productos) con vistas de tarjetas (kanban) y de
+lista, para poder alternar entre ambos modos de visualización al navegar el catálogo.
     """,
     'author': 'Antigravity',
     'depends': [
