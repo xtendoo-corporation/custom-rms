@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vista de lista para el selector de catálogo embebido en el presupuesto
+         (botón "Catálogo" dentro de las líneas de pedido). Usa un js_class propio
+         para reutilizar el mecanismo de cantidades/"Añadir" del catálogo kanban
+         estándar de Odoo (ver static/src/product_catalog_list). -->
+    <record id="product_view_list_catalog" model="ir.ui.view">
+        <field name="name">product.view.list.catalog</field>
+        <field name="model">product.product</field>
+        <field name="arch" type="xml">
+            <list js_class="product_list_catalog" create="0" edit="0" delete="0" no_open="1"
+                  records_draggable="0" default_order="is_favorite desc, default_code, name, id">
+                <field name="id"/>
+                <field name="is_favorite" widget="boolean_favorite" nolabel="1" readonly="1"/>
+                <field name="image_128" widget="image" options="{'size': [40, 40], 'img_class': 'object-fit-contain'}"/>
+                <field name="default_code" string="Ref."/>
+                <field name="name"/>
+                <field name="product_template_attribute_value_ids"
+                       widget="many2many_tags"
+                       domain="[('id', 'in', parent.ids)]"
+                       groups="product.group_product_variant"
+                       options="{'color_field': 'color'}"
+                       optional="show"/>
+                <widget name="product_catalog_list_price_anchor"/>
+                <widget name="product_catalog_list_order_line"/>
+            </list>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_sale_catalog_no_variant_color.ProductCatalogListOrderLine">
+        <ProductCatalogOrderLine productId="props.record.resId" t-props="productCatalogData"/>
+    </t>
+</templates>

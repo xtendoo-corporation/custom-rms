@@ -19,7 +19,13 @@ lista, para poder alternar entre ambos modos de visualización al navegar el cat
     ],
     'data': [
         'views/product_views.xml',
+        'views/product_catalog_list_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'rms_sale_catalog_no_variant_color/static/src/product_catalog_list/**/*',
+        ],
+    },
     'installable': True,
     'application': False,
     'license': 'LGPL-3',
