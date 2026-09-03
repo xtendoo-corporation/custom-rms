@@ -175,6 +175,16 @@ msgid "PVP sin IVA"
 msgstr "Price Excl. VAT"
 
 #. module: rms_document_format
+#: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
+msgid "Precio Neto"
+msgstr "Net Price"
+
+#. module: rms_document_format
+#: model:ir.model.fields,field_description:rms_document_format.field_product_pricelist__rms_hide_price_detail
+msgid "Ocultar precio unitario y descuentos en presupuesto"
+msgstr "Hide unit price and discounts on quotation"
+
+#. module: rms_document_format
 #: model:ir.model.fields.selection,name:rms_document_format.selection__res_company__rms_template_selection__rms
 msgid "RMS Custom Template"
 msgstr "RMS Custom Template"
