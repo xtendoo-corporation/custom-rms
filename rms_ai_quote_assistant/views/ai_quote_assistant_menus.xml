@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_ai_quote_assistant" model="ir.actions.client">
+        <field name="name">Presupuesto con IA</field>
+        <field name="tag">rms_ai_quote_assistant.chat</field>
+    </record>
+
+    <menuitem
+        id="menu_ai_quote_assistant"
+        name="Presupuesto con IA"
+        action="action_ai_quote_assistant"
+        sequence="7"
+        groups="base.group_user"
+        web_icon="rms_ai_quote_assistant,static/description/icon.png"
+    />
+</odoo>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_ai_quote_assistant.AiQuoteAssistant">
+        <div class="o_ai_quote_assistant d-flex flex-column h-100">
+            <div class="o_ai_quote_header p-3 border-bottom">
+                <h4 class="m-0">Presupuesto con IA</h4>
+            </div>
+            <div class="o_ai_quote_messages flex-grow-1 overflow-auto p-3" t-ref="messages">
+                <t t-foreach="state.messages" t-as="message" t-key="message_index">
+                    <div t-attf-class="o_ai_quote_message o_ai_quote_message_{{message.role}} {{message.isError ? 'o_ai_quote_message_error' : ''}}">
+                        <span t-out="message.text"/>
+                    </div>
+                </t>
+                <div t-if="state.proposal" class="o_ai_quote_proposal_actions mt-2">
+                    <button class="btn btn-primary me-2" t-on-click="confirmProposal">Confirmar</button>
+                    <button class="btn btn-secondary" t-on-click="cancelProposal">Cancelar</button>
+                </div>
+                <div t-if="state.loading" class="o_ai_quote_message o_ai_quote_message_assistant o_ai_quote_typing">
+                    <span>…</span>
+                </div>
+            </div>
+            <div class="o_ai_quote_footer p-3 border-top d-flex">
+                <textarea
+                    class="form-control me-2"
+                    rows="1"
+                    placeholder="Escribe tu mensaje..."
+                    t-att-disabled="state.loading"
+                    t-on-input="onInput"
+                    t-on-keydown="onKeydown"
+                    t-att-value="state.draft"
+                />
+                <button class="btn btn-primary" t-att-disabled="state.loading" t-on-click="sendMessage">
+                    Enviar
+                </button>
+            </div>
+        </div>
+    </t>
+</templates>

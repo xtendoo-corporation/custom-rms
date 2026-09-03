@@ -1,0 +1,41 @@
+.o_ai_quote_assistant {
+    background-color: var(--o-view-background-color, #fff);
+
+    .o_ai_quote_messages {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .o_ai_quote_message {
+        max-width: 70%;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.75rem;
+        white-space: pre-wrap;
+    }
+
+    .o_ai_quote_message_user {
+        align-self: flex-end;
+        background-color: var(--bs-primary, #714B67);
+        color: #fff;
+    }
+
+    .o_ai_quote_message_assistant {
+        align-self: flex-start;
+        background-color: #f1f1f1;
+    }
+
+    .o_ai_quote_message_error {
+        background-color: #f8d7da;
+        color: #842029;
+    }
+
+    .o_ai_quote_typing {
+        font-style: italic;
+        opacity: 0.7;
+    }
+
+    .o_ai_quote_footer textarea {
+        resize: none;
+    }
+}
