@@ -119,7 +119,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
     # ---------------------------------------------------------------------
 
     @api.model
-    def send_message(self, messages):
+    def send_message(self, messages, pinned_opportunity_id=None):
         """messages: [{'role': 'user'|'assistant', 'text': str}, ...] — the
         full visible chat transcript so far, ending with the latest user
         message. Stateless: the caller resends the whole transcript every
@@ -129,15 +129,21 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         already scoped by whatever record rules apply to the calling user
         (e.g. a comercial only sees their own assigned contacts).
 
+        pinned_opportunity_id: set when the chat was opened from within a
+        crm.lead record (see the "Presupuesto con IA" button added to the
+        opportunity form) — the resulting quote is always linked to that
+        opportunity, and the model is told to default to its customer.
+
         Dispatches to the configured provider (rms_ai_quote_assistant.
         llm_provider, default "anthropic"; "gemini" is a temporary
         alternative for testing while an Anthropic key is obtained — see
         _run_gemini_loop). Both branches return the same contract:
           {'type': 'message', 'text': ...}
-          {'type': 'proposal', 'text': ..., 'partner_id': int, 'lines': [...]}
+          {'type': 'proposal', 'text': ..., 'partner_id': int, 'lines': [...],
+           'opportunities': [...] or None if pinned}
           {'type': 'error', 'text': ...}
         """
-        system_prompt = self._build_system_prompt()
+        system_prompt = self._build_system_prompt(pinned_opportunity_id)
 
         if self._get_provider() == "gemini":
             api_key = self._get_gemini_api_key()
@@ -151,7 +157,8 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     ),
                 }
             return self._run_gemini_loop(
-                api_key, self._get_gemini_model(), system_prompt, messages
+                api_key, self._get_gemini_model(), system_prompt, messages,
+                pinned_opportunity_id,
             )
 
         api_key = self._get_api_key()
@@ -165,10 +172,11 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                 ),
             }
         return self._run_anthropic_loop(
-            api_key, self._get_model(), system_prompt, messages
+            api_key, self._get_model(), system_prompt, messages,
+            pinned_opportunity_id,
         )
 
-    def _run_anthropic_loop(self, api_key, model, system_prompt, messages):
+    def _run_anthropic_loop(self, api_key, model, system_prompt, messages, pinned_opportunity_id):
         anthropic_messages = [
             {"role": m["role"], "content": m["text"]} for m in messages
         ]
@@ -222,6 +230,10 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     "text": self._format_preview_text(preview),
                     "partner_id": preview["partner_id"],
                     "lines": preview["lines"],
+                    "opportunities": (
+                        None if pinned_opportunity_id
+                        else self._get_partner_opportunities(preview["partner_id"])
+                    ),
                 }
 
             if not tool_use_blocks:
@@ -256,7 +268,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             ),
         }
 
-    def _run_gemini_loop(self, api_key, model, system_prompt, messages):
+    def _run_gemini_loop(self, api_key, model, system_prompt, messages, pinned_opportunity_id):
         """Gemini (function calling) counterpart of _run_anthropic_loop.
 
         Kept as an independent, self-contained loop rather than sharing a
@@ -324,6 +336,10 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     "text": self._format_preview_text(preview),
                     "partner_id": preview["partner_id"],
                     "lines": preview["lines"],
+                    "opportunities": (
+                        None if pinned_opportunity_id
+                        else self._get_partner_opportunities(preview["partner_id"])
+                    ),
                 }
 
             if not function_calls:
@@ -358,10 +374,17 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         }
 
     @api.model
-    def confirm_quote(self, partner_id, lines):
+    def confirm_quote(self, partner_id, lines, opportunity_id=None, new_opportunity_name=None):
         """Deterministic, non-LLM creation of exactly one sale.order, called
         only when the user clicks "Confirmar" on a previously shown
         proposal. lines: [{'product_id': int, 'quantity': float}, ...]
+
+        opportunity_id: link the quote to this existing crm.lead (either the
+        pinned opportunity when opened from its form, or one the user chose
+        from the selector shown after the proposal).
+        new_opportunity_name: instead create a new crm.lead with this name
+        for the resolved partner, then link the quote to it. At most one of
+        opportunity_id/new_opportunity_name is expected to be set.
         """
         try:
             preview = self._build_quote_preview(partner_id, lines)
@@ -369,6 +392,19 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             return {"type": "error", "text": str(exc)}
 
         partner = self.env["res.partner"].browse(partner_id)
+
+        if new_opportunity_name:
+            opportunity = self.env["crm.lead"].create({
+                "name": new_opportunity_name,
+                "partner_id": partner.id,
+                "type": "opportunity",
+            })
+            opportunity_id = opportunity.id
+        elif opportunity_id:
+            opportunity = self.env["crm.lead"].browse(opportunity_id).exists()
+            if not opportunity:
+                return {"type": "error", "text": "No existe ninguna oportunidad con id %s." % opportunity_id}
+
         order_vals = {
             "partner_id": partner.id,
             "order_line": [
@@ -376,6 +412,8 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                 for l in lines
             ],
         }
+        if opportunity_id:
+            order_vals["opportunity_id"] = opportunity_id
         # Pricelist guard: never taken from the LLM or from any request
         # parameter — always the partner's own pricelist. See
         # rms_ventas_restriccion_comerciales/views/sale_order_views.xml for
@@ -406,19 +444,38 @@ class RmsAiQuoteAssistant(models.AbstractModel):
     # user's own permissions and record rules (never sudo).
     # ---------------------------------------------------------------------
 
-    def _build_system_prompt(self):
+    def _build_system_prompt(self, pinned_opportunity_id=None):
         partners = self.env["res.partner"].search_read(
             [], ["id", "name", "email", "phone"], order="name"
         )
         products = self.env["product.product"].search_read(
             [], ["id", "default_code", "name", "list_price", "qty_available"], order="name"
         )
+        prompt = SYSTEM_PROMPT_INTRO
+        if pinned_opportunity_id:
+            opportunity = self.env["crm.lead"].browse(pinned_opportunity_id).exists()
+            if opportunity and opportunity.partner_id:
+                prompt += (
+                    '\n\nEsta conversación se ha abierto desde la oportunidad '
+                    '"%s", cuyo cliente es "%s" (id=%s). Si el usuario no '
+                    "menciona explícitamente un cliente distinto, usa ese "
+                    "cliente sin preguntar." % (
+                        opportunity.name, opportunity.partner_id.name, opportunity.partner_id.id,
+                    )
+                )
         return (
-            SYSTEM_PROMPT_INTRO
+            prompt
             + "\n\nCLIENTES (JSON — usa exclusivamente estos ids, no inventes ninguno):\n"
             + json.dumps(partners, ensure_ascii=False)
             + "\n\nPRODUCTOS (JSON — usa exclusivamente estos ids, no inventes ninguno):\n"
             + json.dumps(products, ensure_ascii=False)
+        )
+
+    def _get_partner_opportunities(self, partner_id):
+        return self.env["crm.lead"].search_read(
+            [("partner_id", "=", partner_id), ("type", "=", "opportunity"), ("active", "=", True)],
+            ["id", "name"],
+            order="create_date desc",
         )
 
     def _build_quote_preview(self, partner_id, lines):

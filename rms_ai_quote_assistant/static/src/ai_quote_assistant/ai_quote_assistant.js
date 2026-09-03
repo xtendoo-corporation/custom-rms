@@ -12,17 +12,20 @@ export class AiQuoteAssistant extends Component {
     setup() {
         this.orm = useService("orm");
         this.messagesRef = useRef("messages");
+
+        const context = this.props.action?.context || {};
+        this.pinnedOpportunityId = context.default_opportunity_id || null;
+        this.pinnedOpportunityName = context.default_opportunity_name || null;
+
+        const greeting = this.pinnedOpportunityId
+            ? `Hola, este presupuesto se vinculará a la oportunidad "${this.pinnedOpportunityName}". ` +
+              "Dime con qué productos quieres hacerlo (p. ej. \"3 X40 y una Quantum 3\")."
+            : "Hola, dime a qué cliente y con qué productos quieres " +
+              "hacer un presupuesto (p. ej. \"hazle un presupuesto a " +
+              "fulanito con 3 X40 y una Quantum 3\").";
+
         this.state = useState({
-            messages: [
-                {
-                    role: "assistant",
-                    text:
-                        "Hola, dime a qué cliente y con qué productos quieres " +
-                        "hacer un presupuesto (p. ej. \"hazle un presupuesto a " +
-                        "fulanito con 3 X40 y una Quantum 3\").",
-                    synthetic: true,
-                },
-            ],
+            messages: [{ role: "assistant", text: greeting, synthetic: true }],
             draft: "",
             loading: false,
             proposal: null,
@@ -70,7 +73,7 @@ export class AiQuoteAssistant extends Component {
             const result = await this.orm.call(
                 "rms.ai.quote.assistant",
                 "send_message",
-                [this.transcript]
+                [this.transcript, this.pinnedOpportunityId]
             );
             this.handleResult(result);
         } catch (error) {
@@ -96,7 +99,25 @@ export class AiQuoteAssistant extends Component {
             this.state.proposal = {
                 partner_id: result.partner_id,
                 lines: result.lines,
+                // When pinned, the opportunity is fixed and no selector is
+                // shown; otherwise the user picks one of the partner's open
+                // opportunities, none, or types a name for a new one.
+                opportunities: this.pinnedOpportunityId ? null : (result.opportunities || []),
+                opportunitySelection: "",
+                newOpportunityName: "",
             };
+        }
+    }
+
+    onOpportunitySelectionChange(ev) {
+        if (this.state.proposal) {
+            this.state.proposal.opportunitySelection = ev.target.value;
+        }
+    }
+
+    onNewOpportunityNameInput(ev) {
+        if (this.state.proposal) {
+            this.state.proposal.newOpportunityName = ev.target.value;
         }
     }
 
@@ -104,14 +125,23 @@ export class AiQuoteAssistant extends Component {
         if (!this.state.proposal || this.state.loading) {
             return;
         }
-        const { partner_id, lines } = this.state.proposal;
+        const { partner_id, lines, opportunitySelection, newOpportunityName } = this.state.proposal;
+        let opportunityId = this.pinnedOpportunityId || null;
+        let newOpportunityNameArg = null;
+        if (!this.pinnedOpportunityId) {
+            if (opportunitySelection === "__new__") {
+                newOpportunityNameArg = (newOpportunityName || "").trim() || null;
+            } else if (opportunitySelection) {
+                opportunityId = parseInt(opportunitySelection, 10);
+            }
+        }
         this.state.loading = true;
         this.state.proposal = null;
         try {
             const result = await this.orm.call(
                 "rms.ai.quote.assistant",
                 "confirm_quote",
-                [partner_id, lines]
+                [partner_id, lines, opportunityId, newOpportunityNameArg]
             );
             this.handleResult(result);
         } catch (error) {

@@ -12,11 +12,12 @@ exclusivamente los permisos del usuario que lo pide (nunca sudo). Sustituye
 al toolkit CLI standalone en ia-presupuestos por una app nativa de Odoo.
     """,
     'author': 'Custom RMS',
-    'depends': ['base', 'web', 'sale'],
+    'depends': ['base', 'web', 'sale', 'sale_crm'],
     'data': [
         'security/ir.model.access.csv',
         'data/ir_config_parameter_data.xml',
         'views/ai_quote_assistant_menus.xml',
+        'views/crm_lead_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

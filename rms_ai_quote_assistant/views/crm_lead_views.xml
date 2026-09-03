@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Botón "Presupuesto con IA" en la ficha de oportunidad: abre el chat
+         ya vinculado a esta oportunidad y a su cliente, sin tener que
+         resolverlos por lenguaje natural (a diferencia de abrirlo desde el
+         menú principal). -->
+    <record id="crm_lead_view_form_ai_quote_button" model="ir.ui.view">
+        <field name="name">crm.lead.form.ai.quote.button</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_set_won_rainbowman']" position="before">
+                <button string="Presupuesto con IA"
+                        name="%(rms_ai_quote_assistant.action_ai_quote_assistant)d"
+                        type="action"
+                        context="{'default_partner_id': partner_id, 'default_opportunity_id': id, 'default_opportunity_name': name}"
+                        invisible="type == 'lead' or not partner_id"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

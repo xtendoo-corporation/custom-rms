@@ -12,6 +12,23 @@
                     </div>
                 </t>
                 <div t-if="state.proposal" class="o_ai_quote_proposal_actions mt-2">
+                    <div t-if="state.proposal.opportunities" class="mb-2">
+                        <label class="form-label mb-1">Vincular a oportunidad</label>
+                        <select class="form-select form-select-sm" t-on-change="onOpportunitySelectionChange">
+                            <option value="">Sin oportunidad</option>
+                            <t t-foreach="state.proposal.opportunities" t-as="opp" t-key="opp.id">
+                                <option t-att-value="opp.id" t-out="opp.name"/>
+                            </t>
+                            <option value="__new__">+ Crear nueva oportunidad…</option>
+                        </select>
+                        <input
+                            t-if="state.proposal.opportunitySelection === '__new__'"
+                            type="text"
+                            class="form-control form-control-sm mt-1"
+                            placeholder="Nombre de la nueva oportunidad"
+                            t-on-input="onNewOpportunityNameInput"
+                        />
+                    </div>
                     <button class="btn btn-primary me-2" t-on-click="confirmProposal">Confirmar</button>
                     <button class="btn btn-secondary" t-on-click="cancelProposal">Cancelar</button>
                 </div>
