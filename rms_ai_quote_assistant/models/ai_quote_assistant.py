@@ -237,10 +237,19 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                 }
 
             if not tool_use_blocks:
-                return {
-                    "type": "message",
-                    "text": " ".join(text_blocks) or "(el asistente no ha devuelto respuesta)",
-                }
+                if text_blocks:
+                    return {"type": "message", "text": " ".join(text_blocks)}
+                # No text and no tool call at all — seen in practice on
+                # complex first turns (likely a truncated/paused
+                # generation). Log full diagnostics and retry within the
+                # existing round budget instead of dead-ending the chat;
+                # resending the identical request has been observed to
+                # succeed on the next attempt.
+                _logger.warning(
+                    "Respuesta de Anthropic sin texto ni tool_use (stop_reason=%s): %s",
+                    response.get("stop_reason"), content_blocks,
+                )
+                continue
 
             # Unknown tool call (propose_quote is the only declared tool) —
             # report it back so the model can self-correct.
@@ -343,10 +352,13 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                 }
 
             if not function_calls:
-                return {
-                    "type": "message",
-                    "text": " ".join(text_parts) or "(el asistente no ha devuelto respuesta)",
-                }
+                if text_parts:
+                    return {"type": "message", "text": " ".join(text_parts)}
+                _logger.warning(
+                    "Respuesta de Gemini sin texto ni functionCall (finishReason=%s): %s",
+                    candidates[0].get("finishReason") if candidates else None, parts,
+                )
+                continue
 
             # Unknown function call (propose_quote is the only declared tool).
             contents.append({"role": "model", "parts": parts})
@@ -582,7 +594,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
     def _call_anthropic(self, api_key, model, system, messages, tools):
         payload = {
             "model": model,
-            "max_tokens": 1024,
+            "max_tokens": 4096,
             "system": system,
             "messages": messages,
             "tools": tools,
