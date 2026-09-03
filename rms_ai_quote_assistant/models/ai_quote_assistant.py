@@ -143,7 +143,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
            'opportunities': [...] or None if pinned}
           {'type': 'error', 'text': ...}
         """
-        system_prompt = self._build_system_prompt(pinned_opportunity_id)
+        static_prompt, dynamic_hint = self._build_system_prompt(pinned_opportunity_id)
 
         if self._get_provider() == "gemini":
             api_key = self._get_gemini_api_key()
@@ -157,8 +157,8 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     ),
                 }
             return self._run_gemini_loop(
-                api_key, self._get_gemini_model(), system_prompt, messages,
-                pinned_opportunity_id,
+                api_key, self._get_gemini_model(), static_prompt + dynamic_hint,
+                messages, pinned_opportunity_id,
             )
 
         api_key = self._get_api_key()
@@ -172,11 +172,29 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                 ),
             }
         return self._run_anthropic_loop(
-            api_key, self._get_model(), system_prompt, messages,
+            api_key, self._get_model(), static_prompt, dynamic_hint, messages,
             pinned_opportunity_id,
         )
 
-    def _run_anthropic_loop(self, api_key, model, system_prompt, messages, pinned_opportunity_id):
+    def _run_anthropic_loop(self, api_key, model, static_prompt, dynamic_hint, messages, pinned_opportunity_id):
+        # The large, stable catalog dump (static_prompt) is sent as its own
+        # system content block with a prompt-caching breakpoint, so it's
+        # billed at full price only on the first turn/message of each
+        # ~5-minute window — every following turn reads it from cache at
+        # ~10% of the input price. The per-conversation, per-opportunity
+        # dynamic_hint is a separate, uncached block placed AFTER the
+        # breakpoint: any byte before a cache_control breakpoint invalidates
+        # it, so the hint must never be concatenated in front of the catalog.
+        system = [
+            {
+                "type": "text",
+                "text": static_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        if dynamic_hint:
+            system.append({"type": "text", "text": dynamic_hint})
+
         anthropic_messages = [
             {"role": m["role"], "content": m["text"]} for m in messages
         ]
@@ -185,7 +203,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         for _round in range(MAX_TOOL_ROUNDS):
             try:
                 response = self._call_anthropic(
-                    api_key, model, system_prompt, anthropic_messages, tools
+                    api_key, model, system, anthropic_messages, tools
                 )
             except Exception:
                 _logger.exception("Error llamando a la API de Anthropic")
@@ -193,6 +211,13 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     "type": "error",
                     "text": "No se pudo contactar con el servicio de IA. Inténtalo de nuevo.",
                 }
+
+            usage = response.get("usage") or {}
+            _logger.info(
+                "Anthropic usage: input=%s cache_read=%s cache_creation=%s output=%s",
+                usage.get("input_tokens"), usage.get("cache_read_input_tokens"),
+                usage.get("cache_creation_input_tokens"), usage.get("output_tokens"),
+            )
 
             content_blocks = response.get("content", [])
             tool_use_blocks = [b for b in content_blocks if b.get("type") == "tool_use"]
@@ -457,17 +482,31 @@ class RmsAiQuoteAssistant(models.AbstractModel):
     # ---------------------------------------------------------------------
 
     def _build_system_prompt(self, pinned_opportunity_id=None):
+        """Returns (static_prompt, dynamic_hint), split so callers can put a
+        prompt-caching breakpoint after static_prompt: it's identical across
+        every conversation and every user (the intro + the full partner/
+        product catalog), while dynamic_hint (the pinned-opportunity note)
+        varies per conversation and must stay out of the cached prefix.
+        """
         partners = self.env["res.partner"].search_read(
             [], ["id", "name", "email", "phone"], order="name"
         )
         products = self.env["product.product"].search_read(
             [], ["id", "default_code", "name", "list_price", "qty_available"], order="name"
         )
-        prompt = SYSTEM_PROMPT_INTRO
+        static_prompt = (
+            SYSTEM_PROMPT_INTRO
+            + "\n\nCLIENTES (JSON — usa exclusivamente estos ids, no inventes ninguno):\n"
+            + json.dumps(partners, ensure_ascii=False)
+            + "\n\nPRODUCTOS (JSON — usa exclusivamente estos ids, no inventes ninguno):\n"
+            + json.dumps(products, ensure_ascii=False)
+        )
+
+        dynamic_hint = ""
         if pinned_opportunity_id:
             opportunity = self.env["crm.lead"].browse(pinned_opportunity_id).exists()
             if opportunity and opportunity.partner_id:
-                prompt += (
+                dynamic_hint = (
                     '\n\nEsta conversación se ha abierto desde la oportunidad '
                     '"%s", cuyo cliente es "%s" (id=%s). Si el usuario no '
                     "menciona explícitamente un cliente distinto, usa ese "
@@ -475,13 +514,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                         opportunity.name, opportunity.partner_id.name, opportunity.partner_id.id,
                     )
                 )
-        return (
-            prompt
-            + "\n\nCLIENTES (JSON — usa exclusivamente estos ids, no inventes ninguno):\n"
-            + json.dumps(partners, ensure_ascii=False)
-            + "\n\nPRODUCTOS (JSON — usa exclusivamente estos ids, no inventes ninguno):\n"
-            + json.dumps(products, ensure_ascii=False)
-        )
+        return static_prompt, dynamic_hint
 
     def _get_partner_opportunities(self, partner_id):
         return self.env["crm.lead"].search_read(
