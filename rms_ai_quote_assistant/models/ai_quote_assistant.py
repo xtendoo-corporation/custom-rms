@@ -534,6 +534,16 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             "rms_ai_quote_assistant.anthropic_model", "claude-sonnet-5"
         )
 
+    def _get_anthropic_workspace_id(self):
+        # Only required for "identity-linked" API keys (created under an
+        # Anthropic Console organization/workspace) — the Messages API
+        # rejects those without an explicit anthropic-workspace-id header
+        # naming which workspace the request acts in. Plain personal keys
+        # don't need this, so it stays optional.
+        return self.env["ir.config_parameter"].sudo().get_param(
+            "rms_ai_quote_assistant.anthropic_workspace_id"
+        )
+
     def _get_gemini_api_key(self):
         return self.env["ir.config_parameter"].sudo().get_param(
             "rms_ai_quote_assistant.gemini_api_key"
@@ -577,13 +587,17 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             "messages": messages,
             "tools": tools,
         }
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+            "content-type": "application/json",
+        }
+        workspace_id = self._get_anthropic_workspace_id()
+        if workspace_id:
+            headers["anthropic-workspace-id"] = workspace_id
         response = requests.post(
             ANTHROPIC_API_URL,
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": ANTHROPIC_VERSION,
-                "content-type": "application/json",
-            },
+            headers=headers,
             json=payload,
             timeout=LLM_TIMEOUT,
         )
