@@ -188,8 +188,8 @@ msgstr "Preço Unitário"
 
 #. module: rms_document_format
 #: model:ir.model.fields,field_description:rms_document_format.field_product_pricelist__rms_hide_price_detail
-msgid "Ocultar precio unitario y descuentos en presupuesto"
-msgstr "Ocultar preço unitário e descontos no orçamento"
+msgid "Ocultar descuentos en presupuesto"
+msgstr "Ocultar descontos no orçamento"
 
 #. module: rms_document_format
 #: model:ir.model.fields.selection,name:rms_document_format.selection__res_company__rms_template_selection__rms
