@@ -11,8 +11,9 @@ _logger = logging.getLogger(__name__)
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
+GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 MAX_TOOL_ROUNDS = 5
-ANTHROPIC_TIMEOUT = 30
+LLM_TIMEOUT = 30
 
 SYSTEM_PROMPT = """Eres el asistente de presupuestos de RMS Proaudio. Ayudas a un comercial a
 crear un presupuesto (sale.order) en Odoo a partir de una instrucción en
@@ -146,14 +147,30 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         """messages: [{'role': 'user'|'assistant', 'text': str}, ...] — the
         full visible chat transcript so far, ending with the latest user
         message. Stateless: the caller resends the whole transcript every
-        time. Runs the Claude tool-use loop entirely server-side, under the
+        time. Runs the LLM tool-use loop entirely server-side, under the
         calling user's own permissions (no sudo on any business model).
 
-        Returns one of:
+        Dispatches to the configured provider (rms_ai_quote_assistant.
+        llm_provider, default "anthropic"; "gemini" is a temporary
+        alternative for testing while an Anthropic key is obtained — see
+        _run_gemini_loop). Both branches return the same contract:
           {'type': 'message', 'text': ...}
           {'type': 'proposal', 'text': ..., 'partner_id': int, 'lines': [...]}
           {'type': 'error', 'text': ...}
         """
+        if self._get_provider() == "gemini":
+            api_key = self._get_gemini_api_key()
+            if not api_key:
+                return {
+                    "type": "error",
+                    "text": (
+                        "Falta configurar la clave de la API de Gemini. "
+                        "Ajustes > Técnico > Parámetros del sistema > "
+                        "rms_ai_quote_assistant.gemini_api_key"
+                    ),
+                }
+            return self._run_gemini_loop(api_key, self._get_gemini_model(), messages)
+
         api_key = self._get_api_key()
         if not api_key:
             return {
@@ -164,7 +181,9 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     "rms_ai_quote_assistant.anthropic_api_key"
                 ),
             }
-        model = self._get_model()
+        return self._run_anthropic_loop(api_key, self._get_model(), messages)
+
+    def _run_anthropic_loop(self, api_key, model, messages):
         anthropic_messages = [
             {"role": m["role"], "content": m["text"]} for m in messages
         ]
@@ -243,6 +262,112 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     }
                 )
             anthropic_messages.append({"role": "user", "content": tool_results})
+
+        return {
+            "type": "message",
+            "text": (
+                "No he podido resolver la petición. ¿Puedes darme más "
+                "detalles sobre el cliente o los productos exactos?"
+            ),
+        }
+
+    def _run_gemini_loop(self, api_key, model, messages):
+        """Gemini (function calling) counterpart of _run_anthropic_loop.
+
+        Kept as an independent, self-contained loop rather than sharing a
+        normalized format with the Anthropic branch: Gemini's message shape
+        (roles "user"/"model", functionCall/functionResponse parts, no
+        tool-call id to correlate on) is different enough from Anthropic's
+        (roles "user"/"assistant", tool_use/tool_result blocks keyed by id)
+        that forcing a common internal representation would add conversion
+        bugs for little benefit — two straightforward loops are easier to
+        verify independently. Only the external return contract (and the
+        pure-Python helpers _tool_search_partners/_tool_search_products/
+        _build_quote_preview/_format_preview_text) are shared.
+        """
+        contents = [
+            {
+                "role": "user" if m["role"] == "user" else "model",
+                "parts": [{"text": m["text"]}],
+            }
+            for m in messages
+        ]
+        tools = [
+            {
+                "functionDeclarations": [
+                    self._to_gemini_declaration(tool)
+                    for tool in (SEARCH_PARTNERS_TOOL, SEARCH_PRODUCTS_TOOL, PROPOSE_QUOTE_TOOL)
+                ]
+            }
+        ]
+
+        for _round in range(MAX_TOOL_ROUNDS):
+            try:
+                response = self._call_gemini(api_key, model, SYSTEM_PROMPT, contents, tools)
+            except Exception:
+                _logger.exception("Error llamando a la API de Gemini")
+                return {
+                    "type": "error",
+                    "text": "No se pudo contactar con el servicio de IA. Inténtalo de nuevo.",
+                }
+
+            candidates = response.get("candidates") or []
+            parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+            function_calls = [p["functionCall"] for p in parts if "functionCall" in p]
+            text_parts = [p["text"] for p in parts if "text" in p]
+
+            propose_call = next(
+                (fc for fc in function_calls if fc["name"] == "propose_quote"), None
+            )
+            if propose_call:
+                args = propose_call.get("args") or {}
+                try:
+                    preview = self._build_quote_preview(
+                        args.get("partner_id"), args.get("lines") or []
+                    )
+                except ValueError as exc:
+                    contents.append({"role": "model", "parts": parts})
+                    contents.append(
+                        {
+                            "role": "user",
+                            "parts": [
+                                {
+                                    "functionResponse": {
+                                        "name": "propose_quote",
+                                        "response": {"error": str(exc)},
+                                    }
+                                }
+                            ],
+                        }
+                    )
+                    continue
+                return {
+                    "type": "proposal",
+                    "text": self._format_preview_text(preview),
+                    "partner_id": preview["partner_id"],
+                    "lines": preview["lines"],
+                }
+
+            if not function_calls:
+                return {
+                    "type": "message",
+                    "text": " ".join(text_parts) or "(el asistente no ha devuelto respuesta)",
+                }
+
+            contents.append({"role": "model", "parts": parts})
+            response_parts = []
+            for fc in function_calls:
+                args = fc.get("args") or {}
+                if fc["name"] == "search_partners":
+                    result = self._tool_search_partners(args.get("query", ""))
+                elif fc["name"] == "search_products":
+                    result = self._tool_search_products(args.get("query", ""))
+                else:
+                    result = {"error": "Herramienta desconocida: %s" % fc["name"]}
+                response_parts.append(
+                    {"functionResponse": {"name": fc["name"], "response": result}}
+                )
+            contents.append({"role": "user", "parts": response_parts})
 
         return {
             "type": "message",
@@ -362,6 +487,11 @@ class RmsAiQuoteAssistant(models.AbstractModel):
     # Config + HTTP
     # ---------------------------------------------------------------------
 
+    def _get_provider(self):
+        return self.env["ir.config_parameter"].sudo().get_param(
+            "rms_ai_quote_assistant.llm_provider", "anthropic"
+        )
+
     def _get_api_key(self):
         return self.env["ir.config_parameter"].sudo().get_param(
             "rms_ai_quote_assistant.anthropic_api_key"
@@ -371,6 +501,39 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         return self.env["ir.config_parameter"].sudo().get_param(
             "rms_ai_quote_assistant.anthropic_model", "claude-sonnet-5"
         )
+
+    def _get_gemini_api_key(self):
+        return self.env["ir.config_parameter"].sudo().get_param(
+            "rms_ai_quote_assistant.gemini_api_key"
+        )
+
+    def _get_gemini_model(self):
+        return self.env["ir.config_parameter"].sudo().get_param(
+            "rms_ai_quote_assistant.gemini_model", "gemini-2.0-flash"
+        )
+
+    def _to_gemini_declaration(self, tool):
+        return {
+            "name": tool["name"],
+            "description": tool["description"],
+            "parameters": tool["input_schema"],
+        }
+
+    def _call_gemini(self, api_key, model, system, contents, tools):
+        payload = {
+            "system_instruction": {"parts": [{"text": system}]},
+            "contents": contents,
+            "tools": tools,
+        }
+        response = requests.post(
+            "%s/%s:generateContent" % (GEMINI_API_BASE_URL, model),
+            params={"key": api_key},
+            headers={"content-type": "application/json"},
+            json=payload,
+            timeout=LLM_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json()
 
     def _call_anthropic(self, api_key, model, system, messages, tools):
         payload = {
@@ -388,7 +551,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                 "content-type": "application/json",
             },
             json=payload,
-            timeout=ANTHROPIC_TIMEOUT,
+            timeout=LLM_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()

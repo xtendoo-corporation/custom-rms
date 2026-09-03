@@ -2,6 +2,10 @@
 <odoo>
     <data noupdate="1">
         <function model="ir.config_parameter" name="set_param"
+                  eval="('rms_ai_quote_assistant.llm_provider', 'anthropic')"/>
+        <function model="ir.config_parameter" name="set_param"
                   eval="('rms_ai_quote_assistant.anthropic_model', 'claude-sonnet-5')"/>
+        <function model="ir.config_parameter" name="set_param"
+                  eval="('rms_ai_quote_assistant.gemini_model', 'gemini-2.0-flash')"/>
     </data>
 </odoo>
