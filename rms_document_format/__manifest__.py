@@ -14,6 +14,7 @@
     ],
     'data': [
         'views/res_config_settings_views.xml',
+        'views/product_pricelist_views.xml',
         'reports/report_action.xml',
         'reports/report_template.xml',
     ],

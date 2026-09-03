@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Expone rms_hide_price_detail en el formulario de tarifa, para que se
+         pueda marcar por tarifa qué clientes no deben ver precio unitario ni
+         descuentos en el PDF del presupuesto (ver reports/report_template.xml). -->
+    <record id="product_pricelist_view_form_inherit_rms_document_format" model="ir.ui.view">
+        <field name="name">product.pricelist.form.rms.document.format</field>
+        <field name="model">product.pricelist</field>
+        <field name="inherit_id" ref="product.product_pricelist_view"/>
+        <field name="arch" type="xml">
+            <field name="date_end" position="after">
+                <field name="rms_hide_price_detail"/>
+            </field>
+        </field>
+    </record>
+</odoo>
