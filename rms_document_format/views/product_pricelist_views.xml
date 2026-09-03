@@ -8,7 +8,7 @@
         <field name="model">product.pricelist</field>
         <field name="inherit_id" ref="product.product_pricelist_view"/>
         <field name="arch" type="xml">
-            <field name="date_end" position="after">
+            <field name="country_group_ids" position="after">
                 <field name="rms_hide_price_detail"/>
             </field>
         </field>
