@@ -12,20 +12,37 @@ _logger = logging.getLogger(__name__)
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-MAX_TOOL_ROUNDS = 5
-LLM_TIMEOUT = 30
+MAX_TOOL_ROUNDS = 3
+LLM_TIMEOUT = 60
 
-SYSTEM_PROMPT = """Eres el asistente de presupuestos de RMS Proaudio. Ayudas a un comercial a
+# The model is given the full accessible partner/product catalog inline in
+# the system prompt (mirroring list_partners.py --all / list_products.py
+# --all from the original ia-presupuestos toolkit) instead of parameterized
+# search tools. A plain ILIKE search tool cannot bridge natural-language/
+# colloquial references (e.g. "Panther L" -> "PANTHER-L,80,W/P,3P-XLR,MEP,
+# PWRCON TOP", or "Quantum 2" -> a DiGiCo Quantum225 console by industry
+# naming convention) the way the model's own world knowledge can when it
+# can see the whole catalog at once. This trades tool-call round-trips for
+# a larger prompt (the full catalog is a few thousand records, comfortably
+# within both providers' context windows, but re-sent on every turn since
+# the design is stateless — a known cost/latency trade-off, accepted
+# because it's what the original toolkit did and what makes free-text
+# resolution actually work).
+SYSTEM_PROMPT_INTRO = """Eres el asistente de presupuestos de RMS Proaudio. Ayudas a un comercial a
 crear un presupuesto (sale.order) en Odoo a partir de una instrucción en
 lenguaje natural, por ejemplo: "hazle un presupuesto a fulanito con 3 X40 y
 una Quantum 3".
 
-Dispones de estas herramientas:
-- search_partners(query): busca clientes por nombre o email (coincidencia
-  aproximada). Úsala para resolver el cliente mencionado.
-- search_products(query): busca productos por referencia interna
-  (default_code) o nombre (coincidencia aproximada). Úsala para resolver
-  cada artículo mencionado.
+Más abajo tienes el listado COMPLETO de clientes y de productos a los que
+tienes acceso (en JSON). Resuelve el cliente y cada artículo mencionado por
+coincidencia semántica contra esos datos: nombre comercial vs. razón
+social, abreviaturas, con/sin acentos, erratas, y nomenclatura habitual del
+sector aunque no coincida literalmente (p. ej. "Panther L" puede
+corresponder a un producto llamado "PANTHER-L,80,W/P,3P-XLR,MEP,PWRCON
+TOP", o "Quantum 2" a una consola DiGiCo Quantum225 por ser su nombre
+coloquial habitual, aunque el texto "Quantum 2" no aparezca literalmente).
+
+Dispones de una única herramienta:
 - propose_quote(partner_id, lines): entrega la propuesta final (cliente +
   líneas resueltas) para que el usuario la confirme. Esta herramienta NO
   crea nada todavía. Es la ÚNICA forma que tienes de terminar tu trabajo
@@ -37,63 +54,22 @@ Dispones de estas herramientas:
 Sigue este flujo obligatorio:
 1. Extrae del mensaje del usuario el nombre aproximado del cliente y la
    lista de artículos con sus cantidades.
-2. Usa search_partners para resolver el cliente (nombre comercial vs razón
-   social, abreviaturas, con/sin acentos).
-3. Usa search_products para resolver cada artículo (abreviaturas,
-   referencias parciales, mayúsculas/tildes/erratas — p. ej. "X 40" puede
-   corresponder a "ULTRA-X40,EU,110,STD,3PIN").
-4. Si una búsqueda no da resultado razonable, o da varios candidatos
-   igual de plausibles, NO asumas: responde con texto normal preguntando
-   al usuario que aclare, y espera su respuesta.
-5. Nunca inventes un id, default_code o nombre: usa exclusivamente lo que
-   devuelvan search_partners/search_products.
-6. Cuando cliente y TODAS las líneas estén resueltos sin ambigüedad, llama
-   a propose_quote con partner_id y las líneas (product_id + quantity).
-7. Si el usuario pide cambiar la tarifa/lista de precios, indica que no se
+2. Busca el cliente y cada artículo en los listados de más abajo, usando
+   coincidencia semántica (no solo textual) como se explica arriba. Si hay
+   varias interpretaciones razonables (p. ej. una referencia con y sin
+   opción "doble pantalla"), elige la más directa pero dilo explícitamente
+   en tu respuesta y ofrece la alternativa, por si el usuario prefiere
+   corregirte antes de confirmar.
+3. Si de verdad no hay ningún candidato razonable, o hay ambigüedad real
+   entre opciones igual de plausibles, NO asumas: responde con texto
+   normal preguntando al usuario que aclare, y espera su respuesta.
+4. Nunca inventes un id, default_code, nombre o email que no aparezca
+   literalmente en los listados de más abajo.
+5. Cuando cliente y TODAS las líneas estén resueltos, llama a
+   propose_quote con partner_id y las líneas (product_id + quantity).
+6. Si el usuario pide cambiar la tarifa/lista de precios, indica que no se
    puede desde el chat: se aplica automáticamente la tarifa del cliente.
-8. Responde siempre en español, breve y claro."""
-
-SEARCH_PARTNERS_TOOL = {
-    "name": "search_partners",
-    "description": (
-        "Busca clientes (res.partner) por nombre o email usando coincidencia "
-        "aproximada. Devuelve hasta 10 candidatos con id, nombre y email. "
-        "Úsala para resolver el cliente mencionado. Nunca inventes un "
-        "partner_id: usa solo los que devuelva esta herramienta."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "query": {
-                "type": "string",
-                "description": "Nombre completo o parcial del cliente, o su email.",
-            }
-        },
-        "required": ["query"],
-    },
-}
-
-SEARCH_PRODUCTS_TOOL = {
-    "name": "search_products",
-    "description": (
-        "Busca productos (product.product) por referencia interna "
-        "(default_code) exacta o, si no hay coincidencia, por nombre "
-        "(aproximada). Devuelve hasta 10 candidatos con id, nombre y "
-        "default_code. Úsala para resolver cada artículo mencionado. Nunca "
-        "inventes un product_id ni un default_code: usa solo los que "
-        "devuelva esta herramienta."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "query": {
-                "type": "string",
-                "description": "Referencia interna (default_code) o nombre/descripción parcial del producto.",
-            }
-        },
-        "required": ["query"],
-    },
-}
+7. Responde siempre en español, breve y claro."""
 
 PROPOSE_QUOTE_TOOL = {
     "name": "propose_quote",
@@ -102,14 +78,14 @@ PROPOSE_QUOTE_TOOL = {
         "que el usuario la revise y confirme. NO crea ningún registro en "
         "Odoo — es la única forma que tienes de terminar tu trabajo. Llama "
         "a esta herramienta solo cuando el cliente y TODAS las líneas estén "
-        "resueltos sin ambigüedad mediante search_partners y search_products."
+        "resueltos sin ambigüedad contra los listados del prompt."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "partner_id": {
                 "type": "integer",
-                "description": "id del cliente resuelto, obtenido de search_partners.",
+                "description": "id del cliente resuelto, tal cual aparece en el listado de clientes.",
             },
             "lines": {
                 "type": "array",
@@ -118,7 +94,7 @@ PROPOSE_QUOTE_TOOL = {
                     "properties": {
                         "product_id": {
                             "type": "integer",
-                            "description": "id del producto resuelto, obtenido de search_products.",
+                            "description": "id del producto resuelto, tal cual aparece en el listado de productos.",
                         },
                         "quantity": {
                             "type": "number",
@@ -148,7 +124,10 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         full visible chat transcript so far, ending with the latest user
         message. Stateless: the caller resends the whole transcript every
         time. Runs the LLM tool-use loop entirely server-side, under the
-        calling user's own permissions (no sudo on any business model).
+        calling user's own permissions (no sudo on any business model) —
+        the partner/product catalog embedded in the prompt is therefore
+        already scoped by whatever record rules apply to the calling user
+        (e.g. a comercial only sees their own assigned contacts).
 
         Dispatches to the configured provider (rms_ai_quote_assistant.
         llm_provider, default "anthropic"; "gemini" is a temporary
@@ -158,6 +137,8 @@ class RmsAiQuoteAssistant(models.AbstractModel):
           {'type': 'proposal', 'text': ..., 'partner_id': int, 'lines': [...]}
           {'type': 'error', 'text': ...}
         """
+        system_prompt = self._build_system_prompt()
+
         if self._get_provider() == "gemini":
             api_key = self._get_gemini_api_key()
             if not api_key:
@@ -169,7 +150,9 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                         "rms_ai_quote_assistant.gemini_api_key"
                     ),
                 }
-            return self._run_gemini_loop(api_key, self._get_gemini_model(), messages)
+            return self._run_gemini_loop(
+                api_key, self._get_gemini_model(), system_prompt, messages
+            )
 
         api_key = self._get_api_key()
         if not api_key:
@@ -181,18 +164,20 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     "rms_ai_quote_assistant.anthropic_api_key"
                 ),
             }
-        return self._run_anthropic_loop(api_key, self._get_model(), messages)
+        return self._run_anthropic_loop(
+            api_key, self._get_model(), system_prompt, messages
+        )
 
-    def _run_anthropic_loop(self, api_key, model, messages):
+    def _run_anthropic_loop(self, api_key, model, system_prompt, messages):
         anthropic_messages = [
             {"role": m["role"], "content": m["text"]} for m in messages
         ]
-        tools = [SEARCH_PARTNERS_TOOL, SEARCH_PRODUCTS_TOOL, PROPOSE_QUOTE_TOOL]
+        tools = [PROPOSE_QUOTE_TOOL]
 
         for _round in range(MAX_TOOL_ROUNDS):
             try:
                 response = self._call_anthropic(
-                    api_key, model, SYSTEM_PROMPT, anthropic_messages, tools
+                    api_key, model, system_prompt, anthropic_messages, tools
                 )
             except Exception:
                 _logger.exception("Error llamando a la API de Anthropic")
@@ -245,23 +230,23 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     "text": " ".join(text_blocks) or "(el asistente no ha devuelto respuesta)",
                 }
 
+            # Unknown tool call (propose_quote is the only declared tool) —
+            # report it back so the model can self-correct.
             anthropic_messages.append({"role": "assistant", "content": content_blocks})
-            tool_results = []
-            for block in tool_use_blocks:
-                if block["name"] == "search_partners":
-                    result = self._tool_search_partners(block["input"]["query"])
-                elif block["name"] == "search_products":
-                    result = self._tool_search_products(block["input"]["query"])
-                else:
-                    result = {"error": "Herramienta desconocida: %s" % block["name"]}
-                tool_results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": block["id"],
-                        "content": json.dumps(result),
-                    }
-                )
-            anthropic_messages.append({"role": "user", "content": tool_results})
+            anthropic_messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block["id"],
+                            "content": "Herramienta desconocida: %s" % block["name"],
+                            "is_error": True,
+                        }
+                        for block in tool_use_blocks
+                    ],
+                }
+            )
 
         return {
             "type": "message",
@@ -271,7 +256,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             ),
         }
 
-    def _run_gemini_loop(self, api_key, model, messages):
+    def _run_gemini_loop(self, api_key, model, system_prompt, messages):
         """Gemini (function calling) counterpart of _run_anthropic_loop.
 
         Kept as an independent, self-contained loop rather than sharing a
@@ -282,8 +267,8 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         that forcing a common internal representation would add conversion
         bugs for little benefit — two straightforward loops are easier to
         verify independently. Only the external return contract (and the
-        pure-Python helpers _tool_search_partners/_tool_search_products/
-        _build_quote_preview/_format_preview_text) are shared.
+        pure-Python helpers _build_quote_preview/_format_preview_text) are
+        shared.
         """
         contents = [
             {
@@ -292,18 +277,11 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             }
             for m in messages
         ]
-        tools = [
-            {
-                "functionDeclarations": [
-                    self._to_gemini_declaration(tool)
-                    for tool in (SEARCH_PARTNERS_TOOL, SEARCH_PRODUCTS_TOOL, PROPOSE_QUOTE_TOOL)
-                ]
-            }
-        ]
+        tools = [{"functionDeclarations": [self._to_gemini_declaration(PROPOSE_QUOTE_TOOL)]}]
 
         for _round in range(MAX_TOOL_ROUNDS):
             try:
-                response = self._call_gemini(api_key, model, SYSTEM_PROMPT, contents, tools)
+                response = self._call_gemini(api_key, model, system_prompt, contents, tools)
             except Exception:
                 _logger.exception("Error llamando a la API de Gemini")
                 return {
@@ -354,20 +332,22 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     "text": " ".join(text_parts) or "(el asistente no ha devuelto respuesta)",
                 }
 
+            # Unknown function call (propose_quote is the only declared tool).
             contents.append({"role": "model", "parts": parts})
-            response_parts = []
-            for fc in function_calls:
-                args = fc.get("args") or {}
-                if fc["name"] == "search_partners":
-                    result = self._tool_search_partners(args.get("query", ""))
-                elif fc["name"] == "search_products":
-                    result = self._tool_search_products(args.get("query", ""))
-                else:
-                    result = {"error": "Herramienta desconocida: %s" % fc["name"]}
-                response_parts.append(
-                    {"functionResponse": {"name": fc["name"], "response": result}}
-                )
-            contents.append({"role": "user", "parts": response_parts})
+            contents.append(
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "functionResponse": {
+                                "name": fc["name"],
+                                "response": {"error": "Herramienta desconocida: %s" % fc["name"]},
+                            }
+                        }
+                        for fc in function_calls
+                    ],
+                }
+            )
 
         return {
             "type": "message",
@@ -422,29 +402,24 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         }
 
     # ---------------------------------------------------------------------
-    # Tool implementations — run under self.env, i.e. the calling user's own
-    # permissions and record rules (never sudo).
+    # Catalog prompt + quote preview — run under self.env, i.e. the calling
+    # user's own permissions and record rules (never sudo).
     # ---------------------------------------------------------------------
 
-    def _tool_search_partners(self, query):
+    def _build_system_prompt(self):
         partners = self.env["res.partner"].search_read(
-            ["|", ("name", "ilike", query), ("email", "ilike", query)],
-            ["id", "name", "email"],
-            limit=10,
-            order="name",
+            [], ["id", "name", "email", "phone"], order="name"
         )
-        return {"candidates": partners}
-
-    def _tool_search_products(self, query):
-        Product = self.env["product.product"]
-        products = Product.search_read(
-            [("default_code", "=", query)], ["id", "name", "default_code"], limit=10
+        products = self.env["product.product"].search_read(
+            [], ["id", "default_code", "name", "list_price", "qty_available"], order="name"
         )
-        if not products:
-            products = Product.search_read(
-                [("name", "ilike", query)], ["id", "name", "default_code"], limit=10
-            )
-        return {"candidates": products}
+        return (
+            SYSTEM_PROMPT_INTRO
+            + "\n\nCLIENTES (JSON — usa exclusivamente estos ids, no inventes ninguno):\n"
+            + json.dumps(partners, ensure_ascii=False)
+            + "\n\nPRODUCTOS (JSON — usa exclusivamente estos ids, no inventes ninguno):\n"
+            + json.dumps(products, ensure_ascii=False)
+        )
 
     def _build_quote_preview(self, partner_id, lines):
         partner = self.env["res.partner"].browse(partner_id).exists()
@@ -509,7 +484,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
 
     def _get_gemini_model(self):
         return self.env["ir.config_parameter"].sudo().get_param(
-            "rms_ai_quote_assistant.gemini_model", "gemini-2.0-flash"
+            "rms_ai_quote_assistant.gemini_model", "gemini-2.5-flash"
         )
 
     def _to_gemini_declaration(self, tool):
