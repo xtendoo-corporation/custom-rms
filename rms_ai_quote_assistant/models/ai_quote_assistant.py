@@ -564,6 +564,8 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             json=payload,
             timeout=LLM_TIMEOUT,
         )
+        if not response.ok:
+            _logger.error("Gemini API error %s: %s", response.status_code, response.text[:2000])
         response.raise_for_status()
         return response.json()
 
@@ -585,5 +587,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             json=payload,
             timeout=LLM_TIMEOUT,
         )
+        if not response.ok:
+            _logger.error("Anthropic API error %s: %s", response.status_code, response.text[:2000])
         response.raise_for_status()
         return response.json()
