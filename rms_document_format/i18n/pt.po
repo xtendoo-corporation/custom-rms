@@ -183,8 +183,8 @@ msgstr "PVP sem IVA"
 
 #. module: rms_document_format
 #: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
-msgid "Precio Neto"
-msgstr "Preço Líquido"
+msgid "Precio Unitario"
+msgstr "Preço Unitário"
 
 #. module: rms_document_format
 #: model:ir.model.fields,field_description:rms_document_format.field_product_pricelist__rms_hide_price_detail

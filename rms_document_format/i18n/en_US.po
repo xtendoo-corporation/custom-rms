@@ -176,8 +176,8 @@ msgstr "Price Excl. VAT"
 
 #. module: rms_document_format
 #: model_terms:ir.ui.view,arch_db:rms_document_format.rms_document_template
-msgid "Precio Neto"
-msgstr "Net Price"
+msgid "Precio Unitario"
+msgstr "Unit Price"
 
 #. module: rms_document_format
 #: model:ir.model.fields,field_description:rms_document_format.field_product_pricelist__rms_hide_price_detail
