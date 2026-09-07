@@ -1,19 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Ocultar el contenido de la ficha para el grupo Comerciales, sea cual sea
-         la vía de acceso (clic desde el listado o URL directa). El listado en sí
-         no se modifica: sigue siendo visible y navegable con normalidad. -->
+    <!-- Ocultar el detalle de la ficha para el grupo Comerciales, sea cual sea
+         la vía de acceso (clic desde el listado o URL directa), pero dejando
+         visibles los smart buttons (button_box) para que puedan navegar a sus
+         oportunidades, presupuestos, etc. El listado en sí no se modifica:
+         sigue siendo visible y navegable con normalidad. -->
     <record id="view_partner_form_comerciales" model="ir.ui.view">
         <field name="name">res.partner.form.comerciales</field>
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
-            <xpath expr="/form/sheet" position="attributes">
+            <xpath expr="/form/sheet/widget[@name='web_ribbon']" position="attributes">
                 <attribute name="groups">!custom.comerciales</attribute>
             </xpath>
-            <xpath expr="/form/sheet" position="before">
+            <xpath expr="/form/sheet/div[@class='mb8']" position="attributes">
+                <attribute name="groups">!custom.comerciales</attribute>
+            </xpath>
+            <xpath expr="/form/sheet/group" position="attributes">
+                <attribute name="groups">!custom.comerciales</attribute>
+            </xpath>
+            <xpath expr="/form/sheet/div[@class='d-flex']" position="attributes">
+                <attribute name="groups">!custom.comerciales</attribute>
+            </xpath>
+            <xpath expr="/form/sheet/notebook" position="attributes">
+                <attribute name="groups">!custom.comerciales</attribute>
+            </xpath>
+            <xpath expr="/form/sheet/div[@name='button_box']" position="after">
                 <div class="alert alert-warning" role="alert" groups="custom.comerciales">
-                    No tienes permiso para ver el detalle de esta ficha.
+                    No tienes permiso para ver el detalle de esta ficha. Puedes usar los
+                    accesos rápidos de arriba para ir a sus oportunidades, presupuestos, etc.
                 </div>
             </xpath>
         </field>
