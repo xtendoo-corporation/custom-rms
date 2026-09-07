@@ -12,6 +12,7 @@
         "base_geolocalize",
         "rms_partner_equipment_model_import",
     ],
+    "external_dependencies": {"python": ["openpyxl"]},
     "data": [
         "views/global_equipment_map_views.xml",
     ],

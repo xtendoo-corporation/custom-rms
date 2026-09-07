@@ -44,6 +44,7 @@ export class GlobalEquipmentMap extends Component {
             partners: [],
             filtersOpen: false,
             modelFilterSearch: "",
+            exporting: false,
             filters: {
                 equipmentModelIds: [],
                 operator: "or",
@@ -280,6 +281,48 @@ export class GlobalEquipmentMap extends Component {
         if (marker) {
             this.map.setView(marker.getLatLng(), Math.max(this.map.getZoom(), 14));
             marker.openPopup();
+        }
+    }
+
+    async exportXlsx() {
+        if (this.state.exporting) {
+            return;
+        }
+        const partnerIds = this.filteredPartners.map((partner) => partner.id);
+        if (!partnerIds.length) {
+            this.notification.add("No hay clientes que coincidan con los filtros activos.", {
+                type: "warning",
+            });
+            return;
+        }
+        this.state.exporting = true;
+        try {
+            const result = await rpc("/rms_global_equipment_map/export_xlsx", {
+                partner_ids: partnerIds,
+            });
+            const binary = atob(result.content);
+            const bytes = new Uint8Array(binary.length);
+            for (let index = 0; index < binary.length; index++) {
+                bytes[index] = binary.charCodeAt(index);
+            }
+            const blob = new Blob([bytes], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = result.filename || "mapa_global_equipos.xlsx";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            this.notification.add(
+                error.data?.message || "No se pudo generar el archivo Excel.",
+                { type: "danger" }
+            );
+        } finally {
+            this.state.exporting = false;
         }
     }
 }

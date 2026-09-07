@@ -34,6 +34,11 @@ $geq-accent-border: rgba(15, 118, 110, 0.22);
         margin: 0;
     }
 
+    .o_global_equipment_map_export_button {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+
     .o_global_equipment_map_searchview {
         max-width: 820px;
         min-width: 280px;
