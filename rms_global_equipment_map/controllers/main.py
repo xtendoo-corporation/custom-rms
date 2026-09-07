@@ -44,7 +44,7 @@ class GlobalEquipmentMapController(http.Controller):
                     "longitude": partner.partner_longitude,
                     "contact_name": contact.name or "",
                     "email": partner.email or contact.email or "",
-                    "phone": partner.phone or partner.mobile or contact.phone or "",
+                    "phone": partner.phone or contact.phone or "",
                     "equipment_models": [
                         {"id": model.id, "name": equipment_models[model.id]}
                         for model in partner.equipment_model_tag_ids
