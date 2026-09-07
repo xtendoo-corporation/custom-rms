@@ -211,11 +211,12 @@ export class GlobalEquipmentMap extends Component {
         const bounds = [];
         for (const partner of this.filteredPartners) {
             const coordinates = [partner.latitude, partner.longitude];
+            const equipmentCount = partner.equipment_models.length;
             const marker = window.L.marker(coordinates, {
                 title: partner.name,
                 icon: window.L.divIcon({
                     className: "o_global_equipment_map_marker",
-                    html: "",
+                    html: equipmentCount ? `<span>${equipmentCount}</span>` : "",
                     iconSize: [34, 42],
                     iconAnchor: [17, 42],
                     popupAnchor: [0, -40],
@@ -237,24 +238,39 @@ export class GlobalEquipmentMap extends Component {
         const container = document.createElement("div");
         container.className = "o_global_equipment_map_popup";
 
+        const header = document.createElement("div");
+        header.className = "o_global_equipment_map_popup_header d-flex align-items-center gap-2";
+        const icon = document.createElement("span");
+        icon.className = "o_global_equipment_map_partner_icon";
+        icon.innerHTML = '<i class="fa fa-building"></i>';
+        header.appendChild(icon);
         const title = document.createElement("h5");
+        title.className = "mb-0 flex-grow-1";
         title.textContent = partner.name;
-        container.appendChild(title);
+        header.appendChild(title);
+        container.appendChild(header);
 
-        const modelsTitle = document.createElement("strong");
-        modelsTitle.textContent = `Equipos del Cliente: ${partner.equipment_models.length}`;
+        const modelsTitle = document.createElement("div");
+        modelsTitle.className = "o_global_equipment_map_popup_subtitle";
+        modelsTitle.textContent = `Equipos del Cliente (${partner.equipment_models.length})`;
         container.appendChild(modelsTitle);
 
+        const chips = document.createElement("div");
+        chips.className = "o_global_equipment_map_chips d-flex flex-wrap gap-1";
         if (partner.equipment_models.length) {
-            const list = document.createElement("ul");
-            list.className = "mt-1 mb-0 ps-3";
             for (const model of partner.equipment_models) {
-                const item = document.createElement("li");
-                item.textContent = model.name;
-                list.appendChild(item);
+                const chip = document.createElement("span");
+                chip.className = "o_global_equipment_map_chip";
+                chip.textContent = model.name;
+                chips.appendChild(chip);
             }
-            container.appendChild(list);
+        } else {
+            const chip = document.createElement("span");
+            chip.className = "o_global_equipment_map_chip o_global_equipment_map_chip_empty";
+            chip.textContent = "Sin equipos asignados";
+            chips.appendChild(chip);
         }
+        container.appendChild(chips);
 
         return container;
     }
