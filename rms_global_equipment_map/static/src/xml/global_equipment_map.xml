@@ -9,6 +9,16 @@
                     </span>
                     <h2 class="mb-0">Mapa Global de Equipos</h2>
                 </div>
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary o_global_equipment_map_export_button"
+                    t-att-disabled="state.exporting"
+                    t-on-click="exportXlsx"
+                >
+                    <i t-att-class="state.exporting ? 'fa fa-spinner fa-spin me-1' : 'fa fa-file-excel-o me-1'"/>
+                    <t t-if="state.exporting">Exportando...</t>
+                    <t t-else="">Exportar Excel</t>
+                </button>
                 <div class="o_global_equipment_map_searchview d-flex align-items-center flex-grow-1 ms-auto">
                     <div class="o_global_equipment_map_searchbar d-flex align-items-center flex-wrap flex-grow-1">
                         <span
