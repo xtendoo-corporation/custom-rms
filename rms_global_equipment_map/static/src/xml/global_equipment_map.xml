@@ -3,7 +3,12 @@
     <t t-name="rms_global_equipment_map.GlobalEquipmentMap">
         <div class="o_global_equipment_map h-100 d-flex flex-column">
             <div class="o_global_equipment_map_toolbar d-flex align-items-center gap-3 px-3 py-2 border-bottom bg-view">
-                <h2 class="mb-0">Mapa Global de Equipos</h2>
+                <div class="o_global_equipment_map_title d-flex align-items-center gap-2">
+                    <span class="o_global_equipment_map_title_icon">
+                        <i class="fa fa-map-marker"/>
+                    </span>
+                    <h2 class="mb-0">Mapa Global de Equipos</h2>
+                </div>
                 <div class="o_global_equipment_map_searchview d-flex align-items-center flex-grow-1 ms-auto">
                     <div class="o_global_equipment_map_searchbar d-flex align-items-center flex-wrap flex-grow-1">
                         <span
@@ -84,21 +89,22 @@
                                         t-on-input="onModelFilterSearchInput"
                                     />
                                 </div>
-                                <div class="o_global_equipment_map_filter_options py-1">
+                                <div class="o_global_equipment_map_filter_options d-flex flex-wrap gap-2 px-3 py-2">
                                     <button
                                         t-foreach="availableEquipmentModels"
                                         t-as="model"
                                         t-key="model.id"
                                         type="button"
-                                        class="o_global_equipment_map_filter_option btn btn-link text-start w-100 px-3 py-1"
+                                        t-attf-class="o_global_equipment_map_chip o_global_equipment_map_chip_toggle {{ isEquipmentModelSelected(model.id) ? 'o_global_equipment_map_chip_toggle_active' : '' }}"
                                         t-on-click="() => this.toggleEquipmentModelFilter(model.id)"
                                     >
                                         <i
-                                            t-att-class="isEquipmentModelSelected(model.id) ? 'fa fa-check-square-o me-2 text-primary' : 'fa fa-square-o me-2 text-muted'"
+                                            t-if="isEquipmentModelSelected(model.id)"
+                                            class="fa fa-check me-1"
                                         />
                                         <span t-esc="model.name"/>
                                     </button>
-                                    <div t-if="!availableEquipmentModels.length" class="px-3 py-2 text-muted">
+                                    <div t-if="!availableEquipmentModels.length" class="px-1 py-2 text-muted">
                                         No hay Equipos del Cliente coincidentes.
                                     </div>
                                 </div>
@@ -119,7 +125,7 @@
             </div>
             <div class="o_global_equipment_map_content d-flex flex-grow-1 overflow-hidden">
                 <aside class="o_global_equipment_map_sidebar border-end overflow-auto">
-                    <div class="px-3 py-2 text-muted border-bottom">
+                    <div class="o_global_equipment_map_sidebar_header px-3 py-2 border-bottom">
                         <t t-if="state.loading">Cargando clientes...</t>
                         <t t-else="">
                             <t t-esc="filteredPartners.length"/> clientes geolocalizados
@@ -135,21 +141,31 @@
                         t-as="partner"
                         t-key="partner.id"
                         type="button"
-                        class="o_global_equipment_map_partner w-100 text-start border-0 border-bottom p-3 bg-transparent"
+                        class="o_global_equipment_map_partner w-100 text-start border-0 p-3 bg-transparent"
                         t-on-click="() => this.focusPartner(partner.id)"
                     >
-                        <strong class="d-block" t-esc="partner.name"/>
-                        <div class="d-flex flex-wrap gap-1 mt-2">
-                            <span class="badge text-bg-primary">
-                                <t t-esc="partner.equipment_models.length"/> Equipos del Cliente
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="o_global_equipment_map_partner_icon">
+                                <i class="fa fa-building"/>
                             </span>
+                            <strong class="o_global_equipment_map_partner_name flex-grow-1 text-truncate" t-esc="partner.name"/>
+                            <span
+                                t-if="partner.equipment_models.length"
+                                class="o_global_equipment_map_partner_count"
+                                t-esc="partner.equipment_models.length"
+                            />
+                        </div>
+                        <div class="o_global_equipment_map_chips d-flex flex-wrap gap-1 mt-2">
                             <span
                                 t-foreach="partner.equipment_models"
                                 t-as="model"
                                 t-key="model.id"
-                                class="badge text-bg-secondary"
+                                class="o_global_equipment_map_chip"
                                 t-esc="model.name"
                             />
+                            <span t-if="!partner.equipment_models.length" class="o_global_equipment_map_chip o_global_equipment_map_chip_empty">
+                                Sin equipos asignados
+                            </span>
                         </div>
                     </button>
                 </aside>
