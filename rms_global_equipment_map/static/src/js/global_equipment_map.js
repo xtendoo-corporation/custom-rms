@@ -123,7 +123,13 @@ export class GlobalEquipmentMap extends Component {
             const equipmentModels = partner.equipment_models
                 .map((model) => model.name)
                 .join(" ");
-            return [partner.name, equipmentModels]
+            return [
+                partner.name,
+                partner.contact_name,
+                partner.email,
+                partner.phone,
+                equipmentModels,
+            ]
                 .join(" ")
                 .toLowerCase()
                 .includes(term);
@@ -250,6 +256,26 @@ export class GlobalEquipmentMap extends Component {
         title.textContent = partner.name;
         header.appendChild(title);
         container.appendChild(header);
+
+        const metaLines = [
+            { icon: "fa-user", value: partner.contact_name },
+            { icon: "fa-phone", value: partner.phone },
+            { icon: "fa-envelope", value: partner.email },
+        ].filter((line) => line.value);
+        if (metaLines.length) {
+            const meta = document.createElement("div");
+            meta.className = "o_global_equipment_map_popup_meta";
+            for (const line of metaLines) {
+                const row = document.createElement("div");
+                row.className = "d-flex align-items-center gap-1";
+                row.innerHTML = `<i class="fa ${line.icon}"></i>`;
+                const value = document.createElement("span");
+                value.textContent = line.value;
+                row.appendChild(value);
+                meta.appendChild(row);
+            }
+            container.appendChild(meta);
+        }
 
         const modelsTitle = document.createElement("div");
         modelsTitle.className = "o_global_equipment_map_popup_subtitle";
