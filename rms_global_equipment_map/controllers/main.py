@@ -22,38 +22,37 @@ class GlobalEquipmentMapController(http.Controller):
         ]
         if partner_ids is not None:
             domain.append(("id", "in", partner_ids))
-        fields_to_read = [
-            "id",
-            "name",
-            "partner_latitude",
-            "partner_longitude",
-            "equipment_model_tag_ids",
-        ]
-        partners = Partner.search_read(domain, fields_to_read, order="name, id")
+        partners = Partner.search(domain, order="name, id")
 
         model_ids = set()
         for partner in partners:
-            model_ids.update(partner.get("equipment_model_tag_ids") or [])
+            model_ids.update(partner.equipment_model_tag_ids.ids)
 
         equipment_models = {
             model.id: model.display_name
             for model in request.env["equipment.model.tag"].sudo().browse(model_ids).exists()
         }
 
-        return [
-            {
-                "id": partner["id"],
-                "name": partner.get("name") or "",
-                "latitude": partner["partner_latitude"],
-                "longitude": partner["partner_longitude"],
-                "equipment_models": [
-                    {"id": model_id, "name": equipment_models[model_id]}
-                    for model_id in partner.get("equipment_model_tag_ids", [])
-                    if model_id in equipment_models
-                ],
-            }
-            for partner in partners
-        ]
+        result = []
+        for partner in partners:
+            contact = partner.child_ids.filtered(lambda child: child.type == "contact" and child.name)[:1]
+            result.append(
+                {
+                    "id": partner.id,
+                    "name": partner.name or "",
+                    "latitude": partner.partner_latitude,
+                    "longitude": partner.partner_longitude,
+                    "contact_name": contact.name or "",
+                    "email": partner.email or contact.email or "",
+                    "phone": partner.phone or partner.mobile or contact.phone or "",
+                    "equipment_models": [
+                        {"id": model.id, "name": equipment_models[model.id]}
+                        for model in partner.equipment_model_tag_ids
+                        if model.id in equipment_models
+                    ],
+                }
+            )
+        return result
 
     @http.route(
         "/rms_global_equipment_map/partners",
@@ -85,6 +84,9 @@ class GlobalEquipmentMapController(http.Controller):
 
         headers = [
             "Empresa",
+            "Nombre de Contacto",
+            "Correo",
+            "Teléfono",
             "Nº de Equipos",
             "Equipos del Cliente",
             "Latitud",
@@ -99,6 +101,9 @@ class GlobalEquipmentMapController(http.Controller):
             sheet.append(
                 [
                     partner["name"],
+                    partner["contact_name"],
+                    partner["email"],
+                    partner["phone"],
                     len(partner["equipment_models"]),
                     model_names,
                     partner["latitude"],
@@ -106,7 +111,7 @@ class GlobalEquipmentMapController(http.Controller):
                 ]
             )
 
-        widths = [40, 14, 60, 12, 12]
+        widths = [40, 24, 28, 18, 14, 60, 12, 12]
         for index, width in enumerate(widths, start=1):
             sheet.column_dimensions[sheet.cell(row=1, column=index).column_letter].width = width
 

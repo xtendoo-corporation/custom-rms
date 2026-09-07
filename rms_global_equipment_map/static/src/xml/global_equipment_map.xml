@@ -165,6 +165,23 @@
                                 t-esc="partner.equipment_models.length"
                             />
                         </div>
+                        <div
+                            t-if="partner.contact_name or partner.email or partner.phone"
+                            class="o_global_equipment_map_partner_meta mt-2"
+                        >
+                            <div t-if="partner.contact_name" class="d-flex align-items-center gap-1">
+                                <i class="fa fa-user"/>
+                                <span class="text-truncate" t-esc="partner.contact_name"/>
+                            </div>
+                            <div t-if="partner.phone" class="d-flex align-items-center gap-1">
+                                <i class="fa fa-phone"/>
+                                <span class="text-truncate" t-esc="partner.phone"/>
+                            </div>
+                            <div t-if="partner.email" class="d-flex align-items-center gap-1">
+                                <i class="fa fa-envelope"/>
+                                <span class="text-truncate" t-esc="partner.email"/>
+                            </div>
+                        </div>
                         <div class="o_global_equipment_map_chips d-flex flex-wrap gap-1 mt-2">
                             <span
                                 t-foreach="partner.equipment_models"
