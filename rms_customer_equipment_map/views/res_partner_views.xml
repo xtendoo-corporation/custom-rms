@@ -1,5 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="res_partner_view_search_without_address" model="ir.ui.view">
+        <field name="name">res.partner.search.without.address</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <filter
+                    name="filter_without_address"
+                    string="Sin dirección"
+                    domain="[('street', '=', False), ('zip', '=', False), ('city', '=', False), ('state_id', '=', False), ('country_id', '=', False)]"
+                />
+            </xpath>
+        </field>
+    </record>
+
     <record id="res_partner_view_form_equipment" model="ir.ui.view">
         <field name="name">res.partner.form.equipment</field>
         <field name="model">res.partner</field>

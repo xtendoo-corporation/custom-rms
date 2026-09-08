@@ -49,6 +49,7 @@ export class CustomerEquipmentMap extends Component {
             geolocationDone: 0,
             geolocationTotal: 0,
             isAdmin: false,
+            withoutAddressIds: [],
         });
         this.markers = new Map();
 
@@ -64,6 +65,9 @@ export class CustomerEquipmentMap extends Component {
             this.state.partners = Array.isArray(data.partners) ? data.partners : [];
             this.state.isAdmin = data.is_admin;
             this.state.loading = false;
+            if (this.state.isAdmin) {
+                void this.refreshWithoutAddress();
+            }
         });
         onMounted(() => this.initializeMap());
         onWillUnmount(() => {
@@ -117,15 +121,30 @@ export class CustomerEquipmentMap extends Component {
         requestAnimationFrame(() => this.map.invalidateSize());
     }
 
-    async onBulkGeolocate() {
-        if (this.state.geolocating) {
-            return;
-        }
+    async refreshWithoutAddress() {
         const candidates = await this.orm.call(
             "res.partner",
             "get_bulk_geolocation_candidates",
             []
         );
+        this.state.withoutAddressIds = candidates.without_address_ids || [];
+        return candidates;
+    }
+
+    async onViewPartnersWithoutAddress() {
+        const action = await this.orm.call(
+            "res.partner",
+            "action_view_partners_without_address",
+            [this.state.withoutAddressIds]
+        );
+        return this.actionService.doAction(action);
+    }
+
+    async onBulkGeolocate() {
+        if (this.state.geolocating) {
+            return;
+        }
+        const candidates = await this.refreshWithoutAddress();
         if (!candidates.count) {
             this.notification.add(
                 "No hay contactos pendientes con una dirección utilizable.",

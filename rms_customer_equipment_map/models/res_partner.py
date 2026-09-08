@@ -77,11 +77,27 @@ class ResPartner(models.Model):
                 )
             )
         )
+        without_address = partners - candidates
         return {
             "ids": candidates.ids,
             "count": len(candidates),
-            "without_address": len(partners - candidates),
+            "without_address": len(without_address),
+            "without_address_ids": without_address.ids,
         }
+
+    @api.model
+    def action_view_partners_without_address(self, partner_ids):
+        if not self._is_customer_equipment_map_admin():
+            raise UserError(_("Only administrators can perform bulk geolocation."))
+        action = self.env["ir.actions.actions"]._for_xml_id("contacts.action_contacts")
+        action.update(
+            {
+                "name": _("Clientes sin dirección"),
+                "domain": [("id", "in", partner_ids)],
+                "context": {},
+            }
+        )
+        return action
 
     @api.model
     def bulk_geo_localize_partners(self, partner_ids):
