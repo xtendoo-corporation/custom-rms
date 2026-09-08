@@ -17,6 +17,15 @@
                     </t>
                     <t t-else="">Geolocalizar todos</t>
                 </button>
+                <button
+                    t-if="state.isAdmin and state.withoutAddressIds.length"
+                    type="button"
+                    class="btn btn-outline-warning"
+                    t-on-click="onViewPartnersWithoutAddress"
+                >
+                    <i class="fa fa-exclamation-triangle me-1"/>
+                    <t t-esc="state.withoutAddressIds.length"/> sin dirección
+                </button>
                 <div class="ms-auto">
                     <input
                         type="search"
