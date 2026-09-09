@@ -93,7 +93,7 @@
             </style>
 
             <div class="page rms_page">
-                <t t-set="hide_price_detail" t-value="doc.pricelist_id.rms_hide_price_detail"/>
+                <t t-set="hide_price_detail" t-value="doc.rms_hide_price_detail"/>
                 <!-- LOGOS SUPERIORES -->
                 <table class="rms_header_table">
                     <tr>

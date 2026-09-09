@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Expone rms_hide_price_detail en el propio presupuesto, para elegir por
+         presupuesto si el PDF se imprime con o sin desglose de descuentos
+         (ver reports/report_template.xml). -->
+    <record id="sale_order_view_form_inherit_rms_document_format" model="ir.ui.view">
+        <field name="name">sale.order.form.rms.document.format</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <field name="pricelist_id" position="after">
+                <field name="rms_hide_price_detail"/>
+            </field>
+        </field>
+    </record>
+</odoo>
