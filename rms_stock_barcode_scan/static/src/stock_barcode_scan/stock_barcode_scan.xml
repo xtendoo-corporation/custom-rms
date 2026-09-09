@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_stock_barcode_scan.StockBarcodeScan">
+        <div class="o_rms_barcode_scan d-flex flex-column h-100">
+
+            <!-- Paso 1: catálogo + ubicación -->
+            <t t-if="state.step === 'catalog'">
+                <div class="o_rms_bs_header p-3 border-bottom">
+                    <h4 class="m-0">Escanear código de barras</h4>
+                    <div class="text-muted">1. Elige el producto y la ubicación que vas a contar</div>
+                </div>
+                <div class="o_rms_bs_body flex-grow-1 overflow-auto p-3">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ubicación</label>
+                        <div t-if="state.location" class="d-flex align-items-center gap-2 mb-1">
+                            <span class="badge text-bg-primary" t-esc="state.location.name"/>
+                            <button class="btn btn-sm btn-link p-0" t-on-click="() => state.location = null">cambiar</button>
+                        </div>
+                        <t t-if="!state.location">
+                            <input
+                                type="text"
+                                class="form-control"
+                                placeholder="Buscar ubicación..."
+                                t-att-value="state.locationQuery"
+                                t-on-input="onLocationQueryInput"
+                            />
+                            <ul t-if="state.locations.length" class="list-group mt-1">
+                                <li t-foreach="state.locations" t-as="loc" t-key="loc.id"
+                                    class="list-group-item list-group-item-action"
+                                    style="cursor:pointer"
+                                    t-on-click="() => this.selectLocation(loc)">
+                                    <t t-esc="loc.name"/>
+                                </li>
+                            </ul>
+                        </t>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label fw-bold">Producto</label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            placeholder="Buscar por nombre, referencia o código de barras..."
+                            t-att-value="state.query"
+                            t-on-input="onProductQueryInput"
+                        />
+                    </div>
+                    <div class="list-group">
+                        <button
+                            t-foreach="state.products" t-as="product" t-key="product.id"
+                            type="button"
+                            t-attf-class="list-group-item list-group-item-action {{ state.product &amp;&amp; state.product.id === product.id ? 'active' : '' }}"
+                            t-on-click="() => this.selectProduct(product)">
+                            <div class="fw-bold" t-esc="product.name"/>
+                            <div class="small">
+                                <span t-if="product.default_code">Ref: <t t-esc="product.default_code"/> · </span>
+                                <span t-if="product.barcode">Cód. barras: <t t-esc="product.barcode"/></span>
+                            </div>
+                        </button>
+                        <div t-if="!state.products.length" class="text-muted p-2">
+                            Sin resultados.
+                        </div>
+                    </div>
+                </div>
+                <div class="o_rms_bs_footer p-3 border-top d-flex justify-content-end">
+                    <button
+                        class="btn btn-primary"
+                        t-att-disabled="!canStartScan"
+                        t-on-click="startScan">
+                        <span t-if="state.starting">Abriendo cámara...</span>
+                        <span t-else="">Iniciar escaneo con la cámara</span>
+                    </button>
+                </div>
+            </t>
+
+            <!-- Paso 2: cámara -->
+            <t t-if="state.step === 'camera'">
+                <div class="o_rms_bs_header p-3 border-bottom">
+                    <h4 class="m-0">Escaneando: <t t-esc="state.product.name"/></h4>
+                    <div class="text-muted">
+                        2. Apunta la cámara al código de barras de cada unidad
+                        (<t t-esc="state.location.name"/>)
+                    </div>
+                </div>
+                <div class="o_rms_bs_camera flex-grow-1 overflow-auto p-3">
+                    <div t-if="state.cameraError" class="alert alert-danger" t-esc="state.cameraError"/>
+                    <div class="o_rms_bs_video_wrap mb-3">
+                        <video t-ref="video" class="o_rms_bs_video" autoplay="autoplay" playsinline="playsinline" muted="muted"/>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="fw-bold">Escaneados: <span t-esc="state.scans.length"/></span>
+                    </div>
+                    <ul class="list-group">
+                        <li t-foreach="state.scans.slice().reverse()" t-as="scan" t-key="scan.id"
+                            class="list-group-item d-flex justify-content-between align-items-center">
+                            <span t-esc="scan.code"/>
+                            <button class="btn btn-sm btn-outline-danger" t-on-click="() => this.removeScan(scan.id)">✕</button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="o_rms_bs_footer p-3 border-top d-flex justify-content-between">
+                    <button class="btn btn-secondary" t-on-click="() => { this.stopCamera(); this.state.step = 'catalog'; }">
+                        Cancelar
+                    </button>
+                    <button class="btn btn-primary" t-att-disabled="!state.scans.length" t-on-click="finishScanning">
+                        Terminar (<t t-esc="state.scans.length"/>)
+                    </button>
+                </div>
+            </t>
+
+            <!-- Paso 3: revisar y confirmar -->
+            <t t-if="state.step === 'review'">
+                <div class="o_rms_bs_header p-3 border-bottom">
+                    <h4 class="m-0">Confirmar escaneo</h4>
+                    <div class="text-muted">
+                        3. Revisa la lista antes de añadirla al Inventario físico
+                    </div>
+                </div>
+                <div class="o_rms_bs_body flex-grow-1 overflow-auto p-3">
+                    <div class="mb-3">
+                        <div><strong>Producto:</strong> <t t-esc="state.product.name"/></div>
+                        <div><strong>Ubicación:</strong> <t t-esc="state.location.name"/></div>
+                        <div><strong>Unidades a añadir:</strong> <t t-esc="state.scans.length"/></div>
+                    </div>
+                    <ul class="list-group">
+                        <li t-foreach="state.scans" t-as="scan" t-key="scan.id"
+                            class="list-group-item d-flex justify-content-between align-items-center">
+                            <span t-esc="scan.code"/>
+                            <button class="btn btn-sm btn-outline-danger" t-on-click="() => this.removeScan(scan.id)">✕</button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="o_rms_bs_footer p-3 border-top d-flex justify-content-between">
+                    <button class="btn btn-secondary" t-on-click="backToCamera">
+                        Volver a escanear
+                    </button>
+                    <button class="btn btn-primary" t-att-disabled="!state.scans.length || state.confirming" t-on-click="confirmScan">
+                        <span t-if="state.confirming">Guardando...</span>
+                        <span t-else="">Confirmar y añadir al Inventario físico</span>
+                    </button>
+                </div>
+            </t>
+
+            <!-- Paso 4: resultado -->
+            <t t-if="state.step === 'done'">
+                <div class="o_rms_bs_header p-3 border-bottom">
+                    <h4 class="m-0">Listo</h4>
+                </div>
+                <div class="o_rms_bs_body flex-grow-1 overflow-auto p-3">
+                    <div class="alert alert-success">
+                        <t t-esc="state.result.applied"/> de <t t-esc="state.result.total"/>
+                        números de serie añadidos al Inventario físico de
+                        <t t-esc="state.product.name"/>.
+                    </div>
+                    <div t-if="state.result.errors.length" class="alert alert-warning">
+                        <div class="fw-bold mb-1">No se pudieron añadir:</div>
+                        <ul class="mb-0">
+                            <li t-foreach="state.result.errors" t-as="err" t-key="err.serial">
+                                <t t-esc="err.serial"/>: <t t-esc="err.message"/>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="text-muted">
+                        Las líneas quedan pendientes de "Aplicar todo" en Inventario físico,
+                        igual que si las hubieras editado a mano.
+                    </div>
+                </div>
+                <div class="o_rms_bs_footer p-3 border-top d-flex justify-content-between">
+                    <button class="btn btn-secondary" t-on-click="closeAction">
+                        Volver a Inventario físico
+                    </button>
+                    <button class="btn btn-primary" t-on-click="scanAnotherProduct">
+                        Escanear otro producto
+                    </button>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>
