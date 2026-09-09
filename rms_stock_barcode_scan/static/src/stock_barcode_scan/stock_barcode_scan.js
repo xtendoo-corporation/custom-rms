@@ -157,15 +157,32 @@ export class StockBarcodeScan extends Component {
             } else {
                 // Safari/iOS y navegadores sin Barcode Detection API nativa:
                 // se usa ZXing (librería incluida en el propio módulo) que
-                // gestiona ella misma la cámara.
+                // gestiona ella misma la cámara. Se usa decodeFromConstraints
+                // con facingMode explícito (en vez de decodeFromVideoDevice
+                // con un deviceId) porque en iOS Safari, antes de conceder
+                // el permiso, enumerateDevices() devuelve dispositivos sin
+                // etiquetar y a veces elige una cámara que no llega a
+                // renderizar nada (pantalla en negro). No se espera (await)
+                // a que la promesa termine: en modo escaneo continuo no se
+                // resuelve hasta llamar a reset(), así que awaitarla dejaría
+                // "starting" bloqueado para siempre; los fallos de permiso
+                // se capturan igualmente con el .catch().
                 await loadJS(ZXING_URL);
                 const codeReader = new window.ZXing.BrowserMultiFormatReader();
                 this._zxingReader = codeReader;
-                await codeReader.decodeFromVideoDevice(null, video, (result) => {
-                    if (result) {
-                        this._onCodeDetected(result.getText());
-                    }
-                });
+                const constraints = { video: { facingMode: { ideal: "environment" } }, audio: false };
+                codeReader
+                    .decodeFromConstraints(constraints, video, (result) => {
+                        if (result) {
+                            this._onCodeDetected(result.getText());
+                        }
+                    })
+                    .catch((error) => {
+                        console.error(error);
+                        this.state.cameraError =
+                            "No se pudo acceder a la cámara. Revisa que hayas dado permiso de " +
+                            "cámara al navegador y que estés en una conexión https.";
+                    });
             }
         } catch (error) {
             console.error(error);

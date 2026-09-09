@@ -84,8 +84,13 @@
                 </div>
                 <div class="o_rms_bs_camera flex-grow-1 overflow-auto p-3">
                     <div t-if="state.cameraError" class="alert alert-danger" t-esc="state.cameraError"/>
-                    <div class="o_rms_bs_video_wrap mb-3">
+                    <div class="o_rms_bs_video_wrap mb-1">
                         <video t-ref="video" class="o_rms_bs_video" autoplay="autoplay" playsinline="playsinline" muted="muted"/>
+                    </div>
+                    <div class="text-muted small mb-3">
+                        Si no ves imagen: revisa el permiso de cámara para este sitio
+                        (icono de candado/"aA" en la barra de direcciones) y que la
+                        página se ha abierto con https://.
                     </div>
                     <div class="d-flex align-items-center justify-content-between mb-2">
                         <span class="fw-bold">Escaneados: <span t-esc="state.scans.length"/></span>
