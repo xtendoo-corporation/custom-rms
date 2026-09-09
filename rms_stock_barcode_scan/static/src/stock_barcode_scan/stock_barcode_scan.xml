@@ -67,8 +67,7 @@
                         class="btn btn-primary"
                         t-att-disabled="!canStartScan"
                         t-on-click="startScan">
-                        <span t-if="state.starting">Abriendo cámara...</span>
-                        <span t-else="">Iniciar escaneo con la cámara</span>
+                        Iniciar escaneo con la cámara
                     </button>
                 </div>
             </t>
@@ -84,8 +83,13 @@
                 </div>
                 <div class="o_rms_bs_camera flex-grow-1 overflow-auto p-3">
                     <div t-if="state.cameraError" class="alert alert-danger" t-esc="state.cameraError"/>
-                    <div class="o_rms_bs_video_wrap mb-3">
+                    <div class="o_rms_bs_video_wrap mb-1">
                         <video t-ref="video" class="o_rms_bs_video" autoplay="autoplay" playsinline="playsinline" muted="muted"/>
+                    </div>
+                    <div class="text-muted small mb-3">
+                        Si no ves imagen: revisa el permiso de cámara para este sitio
+                        (icono de candado/"aA" en la barra de direcciones) y que la
+                        página se ha abierto con https://.
                     </div>
                     <div class="d-flex align-items-center justify-content-between mb-2">
                         <span class="fw-bold">Escaneados: <span t-esc="state.scans.length"/></span>
@@ -99,7 +103,7 @@
                     </ul>
                 </div>
                 <div class="o_rms_bs_footer p-3 border-top d-flex justify-content-between">
-                    <button class="btn btn-secondary" t-on-click="() => { this.stopCamera(); this.state.step = 'catalog'; }">
+                    <button class="btn btn-secondary" t-on-click="() => this.state.step = 'catalog'">
                         Cancelar
                     </button>
                     <button class="btn btn-primary" t-att-disabled="!state.scans.length" t-on-click="finishScanning">
