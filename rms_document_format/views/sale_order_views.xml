@@ -8,12 +8,9 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='pricelist_id']/parent::div[@class='o_row']" position="after">
-                <div class="o_row mt8" name="rms_hide_price_detail_row">
-                    <field name="rms_hide_price_detail" widget="boolean_toggle"/>
-                    <label for="rms_hide_price_detail" string="Ocultar descuentos en el PDF del presupuesto"/>
-                </div>
-            </xpath>
+            <field name="currency_id" position="before">
+                <field name="rms_hide_price_detail"/>
+            </field>
         </field>
     </record>
 </odoo>
