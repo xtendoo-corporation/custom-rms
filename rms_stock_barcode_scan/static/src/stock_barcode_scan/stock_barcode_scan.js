@@ -4,7 +4,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadJS } from "@web/core/assets";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
-import { Component, onWillUnmount, useRef, useState } from "@odoo/owl";
+import { Component, onWillUnmount, useEffect, useRef, useState } from "@odoo/owl";
 
 const ZXING_URL = "/rms_stock_barcode_scan/static/lib/zxing/zxing.min.js";
 // Cada código detectado dos veces seguidas en menos de este tiempo se
@@ -32,7 +32,6 @@ export class StockBarcodeScan extends Component {
             location: null,
             scans: [], // [{id, code, time}]
             cameraError: null,
-            starting: false,
             confirming: false,
             result: null,
         });
@@ -47,6 +46,23 @@ export class StockBarcodeScan extends Component {
         this._nextScanId = 1;
 
         this._loadInitial();
+
+        // El <video t-ref="video"> solo existe en el DOM mientras
+        // state.step === "camera": no se puede llamar a _startCamera()
+        // justo después de asignar state.step = "camera", porque OWL
+        // todavía no ha vuelto a pintar el DOM en ese momento (videoRef.el
+        // seguiría siendo null). useEffect() se ejecuta DESPUÉS de que el
+        // DOM se ha actualizado, así que es el sitio correcto para
+        // arrancar/parar la cámara cada vez que cambia el paso.
+        useEffect(
+            () => {
+                if (this.state.step === "camera") {
+                    this._startCamera();
+                    return () => this.stopCamera();
+                }
+            },
+            () => [this.state.step]
+        );
 
         onWillUnmount(() => this.stopCamera());
     }
@@ -101,24 +117,18 @@ export class StockBarcodeScan extends Component {
     }
 
     get canStartScan() {
-        return !!(this.state.product && this.state.location) && !this.state.starting;
+        return !!(this.state.product && this.state.location);
     }
 
-    async startScan() {
+    startScan() {
         if (!this.canStartScan) {
             return;
         }
         this.state.cameraError = null;
-        this.state.starting = true;
         this._scannedCodes.clear();
         this._lastScanAt = {};
         this.state.scans = [];
         this.state.step = "camera";
-        try {
-            await this._startCamera();
-        } finally {
-            this.state.starting = false;
-        }
     }
 
     // ------------------------------------------------------------------
@@ -258,14 +268,12 @@ export class StockBarcodeScan extends Component {
     }
 
     finishScanning() {
-        this.stopCamera();
         this.state.step = "review";
     }
 
     backToCamera() {
-        this.state.step = "camera";
         this.state.cameraError = null;
-        this._startCamera();
+        this.state.step = "camera";
     }
 
     // ------------------------------------------------------------------
