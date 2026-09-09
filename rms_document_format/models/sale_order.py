@@ -1,8 +1,8 @@
 from odoo import fields, models
 
 
-class ProductPricelist(models.Model):
-    _inherit = 'product.pricelist'
+class SaleOrder(models.Model):
+    _inherit = 'sale.order'
 
     rms_hide_price_detail = fields.Boolean(
         string="Ocultar descuentos en presupuesto",
