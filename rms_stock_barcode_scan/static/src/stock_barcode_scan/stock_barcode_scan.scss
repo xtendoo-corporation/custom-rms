@@ -1,0 +1,18 @@
+.o_rms_barcode_scan {
+    background-color: var(--o-view-background-color, #fff);
+
+    .o_rms_bs_video_wrap {
+        position: relative;
+        width: 100%;
+        max-width: 480px;
+        margin: 0 auto;
+        background-color: #000;
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+
+    .o_rms_bs_video {
+        width: 100%;
+        display: block;
+    }
+}
