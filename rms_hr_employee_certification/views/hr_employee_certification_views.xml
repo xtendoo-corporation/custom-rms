@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hr_employee_certification_list" model="ir.ui.view">
+        <field name="name">hr.employee.certification.list</field>
+        <field name="model">hr.employee.certification</field>
+        <field name="arch" type="xml">
+            <list string="Certificaciones de Empleado" decoration-danger="state == 'expired'" decoration-warning="state == 'expiring'" decoration-success="state == 'valid'" decoration-muted="state == 'done'">
+                <field name="employee_id"/>
+                <field name="certification_type_id"/>
+                <field name="category"/>
+                <field name="date_obtained"/>
+                <field name="date_expiration"/>
+                <field name="state" widget="badge" decoration-danger="state == 'expired'" decoration-warning="state == 'expiring'" decoration-success="state == 'valid'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_hr_employee_certification_form" model="ir.ui.view">
+        <field name="name">hr.employee.certification.form</field>
+        <field name="model">hr.employee.certification</field>
+        <field name="arch" type="xml">
+            <form string="Certificación de Empleado">
+                <sheet>
+                    <widget name="web_ribbon" title="Caducada" bg_color="text-bg-danger" invisible="state != 'expired'"/>
+                    <widget name="web_ribbon" title="Próxima a Caducar" bg_color="text-bg-warning" invisible="state != 'expiring'"/>
+                    <div class="oe_title">
+                        <label for="certification_type_id"/>
+                        <h1><field name="certification_type_id" placeholder="Tipo de certificación"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="employee_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="category" invisible="1"/>
+                            <field name="is_recurring" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="date_obtained"/>
+                            <field name="date_expiration" invisible="not is_recurring"/>
+                            <field name="state" widget="badge" decoration-danger="state == 'expired'" decoration-warning="state == 'expiring'" decoration-success="state == 'valid'"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="document" filename="document_filename"/>
+                        <field name="document_filename" invisible="1"/>
+                    </group>
+                    <group>
+                        <field name="notes" placeholder="Observaciones..."/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_hr_employee_certification_search" model="ir.ui.view">
+        <field name="name">hr.employee.certification.search</field>
+        <field name="model">hr.employee.certification</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Certificaciones">
+                <field name="employee_id"/>
+                <field name="certification_type_id"/>
+                <filter string="Vigentes" name="filter_valid" domain="[('state', '=', 'valid')]"/>
+                <filter string="Próximas a Caducar" name="filter_expiring" domain="[('state', '=', 'expiring')]"/>
+                <filter string="Caducadas" name="filter_expired" domain="[('state', '=', 'expired')]"/>
+                <filter string="Registradas (Sin Caducidad)" name="filter_done" domain="[('state', '=', 'done')]"/>
+                <separator/>
+                <filter string="Requieren Renovación" name="filter_recurring" domain="[('is_recurring', '=', True)]"/>
+                <group expand="0" string="Agrupar Por">
+                    <filter string="Empleado" name="group_employee" context="{'group_by': 'employee_id'}"/>
+                    <filter string="Tipo de Certificación" name="group_type" context="{'group_by': 'certification_type_id'}"/>
+                    <filter string="Estado" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_hr_employee_certification" model="ir.actions.act_window">
+        <field name="name">Certificaciones de Empleados</field>
+        <field name="res_model">hr.employee.certification</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_employee': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Registra una certificación de empleado
+            </p>
+            <p>
+                Lleva el control de las formaciones (p.ej. PRL), certificaciones y
+                consentimientos (p.ej. WhatsApp) de cada empleado, con aviso automático
+                cuando toque renovarlas.
+            </p>
+        </field>
+    </record>
+</odoo>

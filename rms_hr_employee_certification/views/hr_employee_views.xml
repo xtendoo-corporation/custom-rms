@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_employee_form_certification" model="ir.ui.view">
+        <field name="name">hr.employee.form.certification</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="%(action_hr_employee_certification)d"
+                        type="action"
+                        class="oe_stat_button"
+                        icon="fa-certificate"
+                        context="{'default_employee_id': id, 'search_default_employee_id': id}">
+                    <field name="certification_count" widget="statinfo" string="Certificaciones"/>
+                    <field name="certification_alert_count" invisible="1"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+</odoo>

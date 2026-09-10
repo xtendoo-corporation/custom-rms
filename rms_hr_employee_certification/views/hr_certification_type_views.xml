@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hr_certification_type_list" model="ir.ui.view">
+        <field name="name">hr.certification.type.list</field>
+        <field name="model">hr.certification.type</field>
+        <field name="arch" type="xml">
+            <list string="Tipos de Certificación">
+                <field name="name"/>
+                <field name="category"/>
+                <field name="is_recurring" widget="boolean_toggle"/>
+                <field name="validity_months"/>
+                <field name="reminder_days"/>
+                <field name="requires_document"/>
+                <field name="responsible_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_hr_certification_type_form" model="ir.ui.view">
+        <field name="name">hr.certification.type.form</field>
+        <field name="model">hr.certification.type</field>
+        <field name="arch" type="xml">
+            <form string="Tipo de Certificación">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="Ej. PRL - Formación en Oficina"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="category"/>
+                            <field name="requires_document"/>
+                        </group>
+                        <group>
+                            <field name="is_recurring"/>
+                            <field name="validity_months" invisible="not is_recurring"/>
+                            <field name="reminder_days" invisible="not is_recurring"/>
+                            <field name="responsible_id"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="description" placeholder="Descripción, normativa aplicable, observaciones..."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_hr_certification_type" model="ir.actions.act_window">
+        <field name="name">Tipos de Certificación</field>
+        <field name="res_model">hr.certification.type</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Crea un tipo de certificación
+            </p>
+            <p>
+                Define aquí los tipos de certificación, formación o consentimiento que se
+                deben controlar por empleado (formación de PRL, consentimientos, etc.),
+                indicando si requieren renovación periódica.
+            </p>
+        </field>
+    </record>
+</odoo>
