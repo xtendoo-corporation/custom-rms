@@ -4,18 +4,22 @@
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
                 <div class="page"
-                     style="width:100mm;height:50mm;padding:4mm;
-                            box-sizing:border-box;display:flex;
-                            flex-direction:column;justify-content:center;
-                            align-items:center;font-family:Arial, sans-serif;
-                            text-align:center;overflow:hidden;">
+                     style="width:100%;height:100%;box-sizing:border-box;
+                            display:flex;flex-direction:column;
+                            justify-content:center;align-items:center;
+                            font-family:Arial, sans-serif;text-align:center;
+                            overflow:hidden;">
                     <div style="font-size:13px;font-weight:bold;
                                 max-width:100%;overflow:hidden;
                                 white-space:nowrap;text-overflow:ellipsis;">
                         <t t-esc="o.product_id.display_name"/>
                     </div>
-                    <img t-att-src="'/report/barcode/Code128/%s' % (o.name)"
-                         style="width:88mm;height:20mm;margin:2mm 0;"/>
+                    <img t-if="o.rms_label_barcode_image"
+                         t-att-src="image_data_uri(o.rms_label_barcode_image)"
+                         style="width:90%;max-height:22mm;margin:2mm 0;"/>
+                    <div t-if="not o.rms_label_barcode_image" style="font-size:11px;color:#b00;">
+                        No se pudo generar el código de barras.
+                    </div>
                     <div style="font-size:15px;font-weight:bold;letter-spacing:1px;">
                         <t t-esc="o.name"/>
                     </div>
