@@ -66,7 +66,7 @@
                 <filter string="Registradas (Sin Caducidad)" name="filter_done" domain="[('state', '=', 'done')]"/>
                 <separator/>
                 <filter string="Requieren Renovación" name="filter_recurring" domain="[('is_recurring', '=', True)]"/>
-                <group expand="0" string="Agrupar Por">
+                <group>
                     <filter string="Empleado" name="group_employee" context="{'group_by': 'employee_id'}"/>
                     <filter string="Tipo de Certificación" name="group_type" context="{'group_by': 'certification_type_id'}"/>
                     <filter string="Estado" name="group_state" context="{'group_by': 'state'}"/>
