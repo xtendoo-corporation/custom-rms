@@ -13,6 +13,7 @@
         'security/security.xml',
         'security/ir.model.access.csv',
         'data/document_knowledge_category_data.xml',
+        'data/ir_actions_server_data.xml',
         'views/document_knowledge_category_views.xml',
         'views/ir_attachment_views.xml',
         'views/res_users_views.xml',

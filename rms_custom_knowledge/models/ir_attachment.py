@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from odoo import _, api, fields, models
 from odoo.osv import expression
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 class IrAttachment(models.Model):
     _inherit = 'ir.attachment'
@@ -158,6 +158,25 @@ class IrAttachment(models.Model):
             'type': 'ir.actions.act_url',
             'url': self.url.strip(),
             'target': 'new',
+        }
+
+    def action_download_knowledge_documents(self):
+        downloadable = self.filtered(lambda attachment: attachment.type == 'binary' and attachment.datas)
+        if not downloadable:
+            raise UserError(_('Los elementos seleccionados no tienen ningún archivo descargable.'))
+
+        if len(downloadable) == 1:
+            return {
+                'type': 'ir.actions.act_url',
+                'url': '/web/content/%s?download=true' % downloadable.id,
+                'target': 'self',
+            }
+
+        ids_param = ','.join(str(attachment_id) for attachment_id in downloadable.ids)
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/rms_custom_knowledge/download?ids=%s' % ids_param,
+            'target': 'self',
         }
 
     def action_open_knowledge_preview(self):
