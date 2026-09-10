@@ -83,13 +83,36 @@
                 </div>
                 <div class="o_rms_bs_camera flex-grow-1 overflow-auto p-3">
                     <div t-if="state.cameraError" class="alert alert-danger" t-esc="state.cameraError"/>
-                    <div class="o_rms_bs_video_wrap mb-1">
-                        <video t-ref="video" class="o_rms_bs_video" autoplay="autoplay" playsinline="playsinline" muted="muted"/>
+                    <div class="o_rms_bs_video_wrap mb-1" t-ref="videoWrap">
+                        <video t-ref="video" class="o_rms_bs_video" autoplay="autoplay" playsinline="playsinline" muted="muted"
+                               t-att-style="!state.zoomCapabilities ? ('transform: scale(' + state.zoom + '); transform-origin: center;') : ''"/>
+                        <div class="o_rms_bs_scan_rect"
+                             t-attf-style="left:{{state.scanRect.x * 100}}%; top:{{state.scanRect.y * 100}}%; width:{{state.scanRect.w * 100}}%; height:{{state.scanRect.h * 100}}%;"
+                             t-on-pointerdown="onRectMovePointerDown"
+                             t-on-pointermove="onRectPointerMove"
+                             t-on-pointerup="onRectPointerUp"
+                             t-on-pointercancel="onRectPointerUp">
+                            <div class="o_rms_bs_scan_rect_handle"
+                                 t-on-pointerdown.stop="onRectResizePointerDown"
+                                 t-on-pointermove.stop="onRectPointerMove"
+                                 t-on-pointerup.stop="onRectPointerUp"
+                                 t-on-pointercancel.stop="onRectPointerUp"/>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="small text-muted">Zoom</span>
+                        <input type="range" class="form-range flex-grow-1"
+                               t-att-min="zoomMin" t-att-max="zoomMax" t-att-step="zoomStep"
+                               t-att-value="state.zoom"
+                               t-on-input="onZoomInput"/>
                     </div>
                     <div class="text-muted small mb-3">
-                        Si no ves imagen: revisa el permiso de cámara para este sitio
-                        (icono de candado/"aA" en la barra de direcciones) y que la
-                        página se ha abierto con https://.
+                        Mueve y redimensiona el recuadro blanco para encajar el código de
+                        barras que quieres leer (útil si la etiqueta tiene varios códigos
+                        juntos); solo se lee lo que quede dentro de él. Si no ves imagen:
+                        revisa el permiso de cámara para este sitio (icono de candado/"aA"
+                        en la barra de direcciones) y que la página se ha abierto con
+                        https://.
                     </div>
                     <div class="d-flex align-items-center justify-content-between mb-2">
                         <span class="fw-bold">Escaneados: <span t-esc="state.scans.length"/></span>

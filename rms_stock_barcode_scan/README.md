@@ -11,10 +11,14 @@ necesidad de un lector de código de barras físico.
    código de barras) y confirmas la ubicación de almacén que estás
    contando (por defecto, la ubicación de stock del almacén de tu
    compañía).
-3. **Cámara**: se activa la cámara del dispositivo. Cada código de barras
-   nuevo detectado se añade a una lista en pantalla (con vibración/pitido
-   de confirmación); se puede borrar una lectura equivocada antes de
-   terminar.
+3. **Cámara**: se activa la cámara del dispositivo. Sobre la imagen hay un
+   recuadro blanco que se puede mover y redimensionar (arrastrando su
+   asa); solo se decodifica lo que quede dentro de ese recuadro, lo que
+   evita leer por error otro código de barras cercano en la misma
+   etiqueta o caja. También hay un control de zoom. Cada código de barras
+   nuevo detectado dentro del recuadro se añade a una lista en pantalla
+   (con vibración/pitido de confirmación); se puede borrar una lectura
+   equivocada antes de terminar.
 4. **Confirmar**: al pulsar "Confirmar y añadir al Inventario físico", por
    cada número de serie de la lista:
    - se busca o crea el número de serie (`stock.lot`) de ese producto;
@@ -55,6 +59,12 @@ necesidad de un lector de código de barras físico.
   cámara al navegador.
 - Formatos reconocidos: EAN-13, EAN-8, UPC-A, UPC-E, Code128, Code39, ITF,
   QR.
+- **Zoom**: si el dispositivo/navegador expone zoom óptico/digital nativo
+  de la cámara (Android/Chrome, según el móvil), el slider lo controla
+  directamente. Si no (iOS Safari no permite controlar el zoom de la
+  cámara desde el navegador), se aplica un zoom digital por CSS sobre la
+  imagen mostrada — ayuda a ver mejor el código, pero no mejora la
+  resolución real capturada.
 
 ## Instalación
 
