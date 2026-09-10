@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_lot_label_10x5" model="ir.actions.report">
+        <field name="name">Etiqueta código de barras (10x5cm)</field>
+        <field name="model">stock.lot</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">rms_stock_lot_label_print.report_lot_label_10x5_document</field>
+        <field name="report_file">rms_stock_lot_label_print.report_lot_label_10x5_document</field>
+        <field name="print_report_name">'Etiqueta - %s' % (object.name)</field>
+        <field name="binding_model_id" ref="stock.model_stock_lot"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="label_paperformat_10x5"/>
+    </record>
+</odoo>
