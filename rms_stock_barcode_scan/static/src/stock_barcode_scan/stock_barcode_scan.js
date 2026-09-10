@@ -329,8 +329,21 @@ export class StockBarcodeScan extends Component {
         this._searchProducts();
     }
 
-    closeAction() {
-        this.action.doAction({ type: "ir.actions.act_window_close" });
+    async closeAction() {
+        // "ir.actions.act_window_close" solo cierra un diálogo modal; esta
+        // pantalla se abre como una acción normal (no un modal), así que no
+        // hacía nada. Se navega explícitamente a la acción estándar de
+        // Inventario físico.
+        try {
+            await this.action.doAction("stock.quantsact", { clear_breadcrumbs: true });
+        } catch (error) {
+            console.error(error);
+            this.notification.add(
+                "No se pudo volver a Inventario físico automáticamente. " +
+                "Ve a Inventario > Informes > Inventario físico.",
+                { type: "warning" }
+            );
+        }
     }
 }
 

@@ -144,6 +144,29 @@ class RmsStockBarcodeScan(models.AbstractModel):
                                 "company_id": location.company_id.id,
                             }
                         )
+
+                    if product.tracking == "serial":
+                        # Un número de serie es una única unidad física: si ya
+                        # tiene alguna cantidad contada (en esta ubicación o en
+                        # otra), volver a escanearlo por error no puede sumar
+                        # una segunda unidad. Se corta aquí, no se deja para
+                        # que falle luego al pulsar "Aplicar todo".
+                        existing_qty = sum(
+                            Quant.search(
+                                [
+                                    ("product_id", "=", product.id),
+                                    ("lot_id", "=", lot.id),
+                                ]
+                            ).mapped("inventory_quantity")
+                        )
+                        if existing_qty >= 1:
+                            raise UserError(
+                                "El número de serie %s ya está contado (cantidad "
+                                "%g) para este producto: es un número de serie "
+                                "único y no se puede volver a añadir."
+                                % (serial, existing_qty)
+                            )
+
                     quant = Quant.search(
                         [
                             ("product_id", "=", product.id),
