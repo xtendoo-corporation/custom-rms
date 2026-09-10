@@ -16,11 +16,15 @@
         - Aviso automático (actividad) al responsable cuando una certificación está próxima a
           caducar o ha caducado.
         - Acceso directo desde la ficha del empleado mediante un botón inteligente.
+        - Grupo de seguridad "Gestor de Certificaciones de Empleado": solo sus miembros (más
+          los Administradores) pueden añadir, modificar o eliminar certificaciones; el resto
+          de usuarios puede consultarlas (RRHH ve todas, cada empleado ve solo las suyas).
     """,
     'author': 'Xtendoo',
     'website': 'https://xtendoo.es',
     'depends': ['hr', 'mail'],
     'data': [
+        'security/hr_certification_groups.xml',
         'security/ir.model.access.csv',
         'security/hr_employee_certification_security.xml',
         'data/hr_certification_type_data.xml',
