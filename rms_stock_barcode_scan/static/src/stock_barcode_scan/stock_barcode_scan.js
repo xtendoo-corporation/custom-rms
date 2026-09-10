@@ -11,6 +11,14 @@ const ZXING_URL = "/rms_stock_barcode_scan/static/lib/zxing/zxing.min.js";
 // ignora (evita que un mismo fotograma se cuente varias veces).
 const RESCAN_COOLDOWN_MS = 1500;
 const DETECT_INTERVAL_MS = 300;
+// Zoom digital (CSS) de reserva cuando el track de cámara no soporta zoom
+// nativo (p. ej. iOS Safari, o Android sin esa capability).
+const CSS_ZOOM_MIN = 1;
+const CSS_ZOOM_MAX = 3;
+const CSS_ZOOM_STEP = 0.1;
+// Tamaño mínimo (fracción del vídeo, 0-1) al que se puede reducir el
+// recuadro de escaneo con el asa de redimensionar.
+const MIN_SCAN_RECT_SIZE = 0.12;
 
 export class StockBarcodeScan extends Component {
     static template = "rms_stock_barcode_scan.StockBarcodeScan";
@@ -21,6 +29,7 @@ export class StockBarcodeScan extends Component {
         this.notification = useService("notification");
         this.action = useService("action");
         this.videoRef = useRef("video");
+        this.videoWrapRef = useRef("videoWrap");
 
         this.state = useState({
             step: "catalog", // catalog | camera | review | done
@@ -34,6 +43,13 @@ export class StockBarcodeScan extends Component {
             cameraError: null,
             confirming: false,
             result: null,
+            // Recuadro de escaneo: fracciones (0-1) del tamaño del vídeo.
+            // Solo se aceptan códigos detectados dentro de este recuadro.
+            scanRect: { x: 0.1, y: 0.32, w: 0.8, h: 0.36 },
+            zoom: 1,
+            // {min, max, step} si el track de cámara soporta zoom nativo;
+            // null si hay que recurrir al zoom digital (CSS) de reserva.
+            zoomCapabilities: null,
         });
 
         this._scannedCodes = new Set();
@@ -43,6 +59,9 @@ export class StockBarcodeScan extends Component {
         this._stream = null;
         this._detectTimer = null;
         this._zxingReader = null;
+        this._zxingCanvas = null;
+        this._track = null;
+        this._dragState = null;
         this._nextScanId = 1;
 
         this._loadInitial();
@@ -141,13 +160,23 @@ export class StockBarcodeScan extends Component {
             return;
         }
         try {
+            // La cámara se pide siempre nosotros mismos con getUserMedia
+            // (facingMode explícito, nunca enumerateDevices()+deviceId: en
+            // iOS Safari, antes de conceder el permiso, enumerateDevices()
+            // devuelve dispositivos sin etiquetar y a veces elige una
+            // cámara que no llega a renderizar nada, pantalla en negro).
+            // Así el mismo track sirve tanto para la detección nativa como
+            // para ZXing, y podemos aplicarle zoom nativo si lo soporta.
+            this._stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: "environment" } },
+                audio: false,
+            });
+            video.srcObject = this._stream;
+            await video.play();
+            this._track = this._stream.getVideoTracks()[0];
+            this._setupZoom();
+
             if (window.BarcodeDetector) {
-                this._stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" },
-                    audio: false,
-                });
-                video.srcObject = this._stream;
-                await video.play();
                 const detector = new window.BarcodeDetector({
                     formats: [
                         "ean_13", "ean_8", "upc_a", "upc_e",
@@ -158,7 +187,9 @@ export class StockBarcodeScan extends Component {
                     try {
                         const barcodes = await detector.detect(video);
                         for (const barcode of barcodes) {
-                            this._onCodeDetected(barcode.rawValue);
+                            if (this._isInScanRect(barcode.boundingBox, video)) {
+                                this._onCodeDetected(barcode.rawValue);
+                            }
                         }
                     } catch {
                         // fotograma no decodificable: se ignora, se sigue intentando
@@ -166,39 +197,187 @@ export class StockBarcodeScan extends Component {
                 }, DETECT_INTERVAL_MS);
             } else {
                 // Safari/iOS y navegadores sin Barcode Detection API nativa:
-                // se usa ZXing (librería incluida en el propio módulo) que
-                // gestiona ella misma la cámara. Se usa decodeFromConstraints
-                // con facingMode explícito (en vez de decodeFromVideoDevice
-                // con un deviceId) porque en iOS Safari, antes de conceder
-                // el permiso, enumerateDevices() devuelve dispositivos sin
-                // etiquetar y a veces elige una cámara que no llega a
-                // renderizar nada (pantalla en negro). No se espera (await)
-                // a que la promesa termine: en modo escaneo continuo no se
-                // resuelve hasta llamar a reset(), así que awaitarla dejaría
-                // "starting" bloqueado para siempre; los fallos de permiso
-                // se capturan igualmente con el .catch().
+                // se decodifica a mano con ZXing (librería incluida en el
+                // propio módulo, sin llamadas a internet) solo el recorte
+                // de vídeo dentro del recuadro de escaneo.
                 await loadJS(ZXING_URL);
                 const codeReader = new window.ZXing.BrowserMultiFormatReader();
                 this._zxingReader = codeReader;
-                const constraints = { video: { facingMode: { ideal: "environment" } }, audio: false };
-                codeReader
-                    .decodeFromConstraints(constraints, video, (result) => {
-                        if (result) {
-                            this._onCodeDetected(result.getText());
-                        }
-                    })
-                    .catch((error) => {
-                        console.error(error);
-                        this.state.cameraError =
-                            "No se pudo acceder a la cámara. Revisa que hayas dado permiso de " +
-                            "cámara al navegador y que estés en una conexión https.";
-                    });
+                this._zxingCanvas = document.createElement("canvas");
+                this._detectTimer = setInterval(
+                    () => this._decodeZxingFrame(video, codeReader),
+                    DETECT_INTERVAL_MS
+                );
             }
         } catch (error) {
             console.error(error);
             this.state.cameraError =
                 "No se pudo acceder a la cámara. Revisa que hayas dado permiso de " +
                 "cámara al navegador y que estés en una conexión https.";
+        }
+    }
+
+    // Zoom nativo del track de cámara si lo soporta (Android/Chrome
+    // habitualmente); si no, se recurre a un zoom digital por CSS
+    // (transform: scale en el <video>, ver la plantilla).
+    _setupZoom() {
+        const track = this._track;
+        const caps = track && track.getCapabilities ? track.getCapabilities() : null;
+        if (caps && caps.zoom && caps.zoom.max > caps.zoom.min) {
+            this.state.zoomCapabilities = {
+                min: caps.zoom.min,
+                max: caps.zoom.max,
+                step: caps.zoom.step || 0.1,
+            };
+            const settings = track.getSettings ? track.getSettings() : {};
+            this.state.zoom = settings.zoom || caps.zoom.min;
+        } else {
+            this.state.zoomCapabilities = null;
+            this.state.zoom = 1;
+        }
+    }
+
+    onZoomInput(ev) {
+        const value = parseFloat(ev.target.value);
+        this.state.zoom = value;
+        if (this.state.zoomCapabilities && this._track && this._track.applyConstraints) {
+            this._track.applyConstraints({ advanced: [{ zoom: value }] }).catch((error) => {
+                console.error(error);
+            });
+        }
+        // Sin soporte nativo: el zoom CSS se aplica solo, vía t-att-style
+        // en la plantilla (transform: scale ligado a state.zoom).
+    }
+
+    get zoomMin() {
+        return this.state.zoomCapabilities ? this.state.zoomCapabilities.min : CSS_ZOOM_MIN;
+    }
+
+    get zoomMax() {
+        return this.state.zoomCapabilities ? this.state.zoomCapabilities.max : CSS_ZOOM_MAX;
+    }
+
+    get zoomStep() {
+        return this.state.zoomCapabilities ? this.state.zoomCapabilities.step : CSS_ZOOM_STEP;
+    }
+
+    // ------------------------------------------------------------------
+    // Recuadro de escaneo: arrastrar para mover, asa para redimensionar.
+    // Se guarda como fracciones (0-1) del tamaño del vídeo, así que no
+    // depende de la resolución real de la cámara ni de cómo se muestre.
+    // ------------------------------------------------------------------
+
+    onRectMovePointerDown(ev) {
+        this._beginRectDrag(ev, "move");
+    }
+
+    onRectResizePointerDown(ev) {
+        this._beginRectDrag(ev, "resize");
+    }
+
+    _beginRectDrag(ev, mode) {
+        const wrap = this.videoWrapRef.el;
+        if (!wrap) {
+            return;
+        }
+        ev.preventDefault();
+        const containerRect = wrap.getBoundingClientRect();
+        if (!containerRect.width || !containerRect.height) {
+            return;
+        }
+        this._dragState = {
+            mode,
+            pointerId: ev.pointerId,
+            startClientX: ev.clientX,
+            startClientY: ev.clientY,
+            containerWidth: containerRect.width,
+            containerHeight: containerRect.height,
+            startRect: { ...this.state.scanRect },
+        };
+        ev.currentTarget.setPointerCapture(ev.pointerId);
+    }
+
+    onRectPointerMove(ev) {
+        const drag = this._dragState;
+        if (!drag || drag.pointerId !== ev.pointerId) {
+            return;
+        }
+        const dxFrac = (ev.clientX - drag.startClientX) / drag.containerWidth;
+        const dyFrac = (ev.clientY - drag.startClientY) / drag.containerHeight;
+        const rect = { ...drag.startRect };
+        if (drag.mode === "move") {
+            rect.x = Math.min(Math.max(drag.startRect.x + dxFrac, 0), 1 - rect.w);
+            rect.y = Math.min(Math.max(drag.startRect.y + dyFrac, 0), 1 - rect.h);
+        } else {
+            rect.w = Math.min(
+                Math.max(drag.startRect.w + dxFrac, MIN_SCAN_RECT_SIZE),
+                1 - rect.x
+            );
+            rect.h = Math.min(
+                Math.max(drag.startRect.h + dyFrac, MIN_SCAN_RECT_SIZE),
+                1 - rect.y
+            );
+        }
+        this.state.scanRect = rect;
+    }
+
+    onRectPointerUp(ev) {
+        if (this._dragState && this._dragState.pointerId === ev.pointerId) {
+            this._dragState = null;
+        }
+    }
+
+    // ¿Cae el código detectado (BarcodeDetector) dentro del recuadro?
+    // boundingBox viene en píxeles nativos del vídeo (video.videoWidth/
+    // videoHeight), no en píxeles de pantalla.
+    _isInScanRect(boundingBox, video) {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        if (!vw || !vh) {
+            return true;
+        }
+        const rect = this.state.scanRect;
+        const rectPx = { x: rect.x * vw, y: rect.y * vh, w: rect.w * vw, h: rect.h * vh };
+        const cx = boundingBox.x + boundingBox.width / 2;
+        const cy = boundingBox.y + boundingBox.height / 2;
+        return (
+            cx >= rectPx.x && cx <= rectPx.x + rectPx.w &&
+            cy >= rectPx.y && cy <= rectPx.y + rectPx.h
+        );
+    }
+
+    // Fallback ZXing: recorta el fotograma actual al recuadro de escaneo
+    // y decodifica solo ese recorte (HTMLCanvasElementLuminanceSource +
+    // BinaryBitmap son parte de la librería vendorizada, ver
+    // static/lib/zxing/zxing.min.js).
+    _decodeZxingFrame(video, codeReader) {
+        if (!video.videoWidth || !video.videoHeight) {
+            return;
+        }
+        const rect = this.state.scanRect;
+        const sx = Math.round(rect.x * video.videoWidth);
+        const sy = Math.round(rect.y * video.videoHeight);
+        const sw = Math.round(rect.w * video.videoWidth);
+        const sh = Math.round(rect.h * video.videoHeight);
+        if (sw <= 0 || sh <= 0) {
+            return;
+        }
+        const canvas = this._zxingCanvas;
+        canvas.width = sw;
+        canvas.height = sh;
+        canvas.getContext("2d").drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+        try {
+            const luminanceSource = new window.ZXing.HTMLCanvasElementLuminanceSource(canvas);
+            const binaryBitmap = new window.ZXing.BinaryBitmap(
+                new window.ZXing.HybridBinarizer(luminanceSource)
+            );
+            const result = codeReader.decodeBitmap(binaryBitmap);
+            if (result) {
+                this._onCodeDetected(result.getText());
+            }
+        } catch {
+            // No se ha encontrado ningún código en este recorte: se sigue
+            // intentando en el siguiente fotograma.
         }
     }
 
@@ -257,6 +436,9 @@ export class StockBarcodeScan extends Component {
             this._zxingReader.reset();
             this._zxingReader = null;
         }
+        this._zxingCanvas = null;
+        this._track = null;
+        this._dragState = null;
         if (this._stream) {
             this._stream.getTracks().forEach((track) => track.stop());
             this._stream = null;

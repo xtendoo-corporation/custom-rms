@@ -15,4 +15,32 @@
         width: 100%;
         display: block;
     }
+
+    // Recuadro de escaneo: arrastrable (mover) y con un asa para
+    // redimensionar (esquina inferior derecha). Las posiciones se fijan
+    // en % desde el JS (fracciones 0-1 del vídeo), así que aquí solo hace
+    // falta el aspecto visual y el touch-action para que el arrastre
+    // funcione en móvil sin que el navegador lo confunda con un scroll.
+    .o_rms_bs_scan_rect {
+        position: absolute;
+        box-sizing: border-box;
+        border: 2px solid rgba(255, 255, 255, 0.85);
+        border-radius: 0.25rem;
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+        touch-action: none;
+        cursor: move;
+    }
+
+    .o_rms_bs_scan_rect_handle {
+        position: absolute;
+        right: -12px;
+        bottom: -12px;
+        width: 26px;
+        height: 26px;
+        background-color: #fff;
+        border: 2px solid var(--bs-primary, #6f42c1);
+        border-radius: 50%;
+        touch-action: none;
+        cursor: nwse-resize;
+    }
 }
