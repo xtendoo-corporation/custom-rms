@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_hr_certification_root"
+              name="Certificaciones"
+              parent="hr.menu_hr_root"
+              sequence="60"/>
+
+    <menuitem id="menu_hr_employee_certification"
+              name="Certificaciones de Empleados"
+              parent="menu_hr_certification_root"
+              action="action_hr_employee_certification"
+              sequence="10"/>
+
+    <menuitem id="menu_hr_certification_type"
+              name="Tipos de Certificación"
+              parent="menu_hr_certification_root"
+              action="action_hr_certification_type"
+              sequence="20"
+              groups="hr.group_hr_user"/>
+</odoo>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="certification_type_prl_office" model="hr.certification.type">
+            <field name="name">PRL - Formación en Oficina</field>
+            <field name="code">prl_office</field>
+            <field name="category">training</field>
+            <field name="is_recurring" eval="True"/>
+            <field name="validity_months">12</field>
+            <field name="reminder_days">30</field>
+            <field name="requires_document" eval="True"/>
+            <field name="description">Formación anual de Prevención de Riesgos Laborales para puestos de oficina.</field>
+        </record>
+
+        <record id="certification_type_whatsapp_consent" model="hr.certification.type">
+            <field name="name">Consentimiento de WhatsApp</field>
+            <field name="code">whatsapp_consent</field>
+            <field name="category">consent</field>
+            <field name="is_recurring" eval="False"/>
+            <field name="validity_months">0</field>
+            <field name="requires_document" eval="True"/>
+            <field name="description">Firma de consentimiento del empleado para el uso de WhatsApp como canal de comunicación laboral. Reconocimiento único, no caduca.</field>
+        </record>
+
+        <record id="certification_type_rgpd_consent" model="hr.certification.type">
+            <field name="name">Consentimiento de Protección de Datos (RGPD)</field>
+            <field name="code">rgpd_consent</field>
+            <field name="category">consent</field>
+            <field name="is_recurring" eval="False"/>
+            <field name="validity_months">0</field>
+            <field name="requires_document" eval="True"/>
+            <field name="description">Firma de consentimiento informado sobre el tratamiento de datos personales. Reconocimiento único, no caduca.</field>
+        </record>
+    </data>
+</odoo>
