@@ -60,7 +60,6 @@ class DocumentKnowledgeAccess(models.Model):
     def init(self):
         super().init()
         self.env.cr.execute("""
-            DELETE FROM document_knowledge_access;
             ALTER TABLE document_knowledge_access DROP CONSTRAINT IF EXISTS document_knowledge_access_category_user_unique;
             ALTER TABLE document_knowledge_access DROP CONSTRAINT IF EXISTS document_knowledge_access_category_id_user_id_key;
         """)
