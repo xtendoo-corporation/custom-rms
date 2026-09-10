@@ -300,8 +300,9 @@ export class StockBarcodeScan extends Component {
             if (result.errors.length) {
                 this.notification.add(
                     `${result.applied} de ${result.total} números de serie añadidos. ` +
-                    `${result.errors.length} con error.`,
-                    { type: "warning" }
+                    `${result.errors.length} con error: ` +
+                    result.errors.map((err) => `${err.serial} (${err.message})`).join("; "),
+                    { type: "danger" }
                 );
             } else {
                 this.notification.add(

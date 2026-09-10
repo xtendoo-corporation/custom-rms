@@ -151,13 +151,13 @@
                     <h4 class="m-0">Listo</h4>
                 </div>
                 <div class="o_rms_bs_body flex-grow-1 overflow-auto p-3">
-                    <div class="alert alert-success">
+                    <div t-attf-class="alert {{ state.result.applied ? 'alert-success' : 'alert-danger' }}">
                         <t t-esc="state.result.applied"/> de <t t-esc="state.result.total"/>
                         números de serie añadidos al Inventario físico de
                         <t t-esc="state.product.name"/>.
                     </div>
-                    <div t-if="state.result.errors.length" class="alert alert-warning">
-                        <div class="fw-bold mb-1">No se pudieron añadir:</div>
+                    <div t-if="state.result.errors.length" class="alert alert-danger">
+                        <div class="fw-bold mb-1">No se pudieron añadir (número de serie ya existente):</div>
                         <ul class="mb-0">
                             <li t-foreach="state.result.errors" t-as="err" t-key="err.serial">
                                 <t t-esc="err.serial"/>: <t t-esc="err.message"/>
