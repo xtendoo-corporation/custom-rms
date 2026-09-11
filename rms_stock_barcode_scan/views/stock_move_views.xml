@@ -12,4 +12,18 @@
             </xpath>
         </field>
     </record>
+
+    <record id="view_move_kanban_inherit_rms_stock_barcode_scan" model="ir.ui.view">
+        <field name="name">stock.move.kanban.inherit.rms.stock.barcode.scan</field>
+        <field name="model">stock.move</field>
+        <field name="inherit_id" ref="stock.view_move_kandan"/>
+        <field name="arch" type="xml">
+            <xpath expr="//a[@name='action_show_details']" position="after">
+                <a name="action_scan_serials"
+                   title="Escanear números de serie"
+                   class="o_icon_button fa fa-camera" type="object"
+                   invisible="not show_details_visible or has_tracking == 'none' or state in ('done', 'cancel')"/>
+            </xpath>
+        </field>
+    </record>
 </odoo>

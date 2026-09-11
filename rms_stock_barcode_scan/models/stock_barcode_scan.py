@@ -119,12 +119,16 @@ class RmsStockBarcodeScan(models.AbstractModel):
 
     @api.model
     def confirm_scan_move(self, move_id, serials):
-        """Como confirm_scan, pero crea directamente líneas de número de
-        serie (stock.move.line) en este movimiento, en vez de tocar
-        Inventario físico. Cada número de serie escaneado se añade con
-        `lot_name` (igual que si se tecleara a mano en "Operaciones
-        detalladas"): es el propio stock.move.line quien busca o crea el
-        stock.lot correspondiente al guardar.
+        """Como confirm_scan, pero opera directamente sobre las líneas
+        (stock.move.line) de este movimiento en vez de tocar Inventario
+        físico. Cada número de serie escaneado rellena primero los
+        "huecos" ya reservados por la cantidad pedida (líneas sin
+        lote/serie asignado todavía, como las que Odoo crea al abrir
+        "Operaciones detalladas" para la demanda); solo si no quedan
+        huecos libres se crea una línea nueva (recibir más unidades de
+        las pedidas). Rellenar un hueco es lo mismo que teclear el
+        número de serie a mano ahí: el propio stock.move.line busca o
+        crea el stock.lot correspondiente al guardar.
         """
         move = self.env["stock.move"].browse(move_id).exists()
         if not move:
@@ -150,7 +154,11 @@ class RmsStockBarcodeScan(models.AbstractModel):
         existing_names = {
             (line.lot_name or (line.lot_id.name if line.lot_id else ""))
             for line in move.move_line_ids
+            if line.lot_name or line.lot_id
         }
+        empty_lines = iter(
+            move.move_line_ids.filtered(lambda l: not l.lot_name and not l.lot_id).sorted("id")
+        )
         Lot = self.env["stock.lot"] if "stock.lot" in self.env else self.env["stock.production.lot"]
         MoveLine = self.env["stock.move.line"]
 
@@ -188,20 +196,25 @@ class RmsStockBarcodeScan(models.AbstractModel):
                                     "volver a recibir." % (serial, existing_qty)
                                 )
 
-                    vals = {
-                        "move_id": move.id,
-                        "picking_id": move.picking_id.id,
-                        "product_id": product.id,
-                        "product_uom_id": move.product_uom.id,
-                        "location_id": move.location_id.id,
-                        "location_dest_id": move.location_dest_id.id,
-                        "company_id": move.company_id.id,
-                        "lot_name": serial,
-                        "quantity": 1,
-                    }
+                    vals = {"lot_name": serial}
                     if state_id:
                         vals["product_state_id"] = state_id
-                    MoveLine.create(vals)
+
+                    target_line = next(empty_lines, None)
+                    if target_line:
+                        target_line.write(vals)
+                    else:
+                        vals.update({
+                            "move_id": move.id,
+                            "picking_id": move.picking_id.id,
+                            "product_id": product.id,
+                            "product_uom_id": move.product_uom.id,
+                            "location_id": move.location_id.id,
+                            "location_dest_id": move.location_dest_id.id,
+                            "company_id": move.company_id.id,
+                            "quantity": 1,
+                        })
+                        MoveLine.create(vals)
                     existing_names.add(serial)
                 applied += 1
             except Exception as exc:  # noqa: BLE001 - se reporta al usuario, no se oculta
