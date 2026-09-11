@@ -46,7 +46,7 @@ Notas técnicas / supuestos:
     'author': 'Custom RMS',
     'website': 'https://xtendoo.es',
     'license': 'LGPL-3',
-    'depends': ['base', 'web', 'stock'],
+    'depends': ['base', 'web', 'stock', 'rms_product_state'],
     'data': [
         'security/ir.model.access.csv',
         'views/stock_barcode_scan_menus.xml',

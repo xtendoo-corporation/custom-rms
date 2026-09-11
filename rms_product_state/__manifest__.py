@@ -23,6 +23,8 @@ and automates the archiving of discontinued products with depleted stock.
         'views/product_template_views.xml',
         'views/stock_lot_views.xml',
         'views/sale_order_views.xml',
+        'views/stock_move_line_views.xml',
+        'views/stock_quant_views.xml',
     ],
     'installable': True,
     'application': False,

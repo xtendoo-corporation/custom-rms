@@ -151,8 +151,16 @@
                     </div>
                     <ul class="list-group">
                         <li t-foreach="state.scans" t-as="scan" t-key="scan.id"
-                            class="list-group-item d-flex justify-content-between align-items-center">
+                            class="list-group-item d-flex justify-content-between align-items-center gap-2">
                             <span t-esc="scan.code"/>
+                            <select class="form-select form-select-sm w-auto"
+                                    t-att-value="scan.productStateId"
+                                    t-on-change="(ev) => this.onScanStateChange(scan.id, ev)">
+                                <option t-foreach="state.productStates" t-as="ps" t-key="ps.id"
+                                        t-att-value="ps.id"
+                                        t-att-selected="ps.id === scan.productStateId"
+                                        t-esc="ps.name"/>
+                            </select>
                             <button class="btn btn-sm btn-outline-danger" t-on-click="() => this.removeScan(scan.id)">✕</button>
                         </li>
                     </ul>

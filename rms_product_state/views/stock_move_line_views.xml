@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_stock_move_line_detailed_operation_tree_inherit_rms_product_state" model="ir.ui.view">
+        <field name="name">stock.move.line.detailed.operation.tree.inherit.rms.product.state</field>
+        <field name="model">stock.move.line</field>
+        <field name="inherit_id" ref="stock.view_stock_move_line_detailed_operation_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='lot_name']" position="after">
+                <field name="product_state_id" options="{'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -30,7 +30,9 @@ class RmsStockBarcodeScan(models.AbstractModel):
     @api.model
     def get_scan_config(self):
         """Ubicación de almacén propuesta por defecto: la ubicación de
-        stock del primer almacén de la compañía activa."""
+        stock del primer almacén de la compañía activa. También devuelve
+        los estados de producto (Nuevo, 2ª Mano, Demo...) para que se
+        pueda elegir uno por cada número de serie escaneado."""
         company = self.env.company
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", company.id)], limit=1
@@ -40,9 +42,15 @@ class RmsStockBarcodeScan(models.AbstractModel):
             location = self.env["stock.location"].search(
                 [("usage", "=", "internal"), ("company_id", "=", company.id)], limit=1
             )
+        states = self.env["product.state"].search([], order="sequence, id")
+        default_state = states.filtered(lambda s: s.code == "new")[:1] or states[:1]
         return {
             "location_id": location.id or False,
             "location_name": location.display_name or "",
+            "product_states": [
+                {"id": s.id, "name": s.name} for s in states
+            ],
+            "default_product_state_id": default_state.id or False,
         }
 
     @api.model
@@ -87,11 +95,16 @@ class RmsStockBarcodeScan(models.AbstractModel):
     @api.model
     def confirm_scan(self, product_id, location_id, serials):
         """Por cada número de serie escaneado: busca o crea el stock.lot
-        del producto, y busca o crea la línea de stock.quant
-        (producto + lote + ubicación) incrementando en +1 su cantidad
-        "Contada" (inventory_quantity). No aplica el ajuste: la línea
-        queda pendiente en Inventario físico, igual que si se editara a
-        mano.
+        del producto (con el estado elegido para ese número de serie si
+        se ha creado en este momento), y busca o crea la línea de
+        stock.quant (producto + lote + ubicación) incrementando en +1 su
+        cantidad "Contada" (inventory_quantity). No aplica el ajuste: la
+        línea queda pendiente en Inventario físico, igual que si se
+        editara a mano.
+
+        `serials` es una lista de dicts {'serial': str, 'product_state_id':
+        int|False}: el estado solo se aplica al crear el lote por primera
+        vez, nunca se sobreescribe si el número de serie ya existía.
 
         Cada número de serie se procesa en su propio savepoint: si uno
         falla (p. ej. una restricción de unicidad), no se pierde el resto
@@ -111,11 +124,12 @@ class RmsStockBarcodeScan(models.AbstractModel):
         # Serials únicos y no vacíos, preservando el orden de escaneo.
         seen = set()
         clean_serials = []
-        for serial in serials or []:
-            serial = (serial or "").strip()
+        for item in serials or []:
+            serial = (item.get("serial") or "").strip() if isinstance(item, dict) else (item or "").strip()
             if serial and serial not in seen:
                 seen.add(serial)
-                clean_serials.append(serial)
+                state_id = item.get("product_state_id") if isinstance(item, dict) else False
+                clean_serials.append((serial, state_id or False))
 
         if not clean_serials:
             raise UserError("No hay ningún número de serie escaneado que confirmar.")
@@ -125,7 +139,7 @@ class RmsStockBarcodeScan(models.AbstractModel):
 
         applied = 0
         errors = []
-        for serial in clean_serials:
+        for serial, state_id in clean_serials:
             try:
                 with self.env.cr.savepoint():
                     lot = Lot.search(
@@ -137,13 +151,14 @@ class RmsStockBarcodeScan(models.AbstractModel):
                         limit=1,
                     )
                     if not lot:
-                        lot = Lot.create(
-                            {
-                                "product_id": product.id,
-                                "name": serial,
-                                "company_id": location.company_id.id,
-                            }
-                        )
+                        lot_vals = {
+                            "product_id": product.id,
+                            "name": serial,
+                            "company_id": location.company_id.id,
+                        }
+                        if state_id:
+                            lot_vals["product_state_id"] = state_id
+                        lot = Lot.create(lot_vals)
 
                     if product.tracking == "serial":
                         # Un número de serie es una única unidad física: si ya

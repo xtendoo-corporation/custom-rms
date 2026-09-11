@@ -39,7 +39,9 @@ export class StockBarcodeScan extends Component {
             locationQuery: "",
             locations: [],
             location: null,
-            scans: [], // [{id, code, time}]
+            scans: [], // [{id, code, productStateId}]
+            productStates: [], // [{id, name}]
+            defaultProductStateId: false,
             cameraError: null,
             confirming: false,
             result: null,
@@ -95,6 +97,8 @@ export class StockBarcodeScan extends Component {
             this.state.location = { id: config.location_id, name: config.location_name };
         }
         this.state.products = products;
+        this.state.productStates = config.product_states || [];
+        this.state.defaultProductStateId = config.default_product_state_id || false;
     }
 
     // ------------------------------------------------------------------
@@ -396,8 +400,19 @@ export class StockBarcodeScan extends Component {
             return;
         }
         this._scannedCodes.add(code);
-        this.state.scans.push({ id: this._nextScanId++, code });
+        this.state.scans.push({
+            id: this._nextScanId++,
+            code,
+            productStateId: this.state.defaultProductStateId,
+        });
         this._feedback();
+    }
+
+    onScanStateChange(scanId, ev) {
+        const scan = this.state.scans.find((s) => s.id === scanId);
+        if (scan) {
+            scan.productStateId = parseInt(ev.target.value, 10) || false;
+        }
     }
 
     _feedback() {
@@ -474,7 +489,10 @@ export class StockBarcodeScan extends Component {
                 [
                     this.state.product.id,
                     this.state.location.id,
-                    this.state.scans.map((s) => s.code),
+                    this.state.scans.map((s) => ({
+                        serial: s.code,
+                        product_state_id: s.productStateId || false,
+                    })),
                 ]
             );
             this.state.result = result;
