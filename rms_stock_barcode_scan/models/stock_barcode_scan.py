@@ -99,10 +99,17 @@ class RmsStockBarcodeScan(models.AbstractModel):
         if not move:
             raise UserError("El movimiento ya no existe.")
         product = move.product_id
+        # Recepción: se crean números de serie nuevos, así que importa la
+        # ubicación de DESTINO (donde entra el stock). Entrega/traslado: se
+        # escogen números de serie ya existentes, así que importa la
+        # ubicación de ORIGEN (de donde hay que sacar esa unidad concreta).
+        is_incoming = move.picking_type_id.code == "incoming"
+        location = move.location_dest_id if is_incoming else move.location_id
         states = self.env["product.state"].search([], order="sequence, id")
         default_state = states.filtered(lambda s: s.code == "new")[:1] or states[:1]
         return {
             "move_id": move.id,
+            "is_incoming": is_incoming,
             "product": {
                 "id": product.id,
                 "name": product.display_name,
@@ -111,8 +118,8 @@ class RmsStockBarcodeScan(models.AbstractModel):
                 "tracking": product.tracking,
                 "uom_name": product.uom_id.name,
             },
-            "location_id": move.location_dest_id.id,
-            "location_name": move.location_dest_id.display_name,
+            "location_id": location.id,
+            "location_name": location.display_name,
             "product_states": [{"id": s.id, "name": s.name} for s in states],
             "default_product_state_id": default_state.id or False,
         }
@@ -125,10 +132,14 @@ class RmsStockBarcodeScan(models.AbstractModel):
         "huecos" ya reservados por la cantidad pedida (líneas sin
         lote/serie asignado todavía, como las que Odoo crea al abrir
         "Operaciones detalladas" para la demanda); solo si no quedan
-        huecos libres se crea una línea nueva (recibir más unidades de
-        las pedidas). Rellenar un hueco es lo mismo que teclear el
-        número de serie a mano ahí: el propio stock.move.line busca o
-        crea el stock.lot correspondiente al guardar.
+        huecos libres se crea una línea nueva.
+
+        En recepción (picking_type incoming) el número de serie escaneado
+        se crea si no existe (lot_name: el propio stock.move.line busca o
+        crea el stock.lot al guardar). En entrega/traslado el número de
+        serie tiene que existir YA y tener stock disponible en el origen
+        del movimiento: si no, se rechaza ese escaneo con un error (no se
+        crean números de serie "de la nada" al enviar mercancía).
         """
         move = self.env["stock.move"].browse(move_id).exists()
         if not move:
@@ -138,6 +149,7 @@ class RmsStockBarcodeScan(models.AbstractModel):
         product = move.product_id
         if product.tracking == "none":
             raise UserError("Este producto no lleva número de lote/serie.")
+        is_incoming = move.picking_type_id.code == "incoming"
 
         seen = set()
         clean_serials = []
@@ -161,6 +173,12 @@ class RmsStockBarcodeScan(models.AbstractModel):
         )
         Lot = self.env["stock.lot"] if "stock.lot" in self.env else self.env["stock.production.lot"]
         MoveLine = self.env["stock.move.line"]
+        Quant = self.env["stock.quant"]
+        # Cuántas unidades de cada lote ya se han "gastado" en escaneos
+        # previos de este mismo lote de confirmación (para no dejar sacar
+        # más unidades de las que hay disponibles si el mismo número de
+        # serie/lote se escanea varias veces seguidas).
+        used_by_lot = {}
 
         applied = 0
         errors = []
@@ -171,8 +189,38 @@ class RmsStockBarcodeScan(models.AbstractModel):
                         raise UserError(
                             "El número de serie %s ya está en esta línea." % serial
                         )
-                    if product.tracking == "serial":
-                        existing_lot = Lot.search(
+
+                    vals = {}
+                    if is_incoming:
+                        if product.tracking == "serial":
+                            existing_lot = Lot.search(
+                                [
+                                    ("product_id", "=", product.id),
+                                    ("name", "=", serial),
+                                    ("company_id", "in", [move.company_id.id, False]),
+                                ],
+                                limit=1,
+                            )
+                            if existing_lot:
+                                existing_qty = sum(
+                                    Quant.search(
+                                        [
+                                            ("product_id", "=", product.id),
+                                            ("lot_id", "=", existing_lot.id),
+                                        ]
+                                    ).mapped("quantity")
+                                )
+                                if existing_qty >= 1:
+                                    raise UserError(
+                                        "El número de serie %s ya tiene stock (cantidad "
+                                        "%g): es un número de serie único y no se puede "
+                                        "volver a recibir." % (serial, existing_qty)
+                                    )
+                        vals["lot_name"] = serial
+                        if state_id:
+                            vals["product_state_id"] = state_id
+                    else:
+                        lot = Lot.search(
                             [
                                 ("product_id", "=", product.id),
                                 ("name", "=", serial),
@@ -180,25 +228,26 @@ class RmsStockBarcodeScan(models.AbstractModel):
                             ],
                             limit=1,
                         )
-                        if existing_lot:
-                            existing_qty = sum(
-                                self.env["stock.quant"].search(
-                                    [
-                                        ("product_id", "=", product.id),
-                                        ("lot_id", "=", existing_lot.id),
-                                    ]
-                                ).mapped("quantity")
+                        if not lot:
+                            raise UserError(
+                                "El número de serie %s no existe en el sistema." % serial
                             )
-                            if existing_qty >= 1:
-                                raise UserError(
-                                    "El número de serie %s ya tiene stock (cantidad "
-                                    "%g): es un número de serie único y no se puede "
-                                    "volver a recibir." % (serial, existing_qty)
-                                )
-
-                    vals = {"lot_name": serial}
-                    if state_id:
-                        vals["product_state_id"] = state_id
+                        available = sum(
+                            Quant.search(
+                                [
+                                    ("product_id", "=", product.id),
+                                    ("lot_id", "=", lot.id),
+                                    ("location_id", "=", move.location_id.id),
+                                ]
+                            ).mapped("quantity")
+                        ) - used_by_lot.get(lot.id, 0)
+                        if available < 1:
+                            raise UserError(
+                                "El número de serie %s no tiene stock disponible en %s."
+                                % (serial, move.location_id.display_name)
+                            )
+                        used_by_lot[lot.id] = used_by_lot.get(lot.id, 0) + 1
+                        vals["lot_id"] = lot.id
 
                     target_line = next(empty_lines, None)
                     if target_line:

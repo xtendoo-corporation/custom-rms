@@ -50,6 +50,10 @@ export class StockBarcodeScan extends Component {
             scans: [], // [{id, code, productStateId}]
             productStates: [], // [{id, name}]
             defaultProductStateId: false,
+            // Modo línea de movimiento: true en recepción (se crean
+            // números de serie nuevos), false en entrega/traslado (se
+            // escogen números de serie ya existentes en stock).
+            isIncoming: true,
             cameraError: null,
             confirming: false,
             result: null,
@@ -105,6 +109,7 @@ export class StockBarcodeScan extends Component {
             this.state.location = { id: config.location_id, name: config.location_name };
             this.state.productStates = config.product_states || [];
             this.state.defaultProductStateId = config.default_product_state_id || false;
+            this.state.isIncoming = !!config.is_incoming;
             this.state.step = "camera";
             return;
         }
@@ -485,6 +490,10 @@ export class StockBarcodeScan extends Component {
 
     finishScanning() {
         this.state.step = "review";
+    }
+
+    get moveLabel() {
+        return this.state.isIncoming ? "recepción" : "entrega";
     }
 
     cancelCamera() {
