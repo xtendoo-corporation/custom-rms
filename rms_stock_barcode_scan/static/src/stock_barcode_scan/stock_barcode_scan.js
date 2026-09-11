@@ -31,6 +31,14 @@ export class StockBarcodeScan extends Component {
         this.videoRef = useRef("video");
         this.videoWrapRef = useRef("videoWrap");
 
+        // Si se abre desde el botón "Escanear" de una línea de recepción,
+        // el contexto trae el id del stock.move: en ese caso el producto y
+        // la ubicación ya están fijados por el movimiento (sin catálogo) y
+        // los números de serie escaneados se añaden a esa línea en vez de
+        // ir a Inventario físico.
+        const actionContext = (this.props.action && this.props.action.context) || {};
+        this.moveId = actionContext.default_move_id || false;
+
         this.state = useState({
             step: "catalog", // catalog | camera | review | done
             query: "",
@@ -89,6 +97,17 @@ export class StockBarcodeScan extends Component {
     }
 
     async _loadInitial() {
+        if (this.moveId) {
+            const config = await this.orm.call(
+                "rms.stock.barcode.scan", "get_move_scan_config", [this.moveId]
+            );
+            this.state.product = config.product;
+            this.state.location = { id: config.location_id, name: config.location_name };
+            this.state.productStates = config.product_states || [];
+            this.state.defaultProductStateId = config.default_product_state_id || false;
+            this.state.step = "camera";
+            return;
+        }
         const [config, products] = await Promise.all([
             this.orm.call("rms.stock.barcode.scan", "get_scan_config", []),
             this.orm.call("rms.stock.barcode.scan", "search_products", [""]),
@@ -468,6 +487,14 @@ export class StockBarcodeScan extends Component {
         this.state.step = "review";
     }
 
+    cancelCamera() {
+        if (this.moveId) {
+            this.closeAction();
+        } else {
+            this.state.step = "catalog";
+        }
+    }
+
     backToCamera() {
         this.state.cameraError = null;
         this.state.step = "camera";
@@ -483,18 +510,18 @@ export class StockBarcodeScan extends Component {
         }
         this.state.confirming = true;
         try {
-            const result = await this.orm.call(
-                "rms.stock.barcode.scan",
-                "confirm_scan",
-                [
-                    this.state.product.id,
-                    this.state.location.id,
-                    this.state.scans.map((s) => ({
-                        serial: s.code,
-                        product_state_id: s.productStateId || false,
-                    })),
-                ]
-            );
+            const payload = this.state.scans.map((s) => ({
+                serial: s.code,
+                product_state_id: s.productStateId || false,
+            }));
+            const result = this.moveId
+                ? await this.orm.call(
+                    "rms.stock.barcode.scan", "confirm_scan_move", [this.moveId, payload]
+                )
+                : await this.orm.call(
+                    "rms.stock.barcode.scan", "confirm_scan",
+                    [this.state.product.id, this.state.location.id, payload]
+                );
             this.state.result = result;
             this.state.step = "done";
             if (result.errors.length) {
@@ -506,7 +533,9 @@ export class StockBarcodeScan extends Component {
                 );
             } else {
                 this.notification.add(
-                    `${result.applied} números de serie añadidos al Inventario físico.`,
+                    this.moveId
+                        ? `${result.applied} números de serie añadidos a la línea.`
+                        : `${result.applied} números de serie añadidos al Inventario físico.`,
                     { type: "success" }
                 );
             }
@@ -522,6 +551,14 @@ export class StockBarcodeScan extends Component {
     }
 
     scanAnotherProduct() {
+        if (this.moveId) {
+            // Modo línea de recepción: el producto/movimiento es fijo,
+            // simplemente se vuelve a la cámara para seguir escaneando.
+            this.state.step = "camera";
+            this.state.scans = [];
+            this.state.result = null;
+            return;
+        }
         this.state.step = "catalog";
         this.state.product = null;
         this.state.scans = [];
@@ -531,6 +568,14 @@ export class StockBarcodeScan extends Component {
     }
 
     async closeAction() {
+        if (this.moveId) {
+            // Se abrió como diálogo (target "new") desde el botón de la
+            // línea de recepción: basta con cerrarlo para que el
+            // formulario del albarán recargue la línea con los nuevos
+            // números de serie.
+            this.action.doAction({ type: "ir.actions.act_window_close" });
+            return;
+        }
         // "ir.actions.act_window_close" solo cierra un diálogo modal; esta
         // pantalla se abre como una acción normal (no un modal), así que no
         // hacía nada. Se navega explícitamente a la acción estándar de

@@ -89,7 +89,132 @@ class RmsStockBarcodeScan(models.AbstractModel):
         return [{"id": loc.id, "name": loc.complete_name} for loc in locations]
 
     # ------------------------------------------------------------------
-    # Confirmación del escaneo (paso 3)
+    # Escaneo desde una línea de movimiento (recepción, etc.): producto y
+    # ubicación ya fijados por el movimiento, sin pasar por el catálogo.
+    # ------------------------------------------------------------------
+
+    @api.model
+    def get_move_scan_config(self, move_id):
+        move = self.env["stock.move"].browse(move_id).exists()
+        if not move:
+            raise UserError("El movimiento ya no existe.")
+        product = move.product_id
+        states = self.env["product.state"].search([], order="sequence, id")
+        default_state = states.filtered(lambda s: s.code == "new")[:1] or states[:1]
+        return {
+            "move_id": move.id,
+            "product": {
+                "id": product.id,
+                "name": product.display_name,
+                "default_code": product.default_code or "",
+                "barcode": product.barcode or "",
+                "tracking": product.tracking,
+                "uom_name": product.uom_id.name,
+            },
+            "location_id": move.location_dest_id.id,
+            "location_name": move.location_dest_id.display_name,
+            "product_states": [{"id": s.id, "name": s.name} for s in states],
+            "default_product_state_id": default_state.id or False,
+        }
+
+    @api.model
+    def confirm_scan_move(self, move_id, serials):
+        """Como confirm_scan, pero crea directamente líneas de número de
+        serie (stock.move.line) en este movimiento, en vez de tocar
+        Inventario físico. Cada número de serie escaneado se añade con
+        `lot_name` (igual que si se tecleara a mano en "Operaciones
+        detalladas"): es el propio stock.move.line quien busca o crea el
+        stock.lot correspondiente al guardar.
+        """
+        move = self.env["stock.move"].browse(move_id).exists()
+        if not move:
+            raise UserError("El movimiento ya no existe.")
+        if move.state in ("done", "cancel"):
+            raise UserError("Este movimiento ya no se puede modificar.")
+        product = move.product_id
+        if product.tracking == "none":
+            raise UserError("Este producto no lleva número de lote/serie.")
+
+        seen = set()
+        clean_serials = []
+        for item in serials or []:
+            serial = (item.get("serial") or "").strip() if isinstance(item, dict) else (item or "").strip()
+            if serial and serial not in seen:
+                seen.add(serial)
+                state_id = item.get("product_state_id") if isinstance(item, dict) else False
+                clean_serials.append((serial, state_id or False))
+
+        if not clean_serials:
+            raise UserError("No hay ningún número de serie escaneado que confirmar.")
+
+        existing_names = {
+            (line.lot_name or (line.lot_id.name if line.lot_id else ""))
+            for line in move.move_line_ids
+        }
+        Lot = self.env["stock.lot"] if "stock.lot" in self.env else self.env["stock.production.lot"]
+        MoveLine = self.env["stock.move.line"]
+
+        applied = 0
+        errors = []
+        for serial, state_id in clean_serials:
+            try:
+                with self.env.cr.savepoint():
+                    if serial in existing_names:
+                        raise UserError(
+                            "El número de serie %s ya está en esta línea." % serial
+                        )
+                    if product.tracking == "serial":
+                        existing_lot = Lot.search(
+                            [
+                                ("product_id", "=", product.id),
+                                ("name", "=", serial),
+                                ("company_id", "in", [move.company_id.id, False]),
+                            ],
+                            limit=1,
+                        )
+                        if existing_lot:
+                            existing_qty = sum(
+                                self.env["stock.quant"].search(
+                                    [
+                                        ("product_id", "=", product.id),
+                                        ("lot_id", "=", existing_lot.id),
+                                    ]
+                                ).mapped("quantity")
+                            )
+                            if existing_qty >= 1:
+                                raise UserError(
+                                    "El número de serie %s ya tiene stock (cantidad "
+                                    "%g): es un número de serie único y no se puede "
+                                    "volver a recibir." % (serial, existing_qty)
+                                )
+
+                    vals = {
+                        "move_id": move.id,
+                        "picking_id": move.picking_id.id,
+                        "product_id": product.id,
+                        "product_uom_id": move.product_uom.id,
+                        "location_id": move.location_id.id,
+                        "location_dest_id": move.location_dest_id.id,
+                        "company_id": move.company_id.id,
+                        "lot_name": serial,
+                        "quantity": 1,
+                    }
+                    if state_id:
+                        vals["product_state_id"] = state_id
+                    MoveLine.create(vals)
+                    existing_names.add(serial)
+                applied += 1
+            except Exception as exc:  # noqa: BLE001 - se reporta al usuario, no se oculta
+                _logger.exception(
+                    "Error añadiendo el número de serie %s (producto %s) al movimiento %s",
+                    serial, product.display_name, move.id,
+                )
+                errors.append({"serial": serial, "message": str(exc)})
+
+        return {"applied": applied, "errors": errors, "total": len(clean_serials)}
+
+    # ------------------------------------------------------------------
+    # Confirmación del escaneo (paso 3, modo genérico sobre Inventario físico)
     # ------------------------------------------------------------------
 
     @api.model

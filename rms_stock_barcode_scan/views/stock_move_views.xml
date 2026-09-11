@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_form_inherit_rms_stock_barcode_scan" model="ir.ui.view">
+        <field name="name">stock.picking.form.inherit.rms.stock.barcode.scan</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_show_details']" position="after">
+                <button name="action_scan_serials" type="object" string="Escanear"
+                        icon="fa-camera" title="Escanear números de serie con la cámara"
+                        invisible="not show_details_visible or has_tracking == 'none' or state in ('done', 'cancel')"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

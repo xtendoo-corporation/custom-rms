@@ -3,8 +3,15 @@
     <t t-name="rms_stock_barcode_scan.StockBarcodeScan">
         <div class="o_rms_barcode_scan d-flex flex-column h-100">
 
-            <!-- Paso 1: catálogo + ubicación -->
-            <t t-if="state.step === 'catalog'">
+            <!-- Cargando datos de la línea de recepción (modo escaneo sobre movimiento) -->
+            <t t-if="state.step === 'catalog' and moveId">
+                <div class="d-flex align-items-center justify-content-center flex-grow-1">
+                    <div class="spinner-border text-primary" role="status"/>
+                </div>
+            </t>
+
+            <!-- Paso 1: catálogo + ubicación (modo genérico, sin movimiento fijo) -->
+            <t t-if="state.step === 'catalog' and !moveId">
                 <div class="o_rms_bs_header p-3 border-bottom">
                     <h4 class="m-0">Escanear código de barras</h4>
                     <div class="text-muted">1. Elige el producto y la ubicación que vas a contar</div>
@@ -126,7 +133,7 @@
                     </ul>
                 </div>
                 <div class="o_rms_bs_footer p-3 border-top d-flex justify-content-between">
-                    <button class="btn btn-secondary" t-on-click="() => this.state.step = 'catalog'">
+                    <button class="btn btn-secondary" t-on-click="cancelCamera">
                         Cancelar
                     </button>
                     <button class="btn btn-primary" t-att-disabled="!state.scans.length" t-on-click="finishScanning">
@@ -140,7 +147,8 @@
                 <div class="o_rms_bs_header p-3 border-bottom">
                     <h4 class="m-0">Confirmar escaneo</h4>
                     <div class="text-muted">
-                        3. Revisa la lista antes de añadirla al Inventario físico
+                        <t t-if="moveId">3. Revisa la lista antes de añadirla a la recepción</t>
+                        <t t-else="">3. Revisa la lista antes de añadirla al Inventario físico</t>
                     </div>
                 </div>
                 <div class="o_rms_bs_body flex-grow-1 overflow-auto p-3">
@@ -171,6 +179,7 @@
                     </button>
                     <button class="btn btn-primary" t-att-disabled="!state.scans.length || state.confirming" t-on-click="confirmScan">
                         <span t-if="state.confirming">Guardando...</span>
+                        <span t-elif="moveId">Confirmar y añadir a la recepción</span>
                         <span t-else="">Confirmar y añadir al Inventario físico</span>
                     </button>
                 </div>
@@ -184,8 +193,13 @@
                 <div class="o_rms_bs_body flex-grow-1 overflow-auto p-3">
                     <div t-attf-class="alert {{ state.result.applied ? 'alert-success' : 'alert-danger' }}">
                         <t t-esc="state.result.applied"/> de <t t-esc="state.result.total"/>
-                        números de serie añadidos al Inventario físico de
-                        <t t-esc="state.product.name"/>.
+                        <t t-if="moveId">
+                            números de serie añadidos a la línea de <t t-esc="state.product.name"/>.
+                        </t>
+                        <t t-else="">
+                            números de serie añadidos al Inventario físico de
+                            <t t-esc="state.product.name"/>.
+                        </t>
                     </div>
                     <div t-if="state.result.errors.length" class="alert alert-danger">
                         <div class="fw-bold mb-1">No se pudieron añadir (número de serie ya existente):</div>
@@ -195,17 +209,23 @@
                             </li>
                         </ul>
                     </div>
-                    <div class="text-muted">
+                    <div class="text-muted" t-if="!moveId">
                         Las líneas quedan pendientes de "Aplicar todo" en Inventario físico,
                         igual que si las hubieras editado a mano.
+                    </div>
+                    <div class="text-muted" t-if="moveId">
+                        Los números de serie ya están en la línea de la recepción, igual que
+                        si los hubieras tecleado a mano en "Operaciones detalladas".
                     </div>
                 </div>
                 <div class="o_rms_bs_footer p-3 border-top d-flex justify-content-between">
                     <button class="btn btn-secondary" t-on-click="closeAction">
-                        Volver a Inventario físico
+                        <t t-if="moveId">Volver a la recepción</t>
+                        <t t-else="">Volver a Inventario físico</t>
                     </button>
                     <button class="btn btn-primary" t-on-click="scanAnotherProduct">
-                        Escanear otro producto
+                        <t t-if="moveId">Seguir escaneando esta línea</t>
+                        <t t-else="">Escanear otro producto</t>
                     </button>
                 </div>
             </t>

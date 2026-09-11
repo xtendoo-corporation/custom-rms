@@ -50,6 +50,7 @@ Notas técnicas / supuestos:
     'data': [
         'security/ir.model.access.csv',
         'views/stock_barcode_scan_menus.xml',
+        'views/stock_move_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
