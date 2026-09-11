@@ -10,4 +10,15 @@
             </xpath>
         </field>
     </record>
+
+    <record id="view_stock_quant_tree_inventory_editable_inherit_rms_product_state" model="ir.ui.view">
+        <field name="name">stock.quant.tree.inventory.editable.inherit.rms.product.state</field>
+        <field name="model">stock.quant</field>
+        <field name="inherit_id" ref="stock.view_stock_quant_tree_inventory_editable"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='lot_id']" position="after">
+                <field name="product_state_id" optional="show" options="{'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
 </odoo>
