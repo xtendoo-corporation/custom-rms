@@ -3,7 +3,7 @@
     <data noupdate="1">
         <record id="cron_check_certification_renewals" model="ir.cron">
             <field name="name">Certificaciones de Empleado: Aviso de Renovación</field>
-            <field name="model_id" ref="model_hr_employee_certification"/>
+            <field name="model_id" ref="model_rms_hr_employee_certification"/>
             <field name="state">code</field>
             <field name="code">model._cron_check_certification_renewals()</field>
             <field name="user_id" ref="base.user_root"/>

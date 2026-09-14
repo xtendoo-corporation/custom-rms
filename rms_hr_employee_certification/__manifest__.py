@@ -15,10 +15,15 @@
           de caducidad y el aviso configurado en el tipo de certificación.
         - Aviso automático (actividad) al responsable cuando una certificación está próxima a
           caducar o ha caducado.
-        - Acceso directo desde la ficha del empleado mediante un botón inteligente.
         - Grupo de seguridad "Gestor de Certificaciones de Empleado": solo sus miembros (más
           los Administradores) pueden añadir, modificar o eliminar certificaciones; el resto
           de usuarios puede consultarlas (RRHH ve todas, cada empleado ve solo las suyas).
+
+        NOTA: el botón inteligente en la ficha del empleado (views/hr_employee_views.xml) está
+        deshabilitado temporalmente en el manifest porque la ficha de empleado de esta instancia
+        tiene una vista heredada (probablemente de Studio) que referencia un campo `skill_id`
+        inexistente, lo que bloquea la instalación de cualquier vista nueva sobre
+        hr.view_employee_form. Reactivar esa línea en 'data' una vez corregida esa vista.
     """,
     'author': 'Xtendoo',
     'website': 'https://xtendoo.es',
@@ -31,7 +36,7 @@
         'data/ir_cron_data.xml',
         'views/hr_certification_type_views.xml',
         'views/hr_employee_certification_views.xml',
-        # 'views/hr_employee_views.xml',  # deshabilitado: campo skill_id roto en hr.view_employee_form
+        # 'views/hr_employee_views.xml',  # deshabilitado: ver NOTA arriba (campo skill_id roto en hr.view_employee_form)
         'views/hr_menus.xml',
     ],
     'installable': True,
