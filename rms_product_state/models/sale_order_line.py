@@ -91,6 +91,7 @@ class SaleOrderLine(models.Model):
             'name': 'Vender como 2ª Mano / Ex-Demo',
             'res_model': 'sale.order.line.serial.selector.wizard',
             'view_mode': 'form',
+            'views': [[False, 'form']],
             'target': 'new',
             'context': {'default_sale_order_line_id': self.id},
         }
