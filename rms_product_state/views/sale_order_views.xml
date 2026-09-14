@@ -36,6 +36,17 @@
                        string="2ª Mano / Ex-Demo" optional="show"
                        invisible="display_type"/>
             </xpath>
+            <!-- El widget sol_o2m del campo order_line usa, en pantallas
+                 estrechas (modo kanban), el <form> embebido aquí mismo —
+                 no la lista de arriba ni sale.sale_order_line_view_form_readonly —
+                 así que el botón de series hay que repetirlo también dentro
+                 de este formulario anidado para que sea accesible en móvil. -->
+            <xpath expr="//field[@name='order_line']/form//div[@name='ordered_qty']" position="after">
+                <label for="serial_count" string="2ª Mano / Ex-Demo"/>
+                <div name="serial_count">
+                    <field name="serial_count" widget="serial_selector_button" nolabel="1"/>
+                </div>
+            </xpath>
         </field>
     </record>
 
