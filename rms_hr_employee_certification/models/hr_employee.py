@@ -5,7 +5,7 @@ class HrEmployee(models.Model):
     _inherit = 'hr.employee'
 
     certification_ids = fields.One2many(
-        'hr.employee.certification', 'employee_id', string='Certificaciones')
+        'rms.hr.employee.certification', 'employee_id', string='Certificaciones')
     certification_count = fields.Integer(
         string='Nº Certificaciones', compute='_compute_certification_count')
     certification_alert_count = fields.Integer(

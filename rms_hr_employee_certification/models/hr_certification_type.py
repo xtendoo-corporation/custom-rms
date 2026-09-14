@@ -2,7 +2,7 @@ from odoo import api, fields, models
 
 
 class HrCertificationType(models.Model):
-    _name = 'hr.certification.type'
+    _name = 'rms.hr.certification.type'
     _description = 'Tipo de Certificación de Empleado'
     _order = 'name'
 

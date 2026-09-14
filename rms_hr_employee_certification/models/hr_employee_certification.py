@@ -5,7 +5,7 @@ from odoo.exceptions import ValidationError
 
 
 class HrEmployeeCertification(models.Model):
-    _name = 'hr.employee.certification'
+    _name = 'rms.hr.employee.certification'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Certificación de Empleado'
     _order = 'date_expiration, date_obtained desc'
@@ -16,7 +16,7 @@ class HrEmployeeCertification(models.Model):
     company_id = fields.Many2one(
         'res.company', related='employee_id.company_id', store=True, readonly=True)
     certification_type_id = fields.Many2one(
-        'hr.certification.type', string='Certificación', required=True, tracking=True)
+        'rms.hr.certification.type', string='Certificación', required=True, tracking=True)
     category = fields.Selection(related='certification_type_id.category', store=True)
     is_recurring = fields.Boolean(
         related='certification_type_id.is_recurring', store=True, readonly=True)
