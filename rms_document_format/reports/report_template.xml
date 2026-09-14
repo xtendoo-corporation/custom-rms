@@ -171,6 +171,9 @@
                                         <t t-set="desc" t-value="desc.replace(line.product_id.display_name, line.product_id.product_tmpl_id.name).replace('[' + (line.product_id.default_code or '') + '] ', '')"/>
                                     </t>
                                     <span t-esc="desc"/>
+                                    <t t-if="line.serial_ids">
+                                        <span style="font-weight: bold;"> [<t t-esc="line.serial_ids[0].product_state_id.name"/>]</span>
+                                    </t>
                                 </td>
                                 <t t-if="not hide_price_detail">
                                     <td style="text-align: right;"><span t-field="line.price_unit" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>

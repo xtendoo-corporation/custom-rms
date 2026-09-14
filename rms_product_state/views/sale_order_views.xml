@@ -34,7 +34,7 @@
             <xpath expr="//field[@name='order_line']/list/field[@name='name']" position="after">
                 <field name="serial_count" widget="serial_selector_button"
                        string="2ª Mano / Ex-Demo" optional="show"
-                       invisible="not product_id"/>
+                       invisible="display_type"/>
             </xpath>
         </field>
     </record>
