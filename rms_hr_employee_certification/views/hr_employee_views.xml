@@ -11,8 +11,8 @@
                         class="oe_stat_button"
                         icon="fa-certificate"
                         context="{'default_employee_id': id, 'search_default_employee_id': id}">
-                    <field name="certification_count" widget="statinfo" string="Certificaciones"/>
-                    <field name="certification_alert_count" invisible="1"/>
+                    <field name="rms_certification_count" widget="statinfo" string="Certificaciones"/>
+                    <field name="rms_certification_alert_count" invisible="1"/>
                 </button>
             </xpath>
         </field>
