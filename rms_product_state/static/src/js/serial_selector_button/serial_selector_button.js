@@ -28,12 +28,15 @@ export class SerialSelectorButton extends Component {
 
     async onClick(ev) {
         ev.stopPropagation();
-        // La línea puede no estar guardada todavía (fila nueva, o
-        // presupuesto sin guardar): la guardamos automáticamente para no
-        // interrumpir el flujo del comercial con "Primero guarde sus
-        // cambios".
-        if (!this.props.record.resId || this.props.record.dirty) {
-            const saved = await this.props.record.save();
+        // La línea es una fila de un one2many (order_line) dentro del
+        // presupuesto: guardar solo la línea falla si el propio presupuesto
+        // (su registro raíz) tampoco está guardado todavía, porque a la
+        // línea le faltaría order_id. Por eso guardamos siempre el
+        // registro raíz del formulario, no la línea suelta — así no
+        // interrumpimos al comercial con "Primero guarde sus cambios".
+        const rootRecord = this.props.record.model.root;
+        if (!rootRecord.resId || rootRecord.dirty) {
+            const saved = await rootRecord.save();
             if (saved === false) {
                 // Guardado bloqueado (p. ej. falta un campo obligatorio):
                 // el formulario ya muestra el error de validación.

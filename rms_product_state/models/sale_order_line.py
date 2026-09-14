@@ -25,7 +25,7 @@ class SaleOrderLine(models.Model):
             if line.serial_ids:
                 line.product_uom_qty = len(line.serial_ids)
 
-    @api.constrains('serial_ids')
+    @api.constrains('serial_ids', 'product_uom_qty')
     def _check_serial_ids_consistency(self):
         for line in self:
             if not line.serial_ids:
