@@ -38,6 +38,7 @@ class SaleOrderLineSerial(models.Model):
         records = super().create(vals_list)
         records._check_state_allowed()
         records._check_lot_not_sold_elsewhere()
+        records.sale_order_line_id._sync_second_hand_discount()
         return records
 
     def write(self, vals):

@@ -69,7 +69,22 @@ Sigue este flujo obligatorio:
    propose_quote con partner_id y las líneas (product_id + quantity).
 6. Si el usuario pide cambiar la tarifa/lista de precios, indica que no se
    puede desde el chat: se aplica automáticamente la tarifa del cliente.
-7. Responde siempre en español, breve y claro."""
+7. Responde siempre en español, breve y claro.
+
+Estado de las unidades (2ª Mano / Ex-Demo):
+Cada producto del listado incluye "second_hand_available" y "ex_demo_available"
+(número de unidades físicas concretas disponibles en cada estado, ya
+descontando lo reservado en otros presupuestos). Por defecto toda línea es
+de producto Nuevo (no hace falta indicar nada). Usa "state": "second_hand" o
+"state": "ex_demo" en una línea SOLO si el usuario lo pide explícitamente
+("de segunda mano", "2ª mano", "ex demo", "ex-demo"), y nunca pidas más
+cantidad en ese estado que el número disponible indicado para ese producto.
+Si el usuario pide más unidades de las disponibles en ese estado, dile
+cuántas hay realmente y pregúntale si quiere completar el resto como
+producto Nuevo (en ese caso, propón dos líneas separadas para el mismo
+producto: una con "state" del estado pedido y la cantidad disponible, y otra
+con "state": "new" y el resto). Si no hay ninguna unidad disponible en el
+estado pedido, dilo claramente y no propongas esa línea."""
 
 PROPOSE_QUOTE_TOOL = {
     "name": "propose_quote",
@@ -99,6 +114,17 @@ PROPOSE_QUOTE_TOOL = {
                         "quantity": {
                             "type": "number",
                             "description": "cantidad solicitada.",
+                        },
+                        "state": {
+                            "type": "string",
+                            "enum": ["new", "second_hand", "ex_demo"],
+                            "description": (
+                                "Estado de las unidades de esta línea. Omite este campo "
+                                "(o usa 'new') salvo que el usuario pida explícitamente "
+                                "'de segunda mano'/'2ª mano' o 'ex demo'/'ex-demo', y solo "
+                                "hasta el límite de 'second_hand_available'/'ex_demo_available' "
+                                "del producto."
+                            ),
                         },
                     },
                     "required": ["product_id", "quantity"],
@@ -445,8 +471,12 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         order_vals = {
             "partner_id": partner.id,
             "order_line": [
-                (0, 0, {"product_id": l["product_id"], "product_uom_qty": l["quantity"]})
-                for l in lines
+                (0, 0, {
+                    "product_id": l["product_id"],
+                    "product_uom_qty": l["quantity"],
+                    "sequence": (idx + 1) * 10,
+                })
+                for idx, l in enumerate(lines)
             ],
         }
         if opportunity_id:
@@ -463,7 +493,17 @@ class RmsAiQuoteAssistant(models.AbstractModel):
 
         try:
             order = self.env["sale.order"].create(order_vals)
+            created_lines = order.order_line.sorted("sequence")
+            for order_line, line in zip(created_lines, lines):
+                lot_ids = line.get("lot_ids") or []
+                state = line.get("state") or "new"
+                if state != "new" and lot_ids:
+                    self.env["sale.order.line.serial"].create([
+                        {"sale_order_line_id": order_line.id, "lot_id": lot_id}
+                        for lot_id in lot_ids
+                    ])
         except Exception as exc:
+            self.env.cr.rollback()
             _logger.exception("Error creando presupuesto desde el asistente IA")
             return {"type": "error", "text": "No se pudo crear el presupuesto: %s" % exc}
 
@@ -494,6 +534,11 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         products = self.env["product.product"].search_read(
             [], ["id", "default_code", "name", "list_price", "qty_available"], order="name"
         )
+        availability = self._get_special_state_availability()
+        for product in products:
+            entry = availability.get(product["id"], {})
+            product["second_hand_available"] = entry.get("second_hand", 0)
+            product["ex_demo_available"] = entry.get("ex_demo", 0)
         static_prompt = (
             SYSTEM_PROMPT_INTRO
             + "\n\nCLIENTES (JSON — usa exclusivamente estos ids, no inventes ninguno):\n"
@@ -516,6 +561,66 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                 )
         return static_prompt, dynamic_hint
 
+    def _get_special_state_availability(self):
+        """{product_id: {'second_hand': n, 'ex_demo': n}} counting distinct
+        stock.lot units in each state that are physically in an internal
+        location and not already committed to another active order line
+        (sale.order.line.serial), i.e. genuinely offerable right now.
+        """
+        Lot = self.env["stock.lot"]
+        lots = Lot.search([("product_state_id.code", "in", ("second_hand", "ex_demo"))])
+        if not lots:
+            return {}
+        sold_lot_ids = set(
+            self.env["sale.order.line.serial"].search([
+                ("lot_id", "in", lots.ids),
+                ("sale_order_line_id.order_id.state", "!=", "cancel"),
+            ]).lot_id.ids
+        )
+        quants = self.env["stock.quant"].search([
+            ("lot_id", "in", lots.ids), ("location_id.usage", "=", "internal"),
+        ])
+        in_stock_lot_ids = set(quants.filtered(lambda q: q.quantity > 0).lot_id.ids)
+        availability = {}
+        for lot in lots:
+            if lot.id in sold_lot_ids or lot.id not in in_stock_lot_ids:
+                continue
+            entry = availability.setdefault(lot.product_id.id, {"second_hand": 0, "ex_demo": 0})
+            entry[lot.product_state_id.code] += 1
+        return availability
+
+    def _pick_available_lots(self, product_id, state, quantity):
+        """Returns up to `quantity` free stock.lot ids of `product_id` in
+        `state` ('second_hand'/'ex_demo'), raising ValueError (surfaced to
+        the LLM as a tool error, or to the user on confirm) if there aren't
+        enough. Mirrors the manual wizard's own availability filter.
+        """
+        Lot = self.env["stock.lot"]
+        candidates = Lot.search([
+            ("product_id", "=", product_id),
+            ("product_state_id.code", "=", state),
+        ])
+        sold_ids = set(
+            self.env["sale.order.line.serial"].search([
+                ("lot_id", "in", candidates.ids),
+                ("sale_order_line_id.order_id.state", "!=", "cancel"),
+            ]).lot_id.ids
+        ) if candidates else set()
+        quants = self.env["stock.quant"].search([
+            ("lot_id", "in", candidates.ids), ("location_id.usage", "=", "internal"),
+        ]) if candidates else self.env["stock.quant"]
+        in_stock_ids = set(quants.filtered(lambda q: q.quantity > 0).lot_id.ids)
+        available = candidates.filtered(
+            lambda l: l.id in in_stock_ids and l.id not in sold_ids
+        )
+        needed = int(quantity)
+        if len(available) < needed:
+            raise ValueError(
+                "Solo hay %s unidad(es) disponible(s) en estado '%s' para este "
+                "producto (se pidieron %s)." % (len(available), state, needed)
+            )
+        return available[:needed].ids
+
     def _get_partner_opportunities(self, partner_id):
         return self.env["crm.lead"].search_read(
             [("partner_id", "=", partner_id), ("type", "=", "opportunity"), ("active", "=", True)],
@@ -535,12 +640,22 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             product = Product.browse(line["product_id"]).exists()
             if not product:
                 raise ValueError("No existe ningún producto con id %s." % line["product_id"])
+            state = line.get("state") or "new"
+            if state not in ("new", "second_hand", "ex_demo"):
+                raise ValueError("Estado de línea no válido: %s." % state)
+            quantity = line["quantity"]
+            lot_ids = []
+            if state != "new":
+                lot_ids = self._pick_available_lots(product.id, state, quantity)
+                quantity = len(lot_ids)
             line_previews.append(
                 {
                     "product_id": product.id,
                     "name": product.display_name,
                     "default_code": product.default_code or "",
-                    "quantity": line["quantity"],
+                    "quantity": quantity,
+                    "state": state,
+                    "lot_ids": lot_ids,
                 }
             )
         return {
@@ -551,8 +666,10 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         }
 
     def _format_preview_text(self, preview):
+        state_labels = {"second_hand": " [2ª Mano]", "ex_demo": " [Ex-Demo]"}
         lines_txt = "\n".join(
-            "- %s x %s (%s)" % (l["quantity"], l["name"], l["default_code"])
+            "- %s x %s (%s)%s"
+            % (l["quantity"], l["name"], l["default_code"], state_labels.get(l.get("state"), ""))
             for l in preview["lines"]
         )
         return (

@@ -68,12 +68,21 @@ class SaleOrderLine(models.Model):
                     line.price_unit = 0.0
                     line.technical_price_unit = 0.0
 
-    @api.depends('product_id', 'product_uom_id', 'product_uom_qty', 'serial_ids')
-    def _compute_discount(self):
-        super()._compute_discount()
+    def _sync_second_hand_discount(self):
+        """Aplica el 10% de descuento automático en líneas de 2ª Mano.
+
+        El campo 'discount' de sale.order.line no tiene compute activo en
+        este entorno (un módulo OCA de descuento triple -discount1/2/3- le
+        quita el compute para volverlo editable a mano), así que no basta
+        con un método @api.depends: el valor hay que escribirlo de forma
+        explícita cuando cambian las series de la línea.
+        """
         for line in self:
             if line.serial_ids and line.serial_ids[0].product_state_id.code == 'second_hand':
-                line.discount = 10.0
+                if 'discount1' in line._fields:
+                    line.discount1 = 10.0
+                else:
+                    line.discount = 10.0
 
     def action_open_serial_selector(self):
         self.ensure_one()

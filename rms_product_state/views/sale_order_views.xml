@@ -32,13 +32,9 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='order_line']/list/field[@name='name']" position="after">
-                <field name="serial_count" string="Nº Series" optional="show"/>
-            </xpath>
-            <xpath expr="//field[@name='order_line']/list/field[@name='product_uom_qty']" position="after">
-                <button name="action_open_serial_selector" type="object"
-                        string="2ª Mano / Ex-Demo" icon="fa-barcode"
-                        invisible="not product_id"
-                        title="Seleccionar números de serie 2ª Mano / Ex-Demo"/>
+                <field name="serial_count" widget="serial_selector_button"
+                       string="2ª Mano / Ex-Demo" optional="show"
+                       invisible="not product_id"/>
             </xpath>
         </field>
     </record>
