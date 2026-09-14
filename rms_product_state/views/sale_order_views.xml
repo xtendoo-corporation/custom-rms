@@ -38,4 +38,20 @@
             </xpath>
         </field>
     </record>
+
+    <!-- En pantallas estrechas, Odoo abre cada línea del pedido con
+         sale.sale_order_line_view_form_readonly (no reutiliza el arch de
+         la lista), así que el botón de series hay que añadirlo aquí
+         también para que sea accesible desde móvil. -->
+    <record id="view_sale_order_line_form_readonly_inherit_rms_product_state" model="ir.ui.view">
+        <field name="name">sale.order.line.form.readonly.inherit.rms.product.state</field>
+        <field name="model">sale.order.line</field>
+        <field name="inherit_id" ref="sale.sale_order_line_view_form_readonly"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='product_uom_qty']" position="after">
+                <field name="serial_count" widget="serial_selector_button"
+                       string="2ª Mano / Ex-Demo" invisible="display_type"/>
+            </xpath>
+        </field>
+    </record>
 </odoo>
