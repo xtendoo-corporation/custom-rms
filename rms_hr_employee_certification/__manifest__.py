@@ -31,7 +31,7 @@
         'data/ir_cron_data.xml',
         'views/hr_certification_type_views.xml',
         'views/hr_employee_certification_views.xml',
-        'views/hr_employee_views.xml',
+        # 'views/hr_employee_views.xml',  # deshabilitado: campo skill_id roto en hr.view_employee_form
         'views/hr_menus.xml',
     ],
     'installable': True,
