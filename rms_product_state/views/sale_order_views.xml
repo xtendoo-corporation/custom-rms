@@ -6,20 +6,15 @@
         <field name="arch" type="xml">
             <form string="Vender como 2ª Mano / Ex-Demo">
                 <field name="sale_order_line_id" invisible="1"/>
-                <field name="unavailable_lot_ids" invisible="1"/>
+                <field name="lot_candidates" invisible="1"/>
                 <group>
                     <field name="product_id"/>
                     <field name="state_code" widget="radio"/>
                 </group>
-                <field name="lot_ids" options="{'no_create': True}">
-                    <list>
-                        <field name="name" string="Nº de serie"/>
-                        <field name="location_id" string="Almacén"/>
-                    </list>
-                </field>
+                <field name="lot_ids" widget="serial_availability_picker"/>
                 <p class="text-muted">
-                    Solo se muestran los números de serie de este producto, en el estado elegido,
-                    que no estén ya asignados en otro presupuesto/pedido activo.
+                    Las series ya asignadas en otro presupuesto/pedido activo aparecen
+                    deshabilitadas, con el nombre del comercial que las tiene reservadas.
                 </p>
                 <footer>
                     <button name="action_confirm" type="object" string="Confirmar" class="btn-primary"/>

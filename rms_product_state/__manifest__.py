@@ -31,6 +31,8 @@ and automates the archiving of discontinued products with depleted stock.
             'rms_product_state/static/src/js/serial_selector_button/serial_selector_button.js',
             'rms_product_state/static/src/js/serial_selector_button/serial_selector_button.xml',
             'rms_product_state/static/src/js/serial_selector_button/serial_selector_button.scss',
+            'rms_product_state/static/src/js/serial_availability_picker/serial_availability_picker.js',
+            'rms_product_state/static/src/js/serial_availability_picker/serial_availability_picker.xml',
         ],
     },
     'installable': True,

@@ -14,16 +14,11 @@ class SaleOrderLineSerialSelectorWizard(models.TransientModel):
     sale_order_line_id = fields.Many2one('sale.order.line', required=True)
     product_id = fields.Many2one(related='sale_order_line_id.product_id', readonly=True)
     state_code = fields.Selection(STATE_CODE_SELECTION, string='Estado', required=True)
-    unavailable_lot_ids = fields.Many2many(
-        'stock.lot', 'sale_order_line_serial_wizard_unavail_rel', 'wizard_id', 'lot_id',
-        compute='_compute_unavailable_lot_ids'
-    )
     lot_ids = fields.Many2many(
         'stock.lot', 'sale_order_line_serial_wizard_lot_rel', 'wizard_id', 'lot_id',
         string='Números de serie disponibles',
-        domain="[('product_id', '=', product_id), ('product_state_code', '=', state_code),"
-               " ('id', 'not in', unavailable_lot_ids)]",
     )
+    lot_candidates = fields.Json(compute='_compute_lot_candidates')
 
     @api.model
     def default_get(self, fields_list):
@@ -36,16 +31,33 @@ class SaleOrderLineSerialSelectorWizard(models.TransientModel):
                 res['lot_ids'] = [(6, 0, line.serial_ids.lot_id.ids)]
         return res
 
-    @api.depends('product_id', 'sale_order_line_id')
-    def _compute_unavailable_lot_ids(self):
+    @api.depends('product_id', 'state_code', 'sale_order_line_id')
+    def _compute_lot_candidates(self):
+        Lot = self.env['stock.lot']
         Serial = self.env['sale.order.line.serial']
         for wiz in self:
-            used = Serial.search([
-                ('lot_id.product_id', '=', wiz.product_id.id),
+            if not (wiz.product_id and wiz.state_code):
+                wiz.lot_candidates = []
+                continue
+            lots = Lot.search([
+                ('product_id', '=', wiz.product_id.id),
+                ('product_state_code', '=', wiz.state_code),
+            ])
+            reservations = Serial.search([
+                ('lot_id', 'in', lots.ids),
                 ('sale_order_line_id.order_id.state', '!=', 'cancel'),
                 ('sale_order_line_id', '!=', wiz.sale_order_line_id.id),
-            ]).mapped('lot_id')
-            wiz.unavailable_lot_ids = [(6, 0, used.ids)]
+            ])
+            reserved_by = {
+                res.lot_id.id: (res.sale_order_line_id.order_id.user_id.name or 'un comercial')
+                for res in reservations
+            }
+            wiz.lot_candidates = [{
+                'id': lot.id,
+                'name': lot.name,
+                'location': lot.location_id.display_name or '',
+                'reserved_by': reserved_by.get(lot.id),
+            } for lot in lots]
 
     def action_confirm(self):
         self.ensure_one()
