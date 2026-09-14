@@ -11,7 +11,12 @@
                     <field name="product_id"/>
                     <field name="state_code" widget="radio"/>
                 </group>
-                <field name="lot_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                <field name="lot_ids" options="{'no_create': True}">
+                    <list>
+                        <field name="name" string="Nº de serie"/>
+                        <field name="location_id" string="Almacén"/>
+                    </list>
+                </field>
                 <p class="text-muted">
                     Solo se muestran los números de serie de este producto, en el estado elegido,
                     que no estén ya asignados en otro presupuesto/pedido activo.
