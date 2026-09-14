@@ -41,31 +41,32 @@ class TestProductState(TransactionCase):
         self.assertEqual(lot.product_state_id, self.state_new)
 
     def test_02_demo_validation(self):
-        # Create a Demo lot
+        # Create sale order
+        sale_order = self.env['sale.order'].create({
+            'partner_id': self.partner.id,
+        })
+
+        # A lot in Demo state can't be added as a serial (not in the allowed state list)
         lot_demo = self.env['stock.lot'].create({
             'name': 'SN-DEMO',
             'product_id': self.product.id,
             'product_state_id': self.state_demo.id,
             'company_id': self.env.company.id,
         })
-
-        # Create sale order
-        sale_order = self.env['sale.order'].create({
-            'partner_id': self.partner.id,
+        line = self.env['sale.order.line'].create({
+            'order_id': sale_order.id,
+            'product_id': self.product.id,
         })
-
-        # Trying to add demo lot should raise ValidationError
         with self.assertRaises(ValidationError):
-            self.env['sale.order.line'].create({
-                'order_id': sale_order.id,
-                'product_id': self.product.id,
+            self.env['sale.order.line.serial'].create({
+                'sale_order_line_id': line.id,
                 'lot_id': lot_demo.id,
             })
 
         # Change product template state to Demo
         self.product_tmpl.product_state_id = self.state_demo
 
-        # Trying to add product in Demo state without lot should also raise ValidationError
+        # Trying to add product in Demo state should also raise ValidationError
         with self.assertRaises(ValidationError):
             self.env['sale.order.line'].create({
                 'order_id': sale_order.id,
@@ -95,23 +96,77 @@ class TestProductState(TransactionCase):
             'partner_id': self.partner.id,
         })
 
-        # Line with Ex-Demo lot
+        # Line with Ex-Demo serial
         line_ex_demo = self.env['sale.order.line'].create({
             'order_id': sale_order.id,
             'product_id': self.product.id,
+            'product_uom_qty': 1,
+        })
+        self.env['sale.order.line.serial'].create({
+            'sale_order_line_id': line_ex_demo.id,
             'lot_id': lot_ex_demo.id,
         })
         self.assertEqual(line_ex_demo.price_unit, 80.0)
         self.assertEqual(line_ex_demo.discount, 0.0)
 
-        # Line with Second-Hand lot
+        # Line with Second-Hand serial
         line_second_hand = self.env['sale.order.line'].create({
             'order_id': sale_order.id,
             'product_id': self.product.id,
+            'product_uom_qty': 1,
+        })
+        self.env['sale.order.line.serial'].create({
+            'sale_order_line_id': line_second_hand.id,
             'lot_id': lot_second_hand.id,
         })
         self.assertEqual(line_second_hand.price_unit, 60.0)
         self.assertEqual(line_second_hand.discount, 10.0)
+
+    def test_05_multiple_serials_same_line(self):
+        # Two second-hand lots with different custom prices grouped in one line
+        lot_a = self.env['stock.lot'].create({
+            'name': 'SN-SH-A',
+            'product_id': self.product.id,
+            'product_state_id': self.state_second_hand.id,
+            'custom_price': 50.0,
+            'company_id': self.env.company.id,
+        })
+        lot_b = self.env['stock.lot'].create({
+            'name': 'SN-SH-B',
+            'product_id': self.product.id,
+            'product_state_id': self.state_second_hand.id,
+            'custom_price': 70.0,
+            'company_id': self.env.company.id,
+        })
+
+        sale_order = self.env['sale.order'].create({
+            'partner_id': self.partner.id,
+        })
+        line = self.env['sale.order.line'].create({
+            'order_id': sale_order.id,
+            'product_id': self.product.id,
+            'product_uom_qty': 2,
+        })
+        self.env['sale.order.line.serial'].create([
+            {'sale_order_line_id': line.id, 'lot_id': lot_a.id},
+            {'sale_order_line_id': line.id, 'lot_id': lot_b.id},
+        ])
+        # Average unit price = (50 + 70) / 2 = 60
+        self.assertEqual(line.price_unit, 60.0)
+        self.assertEqual(line.discount, 10.0)
+
+        # Selling the same lot again in another active order line must be blocked
+        other_order = self.env['sale.order'].create({'partner_id': self.partner.id})
+        other_line = self.env['sale.order.line'].create({
+            'order_id': other_order.id,
+            'product_id': self.product.id,
+            'product_uom_qty': 1,
+        })
+        with self.assertRaises(ValidationError):
+            self.env['sale.order.line.serial'].create({
+                'sale_order_line_id': other_line.id,
+                'lot_id': lot_a.id,
+            })
 
     def test_04_cron_archive_discontinued(self):
         # Set product template to discontinued state
