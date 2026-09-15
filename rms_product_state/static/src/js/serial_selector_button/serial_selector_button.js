@@ -12,6 +12,7 @@ export class SerialSelectorButton extends Component {
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
+        this.notification = useService("notification");
     }
 
     get count() {
@@ -25,35 +26,20 @@ export class SerialSelectorButton extends Component {
 
     async onClick(ev) {
         ev.stopPropagation();
-        // Protección contra doble disparo: el guardado del registro raíz
-        // puede provocar un re-render de este botón mientras el primer
-        // click todavía se está procesando, y sin esta guarda se han visto
-        // varias llamadas a action_open_serial_selector desde un único
-        // click de usuario (varios diálogos pisándose y errores de cliente).
+        // Protección contra doble disparo del propio click.
         if (this.isHandlingClick) {
             return;
         }
         this.isHandlingClick = true;
         try {
-            // La línea es una fila de un one2many (order_line) dentro del
-            // presupuesto: guardar solo la línea falla si el propio
-            // presupuesto (su registro raíz) tampoco está guardado
-            // todavía, porque a la línea le faltaría order_id. Por eso
-            // guardamos siempre el registro raíz del formulario, no la
-            // línea suelta — así no interrumpimos al comercial con
-            // "Primero guarde sus cambios".
             const rootRecord = this.props.record.model.root;
-            // Guardamos identificadores estables ANTES de guardar:
-            // this.props.record puede quedar apuntando a un objeto
-            // obsoleto una vez el pedido nuevo se guarda (su resId nunca
-            // llega a actualizarse, ni esperando ni recargando desde el
-            // registro raíz), así que si la búsqueda en el cliente falla
-            // recurrimos al servidor como red de seguridad.
-            const localId = this.props.record.id;
-            const productId = this.props.record.data.product_id
-                && this.props.record.data.product_id[0];
-            const sequence = this.props.record.data.sequence;
-            if (!rootRecord.resId || rootRecord.dirty) {
+            const wasUnsaved = !rootRecord.resId || rootRecord.dirty;
+            if (wasUnsaved) {
+                // La línea es una fila de un one2many (order_line) dentro
+                // del presupuesto: guardar solo la línea falla si el
+                // propio presupuesto (su registro raíz) tampoco está
+                // guardado todavía, porque a la línea le faltaría
+                // order_id. Por eso guardamos siempre el registro raíz.
                 const saved = await rootRecord.save();
                 if (saved === false) {
                     // Guardado bloqueado (p. ej. falta un campo
@@ -61,36 +47,29 @@ export class SerialSelectorButton extends Component {
                     // validación.
                     return;
                 }
-            }
-            const lineRecords = (rootRecord.data.order_line && rootRecord.data.order_line.records) || [];
-            const freshLine = lineRecords.find((r) => r.id === localId);
-            let resId = freshLine && freshLine.resId;
-            if (!resId && rootRecord.resId) {
-                // Red de seguridad: la reactividad del cliente no siempre
-                // refleja el id real de esta línea justo tras crear el
-                // pedido, así que la buscamos directamente en el
-                // servidor por pedido + secuencia + producto.
-                const domain = [["order_id", "=", rootRecord.resId]];
-                if (sequence !== undefined && sequence !== false) {
-                    domain.push(["sequence", "=", sequence]);
-                }
-                if (productId) {
-                    domain.push(["product_id", "=", productId]);
-                }
-                const found = await this.orm.searchRead(
-                    "sale.order.line", domain, ["id"], { limit: 1 }
+                // Justo tras guardar un pedido nuevo, el id real de esta
+                // línea tarda en reflejarse de forma fiable en el
+                // cliente (probado con varias estrategias: esperar un
+                // tick, recargar la línea, recargar el pedido, buscar la
+                // línea fresca en el pedido raíz, y hasta consultar el
+                // servidor directamente — ninguna es consistente al
+                // 100%). En vez de arriesgarnos a abrir el wizard sobre
+                // un id equivocado o a fallar en silencio, pedimos un
+                // segundo click: con el pedido ya guardado, el resId de
+                // la línea SÍ está siempre disponible de forma fiable.
+                this.notification.add(
+                    "Presupuesto guardado. Pulsa de nuevo el botón de la línea para elegir las series.",
+                    { type: "info" }
                 );
-                if (found.length) {
-                    resId = found[0].id;
-                }
+                return;
             }
-            if (!resId) {
+            if (!this.props.record.resId) {
                 return;
             }
             const action = await this.orm.call(
                 "sale.order.line",
                 "action_open_serial_selector",
-                [resId]
+                [this.props.record.resId]
             );
             this.action.doAction(action, {
                 // Recargamos el registro raíz (el pedido), no solo la
