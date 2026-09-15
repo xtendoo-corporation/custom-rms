@@ -50,13 +50,18 @@ export class SerialSelectorButton extends Component {
         if (!this.props.record.resId) {
             return;
         }
+        const rootRecordForReload = this.props.record.model.root;
         const action = await this.orm.call(
             "sale.order.line",
             "action_open_serial_selector",
             [this.props.record.resId]
         );
         this.action.doAction(action, {
-            onClose: () => this.props.record.load(),
+            // Recargamos el registro raíz (el pedido), no solo la línea:
+            // el wizard cambia price_unit/discount de la línea, y eso
+            // cambia los totales del pedido (Importe base, Total...), que
+            // viven en el registro padre y no se refrescan solos.
+            onClose: () => rootRecordForReload.load(),
         });
     }
 }
