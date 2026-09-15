@@ -65,9 +65,10 @@ class HrExpense(models.Model):
             'rms_hr_expense_ai_email.min_attachment_bytes', 15000))
         tickets = self._rms_get_candidate_attachments(min_bytes=min_bytes)
         if len(tickets) <= 1:
-            return
+            return self.browse()
 
         total = len(tickets)
+        new_expenses = self.browse()
         for index, attachment in enumerate(tickets[1:], start=2):
             new_expense = self.copy({
                 'created_from_email_alias': True,
@@ -83,12 +84,14 @@ class HrExpense(models.Model):
                 "(repartido desde el gasto #%(source)s).",
                 index=index, total=total, source=self.id,
             ))
+            new_expenses |= new_expense
 
         self.message_post(body=_(
             "Se han detectado %(total)s tickets en este correo: se han creado "
             "%(extra)s gastos adicionales en borrador, uno por cada ticket.",
             total=total, extra=total - 1,
         ))
+        return new_expenses
 
     @api.model
     def _cron_process_pending_ai_email_expenses(self):
@@ -107,9 +110,11 @@ class HrExpense(models.Model):
             # depender del orden exacto de los mensajes creados en el hilo
             # (correo entrante, avisos de otros módulos, etc.) no es fiable.
             # Aquí solo miramos el estado ya persistido de los adjuntos.
+            new_expenses = self.browse()
             if not expense.ai_attachments_split:
-                expense._rms_split_email_attachments()
-            expense._rms_run_ai_import(max_attempts)
+                new_expenses = expense._rms_split_email_attachments()
+            for to_process in expense + new_expenses:
+                to_process._rms_run_ai_import(max_attempts)
 
     def _rms_run_ai_import(self, max_attempts):
         self.ensure_one()
