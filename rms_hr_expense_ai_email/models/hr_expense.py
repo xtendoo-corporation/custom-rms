@@ -113,8 +113,19 @@ class HrExpense(models.Model):
             new_expenses = self.browse()
             if not expense.ai_attachments_split:
                 new_expenses = expense._rms_split_email_attachments()
+                # Un correo puede traer muchos tickets (un comercial que
+                # manda 30 fotos de golpe en vez de 30 correos): se guarda
+                # el reparto ya mismo para no perderlo si el proceso se
+                # interrumpe a mitad de las llamadas a la IA que vienen
+                # a continuación, una por cada ticket.
+                self.env.cr.commit()
             for to_process in expense + new_expenses:
                 to_process._rms_run_ai_import(max_attempts)
+                # Cada ticket se procesa con una llamada a la IA por
+                # separado (pueden ser bastantes en un correo con muchos
+                # adjuntos): se confirma cada uno según se completa, para
+                # no perder los ya hechos si algo corta la pasada a mitad.
+                self.env.cr.commit()
 
     def _rms_run_ai_import(self, max_attempts):
         self.ensure_one()
