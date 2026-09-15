@@ -13,11 +13,13 @@ class SaleOrderLine(models.Model):
         help="Números de serie concretos (2ª Mano / Ex-Demo) vendidos en esta línea."
     )
     serial_count = fields.Integer(compute='_compute_serial_count', string='Nº de series')
+    serial_state_name = fields.Char(compute='_compute_serial_count', string='Estado de las series')
 
-    @api.depends('serial_ids')
+    @api.depends('serial_ids', 'serial_ids.product_state_id')
     def _compute_serial_count(self):
         for line in self:
             line.serial_count = len(line.serial_ids)
+            line.serial_state_name = line.serial_ids[0].product_state_id.name if line.serial_ids else False
 
     @api.onchange('serial_ids')
     def _onchange_serial_ids_set_qty(self):

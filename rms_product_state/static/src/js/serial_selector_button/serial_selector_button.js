@@ -19,11 +19,8 @@ export class SerialSelectorButton extends Component {
     }
 
     get label() {
-        const count = this.count;
-        if (!count) {
-            return "2ª Mano / Ex-Demo";
-        }
-        return count === 1 ? "1 serie" : `${count} series`;
+        const stateName = this.props.record.data.serial_state_name;
+        return stateName || "Nuevo";
     }
 
     async onClick(ev) {

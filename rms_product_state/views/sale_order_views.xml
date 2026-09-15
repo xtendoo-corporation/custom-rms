@@ -32,8 +32,9 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='order_line']/list/field[@name='name']" position="after">
+                <field name="serial_state_name" invisible="1"/>
                 <field name="serial_count" widget="serial_selector_button"
-                       string="2ª Mano / Ex-Demo" optional="show"
+                       string="Estado" optional="show"
                        invisible="display_type"/>
             </xpath>
             <!-- El widget sol_o2m del campo order_line usa, en pantallas
@@ -42,7 +43,8 @@
                  así que el botón de series hay que repetirlo también dentro
                  de este formulario anidado para que sea accesible en móvil. -->
             <xpath expr="//field[@name='order_line']/form//div[@name='ordered_qty']" position="after">
-                <label for="serial_count" string="2ª Mano / Ex-Demo"/>
+                <field name="serial_state_name" invisible="1"/>
+                <label for="serial_count" string="Estado"/>
                 <div name="serial_count">
                     <field name="serial_count" widget="serial_selector_button" nolabel="1"/>
                 </div>
@@ -60,8 +62,9 @@
         <field name="inherit_id" ref="sale.sale_order_line_view_form_readonly"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='product_uom_qty']" position="after">
+                <field name="serial_state_name" invisible="1"/>
                 <field name="serial_count" widget="serial_selector_button"
-                       string="2ª Mano / Ex-Demo" invisible="display_type"/>
+                       string="Estado" invisible="display_type"/>
             </xpath>
         </field>
     </record>
