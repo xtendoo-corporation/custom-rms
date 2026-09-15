@@ -1,0 +1,183 @@
+# -*- coding: utf-8 -*-
+import logging
+
+from odoo import _, api, fields, models
+
+_logger = logging.getLogger(__name__)
+
+# default_code de las categorías de gasto existentes (product.product,
+# can_be_expensed=True). Heurística de palabras clave en español para
+# rellenar la categoría cuando xtendoo_hr_expense_ai no la haya asignado ya
+# (su wizard sólo documenta fecha/descripción/importe/proveedor).
+EXPENSE_CATEGORY_KEYWORDS = {
+    'FOOD': [
+        'restaurante', 'bar ', 'cafeteria', 'cafetería', 'menu', 'menú',
+        'comida', 'almuerzo', 'cena', 'desayuno',
+    ],
+    'TRANS & ACC': [
+        'taxi', 'uber', 'cabify', 'renfe', 'avion', 'avión', 'vuelo',
+        'hotel', 'parking', 'aparcamiento', 'peaje', 'gasolina',
+        'gasolinera', 'combustible', 'autopista', 'tren', 'billete',
+    ],
+    'COMM': [
+        'telefono', 'teléfono', 'movil', 'móvil', 'internet', 'vodafone',
+        'movistar', 'orange', 'telefonica', 'telefónica',
+    ],
+    'GIFT': ['regalo', 'flores', 'obsequio'],
+    'MIL': ['kilometraje', 'km recorridos', 'dietas'],
+}
+EXPENSE_CATEGORY_FALLBACK = 'EXP_GEN'
+
+
+class HrExpense(models.Model):
+    _inherit = 'hr.expense'
+
+    created_from_email_alias = fields.Boolean(
+        string="Creado por email (alias de Gastos)", default=False, copy=False)
+    ai_attachments_split = fields.Boolean(
+        string="Adjuntos del email ya repartidos", default=False, copy=False)
+    ai_import_attempts = fields.Integer(
+        string="Intentos de importación con IA", default=0, copy=False)
+
+    @api.model
+    def message_new(self, msg_dict, custom_values=None):
+        expense = super().message_new(msg_dict, custom_values=custom_values)
+        expense.created_from_email_alias = True
+        return expense
+
+    def _message_post_after_hook(self, message, msg_dict):
+        res = super()._message_post_after_hook(message, msg_dict)
+        # Sólo se reparte en el correo de creación (un único mensaje en el
+        # hilo todavía), nunca en una respuesta posterior sobre el mismo
+        # gasto: así no depende de ningún contexto propagado por el
+        # framework, sólo del estado ya persistido del hilo.
+        if (
+            self.created_from_email_alias
+            and not self.ai_attachments_split
+            and len(self.message_ids) <= 1
+        ):
+            self._rms_split_email_attachments()
+        return res
+
+    def _rms_get_candidate_attachments(self, min_bytes=0):
+        self.ensure_one()
+        attachments = self.env['ir.attachment'].sudo().search([
+            ('res_model', '=', 'hr.expense'),
+            ('res_id', '=', self.id),
+        ], order='id')
+        return attachments.filtered(
+            lambda a: (
+                (a.mimetype or '').startswith('image/') or a.mimetype == 'application/pdf'
+            ) and a.file_size >= min_bytes
+        )
+
+    def _rms_split_email_attachments(self):
+        self.ensure_one()
+        self.ai_attachments_split = True
+
+        min_bytes = int(self.env['ir.config_parameter'].sudo().get_param(
+            'rms_hr_expense_ai_email.min_attachment_bytes', 15000))
+        tickets = self._rms_get_candidate_attachments(min_bytes=min_bytes)
+        if len(tickets) <= 1:
+            return
+
+        total = len(tickets)
+        for index, attachment in enumerate(tickets[1:], start=2):
+            new_expense = self.copy({
+                'created_from_email_alias': True,
+                'ai_attachments_split': True,
+                'ai_processed': False,
+                'ai_has_corrections': False,
+                'ai_import_attempts': 0,
+                'attachment_ids': [(5, 0, 0)],
+            })
+            attachment.sudo().write({'res_id': new_expense.id})
+            new_expense.message_post(body=_(
+                "Ticket %(index)s de %(total)s detectado en el correo original "
+                "(repartido desde el gasto #%(source)s).",
+                index=index, total=total, source=self.id,
+            ))
+
+        self.message_post(body=_(
+            "Se han detectado %(total)s tickets en este correo: se han creado "
+            "%(extra)s gastos adicionales en borrador, uno por cada ticket.",
+            total=total, extra=total - 1,
+        ))
+
+    @api.model
+    def _cron_process_pending_ai_email_expenses(self):
+        max_attempts = int(self.env['ir.config_parameter'].sudo().get_param(
+            'rms_hr_expense_ai_email.max_attempts', 3))
+        batch_limit = int(self.env['ir.config_parameter'].sudo().get_param(
+            'rms_hr_expense_ai_email.batch_limit', 20))
+        expenses = self.sudo().search([
+            ('created_from_email_alias', '=', True),
+            ('state', '=', 'draft'),
+            ('ai_processed', '=', False),
+            ('ai_import_attempts', '<', max_attempts),
+        ], limit=batch_limit)
+        for expense in expenses:
+            expense._rms_run_ai_import(max_attempts)
+
+    def _rms_run_ai_import(self, max_attempts):
+        self.ensure_one()
+        attachment = self._rms_get_candidate_attachments()[:1]
+        if not attachment:
+            return
+
+        self.ai_import_attempts += 1
+        try:
+            with self.env.cr.savepoint():
+                wizard = self.env['hr.expense.ai.wizard'].sudo().create({
+                    'expense_id': self.id,
+                    'attachment_file': attachment.datas,
+                    'attachment_name': attachment.name,
+                })
+                wizard.action_analyze()
+                wizard.action_apply()
+        except Exception as exc:  # noqa: BLE001 - errores externos (Gemini, red, JSON...)
+            _logger.warning(
+                "Fallo al procesar el gasto #%s con IA (intento %s/%s): %s",
+                self.id, self.ai_import_attempts, max_attempts, exc,
+            )
+            if self.ai_import_attempts >= max_attempts:
+                self.message_post(body=_(
+                    "No se ha podido procesar este ticket automáticamente con IA "
+                    "tras %(attempts)s intentos. Revísalo manualmente (importe, "
+                    "proveedor y categoría) antes de aprobarlo.\nError: %(error)s",
+                    attempts=self.ai_import_attempts, error=str(exc)[:500],
+                ))
+                self.ai_has_corrections = True
+            return
+
+        self._rms_finalize_ai_import()
+
+    def _rms_finalize_ai_import(self):
+        self.ensure_one()
+        if not self.ai_processed:
+            self.ai_processed = True
+        if not self.product_id:
+            category = self._rms_guess_expense_category()
+            if category:
+                self.product_id = category
+
+    def _rms_guess_expense_category(self):
+        self.ensure_one()
+        text = ' '.join(filter(None, [
+            self.vendor_id.name, self.name, self.description,
+        ])).lower()
+
+        Product = self.env['product.product'].sudo()
+        for default_code, keywords in EXPENSE_CATEGORY_KEYWORDS.items():
+            if any(keyword in text for keyword in keywords):
+                product = Product.search([
+                    ('default_code', '=', default_code),
+                    ('can_be_expensed', '=', True),
+                ], limit=1)
+                if product:
+                    return product
+
+        return Product.search([
+            ('default_code', '=', EXPENSE_CATEGORY_FALLBACK),
+            ('can_be_expensed', '=', True),
+        ], limit=1)
