@@ -43,6 +43,14 @@ export class SerialSelectorButton extends Component {
             // línea suelta — así no interrumpimos al comercial con
             // "Primero guarde sus cambios".
             const rootRecord = this.props.record.model.root;
+            // Guardamos el "id local" (estable, propio del datapoint del
+            // framework) ANTES de guardar: this.props.record puede quedar
+            // apuntando a un objeto obsoleto una vez el pedido nuevo se
+            // guarda (el resId de esa referencia nunca llega a
+            // actualizarse, aunque se espere), así que tras guardar
+            // buscamos la línea fresca en el registro raíz por este id en
+            // vez de confiar en that stale this.props.record.
+            const localId = this.props.record.id;
             if (!rootRecord.resId || rootRecord.dirty) {
                 const saved = await rootRecord.save();
                 if (saved === false) {
@@ -52,25 +60,15 @@ export class SerialSelectorButton extends Component {
                     return;
                 }
             }
-            if (!this.props.record.resId) {
-                // Justo tras crear el pedido, el datapoint de esta línea
-                // puede tardar un ciclo en reflejar su id real: esperamos
-                // un tick en vez de rendirnos directamente, para que un
-                // único click guarde Y abra el selector. OJO: no usar
-                // this.props.record.load() aquí — fuerza un onchange que
-                // en este entorno hace saltar un ValueError del núcleo de
-                // Odoo (_compute_translated_product_name > order_id
-                // vacío) cuando la línea es recién creada.
-                await new Promise((resolve) => setTimeout(resolve, 0));
-            }
-            if (!this.props.record.resId) {
+            const lineRecords = (rootRecord.data.order_line && rootRecord.data.order_line.records) || [];
+            const freshLine = lineRecords.find((r) => r.id === localId) || this.props.record;
+            if (!freshLine.resId) {
                 return;
             }
-            const rootRecordForReload = this.props.record.model.root;
             const action = await this.orm.call(
                 "sale.order.line",
                 "action_open_serial_selector",
-                [this.props.record.resId]
+                [freshLine.resId]
             );
             this.action.doAction(action, {
                 // Recargamos el registro raíz (el pedido), no solo la
@@ -78,7 +76,7 @@ export class SerialSelectorButton extends Component {
                 // y eso cambia los totales del pedido (Importe base,
                 // Total...), que viven en el registro padre y no se
                 // refrescan solos.
-                onClose: () => rootRecordForReload.load(),
+                onClose: () => rootRecord.load(),
             });
         } finally {
             this.isHandlingClick = false;
