@@ -1,4 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_hr_certification_category_user,rms.hr.certification.category.user,model_rms_hr_certification_category,base.group_user,1,0,0,0
+access_hr_certification_category_hr_officer,rms.hr.certification.category.hr.officer,model_rms_hr_certification_category,hr.group_hr_user,1,1,1,1
 access_hr_certification_type_user,rms.hr.certification.type.user,model_rms_hr_certification_type,base.group_user,1,0,0,0
 access_hr_certification_type_hr_officer,rms.hr.certification.type.hr.officer,model_rms_hr_certification_type,hr.group_hr_user,1,1,1,1
 access_hr_employee_certification_user,rms.hr.employee.certification.user,model_rms_hr_employee_certification,base.group_user,1,0,0,0

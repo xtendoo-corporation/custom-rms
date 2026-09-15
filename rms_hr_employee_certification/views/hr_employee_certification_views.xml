@@ -7,7 +7,7 @@
             <list string="Certificaciones de Empleado" decoration-danger="state == 'expired'" decoration-warning="state == 'expiring'" decoration-success="state == 'valid'" decoration-muted="state == 'done'">
                 <field name="employee_id"/>
                 <field name="certification_type_id"/>
-                <field name="category"/>
+                <field name="category_id" widget="badge"/>
                 <field name="date_obtained"/>
                 <field name="date_expiration"/>
                 <field name="state" widget="badge" decoration-danger="state == 'expired'" decoration-warning="state == 'expiring'" decoration-success="state == 'valid'"/>
@@ -31,7 +31,7 @@
                         <group>
                             <field name="employee_id"/>
                             <field name="company_id" groups="base.group_multi_company"/>
-                            <field name="category" invisible="1"/>
+                            <field name="category_id"/>
                             <field name="is_recurring" invisible="1"/>
                         </group>
                         <group>
@@ -40,10 +40,11 @@
                             <field name="state" widget="badge" decoration-danger="state == 'expired'" decoration-warning="state == 'expiring'" decoration-success="state == 'valid'"/>
                         </group>
                     </group>
-                    <group>
-                        <field name="document_filename" invisible="1"/>
-                        <field name="document" filename="document_filename" widget="pdf_viewer"/>
-                    </group>
+                    <field name="document_filename" invisible="1"/>
+                    <div class="o_rms_certification_pdf_wrapper mt-3 mb-2">
+                        <label for="document" string="Documento Adjunto" class="o_form_label fw-bold mb-2 d-block"/>
+                        <field name="document" filename="document_filename" widget="pdf_viewer" nolabel="1"/>
+                    </div>
                     <group>
                         <field name="notes" placeholder="Observaciones..."/>
                     </group>

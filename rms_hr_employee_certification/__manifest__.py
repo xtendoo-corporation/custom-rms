@@ -19,6 +19,8 @@
           los Administradores) pueden añadir, modificar o eliminar certificaciones; el resto
           de usuarios puede consultarlas (RRHH ve todas, cada empleado ve solo las suyas).
         - Acceso directo desde la ficha del empleado mediante un botón inteligente.
+        - Categorías de certificación gestionables desde Odoo (catálogo propio, sin tocar código).
+        - Vista previa ampliada del documento (PDF) adjunto a cada certificación.
     """,
     'author': 'Xtendoo',
     'website': 'https://xtendoo.es',
@@ -27,13 +29,20 @@
         'security/hr_certification_groups.xml',
         'security/ir.model.access.csv',
         'security/hr_employee_certification_security.xml',
+        'data/hr_certification_category_data.xml',
         'data/hr_certification_type_data.xml',
         'data/ir_cron_data.xml',
+        'views/hr_certification_category_views.xml',
         'views/hr_certification_type_views.xml',
         'views/hr_employee_certification_views.xml',
         'views/hr_employee_views.xml',
         'views/hr_menus.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'rms_hr_employee_certification/static/src/css/hr_employee_certification.css',
+        ],
+    },
     'installable': True,
     'application': False,
     'license': 'LGPL-3',

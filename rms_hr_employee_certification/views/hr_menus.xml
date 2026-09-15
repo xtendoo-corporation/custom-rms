@@ -17,4 +17,11 @@
               action="action_hr_certification_type"
               sequence="20"
               groups="hr.group_hr_user"/>
+
+    <menuitem id="menu_hr_certification_category"
+              name="Categorías de Certificación"
+              parent="menu_hr_certification_root"
+              action="action_hr_certification_category"
+              sequence="30"
+              groups="hr.group_hr_user"/>
 </odoo>

@@ -6,7 +6,7 @@
         <field name="arch" type="xml">
             <list string="Tipos de Certificación">
                 <field name="name"/>
-                <field name="category"/>
+                <field name="category_id" widget="badge"/>
                 <field name="is_recurring" widget="boolean_toggle"/>
                 <field name="validity_months"/>
                 <field name="reminder_days"/>
@@ -29,7 +29,7 @@
                     <group>
                         <group>
                             <field name="code"/>
-                            <field name="category"/>
+                            <field name="category_id" options="{'no_create_edit': True}"/>
                             <field name="requires_document"/>
                         </group>
                         <group>
@@ -44,6 +44,21 @@
                     </group>
                 </sheet>
             </form>
+        </field>
+    </record>
+
+    <record id="view_hr_certification_type_search" model="ir.ui.view">
+        <field name="name">rms.hr.certification.type.search</field>
+        <field name="model">rms.hr.certification.type</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Tipos de Certificación">
+                <field name="name"/>
+                <field name="category_id"/>
+                <filter string="Requieren Renovación" name="filter_recurring" domain="[('is_recurring', '=', True)]"/>
+                <group>
+                    <filter string="Categoría" name="group_category" context="{'group_by': 'category_id'}"/>
+                </group>
+            </search>
         </field>
     </record>
 

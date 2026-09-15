@@ -8,12 +8,10 @@ class HrCertificationType(models.Model):
 
     name = fields.Char(string='Nombre', required=True, translate=True)
     code = fields.Char(string='Código Interno')
-    category = fields.Selection([
-        ('training', 'Formación'),
-        ('consent', 'Consentimiento / Firma'),
-        ('medical', 'Reconocimiento Médico'),
-        ('other', 'Otro'),
-    ], string='Categoría', default='training', required=True)
+    category_id = fields.Many2one(
+        'rms.hr.certification.category', string='Categoría', required=True,
+        help="Categoría bajo la que se agrupa este tipo de certificación "
+             "(gestionable desde Certificaciones > Categorías de Certificación).")
     is_recurring = fields.Boolean(
         string='Requiere Renovación Periódica', default=True,
         help="Marcar si esta certificación caduca y debe renovarse periódicamente "

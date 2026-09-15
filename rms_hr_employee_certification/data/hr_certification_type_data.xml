@@ -4,7 +4,7 @@
         <record id="certification_type_prl_office" model="rms.hr.certification.type">
             <field name="name">PRL - Formación en Oficina</field>
             <field name="code">prl_office</field>
-            <field name="category">training</field>
+            <field name="category_id" ref="certification_category_training"/>
             <field name="is_recurring" eval="True"/>
             <field name="validity_months">12</field>
             <field name="reminder_days">30</field>
@@ -15,7 +15,7 @@
         <record id="certification_type_whatsapp_consent" model="rms.hr.certification.type">
             <field name="name">Consentimiento de WhatsApp</field>
             <field name="code">whatsapp_consent</field>
-            <field name="category">consent</field>
+            <field name="category_id" ref="certification_category_consent"/>
             <field name="is_recurring" eval="False"/>
             <field name="validity_months">0</field>
             <field name="requires_document" eval="True"/>
@@ -25,7 +25,7 @@
         <record id="certification_type_rgpd_consent" model="rms.hr.certification.type">
             <field name="name">Consentimiento de Protección de Datos (RGPD)</field>
             <field name="code">rgpd_consent</field>
-            <field name="category">consent</field>
+            <field name="category_id" ref="certification_category_consent"/>
             <field name="is_recurring" eval="False"/>
             <field name="validity_months">0</field>
             <field name="requires_document" eval="True"/>
