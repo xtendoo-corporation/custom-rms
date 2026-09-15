@@ -43,4 +43,17 @@
         touch-action: none;
         cursor: nwse-resize;
     }
+
+    // Modo lector físico (PDA): el input real está siempre presente y
+    // enfocado (ver JS), aquí solo se cuida que se note visualmente que
+    // está "escuchando".
+    .o_rms_bs_pda_wrap {
+        max-width: 480px;
+        margin: 0 auto;
+
+        input:focus {
+            border-color: var(--bs-primary, #6f42c1);
+            box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+        }
+    }
 }

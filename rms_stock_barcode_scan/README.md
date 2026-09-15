@@ -1,8 +1,9 @@
-# RMS Stock Barcode Scan (Cámara)
+# RMS Stock Barcode Scan (Cámara / PDA)
 
-Escanea números de serie con la cámara del móvil/tablet y los añade como
-líneas contadas en el **Inventario físico** de Odoo (`stock.quant`), sin
-necesidad de un lector de código de barras físico.
+Escanea números de serie con la cámara del móvil/tablet, o con un lector
+físico tipo PDA (láser/imager en modo teclado), y los añade como líneas
+contadas en el **Inventario físico** de Odoo (`stock.quant`), o directamente
+a la línea de recepción/entrega que se esté escaneando.
 
 ## Flujo
 
@@ -11,13 +12,21 @@ necesidad de un lector de código de barras físico.
    código de barras) y confirmas la ubicación de almacén que estás
    contando (por defecto, la ubicación de stock del almacén de tu
    compañía).
-3. **Cámara**: se activa la cámara del dispositivo. Sobre la imagen hay un
-   recuadro blanco que se puede mover y redimensionar (arrastrando su
-   asa); solo se decodifica lo que quede dentro de ese recuadro, lo que
-   evita leer por error otro código de barras cercano en la misma
-   etiqueta o caja. También hay un control de zoom. Cada código de barras
-   nuevo detectado dentro del recuadro se añade a una lista en pantalla
-   (con vibración/pitido de confirmación); se puede borrar una lectura
+3. **Cámara o PDA**: en la parte superior se puede elegir el modo de
+   entrada (se recuerda la última elección en el navegador):
+   - **Cámara**: se activa la cámara del dispositivo. Sobre la imagen hay
+     un recuadro blanco que se puede mover y redimensionar (arrastrando su
+     asa); solo se decodifica lo que quede dentro de ese recuadro, lo que
+     evita leer por error otro código de barras cercano en la misma
+     etiqueta o caja. También hay un control de zoom.
+   - **Lector físico (PDA)**: para lectores láser/imager (PDA de almacén,
+     pistolas USB/Bluetooth) que funcionan en modo teclado ("keyboard
+     wedge"): un campo de texto permanece siempre enfocado mientras se
+     escanea, y cada lectura se añade en cuanto el lector envía su Enter
+     final. No hace falta ninguna app ni configuración especial en el
+     lector: cualquier modelo en modo teclado (la inmensa mayoría) sirve.
+   Cada código nuevo detectado se añade a una lista en pantalla (con
+   vibración/pitido de confirmación); se puede borrar una lectura
    equivocada antes de terminar.
 4. **Confirmar**: al pulsar "Confirmar y añadir al Inventario físico", por
    cada número de serie de la lista:
@@ -65,6 +74,21 @@ necesidad de un lector de código de barras físico.
   cámara desde el navegador), se aplica un zoom digital por CSS sobre la
   imagen mostrada — ayuda a ver mejor el código, pero no mejora la
   resolución real capturada.
+
+## PDA / lector físico: compatibilidad
+
+- Funciona con cualquier lector en modo teclado ("keyboard wedge" o "HID
+  keyboard"): PDA de almacén (Zebra, Honeywell, Point Mobile, CipherLab...)
+  y pistolas de mano USB o Bluetooth. Es el modo de fábrica de la inmensa
+  mayoría de lectores, así que normalmente no hay nada que configurar en
+  el propio dispositivo.
+- No sirve para lectores que solo trabajen por Bluetooth SPP "puro" (sin
+  emulación de teclado) ni para apps nativas de intents (p. ej. Zebra
+  DataWedge en modo *intent*): esos casos necesitarían Web Serial/Web
+  Bluetooth o una integración específica, no cubierta por este módulo.
+- Mientras se escanea en este modo, no toques otra parte de la pantalla:
+  el campo que recibe el "tecleo" del lector necesita mantener el foco (se
+  reenfoca solo si lo pierde, pero conviene no forzarlo).
 
 ## Instalación
 

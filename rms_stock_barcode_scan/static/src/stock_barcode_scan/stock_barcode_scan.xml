@@ -74,7 +74,8 @@
                         class="btn btn-primary"
                         t-att-disabled="!canStartScan"
                         t-on-click="startScan">
-                        Iniciar escaneo con la cámara
+                        <t t-if="state.inputMode === 'pda'">Iniciar escaneo con el lector PDA</t>
+                        <t t-else="">Iniciar escaneo con la cámara</t>
                     </button>
                 </div>
             </t>
@@ -84,43 +85,77 @@
                 <div class="o_rms_bs_header p-3 border-bottom">
                     <h4 class="m-0">Escaneando: <t t-esc="state.product.name"/></h4>
                     <div class="text-muted">
-                        2. Apunta la cámara al código de barras de cada unidad
+                        <t t-if="state.inputMode === 'camera'">2. Apunta la cámara al código de barras de cada unidad</t>
+                        <t t-else="">2. Escanea cada código con el lector físico (PDA/láser)</t>
                         (<t t-esc="state.location.name"/>)
+                    </div>
+                    <div class="btn-group btn-group-sm mt-2" role="group">
+                        <button type="button"
+                                t-attf-class="btn {{ state.inputMode === 'camera' ? 'btn-primary' : 'btn-outline-primary' }}"
+                                t-on-click="() => this.setInputMode('camera')">
+                            <i class="fa fa-camera"/> Cámara
+                        </button>
+                        <button type="button"
+                                t-attf-class="btn {{ state.inputMode === 'pda' ? 'btn-primary' : 'btn-outline-primary' }}"
+                                t-on-click="() => this.setInputMode('pda')">
+                            <i class="fa fa-barcode"/> Lector físico (PDA)
+                        </button>
                     </div>
                 </div>
                 <div class="o_rms_bs_camera flex-grow-1 overflow-auto p-3">
-                    <div t-if="state.cameraError" class="alert alert-danger" t-esc="state.cameraError"/>
-                    <div class="o_rms_bs_video_wrap mb-1" t-ref="videoWrap">
-                        <video t-ref="video" class="o_rms_bs_video" autoplay="autoplay" playsinline="playsinline" muted="muted"
-                               t-att-style="!state.zoomCapabilities ? ('transform: scale(' + state.zoom + '); transform-origin: center;') : ''"/>
-                        <div class="o_rms_bs_scan_rect"
-                             t-attf-style="left:{{state.scanRect.x * 100}}%; top:{{state.scanRect.y * 100}}%; width:{{state.scanRect.w * 100}}%; height:{{state.scanRect.h * 100}}%;"
-                             t-on-pointerdown="onRectMovePointerDown"
-                             t-on-pointermove="onRectPointerMove"
-                             t-on-pointerup="onRectPointerUp"
-                             t-on-pointercancel="onRectPointerUp">
-                            <div class="o_rms_bs_scan_rect_handle"
-                                 t-on-pointerdown.stop="onRectResizePointerDown"
-                                 t-on-pointermove.stop="onRectPointerMove"
-                                 t-on-pointerup.stop="onRectPointerUp"
-                                 t-on-pointercancel.stop="onRectPointerUp"/>
+                    <t t-if="state.inputMode === 'camera'">
+                        <div t-if="state.cameraError" class="alert alert-danger" t-esc="state.cameraError"/>
+                        <div class="o_rms_bs_video_wrap mb-1" t-ref="videoWrap">
+                            <video t-ref="video" class="o_rms_bs_video" autoplay="autoplay" playsinline="playsinline" muted="muted"
+                                   t-att-style="!state.zoomCapabilities ? ('transform: scale(' + state.zoom + '); transform-origin: center;') : ''"/>
+                            <div class="o_rms_bs_scan_rect"
+                                 t-attf-style="left:{{state.scanRect.x * 100}}%; top:{{state.scanRect.y * 100}}%; width:{{state.scanRect.w * 100}}%; height:{{state.scanRect.h * 100}}%;"
+                                 t-on-pointerdown="onRectMovePointerDown"
+                                 t-on-pointermove="onRectPointerMove"
+                                 t-on-pointerup="onRectPointerUp"
+                                 t-on-pointercancel="onRectPointerUp">
+                                <div class="o_rms_bs_scan_rect_handle"
+                                     t-on-pointerdown.stop="onRectResizePointerDown"
+                                     t-on-pointermove.stop="onRectPointerMove"
+                                     t-on-pointerup.stop="onRectPointerUp"
+                                     t-on-pointercancel.stop="onRectPointerUp"/>
+                            </div>
                         </div>
-                    </div>
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <span class="small text-muted">Zoom</span>
-                        <input type="range" class="form-range flex-grow-1"
-                               t-att-min="zoomMin" t-att-max="zoomMax" t-att-step="zoomStep"
-                               t-att-value="state.zoom"
-                               t-on-input="onZoomInput"/>
-                    </div>
-                    <div class="text-muted small mb-3">
-                        Mueve y redimensiona el recuadro blanco para encajar el código de
-                        barras que quieres leer (útil si la etiqueta tiene varios códigos
-                        juntos); solo se lee lo que quede dentro de él. Si no ves imagen:
-                        revisa el permiso de cámara para este sitio (icono de candado/"aA"
-                        en la barra de direcciones) y que la página se ha abierto con
-                        https://.
-                    </div>
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="small text-muted">Zoom</span>
+                            <input type="range" class="form-range flex-grow-1"
+                                   t-att-min="zoomMin" t-att-max="zoomMax" t-att-step="zoomStep"
+                                   t-att-value="state.zoom"
+                                   t-on-input="onZoomInput"/>
+                        </div>
+                        <div class="text-muted small mb-3">
+                            Mueve y redimensiona el recuadro blanco para encajar el código de
+                            barras que quieres leer (útil si la etiqueta tiene varios códigos
+                            juntos); solo se lee lo que quede dentro de él. Si no ves imagen:
+                            revisa el permiso de cámara para este sitio (icono de candado/"aA"
+                            en la barra de direcciones) y que la página se ha abierto con
+                            https://.
+                        </div>
+                    </t>
+                    <t t-else="">
+                        <div class="o_rms_bs_pda_wrap mb-3 p-4 text-center border rounded">
+                            <i class="fa fa-barcode fa-2x mb-2 text-muted"/>
+                            <div class="text-muted mb-2">
+                                Escanea con el lector físico: cada código se añade en cuanto
+                                el lector envía su Enter final. No toques otra parte de la
+                                pantalla mientras escaneas para que el campo mantenga el foco.
+                            </div>
+                            <input
+                                type="text"
+                                t-ref="pdaInput"
+                                class="form-control text-center"
+                                placeholder="Esperando lectura..."
+                                autocomplete="off"
+                                t-on-keydown="onPdaKeydown"
+                                t-on-blur="onPdaBlur"
+                            />
+                        </div>
+                    </t>
                     <div class="d-flex align-items-center justify-content-between mb-2">
                         <span class="fw-bold">Escaneados: <span t-esc="state.scans.length"/></span>
                     </div>

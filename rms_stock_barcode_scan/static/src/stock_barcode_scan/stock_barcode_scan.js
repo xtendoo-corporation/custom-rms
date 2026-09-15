@@ -30,6 +30,7 @@ export class StockBarcodeScan extends Component {
         this.action = useService("action");
         this.videoRef = useRef("video");
         this.videoWrapRef = useRef("videoWrap");
+        this.pdaInputRef = useRef("pdaInput");
 
         // Si se abre desde el botón "Escanear" de una línea de recepción,
         // el contexto trae el id del stock.move: en ese caso el producto y
@@ -64,6 +65,11 @@ export class StockBarcodeScan extends Component {
             // {min, max, step} si el track de cámara soporta zoom nativo;
             // null si hay que recurrir al zoom digital (CSS) de reserva.
             zoomCapabilities: null,
+            // "camera" (por defecto) o "pda": lector físico (láser/imager)
+            // en modo teclado (keyboard wedge), típico de las PDA de
+            // almacén. Se recuerda la última elección del usuario en este
+            // navegador para no tener que cambiarla cada vez.
+            inputMode: this._loadInputMode(),
         });
 
         this._scannedCodes = new Set();
@@ -87,17 +93,87 @@ export class StockBarcodeScan extends Component {
         // seguiría siendo null). useEffect() se ejecuta DESPUÉS de que el
         // DOM se ha actualizado, así que es el sitio correcto para
         // arrancar/parar la cámara cada vez que cambia el paso.
+        // Cambiar de modo (cámara <-> PDA) dispara este mismo efecto de
+        // nuevo: OWL llama primero al cleanup del efecto anterior (para en
+        // modo cámara) y luego ejecuta la rama nueva, así que no hace falta
+        // parar la cámara "a mano" al entrar en modo PDA.
         useEffect(
             () => {
-                if (this.state.step === "camera") {
-                    this._startCamera();
-                    return () => this.stopCamera();
+                if (this.state.step !== "camera") {
+                    return;
                 }
+                if (this.state.inputMode === "pda") {
+                    this._focusPdaInput();
+                    return;
+                }
+                this._startCamera();
+                return () => this.stopCamera();
             },
-            () => [this.state.step]
+            () => [this.state.step, this.state.inputMode]
         );
 
         onWillUnmount(() => this.stopCamera());
+    }
+
+    // ------------------------------------------------------------------
+    // Modo de entrada: cámara (por defecto) o lector físico tipo PDA
+    // (láser/imager en modo teclado/"keyboard wedge"). Ambos modos acaban
+    // llamando a _onCodeDetected(), así que el resto del flujo (lista de
+    // escaneados, revisión, confirmación en el servidor) es idéntico.
+    // ------------------------------------------------------------------
+
+    _loadInputMode() {
+        try {
+            const saved = window.localStorage.getItem("rms_stock_barcode_scan.inputMode");
+            return saved === "pda" ? "pda" : "camera";
+        } catch {
+            return "camera";
+        }
+    }
+
+    setInputMode(mode) {
+        if (this.state.inputMode === mode) {
+            return;
+        }
+        this.state.inputMode = mode;
+        try {
+            window.localStorage.setItem("rms_stock_barcode_scan.inputMode", mode);
+        } catch {
+            // localStorage no disponible (modo privado, etc.): no es crítico
+        }
+    }
+
+    _focusPdaInput() {
+        // El lector "teclea" sobre lo que tenga el foco en ese momento: si
+        // no es este campo, los caracteres no llegan a ningún sitio (o
+        // peor, disparan atajos de teclado del navegador). Se reintenta en
+        // el siguiente frame por si el campo aún no está en el DOM.
+        const input = this.pdaInputRef.el;
+        if (input) {
+            input.focus();
+        } else {
+            requestAnimationFrame(() => this._focusPdaInput());
+        }
+    }
+
+    onPdaKeydown(ev) {
+        if (ev.key !== "Enter") {
+            return;
+        }
+        ev.preventDefault();
+        const code = ev.target.value;
+        ev.target.value = "";
+        this._onCodeDetected(code);
+    }
+
+    // La mayoría de lectores en modo teclado añaden un Enter final, pero
+    // por si el usuario toca fuera del campo (o algún lector usa Tab en vez
+    // de Enter), se recupera el foco automáticamente para no perder
+    // lecturas mientras se siga en este paso en modo PDA.
+    onPdaBlur() {
+        if (this.state.step === "camera" && this.state.inputMode === "pda") {
+            setTimeout(() => this._focusPdaInput(), 50);
+        }
     }
 
     async _loadInitial() {
