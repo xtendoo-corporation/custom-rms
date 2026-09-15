@@ -70,21 +70,48 @@ class SaleOrderLine(models.Model):
                     line.price_unit = 0.0
                     line.technical_price_unit = 0.0
 
-    def _sync_second_hand_discount(self):
-        """Aplica el 10% de descuento automático en líneas de 2ª Mano.
+    def _sync_serial_state_discount(self):
+        """Sincroniza el descuento con el estado de las series de la línea.
 
-        El campo 'discount' de sale.order.line no tiene compute activo en
-        este entorno (un módulo OCA de descuento triple -discount1/2/3- le
-        quita el compute para volverlo editable a mano), así que no basta
-        con un método @api.depends: el valor hay que escribirlo de forma
-        explícita cuando cambian las series de la línea.
+        - 2ª Mano: descuento automático 10% / 0% / 0%.
+        - Ex-Demo: sin descuento automático (todo a 0).
+        - Sin series (Nuevo): se revierte al descuento que corresponda
+          según la lista de precios del presupuesto, en vez de dejar
+          "pegado" el valor forzado por el estado anterior.
+
+        El campo 'discount'/'discount1' no tiene compute activo en este
+        entorno (un módulo OCA de descuento triple les quita el compute
+        para volverlos editables a mano), así que no basta con un método
+        @api.depends: el valor hay que escribirlo de forma explícita cada
+        vez que cambian las series de la línea.
         """
         for line in self:
-            if line.serial_ids and line.serial_ids[0].product_state_id.code == 'second_hand':
-                if 'discount1' in line._fields:
-                    line.discount1 = 10.0
+            state_code = line.serial_ids[0].product_state_id.code if line.serial_ids else False
+            has_triple = 'discount1' in line._fields
+
+            if state_code == 'second_hand':
+                values = (10.0, 0.0, 0.0)
+            elif state_code == 'ex_demo':
+                values = (0.0, 0.0, 0.0)
+            else:
+                # Nuevo: recalculamos desde la lista de precios del pedido
+                # en vez de dejar el descuento de 2ª mano/ex-demo pegado.
+                if hasattr(line, '_compute_discounts'):
+                    line.with_context(force_pricelist_discounts=True)._compute_discounts()
+                elif has_triple:
+                    line.discount1 = line.discount2 = line.discount3 = 0.0
+                    line.discount = 0.0
                 else:
-                    line.discount = 10.0
+                    line.discount = 0.0
+                continue
+
+            if has_triple:
+                line.discount1, line.discount2, line.discount3 = values
+                line.discount = (
+                    line._get_final_discount() if hasattr(line, '_get_final_discount') else values[0]
+                )
+            else:
+                line.discount = values[0]
 
     def action_open_serial_selector(self):
         self.ensure_one()

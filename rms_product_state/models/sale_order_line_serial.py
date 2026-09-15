@@ -38,7 +38,7 @@ class SaleOrderLineSerial(models.Model):
         records = super().create(vals_list)
         records._check_state_allowed()
         records._check_lot_not_sold_elsewhere()
-        records.sale_order_line_id._sync_second_hand_discount()
+        records.sale_order_line_id._sync_serial_state_discount()
         return records
 
     def write(self, vals):
@@ -46,6 +46,14 @@ class SaleOrderLineSerial(models.Model):
         if 'lot_id' in vals:
             self._check_state_allowed()
             self._check_lot_not_sold_elsewhere()
+        return res
+
+    def unlink(self):
+        lines = self.sale_order_line_id
+        res = super().unlink()
+        # Si ya no quedan series, la línea vuelve a "Nuevo": hay que
+        # recalcular el descuento (y no dejar el 10%/0% pegado).
+        lines.filtered(lambda l: not l.serial_ids)._sync_serial_state_discount()
         return res
 
     def _check_state_allowed(self):

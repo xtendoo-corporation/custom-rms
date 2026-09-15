@@ -41,6 +41,13 @@ export class SerialSelectorButton extends Component {
             }
         }
         if (!this.props.record.resId) {
+            // Justo tras crear el pedido, el datapoint de esta línea puede
+            // tardar un ciclo en reflejar su id real: forzamos una
+            // recarga explícita en vez de rendirnos directamente, para
+            // que un único click guarde Y abra el selector.
+            await this.props.record.load();
+        }
+        if (!this.props.record.resId) {
             return;
         }
         const action = await this.orm.call(
