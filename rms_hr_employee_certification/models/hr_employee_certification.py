@@ -17,7 +17,9 @@ class HrEmployeeCertification(models.Model):
         'res.company', related='employee_id.company_id', store=True, readonly=True)
     certification_type_id = fields.Many2one(
         'rms.hr.certification.type', string='Certificación', required=True, tracking=True)
-    category = fields.Selection(related='certification_type_id.category', store=True)
+    category_id = fields.Many2one(
+        related='certification_type_id.category_id', store=True, readonly=True,
+        string='Categoría')
     is_recurring = fields.Boolean(
         related='certification_type_id.is_recurring', store=True, readonly=True)
     date_obtained = fields.Date(

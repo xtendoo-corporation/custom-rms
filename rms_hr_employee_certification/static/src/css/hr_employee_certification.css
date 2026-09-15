@@ -1,0 +1,22 @@
+/* Estilos exclusivos de la vista previa de documentos de Certificaciones (rms_hr_employee_certification).
+   Todo va acotado bajo .o_rms_certification_pdf_wrapper para no afectar a ningún otro
+   visor de PDF ni widget de otros módulos. */
+
+.o_rms_certification_pdf_wrapper {
+    background-color: var(--o-view-background-color, #fff);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.o_rms_certification_pdf_wrapper .o_field_widget {
+    width: 100%;
+}
+
+.o_rms_certification_pdf_wrapper iframe {
+    width: 100%;
+    min-height: 750px;
+    border: 0;
+    border-radius: 8px;
+}
