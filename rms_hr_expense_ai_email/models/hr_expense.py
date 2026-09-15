@@ -38,11 +38,21 @@ class HrExpense(models.Model):
         string="Adjuntos del email ya repartidos", default=False, copy=False)
     ai_import_attempts = fields.Integer(
         string="Intentos de importación con IA", default=0, copy=False)
+    ai_source_attachment_id = fields.Many2one(
+        'ir.attachment', string="Adjunto asignado para la IA", copy=False)
 
     @api.model
     def message_new(self, msg_dict, custom_values=None):
         expense = super().message_new(msg_dict, custom_values=custom_values)
         expense.created_from_email_alias = True
+        # El parseo del asunto (ajeno a este módulo) a veces coge un número
+        # suelto de la propia fecha del asunto y lo dejaba como importe
+        # (p. ej. "15" de "15 sept 2026"). Se deja en 0 hasta que la IA
+        # rellene el importe real, en vez de mostrar esa cifra falsa.
+        expense.write({
+            'total_amount': 0.0,
+            'total_amount_currency': 0.0,
+        })
         return expense
 
     def _rms_get_candidate_attachments(self, min_bytes=0):
@@ -64,26 +74,52 @@ class HrExpense(models.Model):
         min_bytes = int(self.env['ir.config_parameter'].sudo().get_param(
             'rms_hr_expense_ai_email.min_attachment_bytes', 15000))
         tickets = self._rms_get_candidate_attachments(min_bytes=min_bytes)
+        if not tickets:
+            return self.browse()
+
+        # El primer ticket se queda en este mismo gasto (sus adjuntos no se
+        # tocan: su historial ya muestra el correo original completo, con
+        # todas las fotos).
+        self.ai_source_attachment_id = tickets[0].id
         if len(tickets) <= 1:
             return self.browse()
 
         total = len(tickets)
         new_expenses = self.browse()
-        for index, attachment in enumerate(tickets[1:], start=2):
+        for index, own_ticket in enumerate(tickets[1:], start=2):
             new_expense = self.copy({
                 'created_from_email_alias': True,
                 'ai_attachments_split': True,
                 'ai_processed': False,
                 'ai_has_corrections': False,
                 'ai_import_attempts': 0,
+                'ai_source_attachment_id': False,
                 'attachment_ids': [(5, 0, 0)],
             })
-            attachment.sudo().write({'res_id': new_expense.id})
-            new_expense.message_post(body=_(
-                "Ticket %(index)s de %(total)s detectado en el correo original "
-                "(repartido desde el gasto #%(source)s).",
-                index=index, total=total, source=self.id,
-            ))
+            # Se copian TODOS los tickets del correo (no solo el suyo) en
+            # cada gasto repartido, para que su historial muestre también
+            # el correo completo con las fotos de todos los tickets, igual
+            # que puede verse en el gasto original. Sólo se usa "own_copy"
+            # (la copia de su propio ticket) para la extracción con IA.
+            copies = self.env['ir.attachment']
+            own_copy = self.env['ir.attachment']
+            for ticket in tickets:
+                ticket_copy = ticket.sudo().copy({'res_id': new_expense.id})
+                copies |= ticket_copy
+                if ticket.id == own_ticket.id:
+                    own_copy = ticket_copy
+            new_expense.ai_source_attachment_id = own_copy.id
+            new_expense.message_post(
+                body=_(
+                    "Ticket %(index)s de %(total)s detectado en el correo "
+                    "original (repartido desde el gasto #%(source)s). Se "
+                    "adjuntan también los demás tickets del mismo correo "
+                    "como referencia; este gasto se analiza con el ticket "
+                    "%(index)s.",
+                    index=index, total=total, source=self.id,
+                ),
+                attachment_ids=copies.ids,
+            )
             new_expenses |= new_expense
 
         self.message_post(body=_(
@@ -129,7 +165,9 @@ class HrExpense(models.Model):
 
     def _rms_run_ai_import(self, max_attempts):
         self.ensure_one()
-        attachment = self._rms_get_candidate_attachments()[:1]
+        attachment = self.ai_source_attachment_id
+        if not attachment:
+            attachment = self._rms_get_candidate_attachments()[:1]
         if not attachment:
             return
 
