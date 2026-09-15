@@ -45,20 +45,6 @@ class HrExpense(models.Model):
         expense.created_from_email_alias = True
         return expense
 
-    def _message_post_after_hook(self, message, msg_dict):
-        res = super()._message_post_after_hook(message, msg_dict)
-        # Sólo se reparte en el correo de creación (un único mensaje en el
-        # hilo todavía), nunca en una respuesta posterior sobre el mismo
-        # gasto: así no depende de ningún contexto propagado por el
-        # framework, sólo del estado ya persistido del hilo.
-        if (
-            self.created_from_email_alias
-            and not self.ai_attachments_split
-            and len(self.message_ids) <= 1
-        ):
-            self._rms_split_email_attachments()
-        return res
-
     def _rms_get_candidate_attachments(self, min_bytes=0):
         self.ensure_one()
         attachments = self.env['ir.attachment'].sudo().search([
@@ -117,6 +103,12 @@ class HrExpense(models.Model):
             ('ai_import_attempts', '<', max_attempts),
         ], limit=batch_limit)
         for expense in expenses:
+            # El reparto se hace aquí, en el cron, y no al recibir el correo:
+            # depender del orden exacto de los mensajes creados en el hilo
+            # (correo entrante, avisos de otros módulos, etc.) no es fiable.
+            # Aquí solo miramos el estado ya persistido de los adjuntos.
+            if not expense.ai_attachments_split:
+                expense._rms_split_email_attachments()
             expense._rms_run_ai_import(max_attempts)
 
     def _rms_run_ai_import(self, max_attempts):
@@ -160,6 +152,23 @@ class HrExpense(models.Model):
             category = self._rms_guess_expense_category()
             if category:
                 self.product_id = category
+
+        # El aviso automático que se envía al crear el gasto (parseo del
+        # asunto) queda desactualizado en cuanto la IA corrige los datos:
+        # se deja esta nota de seguimiento con los valores ya corregidos
+        # para que quede claro cuál es el dato bueno.
+        self.message_post(body=_(
+            "IA: datos corregidos automáticamente.\n"
+            "Proveedor: %(vendor)s\n"
+            "Importe: %(amount).2f %(currency)s\n"
+            "Fecha: %(date)s\n"
+            "Categoría: %(category)s",
+            vendor=self.vendor_id.name or "(no detectado)",
+            amount=self.total_amount,
+            currency=self.currency_id.name or "",
+            date=self.date or "",
+            category=self.product_id.name or "(sin asignar)",
+        ))
 
     def _rms_guess_expense_category(self):
         self.ensure_one()
