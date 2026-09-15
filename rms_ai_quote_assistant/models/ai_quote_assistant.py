@@ -42,7 +42,14 @@ corresponder a un producto llamado "PANTHER-L,80,W/P,3P-XLR,MEP,PWRCON
 TOP", o "Quantum 2" a una consola DiGiCo Quantum225 por ser su nombre
 coloquial habitual, aunque el texto "Quantum 2" no aparezca literalmente).
 
-Dispones de una única herramienta:
+Dispones de dos herramientas:
+- list_available_serials(product_id): devuelve el listado real de números
+  de serie disponibles (2ª Mano/Ex-Demo, ya descontando lo reservado en
+  otros presupuestos) de un producto, con el almacén exacto de cada uno.
+  Úsala siempre que el usuario pregunte qué números de serie o qué
+  almacenes hay disponibles, y también antes de proponer una línea en
+  estado "second_hand"/"ex_demo" si el usuario menciona un almacén
+  concreto (para comprobar que hay unidades ahí antes de proponerlo).
 - propose_quote(partner_id, lines): entrega la propuesta final (cliente +
   líneas resueltas) para que el usuario la confirme. Esta herramienta NO
   crea nada todavía. Es la ÚNICA forma que tienes de terminar tu trabajo
@@ -84,7 +91,37 @@ cuántas hay realmente y pregúntale si quiere completar el resto como
 producto Nuevo (en ese caso, propón dos líneas separadas para el mismo
 producto: una con "state" del estado pedido y la cantidad disponible, y otra
 con "state": "new" y el resto). Si no hay ninguna unidad disponible en el
-estado pedido, dilo claramente y no propongas esa línea."""
+estado pedido, dilo claramente y no propongas esa línea.
+
+Almacén: si el usuario pide las unidades de 2ª mano/ex-demo de un almacén
+concreto (p. ej. "que sean del almacén de Sevilla"), usa primero
+list_available_serials para comprobar en qué almacenes hay unidades libres
+de ese producto, y pasa ese almacén en el campo "location" de la línea al
+llamar a propose_quote (tal cual aparece en el resultado de
+list_available_serials). Si no hay ninguna unidad de ese estado en el
+almacén pedido, dilo claramente en vez de proponer una de otro almacén sin
+avisar."""
+
+LIST_AVAILABLE_SERIALS_TOOL = {
+    "name": "list_available_serials",
+    "description": (
+        "Devuelve los números de serie disponibles (2ª Mano/Ex-Demo, no "
+        "vendidos ni reservados en otro presupuesto activo) de un producto, "
+        "con el almacén de cada uno. Úsala cuando el usuario pregunte qué "
+        "series o almacenes hay disponibles, o antes de proponer una línea "
+        "en un almacén concreto."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "product_id": {
+                "type": "integer",
+                "description": "id del producto, tal cual aparece en el listado de productos.",
+            },
+        },
+        "required": ["product_id"],
+    },
+}
 
 PROPOSE_QUOTE_TOOL = {
     "name": "propose_quote",
@@ -124,6 +161,15 @@ PROPOSE_QUOTE_TOOL = {
                                 "'de segunda mano'/'2ª mano' o 'ex demo'/'ex-demo', y solo "
                                 "hasta el límite de 'second_hand_available'/'ex_demo_available' "
                                 "del producto."
+                            ),
+                        },
+                        "location": {
+                            "type": "string",
+                            "description": (
+                                "Almacén concreto para las unidades de 2ª mano/ex-demo de "
+                                "esta línea, SOLO si el usuario lo ha pedido explícitamente "
+                                "(tal cual aparece en el resultado de list_available_serials). "
+                                "Omite este campo si no lo ha pedido."
                             ),
                         },
                     },
@@ -224,7 +270,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         anthropic_messages = [
             {"role": m["role"], "content": m["text"]} for m in messages
         ]
-        tools = [PROPOSE_QUOTE_TOOL]
+        tools = [PROPOSE_QUOTE_TOOL, LIST_AVAILABLE_SERIALS_TOOL]
 
         for _round in range(MAX_TOOL_ROUNDS):
             try:
@@ -286,6 +332,28 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                         else self._get_partner_opportunities(preview["partner_id"])
                     ),
                 }
+
+            serial_blocks = [b for b in tool_use_blocks if b["name"] == "list_available_serials"]
+            if serial_blocks:
+                anthropic_messages.append({"role": "assistant", "content": content_blocks})
+                tool_results = []
+                for block in serial_blocks:
+                    try:
+                        serials = self._list_available_serials(block["input"]["product_id"])
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block["id"],
+                            "content": json.dumps(serials, ensure_ascii=False),
+                        })
+                    except Exception as exc:
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block["id"],
+                            "content": str(exc),
+                            "is_error": True,
+                        })
+                anthropic_messages.append({"role": "user", "content": tool_results})
+                continue
 
             if not tool_use_blocks:
                 if text_blocks:
@@ -349,7 +417,10 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             }
             for m in messages
         ]
-        tools = [{"functionDeclarations": [self._to_gemini_declaration(PROPOSE_QUOTE_TOOL)]}]
+        tools = [{"functionDeclarations": [
+            self._to_gemini_declaration(PROPOSE_QUOTE_TOOL),
+            self._to_gemini_declaration(LIST_AVAILABLE_SERIALS_TOOL),
+        ]}]
 
         for _round in range(MAX_TOOL_ROUNDS):
             try:
@@ -401,6 +472,30 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                         else self._get_partner_opportunities(preview["partner_id"])
                     ),
                 }
+
+            serial_calls = [fc for fc in function_calls if fc["name"] == "list_available_serials"]
+            if serial_calls:
+                contents.append({"role": "model", "parts": parts})
+                response_parts = []
+                for fc in serial_calls:
+                    args = fc.get("args") or {}
+                    try:
+                        serials = self._list_available_serials(args.get("product_id"))
+                        response_parts.append({
+                            "functionResponse": {
+                                "name": "list_available_serials",
+                                "response": {"serials": serials},
+                            }
+                        })
+                    except Exception as exc:
+                        response_parts.append({
+                            "functionResponse": {
+                                "name": "list_available_serials",
+                                "response": {"error": str(exc)},
+                            }
+                        })
+                contents.append({"role": "user", "parts": response_parts})
+                continue
 
             if not function_calls:
                 if text_parts:
@@ -589,35 +684,78 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             entry[lot.product_state_id.code] += 1
         return availability
 
-    def _pick_available_lots(self, product_id, state, quantity):
-        """Returns up to `quantity` free stock.lot ids of `product_id` in
-        `state` ('second_hand'/'ex_demo'), raising ValueError (surfaced to
-        the LLM as a tool error, or to the user on confirm) if there aren't
-        enough. Mirrors the manual wizard's own availability filter.
+    def _get_free_lots(self, product_id, state):
+        """stock.lot recordset of `product_id` in `state` that are
+        physically in stock and not committed to another active order
+        line. Shared by _pick_available_lots and _list_available_serials
+        so both use exactly the same availability rules.
         """
         Lot = self.env["stock.lot"]
         candidates = Lot.search([
             ("product_id", "=", product_id),
             ("product_state_id.code", "=", state),
         ])
+        if not candidates:
+            return candidates
         sold_ids = set(
             self.env["sale.order.line.serial"].search([
                 ("lot_id", "in", candidates.ids),
                 ("sale_order_line_id.order_id.state", "!=", "cancel"),
             ]).lot_id.ids
-        ) if candidates else set()
+        )
         quants = self.env["stock.quant"].search([
             ("lot_id", "in", candidates.ids), ("location_id.usage", "=", "internal"),
-        ]) if candidates else self.env["stock.quant"]
+        ])
         in_stock_ids = set(quants.filtered(lambda q: q.quantity > 0).lot_id.ids)
-        available = candidates.filtered(
-            lambda l: l.id in in_stock_ids and l.id not in sold_ids
-        )
+        return candidates.filtered(lambda l: l.id in in_stock_ids and l.id not in sold_ids)
+
+    def _list_available_serials(self, product_id):
+        """[{'lot_id', 'name', 'state', 'location'}, ...] for every free
+        serial of `product_id` in 2ª Mano or Ex-Demo. Backs the
+        list_available_serials tool the LLM can call on demand.
+        """
+        result = []
+        for state, label in (("second_hand", "second_hand"), ("ex_demo", "ex_demo")):
+            for lot in self._get_free_lots(product_id, state):
+                result.append({
+                    "lot_id": lot.id,
+                    "name": lot.name,
+                    "state": label,
+                    "location": lot.location_id.display_name or "",
+                })
+        return result
+
+    def _pick_available_lots(self, product_id, state, quantity, location=None):
+        """Returns up to `quantity` free stock.lot ids of `product_id` in
+        `state` ('second_hand'/'ex_demo'), raising ValueError (surfaced to
+        the LLM as a tool error, or to the user on confirm) if there aren't
+        enough. Mirrors the manual wizard's own availability filter.
+
+        location: optional substring (case-insensitive) to match against
+        each candidate lot's warehouse/location display name — set only
+        when the user explicitly asked for units from a specific
+        warehouse; narrows the pool instead of picking from anywhere.
+        """
+        available = self._get_free_lots(product_id, state)
+        if location:
+            in_location = available.filtered(
+                lambda l: location.lower() in (l.location_id.display_name or "").lower()
+            )
+            if not in_location:
+                raise ValueError(
+                    "No hay ninguna unidad disponible en estado '%s' en el almacén "
+                    "'%s' para este producto." % (state, location)
+                )
+            available = in_location
         needed = int(quantity)
         if len(available) < needed:
             raise ValueError(
-                "Solo hay %s unidad(es) disponible(s) en estado '%s' para este "
-                "producto (se pidieron %s)." % (len(available), state, needed)
+                "Solo hay %s unidad(es) disponible(s) en estado '%s'%s para este "
+                "producto (se pidieron %s)." % (
+                    len(available), state,
+                    " en el almacén '%s'" % location if location else "",
+                    needed,
+                )
             )
         return available[:needed].ids
 
@@ -646,7 +784,9 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             quantity = line["quantity"]
             lot_ids = []
             if state != "new":
-                lot_ids = self._pick_available_lots(product.id, state, quantity)
+                lot_ids = self._pick_available_lots(
+                    product.id, state, quantity, location=line.get("location")
+                )
                 quantity = len(lot_ids)
             line_previews.append(
                 {
