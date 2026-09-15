@@ -41,8 +41,8 @@
                         </group>
                     </group>
                     <group>
-                        <field name="document" filename="document_filename"/>
                         <field name="document_filename" invisible="1"/>
+                        <field name="document" filename="document_filename" widget="pdf_viewer"/>
                     </group>
                     <group>
                         <field name="notes" placeholder="Observaciones..."/>
