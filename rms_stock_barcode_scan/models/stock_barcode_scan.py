@@ -232,14 +232,20 @@ class RmsStockBarcodeScan(models.AbstractModel):
                             raise UserError(
                                 "El número de serie %s no existe en el sistema." % serial
                             )
+                        # Cantidad libre de verdad: en mano MENOS lo que ya esté
+                        # reservado (por esta u otra entrega/traslado abierto).
+                        # Si solo miráramos "quantity" (en mano), dos entregas
+                        # distintas podrían escanear y "robarse" el mismo
+                        # número de serie sin que saltara ningún aviso.
+                        quants = Quant.search(
+                            [
+                                ("product_id", "=", product.id),
+                                ("lot_id", "=", lot.id),
+                                ("location_id", "=", move.location_id.id),
+                            ]
+                        )
                         available = sum(
-                            Quant.search(
-                                [
-                                    ("product_id", "=", product.id),
-                                    ("lot_id", "=", lot.id),
-                                    ("location_id", "=", move.location_id.id),
-                                ]
-                            ).mapped("quantity")
+                            (q.quantity - q.reserved_quantity) for q in quants
                         ) - used_by_lot.get(lot.id, 0)
                         if available < 1:
                             raise UserError(
