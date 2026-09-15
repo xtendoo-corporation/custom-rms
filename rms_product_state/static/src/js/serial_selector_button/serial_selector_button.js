@@ -25,44 +25,60 @@ export class SerialSelectorButton extends Component {
 
     async onClick(ev) {
         ev.stopPropagation();
-        // La línea es una fila de un one2many (order_line) dentro del
-        // presupuesto: guardar solo la línea falla si el propio presupuesto
-        // (su registro raíz) tampoco está guardado todavía, porque a la
-        // línea le faltaría order_id. Por eso guardamos siempre el
-        // registro raíz del formulario, no la línea suelta — así no
-        // interrumpimos al comercial con "Primero guarde sus cambios".
-        const rootRecord = this.props.record.model.root;
-        if (!rootRecord.resId || rootRecord.dirty) {
-            const saved = await rootRecord.save();
-            if (saved === false) {
-                // Guardado bloqueado (p. ej. falta un campo obligatorio):
-                // el formulario ya muestra el error de validación.
-                return;
-            }
-        }
-        if (!this.props.record.resId) {
-            // Justo tras crear el pedido, el datapoint de esta línea puede
-            // tardar un ciclo en reflejar su id real: forzamos una
-            // recarga explícita en vez de rendirnos directamente, para
-            // que un único click guarde Y abra el selector.
-            await this.props.record.load();
-        }
-        if (!this.props.record.resId) {
+        // Protección contra doble disparo: el guardado del registro raíz
+        // puede provocar un re-render de este botón mientras el primer
+        // click todavía se está procesando, y sin esta guarda se han visto
+        // varias llamadas a action_open_serial_selector desde un único
+        // click de usuario (varios diálogos pisándose y errores de cliente).
+        if (this.isHandlingClick) {
             return;
         }
-        const rootRecordForReload = this.props.record.model.root;
-        const action = await this.orm.call(
-            "sale.order.line",
-            "action_open_serial_selector",
-            [this.props.record.resId]
-        );
-        this.action.doAction(action, {
-            // Recargamos el registro raíz (el pedido), no solo la línea:
-            // el wizard cambia price_unit/discount de la línea, y eso
-            // cambia los totales del pedido (Importe base, Total...), que
-            // viven en el registro padre y no se refrescan solos.
-            onClose: () => rootRecordForReload.load(),
-        });
+        this.isHandlingClick = true;
+        try {
+            // La línea es una fila de un one2many (order_line) dentro del
+            // presupuesto: guardar solo la línea falla si el propio
+            // presupuesto (su registro raíz) tampoco está guardado
+            // todavía, porque a la línea le faltaría order_id. Por eso
+            // guardamos siempre el registro raíz del formulario, no la
+            // línea suelta — así no interrumpimos al comercial con
+            // "Primero guarde sus cambios".
+            const rootRecord = this.props.record.model.root;
+            if (!rootRecord.resId || rootRecord.dirty) {
+                const saved = await rootRecord.save();
+                if (saved === false) {
+                    // Guardado bloqueado (p. ej. falta un campo
+                    // obligatorio): el formulario ya muestra el error de
+                    // validación.
+                    return;
+                }
+            }
+            if (!this.props.record.resId) {
+                // Justo tras crear el pedido, el datapoint de esta línea
+                // puede tardar un ciclo en reflejar su id real: forzamos
+                // una recarga explícita en vez de rendirnos directamente,
+                // para que un único click guarde Y abra el selector.
+                await this.props.record.load();
+            }
+            if (!this.props.record.resId) {
+                return;
+            }
+            const rootRecordForReload = this.props.record.model.root;
+            const action = await this.orm.call(
+                "sale.order.line",
+                "action_open_serial_selector",
+                [this.props.record.resId]
+            );
+            this.action.doAction(action, {
+                // Recargamos el registro raíz (el pedido), no solo la
+                // línea: el wizard cambia price_unit/discount de la línea,
+                // y eso cambia los totales del pedido (Importe base,
+                // Total...), que viven en el registro padre y no se
+                // refrescan solos.
+                onClose: () => rootRecordForReload.load(),
+            });
+        } finally {
+            this.isHandlingClick = false;
+        }
     }
 }
 
