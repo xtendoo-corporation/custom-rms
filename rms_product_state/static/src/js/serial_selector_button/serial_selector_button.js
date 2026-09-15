@@ -43,14 +43,16 @@ export class SerialSelectorButton extends Component {
             // línea suelta — así no interrumpimos al comercial con
             // "Primero guarde sus cambios".
             const rootRecord = this.props.record.model.root;
-            // Guardamos el "id local" (estable, propio del datapoint del
-            // framework) ANTES de guardar: this.props.record puede quedar
-            // apuntando a un objeto obsoleto una vez el pedido nuevo se
-            // guarda (el resId de esa referencia nunca llega a
-            // actualizarse, aunque se espere), así que tras guardar
-            // buscamos la línea fresca en el registro raíz por este id en
-            // vez de confiar en that stale this.props.record.
+            // Guardamos identificadores estables ANTES de guardar:
+            // this.props.record puede quedar apuntando a un objeto
+            // obsoleto una vez el pedido nuevo se guarda (su resId nunca
+            // llega a actualizarse, ni esperando ni recargando desde el
+            // registro raíz), así que si la búsqueda en el cliente falla
+            // recurrimos al servidor como red de seguridad.
             const localId = this.props.record.id;
+            const productId = this.props.record.data.product_id
+                && this.props.record.data.product_id[0];
+            const sequence = this.props.record.data.sequence;
             if (!rootRecord.resId || rootRecord.dirty) {
                 const saved = await rootRecord.save();
                 if (saved === false) {
@@ -61,14 +63,34 @@ export class SerialSelectorButton extends Component {
                 }
             }
             const lineRecords = (rootRecord.data.order_line && rootRecord.data.order_line.records) || [];
-            const freshLine = lineRecords.find((r) => r.id === localId) || this.props.record;
-            if (!freshLine.resId) {
+            const freshLine = lineRecords.find((r) => r.id === localId);
+            let resId = freshLine && freshLine.resId;
+            if (!resId && rootRecord.resId) {
+                // Red de seguridad: la reactividad del cliente no siempre
+                // refleja el id real de esta línea justo tras crear el
+                // pedido, así que la buscamos directamente en el
+                // servidor por pedido + secuencia + producto.
+                const domain = [["order_id", "=", rootRecord.resId]];
+                if (sequence !== undefined && sequence !== false) {
+                    domain.push(["sequence", "=", sequence]);
+                }
+                if (productId) {
+                    domain.push(["product_id", "=", productId]);
+                }
+                const found = await this.orm.searchRead(
+                    "sale.order.line", domain, ["id"], { limit: 1 }
+                );
+                if (found.length) {
+                    resId = found[0].id;
+                }
+            }
+            if (!resId) {
                 return;
             }
             const action = await this.orm.call(
                 "sale.order.line",
                 "action_open_serial_selector",
-                [freshLine.resId]
+                [resId]
             );
             this.action.doAction(action, {
                 // Recargamos el registro raíz (el pedido), no solo la
