@@ -54,10 +54,14 @@ export class SerialSelectorButton extends Component {
             }
             if (!this.props.record.resId) {
                 // Justo tras crear el pedido, el datapoint de esta línea
-                // puede tardar un ciclo en reflejar su id real: forzamos
-                // una recarga explícita en vez de rendirnos directamente,
-                // para que un único click guarde Y abra el selector.
-                await this.props.record.load();
+                // puede tardar un ciclo en reflejar su id real: esperamos
+                // un tick en vez de rendirnos directamente, para que un
+                // único click guarde Y abra el selector. OJO: no usar
+                // this.props.record.load() aquí — fuerza un onchange que
+                // en este entorno hace saltar un ValueError del núcleo de
+                // Odoo (_compute_translated_product_name > order_id
+                // vacío) cuando la línea es recién creada.
+                await new Promise((resolve) => setTimeout(resolve, 0));
             }
             if (!this.props.record.resId) {
                 return;
