@@ -32,7 +32,7 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='order_line']/list/field[@name='name']" position="after">
-                <field name="serial_state_name" invisible="1"/>
+                <field name="serial_state_name" column_invisible="1"/>
                 <field name="serial_count" widget="serial_selector_button"
                        string="Estado" optional="show"
                        invisible="display_type"/>

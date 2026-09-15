@@ -15,7 +15,7 @@ class SaleOrderLine(models.Model):
     serial_count = fields.Integer(compute='_compute_serial_count', string='Nº de series')
     serial_state_name = fields.Char(compute='_compute_serial_count', string='Estado de las series')
 
-    @api.depends('serial_ids', 'serial_ids.product_state_id')
+    @api.depends('serial_ids')
     def _compute_serial_count(self):
         for line in self:
             line.serial_count = len(line.serial_ids)
@@ -71,31 +71,49 @@ class SaleOrderLine(models.Model):
                     line.technical_price_unit = 0.0
 
     def _sync_serial_state_discount(self):
-        """Sincroniza el descuento con el estado de las series de la línea.
+        """Sincroniza precio y descuento con el estado de las series.
 
-        - 2ª Mano: descuento automático 10% / 0% / 0%.
-        - Ex-Demo: sin descuento automático (todo a 0).
-        - Sin series (Nuevo): se revierte al descuento que corresponda
-          según la lista de precios del presupuesto, en vez de dejar
-          "pegado" el valor forzado por el estado anterior.
+        - 2ª Mano: precio = suma de precios custom de las series,
+          descuento automático 10% / 0% / 0%.
+        - Ex-Demo: precio = suma de precios custom de las series, sin
+          descuento automático (todo a 0).
+        - Sin series (Nuevo): se revierte al precio y descuento que
+          correspondan según la lista de precios del presupuesto, en vez
+          de dejar "pegados" los valores forzados por el estado anterior.
 
-        El campo 'discount'/'discount1' no tiene compute activo en este
-        entorno (un módulo OCA de descuento triple les quita el compute
-        para volverlos editables a mano), así que no basta con un método
-        @api.depends: el valor hay que escribirlo de forma explícita cada
-        vez que cambian las series de la línea.
+        Ni 'price_unit' ni 'discount'/'discount1' tienen un compute que se
+        dispare solo en este entorno (super()._compute_price_unit() no
+        recalcula de forma fiable al quitar las series, y el descuento
+        triple de OCA deja esos campos editables a mano), así que no basta
+        con @api.depends: hay que escribirlos de forma explícita cada vez
+        que cambian las series de la línea.
         """
         for line in self:
             state_code = line.serial_ids[0].product_state_id.code if line.serial_ids else False
             has_triple = 'discount1' in line._fields
 
-            if state_code == 'second_hand':
-                values = (10.0, 0.0, 0.0)
-            elif state_code == 'ex_demo':
-                values = (0.0, 0.0, 0.0)
+            if state_code in ALLOWED_SERIAL_STATE_CODES:
+                qty = len(line.serial_ids) or 1
+                unit_price = sum(line.serial_ids.mapped('price_unit')) / qty
+                line.price_unit = unit_price
+                line.technical_price_unit = unit_price
+                values = (10.0, 0.0, 0.0) if state_code == 'second_hand' else (0.0, 0.0, 0.0)
             else:
-                # Nuevo: recalculamos desde la lista de precios del pedido
-                # en vez de dejar el descuento de 2ª mano/ex-demo pegado.
+                # Nuevo: recalculamos precio y descuento desde la lista de
+                # precios del pedido en vez de dejar pegado lo del estado
+                # anterior.
+                if line.product_id:
+                    pricelist = line.order_id.pricelist_id
+                    if pricelist:
+                        price = pricelist._get_product_price(
+                            line.product_id, line.product_uom_qty or 1.0,
+                            uom=line.product_uom_id or line.product_id.uom_id,
+                            date=line.order_id.date_order,
+                        )
+                    else:
+                        price = line.product_id.list_price
+                    line.price_unit = price
+                    line.technical_price_unit = price
                 if hasattr(line, '_compute_discounts'):
                     line.with_context(force_pricelist_discounts=True)._compute_discounts()
                 elif has_triple:
