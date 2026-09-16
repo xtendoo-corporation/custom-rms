@@ -549,7 +549,9 @@ class IrAttachment(models.Model):
                 'fileType': extension,
                 'key': self._get_onlyoffice_document_key(),
                 'title': filename,
-                'url': '%s/rms_custom_knowledge/onlyoffice/content/%s?token=%s' % (base_url, self.id, content_token),
+                'url': '%s/rms_custom_knowledge/onlyoffice/content/%s?token=%s&db=%s' % (
+                    base_url, self.id, content_token, self.env.cr.dbname,
+                ),
             },
             'documentType': ONLYOFFICE_DOCUMENT_TYPES.get(extension, 'cell'),
             'editorConfig': {
@@ -563,8 +565,8 @@ class IrAttachment(models.Model):
         }
         if can_edit:
             callback_token = self._sign_onlyoffice_url_token('callback', 12 * 3600)
-            config['editorConfig']['callbackUrl'] = '%s/rms_custom_knowledge/onlyoffice/callback/%s?token=%s' % (
-                base_url, self.id, callback_token,
+            config['editorConfig']['callbackUrl'] = '%s/rms_custom_knowledge/onlyoffice/callback/%s?token=%s&db=%s' % (
+                base_url, self.id, callback_token, self.env.cr.dbname,
             )
 
         jwt_secret = icp.get_param('rms_custom_knowledge.onlyoffice_jwt_secret')
