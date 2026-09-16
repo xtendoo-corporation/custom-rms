@@ -71,3 +71,41 @@ Para subir un archivo a un directorio concreto:
 2. Haz clic en **Subir documento** o arrastra el archivo directamente.
 3. Los documentos subidos aquí quedan marcados como `is_knowledge_document = True` y vinculados únicamente a esta sección.
 4. **Independencia del sistema**: Ningún adjunto del CRM, de tareas de proyectos o de correos electrónicos aparecerá en esta biblioteca, manteniendo tu centro de documentación limpio de archivos temporales del sistema.
+
+---
+
+## ✏️ Edición de Excel en el navegador (OnlyOffice)
+
+Los archivos `.xlsx`/`.xls`/`.ods`/`.csv` de Knowledge se pueden editar directamente desde el navegador (fórmulas y formato incluidos) usando un servidor **OnlyOffice Document Server self-hosted** (gratuito, sin licencia Enterprise de Odoo).
+
+### Paso 1: Desplegar OnlyOffice Document Server
+
+Añade este servicio a tu `docker-compose.yml` de producción (junto al de Odoo, en la misma red):
+
+```yaml
+onlyoffice:
+  image: onlyoffice/documentserver:latest
+  restart: unless-stopped
+  environment:
+    JWT_ENABLED: "true"
+    JWT_SECRET: "<mismo-secreto-que-pondrás-en-Ajustes>"
+  volumes:
+    - onlyoffice_data:/var/www/onlyoffice/Data
+    - onlyoffice_logs:/var/log/onlyoffice
+```
+
+Expón ese servicio con dominio propio y HTTPS (p.ej. `office.tudominio.com`) a través de tu proxy inverso habitual (Nginx, Traefik, etc.), igual que ya haces con Odoo. Odoo y OnlyOffice deben poder alcanzarse mutuamente por HTTPS: OnlyOffice descarga el archivo desde Odoo y Odoo recibe el guardado desde OnlyOffice.
+
+### Paso 2: Dependencia Python
+
+El módulo necesita `PyJWT` en el contenedor de Odoo. En un despliegue Doodba, añade `PyJWT` a `custom/dependencies/pip.txt` y reconstruye la imagen.
+
+### Paso 3: Configurar en Odoo
+
+**Ajustes** ➡️ **General Settings** ➡️ bloque **Knowledge - OnlyOffice** (solo visible para Administradores):
+* **URL del servidor OnlyOffice**: `https://office.tudominio.com`
+* **Secreto JWT**: el mismo valor que `JWT_SECRET` del contenedor. Puedes dejarlo vacío mientras pruebas en local sin JWT, pero en producción con dominio público **es obligatorio** para que nadie pueda suplantar al servidor de documentos.
+
+### Uso
+
+En cualquier documento de hoja de cálculo dentro de Knowledge aparecerá el botón **"Editar con OnlyOffice"** (en la ficha del documento y en la tarjeta Kanban). Se abre en una pestaña nueva; los cambios se guardan automáticamente sobre el mismo adjunto. Si el usuario solo tiene permiso de lectura en esa carpeta, el editor se abre en modo solo lectura.

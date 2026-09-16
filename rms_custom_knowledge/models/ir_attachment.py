@@ -1,7 +1,9 @@
 import base64
+import hashlib
 import html
 import io
 import re
+import time
 import zipfile
 import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
@@ -9,6 +11,16 @@ from urllib.parse import urlsplit
 from odoo import _, api, fields, models
 from odoo.osv import expression
 from odoo.exceptions import AccessError, UserError, ValidationError
+
+try:
+    import jwt as pyjwt
+except ImportError:
+    pyjwt = None
+
+ONLYOFFICE_DOCUMENT_TYPES = {
+    'xlsx': 'cell', 'xlsm': 'cell', 'xltx': 'cell', 'xltm': 'cell', 'xls': 'cell',
+    'ods': 'cell', 'ots': 'cell', 'csv': 'cell',
+}
 
 class IrAttachment(models.Model):
     _inherit = 'ir.attachment'
@@ -68,6 +80,20 @@ class IrAttachment(models.Model):
         string='Documento guardado',
         compute='_compute_is_saved_knowledge_document',
     )
+    is_onlyoffice_editable = fields.Boolean(
+        string='Editable con OnlyOffice',
+        compute='_compute_is_onlyoffice_editable',
+    )
+
+    @api.depends('mimetype', 'name', 'type')
+    def _compute_is_onlyoffice_editable(self):
+        for attachment in self:
+            mimetype = attachment.mimetype or ''
+            filename = (attachment.name or '').lower()
+            attachment.is_onlyoffice_editable = (
+                attachment.type == 'binary'
+                and attachment._get_onlyoffice_extension(mimetype, filename) is not False
+            )
 
     def _compute_is_saved_knowledge_document(self):
         for attachment in self:
@@ -458,6 +484,108 @@ class IrAttachment(models.Model):
 
         if not categories or any(not category._check_user_can_upload_here() for category in categories):
             raise AccessError(_('No tienes permisos para modificar archivos en este directorio.'))
+
+    @api.model
+    def _get_onlyoffice_extension(self, mimetype, filename):
+        for extension in ONLYOFFICE_DOCUMENT_TYPES:
+            if filename.endswith('.' + extension):
+                return extension
+        if self._is_modern_excel_file(mimetype, filename):
+            return 'xlsx'
+        return False
+
+    def _get_onlyoffice_document_key(self):
+        self.ensure_one()
+        raw = '%s-%s-%s' % (self.id, self.checksum, self.write_date)
+        return hashlib.sha1(raw.encode()).hexdigest()
+
+    def _sign_onlyoffice_url_token(self, purpose, expires_in):
+        self.ensure_one()
+        if pyjwt is None:
+            raise UserError(_('El módulo Python "PyJWT" no está instalado en el servidor.'))
+        secret = self.env['ir.config_parameter'].sudo().get_param('database.secret')
+        payload = {
+            'attachment_id': self.id,
+            'uid': self.env.uid,
+            'purpose': purpose,
+            'exp': int(time.time()) + expires_in,
+        }
+        return pyjwt.encode(payload, secret, algorithm='HS256')
+
+    @api.model
+    def _verify_onlyoffice_url_token(self, token, attachment_id, purpose):
+        if pyjwt is None:
+            raise UserError(_('El módulo Python "PyJWT" no está instalado en el servidor.'))
+        secret = self.env['ir.config_parameter'].sudo().get_param('database.secret')
+        payload = pyjwt.decode(token, secret, algorithms=['HS256'])
+        if payload.get('attachment_id') != attachment_id or payload.get('purpose') != purpose:
+            raise AccessError(_('Token inválido.'))
+        return payload['uid']
+
+    def get_onlyoffice_editor_config(self):
+        self.ensure_one()
+        self.check_access('read')
+        if not self.is_onlyoffice_editable:
+            raise UserError(_('Este archivo no se puede editar con OnlyOffice.'))
+
+        icp = self.env['ir.config_parameter'].sudo()
+        server_url = icp.get_param('rms_custom_knowledge.onlyoffice_server_url')
+        if not server_url:
+            raise UserError(_('El administrador debe configurar la URL del servidor OnlyOffice en Ajustes.'))
+
+        can_edit = True
+        try:
+            self.check_access('write')
+        except AccessError:
+            can_edit = False
+
+        filename = self.name or 'documento.xlsx'
+        extension = self._get_onlyoffice_extension(self.mimetype or '', filename.lower()) or 'xlsx'
+        base_url = self.get_base_url().rstrip('/')
+        content_token = self._sign_onlyoffice_url_token('content', 12 * 3600)
+
+        config = {
+            'document': {
+                'fileType': extension,
+                'key': self._get_onlyoffice_document_key(),
+                'title': filename,
+                'url': '%s/rms_custom_knowledge/onlyoffice/content/%s?token=%s' % (base_url, self.id, content_token),
+            },
+            'documentType': ONLYOFFICE_DOCUMENT_TYPES.get(extension, 'cell'),
+            'editorConfig': {
+                'mode': 'edit' if can_edit else 'view',
+                'user': {
+                    'id': str(self.env.uid),
+                    'name': self.env.user.name,
+                },
+                'lang': self.env.user.lang or 'es',
+            },
+        }
+        if can_edit:
+            callback_token = self._sign_onlyoffice_url_token('callback', 12 * 3600)
+            config['editorConfig']['callbackUrl'] = '%s/rms_custom_knowledge/onlyoffice/callback/%s?token=%s' % (
+                base_url, self.id, callback_token,
+            )
+
+        jwt_secret = icp.get_param('rms_custom_knowledge.onlyoffice_jwt_secret')
+        if jwt_secret and pyjwt is not None:
+            config['token'] = pyjwt.encode(config, jwt_secret, algorithm='HS256')
+
+        return {
+            'server_url': server_url.rstrip('/'),
+            'config': config,
+        }
+
+    def action_open_onlyoffice_editor(self):
+        self.ensure_one()
+        if not self.is_onlyoffice_editable:
+            raise UserError(_('Este archivo no se puede editar con OnlyOffice.'))
+        self.check_access('read')
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/rms_custom_knowledge/onlyoffice/editor/%s' % self.id,
+            'target': 'new',
+        }
 
     def _get_knowledge_preview_url(self):
         self.ensure_one()

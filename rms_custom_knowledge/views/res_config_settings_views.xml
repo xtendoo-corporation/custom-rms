@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_inherit_rms_custom_knowledge" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.rms.custom.knowledge</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base_setup.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='integration']" position="after">
+                <block title="Knowledge - OnlyOffice" name="rms_custom_knowledge_onlyoffice_setting_container" groups="base.group_system">
+                    <setting title="Editor de Excel en Knowledge"
+                             help="Servidor OnlyOffice self-hosted usado para editar hojas de cálculo directamente desde la Biblioteca de Conocimiento.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label string="URL del servidor OnlyOffice" for="onlyoffice_server_url" class="col-lg-4 o_light_label"/>
+                                <field name="onlyoffice_server_url" placeholder="https://office.tudominio.com"/>
+                            </div>
+                            <div class="row mt16">
+                                <label string="Secreto JWT" for="onlyoffice_jwt_secret" class="col-lg-4 o_light_label"/>
+                                <field name="onlyoffice_jwt_secret" password="True" placeholder="Déjalo vacío si el servidor no usa JWT"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

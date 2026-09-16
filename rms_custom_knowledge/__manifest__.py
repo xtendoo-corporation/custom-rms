@@ -8,7 +8,10 @@
         directories and automatic PDF to Markdown conversion on attachments.
     """,
     'author': 'Antigravity',
-    'depends': ['document_knowledge', 'mail', 'web'],
+    'depends': ['document_knowledge', 'mail', 'web', 'base_setup'],
+    'external_dependencies': {
+        'python': ['jwt'],
+    },
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',
@@ -17,6 +20,8 @@
         'views/document_knowledge_category_views.xml',
         'views/ir_attachment_views.xml',
         'views/res_users_views.xml',
+        'views/res_config_settings_views.xml',
+        'views/onlyoffice_templates.xml',
         'views/menu_views.xml',
     ],
     'assets': {
