@@ -53,6 +53,16 @@ class HrExpense(models.Model):
             'total_amount': 0.0,
             'total_amount_currency': 0.0,
         })
+        # Ese mismo parseo del asunto manda un aviso de confirmación con un
+        # importe/categoría provisionales (a veces inventados, como el caso
+        # anterior) antes de que la IA corrija nada. Se retira del chatter
+        # porque queda desactualizado y confunde; la nota de la IA (más
+        # abajo, en _rms_finalize_ai_import) ya deja los datos buenos.
+        stale_notice = expense.message_ids.filtered(
+            lambda m: m.body and "ha sido registrado con éxito" in m.body
+        )
+        if stale_notice:
+            stale_notice.sudo().unlink()
         return expense
 
     def _rms_get_candidate_attachments(self, min_bytes=0):
@@ -186,20 +196,34 @@ class HrExpense(models.Model):
                 "Fallo al procesar el gasto #%s con IA (intento %s/%s): %s",
                 self.id, self.ai_import_attempts, max_attempts, exc,
             )
+            # Aviso inmediato en cada intento fallido, no solo al agotar los
+            # 3: si la foto en sí no se puede leer (mala calidad, borrosa),
+            # reintentar la misma imagen no lo va a arreglar, así que no
+            # tiene sentido dejar al usuario sin ninguna noticia hasta que
+            # se agoten los reintentos.
+            self.ai_has_corrections = True
             if self.ai_import_attempts >= max_attempts:
                 self.message_post(body=_(
-                    "No se ha podido procesar este ticket automáticamente con IA "
-                    "tras %(attempts)s intentos. Revísalo manualmente (importe, "
-                    "proveedor y categoría) antes de aprobarlo.\nError: %(error)s",
+                    "NO ES POSIBLE ESCANEARLO: la IA no ha podido procesar este "
+                    "ticket tras %(attempts)s intentos. Revísalo manualmente "
+                    "(importe, proveedor y categoría) antes de aprobarlo."
+                    "\nError: %(error)s",
                     attempts=self.ai_import_attempts, error=str(exc)[:500],
                 ))
-                self.ai_has_corrections = True
+            else:
+                self.message_post(body=_(
+                    "NO ES POSIBLE ESCANEARLO (intento %(attempts)s de "
+                    "%(max)s). Se reintentará automáticamente; si vuelve a "
+                    "fallar tras el último intento, revísalo manualmente.",
+                    attempts=self.ai_import_attempts, max=max_attempts,
+                ))
             return
 
         self._rms_finalize_ai_import()
 
     def _rms_finalize_ai_import(self):
         self.ensure_one()
+        self.ai_has_corrections = False
         if not self.ai_processed:
             self.ai_processed = True
         if not self.product_id:
