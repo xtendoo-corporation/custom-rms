@@ -333,7 +333,7 @@ class IrAttachment(models.Model):
 
     @api.model
     def _search(self, domain, offset=0, limit=None, order=None, *, active_test=True, bypass_access=False):
-        if not bypass_access and self._is_query_targeting_only_knowledge(domain):
+        if not self.env.su and not bypass_access and self._is_query_targeting_only_knowledge(domain):
             domain = expression.AND([domain, self._get_knowledge_view_domain()])
             return super()._search(
                 domain,
