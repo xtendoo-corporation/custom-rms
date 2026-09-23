@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_installation_project_list" model="ir.ui.view">
+        <field name="name">rms.installation.project.list</field>
+        <field name="model">rms.installation.project</field>
+        <field name="arch" type="xml">
+            <list string="Proyectos">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="date"/>
+                <field name="user_id"/>
+                <field name="state" widget="badge" decoration-success="state == 'accepted'" decoration-danger="state == 'rejected'" decoration-info="state == 'sent'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_installation_project_form" model="ir.ui.view">
+        <field name="name">rms.installation.project.form</field>
+        <field name="model">rms.installation.project</field>
+        <field name="arch" type="xml">
+            <form string="Proyecto">
+                <header>
+                    <button name="action_send" type="object" string="Enviar al cliente" class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_reset_to_draft" type="object" string="Volver a borrador" invisible="state == 'draft'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,sent,accepted,rejected"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Referencia del proyecto"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="user_id"/>
+                            <field name="date"/>
+                        </group>
+                        <group>
+                            <field name="pdf_filename" invisible="1"/>
+                            <field name="pdf_file" filename="pdf_filename" string="Archivo PDF"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Notas internas">
+                            <field name="description" placeholder="Notas visibles solo para el equipo interno..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_installation_project" model="ir.actions.act_window">
+        <field name="name">Proyectos</field>
+        <field name="res_model">rms.installation.project</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_installation_project_root" name="Proyecto" sequence="60"/>
+    <menuitem id="menu_installation_project" name="Proyectos" parent="menu_installation_project_root" action="action_installation_project" sequence="10"/>
+</odoo>
