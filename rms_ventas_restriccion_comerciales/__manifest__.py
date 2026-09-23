@@ -7,8 +7,10 @@
     'author': 'Custom RMS',
     'depends': ['base', 'contacts', 'product', 'sale'],
     'data': [
+        'security/product_security.xml',
         'views/res_partner_views.xml',
         'views/product_views.xml',
+        'views/product_category_views.xml',
         'views/sale_order_views.xml',
     ],
     'installable': True,

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Checkbox en la categoría de producto: si se marca, los productos de esta
+         categoría (y de sus subcategorías) quedan ocultos para el grupo Comerciales. -->
+    <record id="view_product_category_form_hide_comerciales" model="ir.ui.view">
+        <field name="name">product.category.form.hide.comerciales</field>
+        <field name="model">product.category</field>
+        <field name="inherit_id" ref="product.product_category_form_view"/>
+        <field name="arch" type="xml">
+            <field name="parent_id" position="after">
+                <field name="hide_from_comerciales"/>
+            </field>
+        </field>
+    </record>
+</odoo>

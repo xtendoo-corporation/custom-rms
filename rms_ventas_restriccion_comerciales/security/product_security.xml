@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Los usuarios del grupo Comerciales no pueden ver (ni buscar, ni
+         seleccionar en presupuestos, etc.) productos cuya categoría (o alguna
+         categoría superior) tenga marcado "Ocultar a comerciales". -->
+    <record id="rule_product_template_hide_comerciales" model="ir.rule">
+        <field name="name">Productos ocultos para comerciales por categoría</field>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="domain_force">[('categ_id.hide_from_comerciales_effective', '=', False)]</field>
+        <field name="groups" eval="[(4, ref('custom.comerciales'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_product_product_hide_comerciales" model="ir.rule">
+        <field name="name">Variantes ocultas para comerciales por categoría</field>
+        <field name="model_id" ref="product.model_product_product"/>
+        <field name="domain_force">[('categ_id.hide_from_comerciales_effective', '=', False)]</field>
+        <field name="groups" eval="[(4, ref('custom.comerciales'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+</odoo>
