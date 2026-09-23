@@ -37,8 +37,8 @@
                             <field name="date"/>
                         </group>
                         <group>
-                            <field name="pdf_filename" invisible="1"/>
-                            <field name="pdf_file" filename="pdf_filename" string="Archivo PDF"/>
+                            <field name="file_name" invisible="1"/>
+                            <field name="file_data" filename="file_name" string="Documento (HTML)"/>
                         </group>
                     </group>
                     <notebook>

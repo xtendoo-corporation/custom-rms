@@ -1,0 +1,65 @@
+COMO COMPARTIR EL DOCUMENTO DE UN PROYECTO CON UN CLIENTE - GUIA RAPIDA
+
+QUE ES ESTO
+En Odoo hay dos cosas que se llaman "Proyecto":
+1. La app "Proyecto" de siempre (la del icono de check verde), que usamos internamente para tareas, calendario de Marketing, etc. Los clientes NUNCA tienen acceso a esto.
+2. La app nueva "Proyecto" (icono de cubo negro), que sirve UNICAMENTE para subir el documento HTML de un proyecto de instalacion y que el cliente lo vea en su portal. No tiene tareas, ni notas de otros clientes, ni nada mas del ERP.
+
+Ojo con no confundirlas al buscar en el menu de Odoo.
+
+El documento que se sube es un archivo HTML (una pagina web), no un PDF. El cliente lo vera abrirse en una pestaña nueva a pantalla completa, como si entrara a una web.
+
+PASO 1 - CREAR EL PROYECTO
+1. Entra en la app "Proyecto" (icono de cubo negro) > Proyectos.
+2. Pulsa "Nuevo".
+3. Rellena:
+   - Referencia: un nombre que identifique el proyecto (ej: "Instalacion Sonido Sala Auditorio - Cliente XYZ").
+   - Cliente: el contacto exacto que debe ver este documento. IMPORTANTE: solo ese contacto en concreto vera el proyecto, no toda la empresa aunque tenga varios contactos.
+   - Responsable: tu usuario (ya sale puesto por defecto).
+   - Fecha: la que corresponda.
+4. Sube el archivo HTML en el campo "Documento (HTML)".
+5. Si quieres dejar alguna nota para el equipo interno (que el cliente NUNCA vera), escribela en la pestaña "Notas internas".
+6. Guarda.
+
+En este punto el proyecto esta en estado "Borrador" y el cliente NO puede verlo todavia, aunque ya tengas el documento subido.
+
+PASO 2 - ENVIARLO AL CLIENTE
+1. Abre el proyecto que has creado.
+2. Pulsa el boton "Enviar al cliente" (arriba, junto a la barra de estado).
+3. El estado pasa a "Enviado".
+4. A partir de este momento, si el cliente tiene una cuenta de portal en nuestro Odoo (ver mas abajo si no la tiene), le aparecera automaticamente en su portal, en una seccion llamada "Proyectos".
+
+IMPORTANTE: el cliente NO recibe un email automatico avisandole. Si quieres que se entere, avisale tu por email o por donde soleis contactar con el, diciendole que ya puede entrar a su portal.
+
+SI EL CLIENTE TODAVIA NO TIENE ACCESO AL PORTAL
+Si es la primera vez que este cliente va a acceder al portal de Odoo:
+1. Ve a Contactos, busca o crea el contacto exacto (persona, no la empresa en general) al que quieres dar acceso.
+2. Dentro de la ficha de ese contacto, boton de accion (icono de engranaje) > "Otorgar acceso al portal" (o similar segun la version).
+3. Escribe su email y confirma. Le llegara un correo de invitacion con un enlace para crear su acceso al portal.
+4. Una vez acepte, cuando entre a su portal vera la seccion "Proyectos" con lo que le hayas enviado (y nada mas de nuestro ERP, salvo que tenga tambien pedidos o facturas suyas).
+
+ESTADOS DEL PROYECTO
+- Borrador: solo lo veis vosotros, el cliente no lo ve aunque ya tenga el documento subido. Util para preparar el proyecto con calma antes de mandarlo.
+- Enviado: el cliente ya lo ve en su portal.
+- Aceptado / Rechazado: puedes cambiarlo manualmente vosotros para llevar seguimiento interno de la respuesta del cliente (el cliente no puede cambiar esto desde el portal, solo vosotros desde el backend).
+
+COSAS QUE EL CLIENTE PUEDE Y NO PUEDE HACER
+PUEDE:
+- Ver el listado de sus proyectos enviados en su portal (/my/projects).
+- Abrir cada proyecto y pulsar "Abrir documento a pantalla completa", que le abre el HTML en una pestaña nueva como si fuera una pagina web normal.
+
+NO PUEDE:
+- Ver proyectos en Borrador.
+- Ver proyectos de otro cliente.
+- Editar, comentar ni subir nada.
+- Ver la app "Proyecto" interna (tareas, calendario de Marketing, etc.).
+
+DUDAS O PROBLEMAS
+Si un cliente dice que no ve su proyecto:
+1. Comprueba que el estado NO sea "Borrador".
+2. Comprueba que el campo "Cliente" del proyecto es exactamente el contacto con el que ha iniciado sesion en el portal (no la empresa, no otro contacto de la misma empresa).
+3. Comprueba que ese contacto tiene realmente acceso al portal activado (ficha del contacto, deberia indicarlo).
+
+Si un cliente dice que el documento "no carga":
+1. Comprueba que el archivo subido en "Documento (HTML)" es realmente un .html valido y no otro formato con el nombre cambiado.
+2. Prueba a descargarlo tu mismo desde el backend (boton de descarga junto al campo) y abrelo en tu navegador para confirmar que se ve bien antes de enviarlo al cliente.

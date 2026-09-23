@@ -85,20 +85,20 @@ class InstallationProjectPortal(CustomerPortal):
         }
         return request.render('rms_portal_projects.portal_installation_project_page', values)
 
-    @http.route(['/my/projects/<int:project_id>/pdf'], type='http', auth='user')
-    def portal_installation_project_pdf(self, project_id, **kw):
+    @http.route(['/my/projects/<int:project_id>/file'], type='http', auth='user')
+    def portal_installation_project_file(self, project_id, **kw):
         try:
             project_sudo = self._installation_project_check_access(project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        if not project_sudo.pdf_file:
+        if not project_sudo.file_data:
             return request.redirect('/my/projects/%s' % project_id)
 
         return request.make_response(
-            base64.b64decode(project_sudo.pdf_file),
+            base64.b64decode(project_sudo.file_data),
             headers=[
-                ('Content-Type', 'application/pdf'),
-                ('Content-Disposition', 'inline; filename="%s"' % (project_sudo.pdf_filename or 'proyecto.pdf')),
+                ('Content-Type', 'text/html; charset=utf-8'),
+                ('Content-Disposition', 'inline; filename="%s"' % (project_sudo.file_name or 'proyecto.html')),
             ],
         )

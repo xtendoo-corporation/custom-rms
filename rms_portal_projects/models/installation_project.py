@@ -27,8 +27,8 @@ class InstallationProject(models.Model):
         help='Solo los proyectos en estado distinto de Borrador son visibles para el cliente en el portal.',
     )
     description = fields.Text(string='Notas internas')
-    pdf_file = fields.Binary(string='PDF', attachment=True)
-    pdf_filename = fields.Char(string='Nombre del archivo')
+    file_data = fields.Binary(string='Documento (HTML)', attachment=True)
+    file_name = fields.Char(string='Nombre del archivo')
     company_id = fields.Many2one(
         'res.company', string='Compañía', default=lambda self: self.env.company,
     )

@@ -68,14 +68,13 @@
                     <span class="badge text-bg-success" t-if="project.state == 'accepted'">Aceptado</span>
                     <span class="badge text-bg-danger" t-if="project.state == 'rejected'">Rechazado</span>
                 </p>
-                <t t-if="project.pdf_file">
-                    <a t-attf-href="/my/projects/#{project.id}/pdf" class="btn btn-primary mb-3" target="_blank">
-                        <i class="fa fa-download"/> Descargar PDF
+                <t t-if="project.file_data">
+                    <a t-attf-href="/my/projects/#{project.id}/file" class="btn btn-primary btn-lg mb-3" target="_blank">
+                        <i class="fa fa-external-link"/> Abrir documento a pantalla completa
                     </a>
-                    <iframe t-attf-src="/my/projects/#{project.id}/pdf" style="width: 100%; height: 800px; border: 1px solid #ddd;"/>
                 </t>
                 <t t-else="">
-                    <p class="text-muted">Todavía no hay un PDF adjunto a este proyecto.</p>
+                    <p class="text-muted">Todavía no hay un documento adjunto a este proyecto.</p>
                 </t>
             </div>
         </t>
