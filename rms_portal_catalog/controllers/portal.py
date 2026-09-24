@@ -4,6 +4,7 @@ import mimetypes
 
 from odoo import http
 from odoo.http import request
+from odoo.tools.mail import html2plaintext
 from odoo.tools.misc import file_open
 
 BASE_TAG = b'<base href="/my/catalog/">\n'
@@ -68,7 +69,12 @@ class B2BCatalogPortal(http.Controller):
         payload = {
             'category_id': category_id,
             'products': [
-                {'id': product.id, 'name': product.display_name, 'list_price': product.list_price}
+                {
+                    'id': product.id,
+                    'name': product.display_name,
+                    'description': html2plaintext(product.description or ''),
+                    'list_price': product.list_price,
+                }
                 for product in products
             ],
         }
