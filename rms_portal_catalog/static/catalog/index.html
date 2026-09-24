@@ -245,6 +245,21 @@
   [hidden]{display:none !important;}
   .view{animation:fade .22s ease;}
   @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+
+  .price-modal{position:fixed; inset:0; z-index:110; display:none; align-items:center; justify-content:center; padding:20px;}
+  .price-modal.open{display:flex;}
+  .price-modal-backdrop{position:absolute; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(6px); animation:fade .18s ease;}
+  .price-modal-card{position:relative; z-index:1; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:0 30px 60px -20px rgba(0,0,0,.35); width:min(520px, 100%); max-height:80vh; overflow-y:auto; padding:28px; animation:pmpop .22s cubic-bezier(.2,.9,.3,1);}
+  @keyframes pmpop{from{opacity:0; transform:translateY(10px) scale(.98);} to{opacity:1; transform:none;}}
+  .price-modal-close{position:absolute; top:16px; right:16px; color:var(--ink); border-color:var(--line); background:var(--surface-2);}
+  .price-modal-title{font-family:var(--disp); font-size:22px; font-weight:700; margin:6px 0 4px;}
+  .price-modal-sub{font-size:13px; color:var(--muted); margin:0 0 18px;}
+  .price-modal-body{display:flex; flex-direction:column;}
+  .price-row{display:flex; justify-content:space-between; align-items:baseline; gap:16px; padding:11px 0; border-bottom:1px solid var(--line); font-size:14px;}
+  .price-row:last-child{border-bottom:none;}
+  .price-name{color:var(--ink);}
+  .price-value{font-family:var(--mono); color:var(--accent-ink); font-weight:600; white-space:nowrap;}
+  .price-status{font-size:13px; color:var(--muted); padding:8px 0;}
 </style>
 
 <div id="app"></div>
@@ -268,6 +283,19 @@
   </div>
   <div class="v-bottom">
     <div class="v-strip" id="vStrip"></div>
+  </div>
+</div>
+
+<div class="price-modal" id="priceModal">
+  <div class="price-modal-backdrop" onclick="closePrices()"></div>
+  <div class="price-modal-card">
+    <button class="v-close price-modal-close" onclick="closePrices()" aria-label="Cerrar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <p class="eyebrow" id="priceModalEyebrow">RMS Proaudio · PVP</p>
+    <h3 class="price-modal-title" id="priceModalTitle">—</h3>
+    <p class="price-modal-sub">Precio de venta al público, sin IVA. Incluye accesorios y consumibles asociados.</p>
+    <div class="price-modal-body" id="priceModalBody"></div>
   </div>
 </div>
 
@@ -382,7 +410,7 @@ const PAGES = {
 11:{brand:"meyer",series:"Point Source",title:"Accesorios Ultra-X40",sub:"Soportes y kits de instalación",tags:["mtc-x40","mya-x40","mub-x40"],specs:[],datasheet:"https://docs.meyersound.com/products/en/ultra-x40.html"},
 12:{brand:"meyer",series:"Software",title:"NEBRA",sub:"Control y monitorización en red",tags:["nebra","software","monitorizacion"],specs:[],datasheet:"https://docs.meyersound.com/products/en/nebra.html"},
 13:{brand:"meyer",series:"Processing",title:"Galileo GALAXY",sub:"Procesador de la serie AVB",tags:["galileo galaxy","avb","procesador"],specs:[],datasheet:"https://docs.meyersound.com/products/en/galileo-galaxy.html"},
-14:{brand:"meyer",series:"Line Array",title:"Panther",sub:"Line array de gran formato + subgrave 2100-LFC",tags:["panther","2100-lfc"],specs:[["Peso","90 kg"],["SPL","150 dB"]],datasheet:"https://docs.meyersound.com/products/en/panther.html"},
+14:{brand:"meyer",series:"Line Array",title:"Panther",sub:"Line array de gran formato + subgrave 2100-LFC",tags:["panther","2100-lfc"],specs:[["Peso","90 kg"],["SPL","150 dB"]],datasheet:"https://docs.meyersound.com/products/en/panther.html",priceCategoryId:740},
 15:{brand:"meyer",series:"Line Array",title:"Leopard",sub:"Line array compacto + subgrave 900-LFC",tags:["leopard","900-lfc"],specs:[["Peso","34 kg"]],datasheet:"https://docs.meyersound.com/products/en/leopard.html"},
 16:{brand:"meyer",series:"Line Array",title:"Lina",sub:"El line array más compacto de la Serie LEO",tags:["lina","750-lfc"],specs:[["Peso","19 kg"]],datasheet:"https://docs.meyersound.com/products/en/lina.html"},
 17:{brand:"meyer",series:"Line Array",title:"Tigra",sub:"Line array más pequeño + subgrave 1800-LFC",tags:["tigra","1800-lfc"],specs:[["Peso","52,2 kg"],["SPL","145 dB"]],datasheet:"https://docs.meyersound.com/products/en/tigra.html"},
@@ -672,6 +700,11 @@ function renderBrand(key){
           Datasheet
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M8 7h9v9"/></svg>
         </a>` : "";
+      const pricesHtml = d.priceCategoryId ? `
+        <button class="datasheet-btn" onclick="event.stopPropagation(); openPrices(${p})">
+          Ver precios
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </button>` : "";
       return `
         <div class="pcard" onclick="openViewer(${p})">
           <div class="thumb"><img loading="lazy" src="${thumbImg(p)}" alt="${d.title}"></div>
@@ -681,6 +714,7 @@ function renderBrand(key){
             <div class="specs">${specs}</div>
             ${compareHtml}
             ${datasheetHtml}
+            ${pricesHtml}
           </div>
         </div>`;
     }).join("");
@@ -803,6 +837,47 @@ function closeViewer(){
   document.body.style.overflow = "";
   const d = PAGES[currentList[currentIndex]];
   location.hash = d ? `#/brand/${d.brand}` : "";
+}
+
+/* =========================================================
+   PRECIOS — PoC: PVP de una categoría de Odoo asociada a una ficha.
+========================================================= */
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function openPrices(page){
+  const d = PAGES[page];
+  if(!d || !d.priceCategoryId) return;
+  const modal = document.getElementById("priceModal");
+  document.getElementById("priceModalTitle").textContent = d.title;
+  document.getElementById("priceModalBody").innerHTML = '<p class="price-status">Cargando precios…</p>';
+  modal.classList.add("open");
+  document.body.style.overflow = "hidden";
+
+  try{
+    const res = await fetch(`/my/catalog/prices/${d.priceCategoryId}`);
+    if(!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    if(!data.products || !data.products.length){
+      document.getElementById("priceModalBody").innerHTML = '<p class="price-status">No hay productos disponibles en esta categoría todavía.</p>';
+      return;
+    }
+    const fmt = new Intl.NumberFormat("es-ES", {style:"currency", currency:"EUR"});
+    document.getElementById("priceModalBody").innerHTML = data.products.map(p => `
+      <div class="price-row">
+        <span class="price-name">${escapeHtml(p.name)}</span>
+        <span class="price-value">${fmt.format(p.list_price)}</span>
+      </div>
+    `).join("");
+  }catch(e){
+    document.getElementById("priceModalBody").innerHTML = '<p class="price-status">No se han podido cargar los precios. Inténtalo de nuevo.</p>';
+  }
+}
+
+function closePrices(){
+  document.getElementById("priceModal").classList.remove("open");
+  document.body.style.overflow = "";
 }
 
 function renderViewer(){

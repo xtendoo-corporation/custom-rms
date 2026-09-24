@@ -59,6 +59,24 @@ class B2BCatalogPortal(http.Controller):
             return request.not_found()
         return request.make_response(content, headers=[('Content-Type', 'image/jpeg')])
 
+    @http.route('/my/catalog/prices/<int:category_id>', type='http', auth='user')
+    def portal_catalog_prices(self, category_id, **kw):
+        products = request.env['product.template'].sudo().search(
+            [('categ_id', '=', category_id), ('sale_ok', '=', True), ('active', '=', True)],
+            order='list_price desc',
+        )
+        payload = {
+            'category_id': category_id,
+            'products': [
+                {'id': product.id, 'name': product.display_name, 'list_price': product.list_price}
+                for product in products
+            ],
+        }
+        return request.make_response(
+            json.dumps(payload),
+            headers=[('Content-Type', 'application/json')],
+        )
+
     @http.route('/my/catalog/images/<path:subpath>', type='http', auth='user')
     def portal_catalog_asset(self, subpath, **kw):
         try:
