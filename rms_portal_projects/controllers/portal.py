@@ -79,6 +79,9 @@ class InstallationProjectPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
+        if project_sudo.file_data:
+            return request.redirect('/my/installation-projects/%s/file' % project_id)
+
         values = {
             'page_name': 'installation_project',
             'project': project_sudo,

@@ -46,7 +46,7 @@ ESTADOS DEL PROYECTO
 COSAS QUE EL CLIENTE PUEDE Y NO PUEDE HACER
 PUEDE:
 - Ver el listado de sus proyectos enviados en su portal (/my/installation-projects).
-- Abrir cada proyecto y pulsar "Abrir documento a pantalla completa", que le abre el HTML en una pestaña nueva como si fuera una pagina web normal.
+- Abrir cada proyecto: si ya tiene documento, se le muestra directamente a pantalla completa (sin pantallas intermedias ni botones), como si fuera una pagina web normal. Si todavia no tiene documento adjunto, ve un aviso de que no hay nada disponible.
 
 NO PUEDE:
 - Ver proyectos en Borrador.
