@@ -3,7 +3,9 @@
     <template id="portal_my_home_installation_project" name="Mi cuenta: proyectos" inherit_id="portal.portal_my_home" customize_show="True">
         <xpath expr="//div[hasclass('o_portal_docs')]" position="inside">
             <t t-if="installation_project_count" t-call="portal.portal_docs_entry">
+                <t t-set="icon" t-value="'/web/static/img/folder.svg'"/>
                 <t t-set="title">Proyectos</t>
+                <t t-set="text">Consulta los proyectos de instalación que te hemos compartido</t>
                 <t t-set="url" t-value="'/my/installation-projects'"/>
                 <t t-set="placeholder_count" t-value="'installation_project_count'"/>
             </t>

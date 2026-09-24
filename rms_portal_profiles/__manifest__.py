@@ -19,7 +19,18 @@
         'security/security_groups.xml',
         'views/res_partner_views.xml',
         'views/portal_templates.xml',
+        'views/project_sharing_calendar_views.xml',
     ],
+    'assets': {
+        # El bundle "Proyecto compartido" del portal (project.webclient) solo
+        # incluye Kanban/Lista/Formulario a propósito. Añadimos aquí las
+        # plantillas/estilos de la vista Calendario genérica de Odoo (su JS ya
+        # viaja en el bundle vía el glob **/*.js) para poder ofrecerla al
+        # colaborador de Marketing.
+        'project.webclient': [
+            'web/static/src/views/calendar/**/*',
+        ],
+    },
     'post_init_hook': 'sync_existing_portal_profiles',
     'installable': True,
     'application': False,
