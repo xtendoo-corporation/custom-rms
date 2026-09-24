@@ -4,7 +4,7 @@
         <xpath expr="//div[hasclass('o_portal_docs')]" position="inside">
             <t t-call="portal.portal_docs_entry">
                 <t t-set="icon" t-value="'/web/static/img/mimetypes/document.svg'"/>
-                <t t-set="title">Catálogo</t>
+                <t t-set="title">Catálogos</t>
                 <t t-set="text">Consulta nuestro catálogo de productos</t>
                 <t t-set="url" t-value="'/my/catalog'"/>
                 <t t-set="config_card" t-value="True"/>
