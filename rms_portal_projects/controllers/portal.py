@@ -40,7 +40,7 @@ class InstallationProjectPortal(CustomerPortal):
             raise AccessError('Access denied.')
         return project_sudo
 
-    @http.route(['/my/projects', '/my/projects/page/<int:page>'], type='http', auth='user', website=True)
+    @http.route(['/my/installation-projects', '/my/installation-projects/page/<int:page>'], type='http', auth='user', website=True)
     def portal_my_installation_projects(self, page=1, sortby=None, **kw):
         Project = request.env['rms.installation.project']
         domain = self._installation_project_domain()
@@ -54,7 +54,7 @@ class InstallationProjectPortal(CustomerPortal):
 
         project_count = Project.search_count(domain)
         pager = portal_pager(
-            url='/my/projects',
+            url='/my/installation-projects',
             url_args={'sortby': sortby},
             total=project_count,
             page=page,
@@ -66,13 +66,13 @@ class InstallationProjectPortal(CustomerPortal):
             'projects': projects,
             'page_name': 'installation_project',
             'pager': pager,
-            'default_url': '/my/projects',
+            'default_url': '/my/installation-projects',
             'searchbar_sortings': searchbar_sortings,
             'sortby': sortby,
         }
         return request.render('rms_portal_projects.portal_my_installation_projects', values)
 
-    @http.route(['/my/projects/<int:project_id>'], type='http', auth='user', website=True)
+    @http.route(['/my/installation-projects/<int:project_id>'], type='http', auth='user', website=True)
     def portal_installation_project_detail(self, project_id, **kw):
         try:
             project_sudo = self._installation_project_check_access(project_id)
@@ -85,7 +85,7 @@ class InstallationProjectPortal(CustomerPortal):
         }
         return request.render('rms_portal_projects.portal_installation_project_page', values)
 
-    @http.route(['/my/projects/<int:project_id>/file'], type='http', auth='user')
+    @http.route(['/my/installation-projects/<int:project_id>/file'], type='http', auth='user')
     def portal_installation_project_file(self, project_id, **kw):
         try:
             project_sudo = self._installation_project_check_access(project_id)
@@ -93,7 +93,7 @@ class InstallationProjectPortal(CustomerPortal):
             return request.redirect('/my')
 
         if not project_sudo.file_data:
-            return request.redirect('/my/projects/%s' % project_id)
+            return request.redirect('/my/installation-projects/%s' % project_id)
 
         return request.make_response(
             base64.b64decode(project_sudo.file_data),

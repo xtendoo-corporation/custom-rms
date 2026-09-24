@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Solo el perfil Cliente ve Pedidos/Facturas/Direcciones; solo el
+         perfil Marketing ve Proyecto/Tareas nativos de Odoo. "Conexión y
+         seguridad" (segundo bloque de portal_common_category) no se toca:
+         queda visible para los 3 perfiles. -->
+    <template id="portal_my_home_profile_gating" inherit_id="portal.portal_my_home">
+        <xpath expr="//div[@id='portal_alert_category']" position="attributes">
+            <attribute name="groups">rms_portal_profiles.group_portal_customer</attribute>
+        </xpath>
+        <xpath expr="//div[@id='portal_client_category']" position="attributes">
+            <attribute name="groups">rms_portal_profiles.group_portal_customer</attribute>
+        </xpath>
+        <xpath expr="//div[@id='portal_vendor_category']" position="attributes">
+            <attribute name="groups">rms_portal_profiles.group_portal_customer</attribute>
+        </xpath>
+        <xpath expr="//div[@id='portal_service_category']" position="attributes">
+            <attribute name="groups">rms_portal_profiles.group_portal_marketing</attribute>
+        </xpath>
+        <xpath expr="//div[@id='portal_common_category']/t[1]" position="attributes">
+            <attribute name="groups">rms_portal_profiles.group_portal_customer</attribute>
+        </xpath>
+    </template>
+
+    <!-- La entrada "Proyectos" (rms_portal_projects) solo es visible para los
+         perfiles Cliente y Proyectos. -->
+    <template id="portal_my_home_installation_project_gating" inherit_id="rms_portal_projects.portal_my_home_installation_project">
+        <xpath expr="//t[@t-if='installation_project_count']" position="attributes">
+            <attribute name="groups">rms_portal_profiles.group_portal_customer,rms_portal_profiles.group_portal_projects</attribute>
+        </xpath>
+    </template>
+</odoo>

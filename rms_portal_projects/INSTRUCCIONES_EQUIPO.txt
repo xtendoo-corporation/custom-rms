@@ -45,7 +45,7 @@ ESTADOS DEL PROYECTO
 
 COSAS QUE EL CLIENTE PUEDE Y NO PUEDE HACER
 PUEDE:
-- Ver el listado de sus proyectos enviados en su portal (/my/projects).
+- Ver el listado de sus proyectos enviados en su portal (/my/installation-projects).
 - Abrir cada proyecto y pulsar "Abrir documento a pantalla completa", que le abre el HTML en una pestaña nueva como si fuera una pagina web normal.
 
 NO PUEDE:
@@ -63,3 +63,27 @@ Si un cliente dice que no ve su proyecto:
 Si un cliente dice que el documento "no carga":
 1. Comprueba que el archivo subido en "Documento (HTML)" es realmente un .html valido y no otro formato con el nombre cambiado.
 2. Prueba a descargarlo tu mismo desde el backend (boton de descarga junto al campo) y abrelo en tu navegador para confirmar que se ve bien antes de enviarlo al cliente.
+
+PERFILES DE PORTAL (modulo rms_portal_profiles)
+Desde que existe este modulo, cada contacto con acceso al portal tiene un
+"Perfil de portal" (ficha del contacto > pestaña "Ventas y Compras" > campo
+"Perfil de portal"), que determina que ve en su portal:
+
+- Cliente (por defecto): Pedidos, Facturas, Direcciones, Conexion y seguridad.
+  No ve "Proyectos" ni la app Proyecto interna.
+- Colaborador de Marketing: solo la app "Proyecto" interna de Odoo (proyectos
+  y tareas donde se le añada como colaborador, ver mas abajo) + Conexion y
+  seguridad. No ve pedidos, facturas, direcciones ni "Proyectos".
+- Proyectos: solo la seccion "Proyectos" (esta, la del cubo negro) + Conexion
+  y seguridad. No ve pedidos, facturas, direcciones ni la app Proyecto interna.
+
+Para dar acceso a un colaborador de Marketing a un proyecto interno concreto:
+1. Entra en la app "Proyecto" (icono de check verde, la interna).
+2. Abre el proyecto correspondiente (ej. calendario de contenidos).
+3. Ve a Configuracion / Compartir y añade al colaborador de portal como
+   "Colaborador" de ese proyecto en concreto. Solo vera ese proyecto y sus
+   tareas, no el resto de proyectos internos.
+
+IMPORTANTE: cambiar el "Perfil de portal" de un contacto NO le quita ni le da
+acceso al portal en si (eso sigue siendo "Otorgar acceso al portal" desde el
+contacto); solo cambia que secciones ve una vez ha entrado.

@@ -4,7 +4,7 @@
         <xpath expr="//div[hasclass('o_portal_docs')]" position="inside">
             <t t-if="installation_project_count" t-call="portal.portal_docs_entry">
                 <t t-set="title">Proyectos</t>
-                <t t-set="url" t-value="'/my/projects'"/>
+                <t t-set="url" t-value="'/my/installation-projects'"/>
                 <t t-set="placeholder_count" t-value="'installation_project_count'"/>
             </t>
         </xpath>
@@ -34,7 +34,7 @@
                         <t t-foreach="projects" t-as="project">
                             <tr>
                                 <td>
-                                    <a t-attf-href="/my/projects/#{project.id}">
+                                    <a t-attf-href="/my/installation-projects/#{project.id}">
                                         <span t-esc="project.name"/>
                                     </a>
                                 </td>
@@ -58,7 +58,7 @@
             <t t-set="breadcrumbs_searchbar" t-value="False"/>
             <div class="o_portal_my_doc_book">
                 <t t-call="portal.portal_back_in_edit_mode">
-                    <t t-set="backurl" t-value="'/my/projects'"/>
+                    <t t-set="backurl" t-value="'/my/installation-projects'"/>
                 </t>
                 <h2 t-field="project.name"/>
                 <p>
@@ -69,7 +69,7 @@
                     <span class="badge text-bg-danger" t-if="project.state == 'rejected'">Rechazado</span>
                 </p>
                 <t t-if="project.file_data">
-                    <a t-attf-href="/my/projects/#{project.id}/file" class="btn btn-primary btn-lg mb-3" target="_blank">
+                    <a t-attf-href="/my/installation-projects/#{project.id}/file" class="btn btn-primary btn-lg mb-3" target="_blank">
                         <i class="fa fa-external-link"/> Abrir documento a pantalla completa
                     </a>
                 </t>
