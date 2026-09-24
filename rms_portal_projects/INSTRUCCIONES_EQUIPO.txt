@@ -1,16 +1,16 @@
 COMO COMPARTIR EL DOCUMENTO DE UN PROYECTO CON UN CLIENTE - GUIA RAPIDA
 
 QUE ES ESTO
-En Odoo hay dos cosas que se llaman "Proyecto":
+En Odoo hay dos apps distintas relacionadas con "Proyecto":
 1. La app "Proyecto" de siempre (la del icono de check verde), que usamos internamente para tareas, calendario de Marketing, etc. Los clientes NUNCA tienen acceso a esto.
-2. La app nueva "Proyecto" (icono de cubo negro), que sirve UNICAMENTE para subir el documento HTML de un proyecto de instalacion y que el cliente lo vea en su portal. No tiene tareas, ni notas de otros clientes, ni nada mas del ERP.
+2. La app "Entregar Proyecto" (icono de cubo negro), que sirve UNICAMENTE para subir el documento HTML de un proyecto de instalacion y que el cliente lo vea en su portal. No tiene tareas, ni notas de otros clientes, ni nada mas del ERP.
 
 Ojo con no confundirlas al buscar en el menu de Odoo.
 
 El documento que se sube es un archivo HTML (una pagina web), no un PDF. El cliente lo vera abrirse en una pestaña nueva a pantalla completa, como si entrara a una web.
 
 PASO 1 - CREAR EL PROYECTO
-1. Entra en la app "Proyecto" (icono de cubo negro) > Proyectos.
+1. Entra en la app "Entregar Proyecto" (icono de cubo negro) > Proyectos.
 2. Pulsa "Nuevo".
 3. Rellena:
    - Referencia: un nombre que identifique el proyecto (ej: "Instalacion Sonido Sala Auditorio - Cliente XYZ").
@@ -53,6 +53,8 @@ NO PUEDE:
 - Ver proyectos de otro cliente.
 - Editar, comentar ni subir nada.
 - Ver la app "Proyecto" interna (tareas, calendario de Marketing, etc.).
+
+Nota: la app se llama "Entregar Proyecto" en el menu de Odoo (icono de cubo negro), para no confundirla con la app "Proyecto" interna (icono de check verde).
 
 DUDAS O PROBLEMAS
 Si un cliente dice que no ve su proyecto:
