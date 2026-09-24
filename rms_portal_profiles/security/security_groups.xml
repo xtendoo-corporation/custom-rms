@@ -4,23 +4,28 @@
         <field name="name">Perfiles de Portal (RMS)</field>
     </record>
 
+    <record id="res_groups_privilege_portal_profiles" model="res.groups.privilege">
+        <field name="name">Perfil de portal</field>
+        <field name="category_id" ref="module_category_portal_profiles"/>
+    </record>
+
     <record id="group_portal_customer" model="res.groups">
         <field name="name">Portal: Cliente</field>
-        <field name="category_id" ref="module_category_portal_profiles"/>
+        <field name="privilege_id" ref="res_groups_privilege_portal_profiles"/>
         <field name="implied_ids" eval="[(4, ref('base.group_portal'))]"/>
         <field name="comment">Ve Pedidos, Facturas, Direcciones y Conexión y seguridad. Es el perfil por defecto.</field>
     </record>
 
     <record id="group_portal_marketing" model="res.groups">
         <field name="name">Portal: Colaborador de Marketing</field>
-        <field name="category_id" ref="module_category_portal_profiles"/>
+        <field name="privilege_id" ref="res_groups_privilege_portal_profiles"/>
         <field name="implied_ids" eval="[(4, ref('base.group_portal'))]"/>
         <field name="comment">Ve Proyecto y Tareas nativas de Odoo (solo donde sea colaborador) y Conexión y seguridad.</field>
     </record>
 
     <record id="group_portal_projects" model="res.groups">
         <field name="name">Portal: Proyectos</field>
-        <field name="category_id" ref="module_category_portal_profiles"/>
+        <field name="privilege_id" ref="res_groups_privilege_portal_profiles"/>
         <field name="implied_ids" eval="[(4, ref('base.group_portal'))]"/>
         <field name="comment">Ve únicamente "Proyectos" (rms_portal_projects) y Conexión y seguridad.</field>
     </record>
