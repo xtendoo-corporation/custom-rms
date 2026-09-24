@@ -40,5 +40,5 @@ class ResPartner(models.Model):
                 continue
             target_group = self.env.ref(target_xmlid)
             portal_users.write({
-                'groups_id': [(3, group.id) for group in all_profile_groups] + [(4, target_group.id)],
+                'group_ids': [(3, group.id) for group in all_profile_groups] + [(4, target_group.id)],
             })
