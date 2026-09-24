@@ -85,11 +85,12 @@ class B2BCatalogPortal(http.Controller):
         )
 
     @http.route('/my/catalog/product-image/<int:product_id>', type='http', auth='user')
-    def portal_catalog_product_image(self, product_id, **kw):
+    def portal_catalog_product_image(self, product_id, size=None, **kw):
         product = request.env['product.template'].sudo().browse(product_id).exists()
-        if not product or not product.image_128:
+        image = product.image_1024 if size == 'full' else product.image_128
+        if not product or not image:
             return request.not_found()
-        content = base64.b64decode(product.image_128)
+        content = base64.b64decode(image)
         return request.make_response(content, headers=[('Content-Type', 'image/png')])
 
     @http.route('/my/catalog/images/<path:subpath>', type='http', auth='user')
