@@ -5,6 +5,13 @@ from odoo.exceptions import AccessError, MissingError
 from odoo.http import request
 from odoo.addons.portal.controllers.portal import CustomerPortal, pager as portal_pager
 
+BACK_TO_PORTAL_BUTTON = b"""
+<a href="/my" style="position:fixed;top:12px;left:12px;z-index:2147483647;display:inline-flex;
+align-items:center;gap:6px;padding:8px 14px;background:#1d1d1f;color:#fff;
+font:600 13px/1.2 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;border-radius:999px;
+text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.25);">&#8592; Volver al portal</a>
+"""
+
 
 class InstallationProjectPortal(CustomerPortal):
 
@@ -99,7 +106,7 @@ class InstallationProjectPortal(CustomerPortal):
             return request.redirect('/my/installation-projects/%s' % project_id)
 
         return request.make_response(
-            base64.b64decode(project_sudo.file_data),
+            BACK_TO_PORTAL_BUTTON + base64.b64decode(project_sudo.file_data),
             headers=[
                 ('Content-Type', 'text/html; charset=utf-8'),
                 ('Content-Disposition', 'inline; filename="%s"' % (project_sudo.file_name or 'proyecto.html')),
