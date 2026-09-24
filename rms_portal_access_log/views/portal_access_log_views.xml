@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_portal_access_log_list" model="ir.ui.view">
+        <field name="name">rms.portal.access.log.list</field>
+        <field name="model">rms.portal.access.log</field>
+        <field name="arch" type="xml">
+            <list string="Accesos al portal" create="false" edit="false" delete="false">
+                <field name="login_date"/>
+                <field name="partner_id"/>
+                <field name="login"/>
+                <field name="portal_profile"/>
+                <field name="ip_address"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_portal_access_log_search" model="ir.ui.view">
+        <field name="name">rms.portal.access.log.search</field>
+        <field name="model">rms.portal.access.log</field>
+        <field name="arch" type="xml">
+            <search string="Accesos al portal">
+                <field name="partner_id"/>
+                <field name="login"/>
+                <filter string="Cliente" name="filter_customer" domain="[('portal_profile', '=', 'customer')]"/>
+                <filter string="Colaborador de Marketing" name="filter_marketing" domain="[('portal_profile', '=', 'marketing')]"/>
+                <filter string="Proyectos" name="filter_projects" domain="[('portal_profile', '=', 'projects')]"/>
+                <separator/>
+                <filter string="Hoy" name="filter_today" domain="[('login_date', '&gt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Agrupar por">
+                    <filter string="Contacto" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Perfil de portal" name="group_profile" context="{'group_by': 'portal_profile'}"/>
+                    <filter string="Fecha" name="group_date" context="{'group_by': 'login_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_portal_access_log" model="ir.actions.act_window">
+        <field name="name">Accesos al portal</field>
+        <field name="res_model">rms.portal.access.log</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_portal_access_log_search"/>
+        <field name="context">{'search_default_group_partner': 1}</field>
+    </record>
+
+    <menuitem id="menu_portal_access_log_root" name="Accesos al Portal" sequence="65"/>
+    <menuitem id="menu_portal_access_log" name="Accesos" parent="menu_portal_access_log_root" action="action_portal_access_log" sequence="10"/>
+</odoo>
