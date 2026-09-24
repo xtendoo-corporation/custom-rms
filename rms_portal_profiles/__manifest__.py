@@ -14,12 +14,13 @@
         - Proyectos: "Proyectos" (rms_portal_projects), Conexión y seguridad.
     """,
     'author': 'Antigravity',
-    'depends': ['portal', 'sale', 'account', 'project', 'rms_portal_projects'],
+    'depends': ['portal', 'sale', 'account', 'project', 'rms_portal_projects', 'rms_portal_catalog'],
     'data': [
         'security/security_groups.xml',
         'views/res_partner_views.xml',
         'views/portal_templates.xml',
         'views/project_sharing_calendar_views.xml',
+        'views/catalog_portal_templates.xml',
     ],
     'assets': {
         # El bundle "Proyecto compartido" del portal (project.webclient) solo

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- La tarjeta "Catálogo" (rms_portal_catalog) solo es visible para el
+         perfil Cliente. -->
+    <template id="portal_my_home_catalog_gating" inherit_id="rms_portal_catalog.portal_my_home_catalog">
+        <xpath expr="//t[@t-call='portal.portal_docs_entry']" position="attributes">
+            <attribute name="groups">rms_portal_profiles.group_portal_customer</attribute>
+        </xpath>
+    </template>
+</odoo>

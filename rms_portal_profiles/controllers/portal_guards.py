@@ -4,6 +4,7 @@ from odoo.http import request
 from odoo.addons.account.controllers.portal import PortalAccount
 from odoo.addons.portal.controllers.portal import CustomerPortal as PortalBaseCustomerPortal
 from odoo.addons.project.controllers.portal import ProjectCustomerPortal
+from odoo.addons.rms_portal_catalog.controllers.portal import B2BCatalogPortal
 from odoo.addons.rms_portal_projects.controllers.portal import InstallationProjectPortal
 from odoo.addons.sale.controllers.portal import CustomerPortal as SaleCustomerPortal
 
@@ -77,3 +78,18 @@ class InstallationProjectsProfileGuard(InstallationProjectPortal):
         ):
             return request.redirect('/my')
         return super().portal_my_installation_projects(page=page, sortby=sortby, **kw)
+
+
+class CatalogProfileGuard(B2BCatalogPortal):
+
+    @http.route()
+    def portal_catalog_home(self, **kw):
+        if not _has_any_group('rms_portal_profiles.group_portal_customer'):
+            return request.redirect('/my')
+        return super().portal_catalog_home(**kw)
+
+    @http.route()
+    def portal_catalog_asset(self, subpath, **kw):
+        if not _has_any_group('rms_portal_profiles.group_portal_customer'):
+            return request.redirect('/my')
+        return super().portal_catalog_asset(subpath, **kw)

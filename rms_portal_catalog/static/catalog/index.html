@@ -1,0 +1,911 @@
+<title>Catálogo RMS Proaudio</title>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:opsz,wght@14..40,400;14..40,500;14..40,600;14..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --paper:#faf7f2;
+    --surface:#ffffff;
+    --surface-2:#f2ede4;
+    --ink:#1d1d1f;
+    --muted:#6e6e73;
+    --line:#e2ddd2;
+    --accent:#a9722e;
+    --accent-ink:#5a3d18;
+    --brand:#3b6fae;
+    --radius:18px;
+    --disp:'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --sans:'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    color-scheme: light dark;
+  }
+  /* El tema solo cambia si el visitante pulsa el botón — nunca por el sistema,
+     para que la pantalla se vea igual en cualquier tablet delante de un cliente. */
+  :root[data-theme="dark"]{
+    --paper:#000000; --surface:#1d1d1f; --surface-2:#2a2a2c; --ink:#f5f5f7;
+    --muted:#86868b; --line:#424245; --accent:#d79a4a; --accent-ink:#f3d6a3;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased; letter-spacing:-0.01em;}
+  img{max-width:100%;display:block;}
+  a{color:inherit;}
+  button{font:inherit;color:inherit;}
+  ::selection{background:var(--accent);color:#fff;}
+
+  .wrap{max-width:1180px;margin:0 auto;padding-inline:24px;}
+  @media (max-width:600px){ .wrap{padding-inline:16px;} }
+
+  header.site{
+    position:sticky; top:env(safe-area-inset-top,0px); z-index:40;
+    background:color-mix(in srgb, var(--paper) 82%, transparent);
+    backdrop-filter:blur(14px); border-bottom:1px solid var(--line);
+  }
+  .site-bar{display:flex; align-items:center; gap:14px; padding-block:14px;}
+  .mark{display:flex; align-items:center; cursor:pointer; flex:none;}
+  .mark .blogo{height:26px; width:auto; display:block;}
+  :root[data-theme="dark"] .blogo, :root[data-theme="dark"] .bhero-logo{filter:invert(1);}
+
+  .searchbox{flex:1; position:relative; max-width:440px; margin-left:auto;}
+  .searchbox input{
+    width:100%; border:1px solid var(--line); background:var(--surface);
+    border-radius:980px; padding:9px 16px 9px 38px; font-size:14px; color:var(--ink); font-family:var(--sans);
+    outline:none; transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .searchbox input:focus{border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);}
+  .searchbox svg{position:absolute; left:13px; top:50%; translate:0 -50%; width:15px; height:15px; color:var(--muted); pointer-events:none;}
+  .searchbox .kbd{
+    position:absolute; right:8px; top:50%; translate:0 -50%; font-family:var(--mono); font-size:10px; color:var(--muted);
+    border:1px solid var(--line); border-radius:5px; padding:2px 6px; pointer-events:none;
+  }
+  @media (max-width:640px){ .searchbox .kbd{display:none;} }
+
+  .theme-btn{
+    flex:none; width:36px; height:36px; border-radius:50%; border:1px solid var(--line); background:var(--surface);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative;
+  }
+  .theme-btn svg{width:16px; height:16px;}
+  .theme-btn .i-sun{display:none;}
+  :root[data-theme="dark"] .theme-btn .i-moon{display:none;}
+  :root[data-theme="dark"] .theme-btn .i-sun{display:block;}
+
+  .contact-link{
+    flex:none; display:flex; align-items:center; gap:6px; border:1px solid var(--line); background:var(--surface);
+    border-radius:980px; padding:8px 14px 8px 12px; font-size:13px; font-weight:600; color:var(--ink);
+    text-decoration:none; cursor:pointer; transition:border-color .15s, color .15s;
+  }
+  .contact-link:hover{border-color:var(--accent); color:var(--accent-ink);}
+  .contact-link svg{width:15px; height:15px; flex:none;}
+  @media (max-width:640px){ .contact-link span{display:none;} .contact-link{padding:8px; border-radius:50%;} }
+
+  .results{
+    position:absolute; top:calc(100% + 8px); left:0; right:0; background:var(--surface); border:1px solid var(--line);
+    border-radius:14px; box-shadow:0 20px 44px -16px rgba(0,0,0,.22); max-height:420px; overflow-y:auto; display:none; z-index:60;
+  }
+  .results.open{display:block;}
+  .results .r-item{display:flex; align-items:center; gap:12px; padding:9px 12px; cursor:pointer; border-bottom:1px solid var(--line);}
+  .results .r-item:last-child{border-bottom:none;}
+  .results .r-item:hover{background:var(--surface-2);}
+  .results img{width:34px; height:34px; object-fit:cover; border-radius:6px; flex:none; border:1px solid var(--line);}
+  .r-text{min-width:0;}
+  .r-title{font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .r-sub{font-size:11.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .r-brand{font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--brand); margin-top:2px;}
+  .r-empty{padding:22px 14px; color:var(--muted); font-size:13px; text-align:center;}
+
+  .hero{padding-block:56px 8px;}
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-ink);
+    background:color-mix(in srgb, var(--accent) 14%, transparent); display:inline-flex; padding:5px 11px; border-radius:980px; margin-bottom:20px;
+  }
+  h1.hero-title{
+    font-family:var(--disp); font-weight:700; font-size:clamp(34px,5.4vw,56px);
+    line-height:1.04; margin:0 0 14px; text-wrap:balance; max-width:15ch; letter-spacing:-0.02em;
+  }
+  .hero p.lede{font-size:18px; line-height:1.42; color:var(--muted); max-width:52ch; margin:0 0 8px; font-weight:450;}
+
+  .marquee{margin-top:36px; overflow:hidden; -webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent); mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);}
+  .marquee-track{display:flex; gap:12px; width:max-content; animation:scroll 40s linear infinite;}
+  .marquee:hover .marquee-track{animation-play-state:paused;}
+  @keyframes scroll{from{transform:translateX(0);} to{transform:translateX(-50%);}}
+  .m-item{width:74px; flex:none; border-radius:10px; overflow:hidden; border:1px solid var(--line); cursor:pointer; aspect-ratio:1/1; background:var(--surface);}
+  .m-item img{width:100%; height:100%; object-fit:cover; object-position:50% 22%; filter:grayscale(1) contrast(.95); opacity:.55; transition:filter .25s ease, opacity .25s ease, transform .25s ease;}
+  .m-item:hover img{filter:none; opacity:1; transform:scale(1.05);}
+
+  .section-title{font-family:var(--disp); font-weight:700; font-size:22px; margin:0 0 4px; letter-spacing:-0.01em;}
+  .section-sub{color:var(--muted); font-size:14px; margin:0 0 18px;}
+
+  .group-nav{display:flex; gap:8px; flex-wrap:wrap; margin:22px 0 28px;}
+  .gchip{
+    border:1px solid var(--line); background:var(--surface); border-radius:980px; padding:8px 15px;
+    font-size:13px; font-weight:500; cursor:pointer; color:var(--muted); transition:.15s ease;
+  }
+  .gchip:hover{color:var(--ink);}
+  .gchip.active{background:var(--ink); border-color:var(--ink); color:var(--paper);}
+
+  .brand-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin-top:8px; padding-bottom:64px;}
+  .brand-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:30px 26px 22px; cursor:pointer;
+    position:relative; overflow:hidden; transition:transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease;
+    display:flex; flex-direction:column; align-items:flex-start; min-height:190px;
+  }
+  .brand-card:hover{transform:translateY(-4px); box-shadow:0 22px 44px -20px rgba(0,0,0,.18);}
+  .brand-card.hidden{display:none;}
+  .brand-card .blogo{
+    height:30px; width:auto; margin-bottom:18px; max-width:100%;
+  }
+  .brand-card .btag{color:var(--muted); font-size:13.5px; line-height:1.4; margin:0 0 20px; font-weight:450;}
+  .brand-meta{display:flex; align-items:center; justify-content:space-between; margin-top:auto; padding-top:14px; border-top:1px solid var(--line); width:100%;}
+  .brand-count{font-family:var(--mono); font-size:10.5px; color:var(--muted); letter-spacing:.02em;}
+  .brand-cta{font-size:13px; font-weight:600; color:var(--ink); display:inline-flex; align-items:center; gap:5px;}
+  .brand-card:hover .brand-cta svg{transform:translateX(3px);}
+  .brand-cta svg{width:13px; height:13px; transition:transform .18s ease;}
+
+  .bhero{padding-block:44px 6px; border-bottom:1px solid var(--line);}
+  .back-link{display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); margin-bottom:22px; cursor:pointer; font-weight:500;}
+  .back-link svg{width:13px;height:13px;}
+  .back-link:hover{color:var(--ink);}
+  .bhero-logo{height:36px; width:auto; margin-bottom:18px; display:block;}
+  .bhero-sub{color:var(--muted); font-size:16px; max-width:52ch; line-height:1.4; margin:0 0 26px; font-weight:450;}
+  .bhero-stats{display:flex; gap:28px; margin-bottom:24px; flex-wrap:wrap;}
+  .stat b{font-family:var(--disp); font-size:22px; display:block; font-weight:700;}
+  .stat span{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em;}
+
+  .empty-state{padding-block:40px 80px; color:var(--muted); font-size:15px; max-width:44ch;}
+
+  .series-nav{position:sticky; top:calc(56px + env(safe-area-inset-top,0px)); z-index:30; background:var(--paper); border-bottom:1px solid var(--line); overflow-x:auto; scrollbar-width:none;}
+  .series-nav::-webkit-scrollbar{display:none;}
+  .series-nav-track{display:flex; gap:8px; padding-block:12px; white-space:nowrap;}
+  .chip{border:1px solid var(--line); background:var(--surface); border-radius:980px; padding:7px 14px; font-size:12.5px; font-weight:500; cursor:pointer; flex:none; color:var(--muted); transition:.15s ease;}
+  .chip:hover{color:var(--ink);}
+  .chip.active{background:var(--ink); border-color:var(--ink); color:var(--paper);}
+
+  .series-block{padding-block:32px 8px; scroll-margin-top:120px;}
+  .series-head{display:flex; align-items:baseline; gap:10px; margin-bottom:16px;}
+  .series-head h2{font-family:var(--disp); font-weight:700; font-size:20px; margin:0; letter-spacing:-0.01em;}
+  .series-head .count{font-family:var(--mono); font-size:11px; color:var(--muted);}
+
+  .card-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px;}
+  .pcard{background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease; display:flex; flex-direction:column;}
+  .pcard:hover{transform:translateY(-3px); box-shadow:0 16px 28px -18px rgba(0,0,0,.2);}
+  .pcard .thumb{aspect-ratio:1/1; overflow:hidden; background:var(--surface-2); position:relative;}
+  .pcard .thumb img{width:100%; height:100%; object-fit:cover; object-position:50% 22%;}
+  .pcard .body{padding:10px 11px 12px;}
+  .pcard .ptitle{font-family:var(--disp); font-weight:700; font-size:14.5px; margin:0 0 2px; line-height:1.15; letter-spacing:-0.01em;}
+  .pcard .psub{font-size:11px; color:var(--muted); line-height:1.3; margin:0 0 8px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden;}
+  .specs{display:flex; flex-wrap:wrap; gap:4px;}
+  .spec{font-family:var(--mono); font-size:9.5px; letter-spacing:.01em; color:var(--ink); background:var(--surface-2); border-radius:5px; padding:2px 6px;}
+
+  .datasheet-btn{
+    margin-top:9px; display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:600;
+    color:var(--brand); text-decoration:none; border:1px solid var(--line); border-radius:980px; padding:4px 9px;
+    transition:border-color .15s ease, color .15s ease;
+  }
+  .datasheet-btn:hover{border-color:var(--brand); color:var(--brand);}
+  .datasheet-btn svg{width:10px; height:10px;}
+
+  /* comparativa de specs — poco texto, mucho dato */
+  .compare{margin-top:8px; border:1px solid var(--line); border-radius:9px; overflow:hidden; overflow-x:auto;}
+  .compare table{width:100%; border-collapse:collapse; font-family:var(--mono); font-size:10px;}
+  .compare th{text-align:left; font-weight:600; padding:5px 7px; background:var(--surface-2); color:var(--muted); font-size:8.5px; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;}
+  .compare td{padding:5px 7px; border-top:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .compare td:first-child, .compare th:first-child{color:var(--muted); font-family:var(--sans); font-size:10px; text-transform:none; letter-spacing:0; font-weight:500; white-space:normal;}
+
+  footer.site{border-top:1px solid var(--line); padding-block:26px; margin-top:20px;}
+  footer.site .wrap{display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted);}
+
+  /* Contacto / comerciales */
+  .chero{padding:56px 0 40px;}
+  .rep-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; padding-bottom:72px;}
+  .rep-card{
+    display:flex; align-items:center; gap:16px; padding:20px; border:1px solid var(--line); border-radius:16px;
+    background:var(--surface);
+  }
+  .rep-photo{width:64px; height:64px; border-radius:50%; object-fit:cover; flex:none; border:1px solid var(--line);}
+  .rep-info{min-width:0;}
+  .rep-name{font-weight:700; font-size:16px; margin:0 0 6px;}
+  .rep-line{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--muted); text-decoration:none; margin-top:3px;}
+  .rep-line:hover{color:var(--accent-ink);}
+  .rep-line svg{width:14px; height:14px; flex:none; color:var(--accent);}
+
+  .viewer{position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:100; display:none; flex-direction:column;}
+  .viewer.open{display:flex;}
+  .v-top{display:flex; align-items:center; gap:14px; padding:12px 16px; padding-top:calc(12px + env(safe-area-inset-top,0px)); color:#f5f5f7; flex:none;}
+  .v-close{width:34px; height:34px; border-radius:50%; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.06); display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;}
+  .v-close svg{width:15px;height:15px;}
+  .v-meta{min-width:0;}
+  .v-crumb{font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:#a1a1a6; margin-bottom:2px;}
+  .v-title{font-family:var(--disp); font-size:16px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .v-count{margin-left:auto; font-family:var(--mono); font-size:11.5px; color:#a1a1a6; flex:none;}
+  .v-hint{font-size:10.5px; color:#6e6e73; flex:none; display:none;}
+  @media (min-width:760px){ .v-hint{display:block;} }
+
+  .v-stage{flex:1; position:relative; overflow:hidden; touch-action:none; display:flex; align-items:center; justify-content:center;}
+  .v-imgwrap{max-width:100%; max-height:100%; cursor:zoom-in; transition:transform .12s ease; transform-origin:center center; will-change:transform;}
+  .v-imgwrap.zoomed{cursor:grab;}
+  .v-imgwrap.dragging{cursor:grabbing; transition:none;}
+  .v-imgwrap img{max-height:calc(100dvh - 150px); max-width:calc(100vw - 100px); object-fit:contain; border-radius:6px; box-shadow:0 30px 60px -20px rgba(0,0,0,.6); background:#fff; user-select:none; -webkit-user-drag:none;}
+
+  .v-arrow{position:absolute; top:50%; translate:0 -50%; width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16); color:#f5f5f7; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:5;}
+  .v-arrow:hover{background:rgba(255,255,255,.16);}
+  .v-arrow svg{width:18px; height:18px;}
+  .v-arrow.prev{left:14px;} .v-arrow.next{right:14px;}
+  @media (max-width:640px){ .v-arrow{width:36px; height:36px;} .v-arrow.prev{left:6px;} .v-arrow.next{right:6px;} }
+
+  .v-bottom{padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px)); flex:none;}
+  .v-strip{display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px;}
+  .v-strip::-webkit-scrollbar{display:none;}
+  .v-thumb{width:40px; height:40px; flex:none; border-radius:6px; overflow:hidden; cursor:pointer; border:2px solid transparent; opacity:.5; transition:opacity .15s ease, border-color .15s ease;}
+  .v-thumb.active{opacity:1; border-color:var(--accent);}
+  .v-thumb img{width:100%; height:100%; object-fit:cover; object-position:50% 22%;}
+
+  [hidden]{display:none !important;}
+  .view{animation:fade .22s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+</style>
+
+<div id="app"></div>
+
+<div class="viewer" id="viewer">
+  <div class="v-top">
+    <button class="v-close" id="vClose" aria-label="Cerrar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="v-meta">
+      <div class="v-crumb" id="vCrumb">—</div>
+      <div class="v-title" id="vTitle">—</div>
+    </div>
+    <div class="v-hint" id="vHint">← → para navegar · rueda o doble clic para zoom</div>
+    <div class="v-count" id="vCount">—</div>
+  </div>
+  <div class="v-stage" id="vStage">
+    <button class="v-arrow prev" id="vPrev" aria-label="Anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="v-imgwrap" id="vImgWrap"><img id="vImg" src="" alt=""></div>
+    <button class="v-arrow next" id="vNext" aria-label="Siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+  </div>
+  <div class="v-bottom">
+    <div class="v-strip" id="vStrip"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   THEME
+========================================================= */
+(function(){
+  var saved = null;
+  try{ saved = localStorage.getItem('rms-theme'); }catch(e){}
+  if(saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
+})();
+function toggleTheme(){
+  var el = document.documentElement;
+  var next = el.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  if(next === 'dark') el.setAttribute('data-theme','dark'); else el.removeAttribute('data-theme');
+  try{ localStorage.setItem('rms-theme', next); }catch(e){}
+}
+
+/* =========================================================
+   IMÁGENES — rutas relativas (images/full, images/thumb, images/logos)
+========================================================= */
+function imgOf(p){ const d = PAGES[p]; return (d && d.img) || p; }
+function fullImg(p){ return "images/full/p" + String(imgOf(p)).padStart(3,"0") + ".jpg"; }
+function thumbImg(p){ return "images/thumb/p" + String(imgOf(p)).padStart(3,"0") + ".jpg"; }
+
+const LOGO = {
+  rms: "images/logos/logo-rms.png",
+  meyer: "images/logos/logo-meyer.png",
+  digico: "images/logos/logo-digico.png",
+  hollyland: "images/logos/logo-hollyland.png",
+  fourier: "images/logos/logo-fourier.png",
+  atb: "images/logos/logo-atb.png",
+  blacktrax: "images/logos/logo-blacktrax.png",
+  fiberfox: "images/logos/logo-fiberfox.png",
+  joyned: "images/logos/logo-joyned.png",
+  luminex: "images/logos/logo-luminex.png",
+  pointsource: "images/logos/logo-pointsource.png",
+  remic: "images/logos/logo-remic.png",
+  sounddevices: "images/logos/logo-sounddevices.png",
+  optocore: "images/logos/logo-optocore.png",
+  auvitran: "images/logos/logo-auvitran.png",
+  atlasied: "images/logos/logo-atlasied.png",
+  furman: "images/logos/logo-furman.png",
+  harvey: "images/logos/logo-harvey.png",
+  klang: "images/logos/logo-klang.png",
+  teqsas: "images/logos/logo-teqsas.png",
+  sony: "images/logos/logo-sony.png"
+};
+
+/* =========================================================
+   GRUPOS (para filtrar la portada por uso)
+========================================================= */
+const GROUPS = [
+  {key:"live", label:"Sonido LIVE"},
+  {key:"instalacion", label:"Instalación"},
+  {key:"wireless", label:"Microfonía y Wireless"},
+  {key:"intercom", label:"Comunicación"},
+  {key:"red", label:"Red y Conectividad"},
+  {key:"iluminacion", label:"Iluminación y Tracking"},
+  {key:"energia", label:"Energía y Protección"},
+];
+
+/* =========================================================
+   COMERCIALES — equipo de contacto RMS Proaudio.
+========================================================= */
+const REPS = [
+  {name:"Salvador Escobar", email:"salva@rmsproaudio.com", phone:"607 709 777", photo:"images/reps/salvador-escobar.jpg"},
+];
+
+/* =========================================================
+   MARCAS — las 20 del catálogo, todas con sus fichas reales.
+========================================================= */
+const BRANDS = {
+  meyer:        { name:"Meyer Sound",       accent:"#3b6fae", logo:LOGO.meyer,        logoAr:2.804, tagline:"Refuerzo sonoro y cine de referencia mundial.",       groups:["live","instalacion"], pages:[2,14,15,16,17,3,4,6,7,8,9,10,11,5,23,24,25,18,19,20,21,22,26,13,12] },
+  digico:       { name:"DiGiCo",            accent:"#0a7fdb", logo:LOGO.digico,       logoAr:5.715, tagline:"Mezcla digital para las giras más grandes.",          groups:["live"],               pages:[28,29,30,31,32,33,34,35,36,37,38,39] },
+  sounddevices: { name:"Sound Devices",     accent:"#ff7c07", logo:LOGO.sounddevices, logoAr:5.814, tagline:"Wireless de referencia para cine y broadcast.",       groups:["live","wireless"],    pages:[83,84,85,86,87,88] },
+  klang:        { name:"Klang",             accent:"#8c2c84", logo:LOGO.klang,        logoAr:3.715, tagline:"Monitorización personal en sonido inmersivo 3D.",     groups:["live"],               pages:[125] },
+  fourier:      { name:"Fourier Audio",     accent:"#3b6fae", logo:LOGO.fourier,      logoAr:1.234, tagline:"Procesado y matriz de audio en red.",                 groups:["live"],               pages:[43,44] },
+  atb:          { name:"ATB Audio Tools",   accent:"#af293a", logo:LOGO.atb,          logoAr:2.096, tagline:"Herramientas de medición y ajuste acústico.",         groups:["live"],               pages:[46] },
+  teqsas:       { name:"Teqsas",            accent:"#ff8e00", logo:LOGO.teqsas,       logoAr:4.592, tagline:"Herramientas y accesorios para audio profesional.",   groups:["live"],               pages:[127] },
+  atlasied:     { name:"AtlasIED",          accent:"#006ab6", logo:LOGO.atlasied,     logoAr:5.113, tagline:"Sonido de instalación para todo tipo de espacios.",   groups:["instalacion"],        pages:[1001,1002,1003,1004,1005,1006,1007,1008,1009,1010,1011] },
+  harvey:       { name:"Harvey",            accent:"#107dbc", logo:LOGO.harvey,       logoAr:5.833, tagline:"Gestión y coordinación de sistemas de instalación.",  groups:["instalacion"],        pages:[122,123] },
+  furman:       { name:"Furman",            accent:"#107dbc", logo:LOGO.furman,       logoAr:5.024, tagline:"Protección y acondicionamiento eléctrico.",           groups:["instalacion","energia"], pages:[118,119,120] },
+  luminex:      { name:"Luminex",           accent:"#b7cc00", logo:LOGO.luminex,      logoAr:3.336, tagline:"Infraestructura Ethernet para audio en directo.",     groups:["instalacion","red"],  pages:[61,62,63,64,65,66,67,68,69,70,71] },
+  optocore:     { name:"Optocore",          accent:"#00ac4e", logo:LOGO.optocore,     logoAr:3.447, tagline:"Redes de fibra óptica de alta fiabilidad.",           groups:["instalacion","red"],  pages:[90,91,92,93,94,95] },
+  auvitran:     { name:"AuviTran",          accent:"#ff6727", logo:LOGO.auvitran,     logoAr:2.159, tagline:"Procesado y conversión de audio en red.",             groups:["instalacion","red"],  pages:[97,98,99,100] },
+  pointsource:  { name:"Point Source Audio",accent:"#ff8408", logo:LOGO.pointsource,  logoAr:1.561, tagline:"Micrófonos de diadema y headset.",                    groups:["wireless"],           pages:[73,74,75,76,77] },
+  remic:        { name:"Remic",             accent:"#b98848", logo:LOGO.remic,        logoAr:4.16,  tagline:"Micrófonos profesionales de mano y diadema.",         groups:["wireless"],           pages:[79,80,81] },
+  sony:         { name:"Sony",              accent:"#5c5c5c", logo:LOGO.sony,         logoAr:4.61,  tagline:"Micrófonos inalámbricos DWX Series.",                 groups:["wireless"],           pages:[129,130,131] },
+  hollyland:    { name:"Hollyland",         accent:"#ff1c16", logo:LOGO.hollyland,    logoAr:3.733, tagline:"Intercoms inalámbricos para producción.",             groups:["intercom"],           pages:[41] },
+  fiberfox:     { name:"Fiberfox",          accent:"#de5328", logo:LOGO.fiberfox,     logoAr:1.334, tagline:"Conversores de fibra óptica para audio.",             groups:["red"],                pages:[52,53,54,55,56,57] },
+  joyned:       { name:"Joyned",            accent:"#460a9d", logo:LOGO.joyned,       logoAr:5.457, tagline:"Redes de audio y control MU16.",                      groups:["red"],                pages:[59] },
+  blacktrax:    { name:"Blacktrax",         accent:"#00abeb", logo:LOGO.blacktrax,    logoAr:7.379, tagline:"Seguimiento de artistas en tiempo real.",             groups:["iluminacion"],        pages:[48,49,50] },
+};
+
+const PAGES = {
+3:{brand:"meyer",series:"Point Source",title:"Ashby",sub:"Altavoz de techo, 5″/8″",tags:["ashby","altavoz de techo","instalacion","5c","8c"],specs:[["Cobertura","100°"]],
+   compare:{cols:["5C","8C"], rows:[["Baja frecuencia","5″","8″"],["Peso","3,53 kg","6,26 kg"],["Diámetro corte","19,3 cm","28,76 cm"]]}, datasheet:"https://docs.meyersound.com/products/en/ashby.html"},
+9:{brand:"meyer",series:"Point Source",title:"Ultra-X80",sub:"Fuente puntual autoamplificada",tags:["ultra-x80","ultra-x82","fuente puntual"],specs:[["Peso","62,6 kg"],["SPL","140 dB"]],datasheet:"https://docs.meyersound.com/products/en/ultra-x80.html"},
+19:{brand:"meyer",series:"Cine Studio",title:"Astrya",sub:"El altavoz de pantalla más potente",tags:["astrya-140","cine","pantalla"],specs:[["Peso","140,6 kg"],["SPL","142,7 dB"]],datasheet:"https://docs.meyersound.com/products/en/astrya.html"},
+28:{brand:"digico",series:"Consolas Quantum",title:"Quantum112",sub:"Flypack · equipaje de mano",tags:["quantum112","flypack","peli case"],specs:[["Peso","14,7 kg"],["Canales","80"]],datasheet:"https://digico.biz/consoles/quantum112/"},
+32:{brand:"digico",series:"Consolas Quantum",title:"Quantum338",sub:"3 pantallas de 17″ · KLANG",tags:["quantum338","klang","dmi-klang"],specs:[["Entradas","128 ch"],["Peso","70 kg"]],datasheet:"https://digico.biz/consoles/quantum338/"},
+36:{brand:"digico",series:"Serie S",title:"S21",sub:"Serie S compacta · 96 kHz",tags:["s21","serie s"],specs:[["Entradas","24"],["Faders","21"]],datasheet:"https://digico.biz/consoles/s21/"},
+2:{brand:"meyer",series:"Información",title:"Meyer Sound",sub:"Garantía, soporte técnico y formación del fabricante",tags:["garantia","soporte","nadia","formacion"],specs:[]},
+4:{brand:"meyer",series:"Point Source",title:"UP4-slim",sub:"Altavoz ultracompacto para instalación",tags:["up4-slim","mm-4xp","mps-482hp","mps-488x"],specs:[["Max SPL","128 dB"],["Peso","6,35 kg"]],datasheet:"https://docs.meyersound.com/products/en/up-4slim.html"},
+5:{brand:"meyer",series:"Low-Frequency",title:"MM-10",sub:"Subgrave ultracompacto para instalación",tags:["mm-10","usw-112p","usw-210p","usw-121p","subgrave"],specs:[["Peso","17 kg"],["SPL","123 dB"]],datasheet:"https://docs.meyersound.com/products/en/mm-10.html"},
+6:{brand:"meyer",series:"Point Source",title:"Ultra-X20",sub:"Altavoz compacto de cobertura amplia",tags:["ultra-x20","line array compacto"],specs:[["Peso","12,3 kg"],["SPL","123,5 dB"]],datasheet:"https://docs.meyersound.com/products/en/ultra-x20.html"},
+7:{brand:"meyer",series:"Point Source",title:"Ultra-X40",sub:"Altavoz compacto + subgrave 750-LFC",tags:["ultra-x40","750-lfc"],specs:[["Peso","25 kg"],["SPL","132,5 dB"]],datasheet:"https://docs.meyersound.com/products/en/ultra-x40.html"},
+8:{brand:"meyer",series:"Point Source",title:"UPQ-D",sub:"Altavoz de cobertura amplia de alto rendimiento",tags:["upq-d","upq-d1","upq-d2","upq-d3"],specs:[["Peso","43 kg"],["SPL","135,5 dB"]],datasheet:"https://docs.meyersound.com/products/en/upq.html"},
+10:{brand:"meyer",series:"Point Source",title:"Flightcase Ultra-X80",sub:"Transporte en abedul para 1 unidad",tags:["flightcase","transporte","ultra-x80"],specs:[],datasheet:"https://docs.meyersound.com/products/en/ultra-x80.html"},
+11:{brand:"meyer",series:"Point Source",title:"Accesorios Ultra-X40",sub:"Soportes y kits de instalación",tags:["mtc-x40","mya-x40","mub-x40"],specs:[],datasheet:"https://docs.meyersound.com/products/en/ultra-x40.html"},
+12:{brand:"meyer",series:"Software",title:"NEBRA",sub:"Control y monitorización en red",tags:["nebra","software","monitorizacion"],specs:[],datasheet:"https://docs.meyersound.com/products/en/nebra.html"},
+13:{brand:"meyer",series:"Processing",title:"Galileo GALAXY",sub:"Procesador de la serie AVB",tags:["galileo galaxy","avb","procesador"],specs:[],datasheet:"https://docs.meyersound.com/products/en/galileo-galaxy.html"},
+14:{brand:"meyer",series:"Line Array",title:"Panther",sub:"Line array de gran formato + subgrave 2100-LFC",tags:["panther","2100-lfc"],specs:[["Peso","90 kg"],["SPL","150 dB"]],datasheet:"https://docs.meyersound.com/products/en/panther.html"},
+15:{brand:"meyer",series:"Line Array",title:"Leopard",sub:"Line array compacto + subgrave 900-LFC",tags:["leopard","900-lfc"],specs:[["Peso","34 kg"]],datasheet:"https://docs.meyersound.com/products/en/leopard.html"},
+16:{brand:"meyer",series:"Line Array",title:"Lina",sub:"El line array más compacto de la Serie LEO",tags:["lina","750-lfc"],specs:[["Peso","19 kg"]],datasheet:"https://docs.meyersound.com/products/en/lina.html"},
+17:{brand:"meyer",series:"Line Array",title:"Tigra",sub:"Line array más pequeño + subgrave 1800-LFC",tags:["tigra","1800-lfc"],specs:[["Peso","52,2 kg"],["SPL","145 dB"]],datasheet:"https://docs.meyersound.com/products/en/tigra.html"},
+18:{brand:"meyer",series:"Stage Monitor",title:"MJF-208 / MJF-210",sub:"Monitores de escenario autoamplificados",tags:["mjf-208","mjf-210"],specs:[],compare:{cols:["MJF-208","MJF-210"],rows:[["Peso","20,4 kg","30,4 kg"],["Baja frecuencia","2x8″","2x10″"]]},datasheet:"https://docs.meyersound.com/products/en/mjf.html"},
+20:{brand:"meyer",series:"Cine Studio",title:"Bluehorn",sub:"Monitor de estudio de banda ancha completa",tags:["bluehorn","monitor de estudio"],specs:[["Peso","73,5 kg"],["Rango","22 Hz–22 kHz"]],datasheet:"https://docs.meyersound.com/products/en/bluehorn-system.html"},
+21:{brand:"meyer",series:"Cine Studio",title:"Acheron",sub:"Altavoz de canal de pantalla para cine",tags:["acheron","acheron lf","acheron studio","acheron designer"],specs:[],datasheet:"https://docs.meyersound.com/products/en/acheron.html"},
+22:{brand:"meyer",series:"Cine Studio",title:"HMS",sub:"Altavoz de sonido surround para cine",tags:["hms-5","hms-10","hms-12","hms-15"],specs:[],compare:{cols:["HMS-5","HMS-10","HMS-12","HMS-15"],rows:[["Baja frecuencia","2x5″","10″","12″","15″"]]},datasheet:"https://docs.meyersound.com/products/en/hms.html"},
+23:{brand:"meyer",series:"Low-Frequency",title:"X-1100C",sub:"Subwoofer de cine de alta potencia",tags:["x-1100c","subwoofer"],specs:[["Peso","112,9 kg"],["SPL","140 dB"]]},
+24:{brand:"meyer",series:"Low-Frequency",title:"X-800C",sub:"Subwoofer de cine de alta potencia",tags:["x-800c","subwoofer"],specs:[["Peso","100,24 kg"],["SPL","133 dB"]]},
+25:{brand:"meyer",series:"Low-Frequency",title:"X-400C",sub:"Subwoofer de cine compacto",tags:["x-400c","subwoofer compacto"],specs:[["Peso","38,6 kg"],["SPL","127,5 dB"]],datasheet:"https://docs.meyersound.com/products/en/x-400c.html"},
+26:{brand:"meyer",series:"Cine Studio",title:"Amie",sub:"Monitor de estudio de precisión + subgrave",tags:["amie","amie-sub"],specs:[["Peso","11,3 kg"]],datasheet:"https://docs.meyersound.com/products/en/amie-systems.html"},
+29:{brand:"digico",series:"Consolas Quantum",title:"Quantum225",sub:"Mesa de mezclas compacta de gira",tags:["quantum225"],specs:[["Peso","43 kg"],["Entradas","72 canales"]],datasheet:"https://digico.biz/consoles/quantum225/"},
+30:{brand:"digico",series:"Consolas Quantum",title:"Quantum225DS",sub:"Doble pantalla, hasta 96 canales en Pulse",tags:["quantum225ds","pulse"],specs:[["Canales","72 / 96 (Pulse)"]],datasheet:"https://digico.biz/consoles/quantum-225ds/"},
+31:{brand:"digico",series:"Consolas Quantum",title:"Quantum326",sub:"Arquitectura de sistema de nueva generación",tags:["quantum326"],specs:[["Entradas","228 canales"],["Faders","26"]],datasheet:"https://digico.biz/consoles/quantum326/"},
+33:{brand:"digico",series:"Consolas Quantum",title:"Quantum5",sub:"256 canales de entrada, 3 pantallas de 15″",tags:["quantum5","sd5-cs"],specs:[["Entradas","256"],["Faders","37"]],datasheet:"https://digico.biz/consoles/quantum5/"},
+34:{brand:"digico",series:"Consolas Quantum",title:"Quantum7",sub:"La escala y potencia para giras masivas",tags:["quantum7"],specs:[["Entradas","256"],["Faders","52"]],datasheet:"https://digico.biz/consoles/quantum7/"},
+35:{brand:"digico",series:"Consolas Quantum",title:"Quantum852",sub:"384 canales, la insignia de la gama",tags:["quantum852"],specs:[["Entradas","384"],["Faders","40+12"]],datasheet:"https://digico.biz/consoles/quantum852/"},
+37:{brand:"digico",series:"Serie S",title:"S31",sub:"Mesa de la Serie S de mayor formato",tags:["s31","serie s"],specs:[["Faders","31"],["Buses","46"]],datasheet:"https://digico.biz/consoles/s31/"},
+38:{brand:"digico",series:"Racks",title:"Racks DiGiCo",sub:"SD Rack, D-Rack, DQ-Rack, MQ-Rack y A168",tags:["sd rack","d-rack","dq-rack","mq-rack","a168 stage"],specs:[],datasheet:"https://digico.biz/racks-and-i-os/"},
+39:{brand:"digico",series:"Tarjetas y cables",title:"Tarjetas y cables",sub:"Expansión MADI, Dante, AES, Aviom y cableado",tags:["madi","dante","aes","aviom"],specs:[],datasheet:"https://digico.biz/racks-and-i-os/"},
+41:{brand:"hollyland",series:"Intercoms",title:"Solidcom C1 Pro-8S con Hub",sub:"Intercom inalámbrico full-dúplex, cobertura de 350 m",tags:["hollyland","solidcom","intercom","inalambrico","m1 pro","h1-10s"],specs:[["Cobertura","350 m"],["Auriculares","8 inalámbricos + 1 con cable"],["Cancelación de ruido","Doble micrófono (ENC)"]]},
+43:{brand:"fourier",series:"Procesadores de plugins VST3",title:"transform.engine",sub:"Motor de hardware para ejecutar plugins VST3 en directo",tags:["fourier audio","transform engine","vst3","plugin en vivo","cuelist","digico"],specs:[["Formato","Rack 2U"],["Compatibilidad","Cualquier plugin VST3"],["Reconocimiento","Premio a la Innovación PLASA 2024"]]},
+44:{brand:"fourier",series:"Licencias de plugins",title:"transform.suite '25",sub:"Suite anual con más de 70 plugins de estudio para directo",tags:["fourier audio","transform suite","plugins","licencia anual","vst3"],specs:[["Plugins incluidos","Más de 70 plugins"],["Marcas","10 marcas líderes en audio"],["Licencia","Anual, sin cuotas mensuales"]]},
+46:{brand:"atb",series:"Procesamiento y redes de audio",title:"ATB Audio Tools 2.0",sub:"Procesador de red todo en uno para directo y broadcast",tags:["atb","audio tools","dante","ndi","avb milan","ravenna aes67","broadcast"],specs:[["Formato","Rack 19″"],["Redes soportadas","Dante, NDI, AVB/MILAN, Ravenna/AES67"],["Conectividad","XLR, AES72, HDMI, fibra óptica"]]},
+48:{brand:"blacktrax",series:"Seguimiento en tiempo real",title:"BT Beacon",sub:"Baliza LED para seguimiento de posición en 3D",tags:["blacktrax","beacon","bt sensor","seguimiento","tracking","led"],specs:[["Batería","1350 mAh"],["Antena","2,4 GHz / -0,9 dBi"],["Capacidad","Hasta 85 balizas o 255 puntos"]]},
+49:{brand:"blacktrax",series:"Seguimiento en tiempo real",title:"BlackTrax BT-1 System",sub:"Kit de seguimiento portátil todo en uno",tags:["blacktrax","bt-1","tracking","seguimiento","portatil","rttrp"],specs:[["Área de pista","Hasta 225 m² (ampliable)"],["Puntos de seguimiento","20 ID únicos"],["Formato","Kit compacto en maletín de viaje"]]},
+50:{brand:"blacktrax",series:"Accesorios de seguimiento",title:"BlackTrax Mini Beacon",sub:"Baliza inalámbrica compacta para producciones sin guion",tags:["blacktrax","mini beacon","stringer","wave","seguimiento","tracking"],specs:[["Autonomía","Aprox. 8 horas"],["Frecuencia","100 Hz"],["Variantes","Mini Beacon y Mini Beacon Wave"]]},
+52:{brand:"fiberfox",series:"Fiberfox Dos Canales",title:"Bobinas de cable Fiberfox 2CH",sub:"Bobinas robustas para cableado de fibra óptica de dos canales",tags:["fiberfox","bobinas de cable","cable drum","adaptador","dos canales","fibra optica"],specs:[["Longitud máx.","150 / 300 / 400 m"],["Material","Caucho (hasta 400 m) o acero (500 m+)"],["Adaptador","IP65 (EBC/EBC) o IP42 (EBC/NO)"]]},
+53:{brand:"fiberfox",series:"Fiberfox Dos Canales",title:"EBC1502 Bridge",sub:"Conector puente de fibra óptica sin herramientas especiales",tags:["fiberfox","ebc1502","bridge","patchcord","fibra optica","opticalcon"],specs:[["Canales","2 canales (2x LC)"],["Fibra","50/125 µm OM4"],["Resistencia","Al agua, apto para exteriores"]]},
+54:{brand:"fiberfox",series:"Fiberfox Dos Canales",title:"Fiberfox 2CH",sub:"Cable de fibra óptica prefabricado de 2 canales, resistente",tags:["fiberfox","2ch","ebc1502","cable fibra optica","ip68"],specs:[["Diámetro","5 mm, PUR ignífugo"],["Conectores","EBC1502, IP68"],["Longitudes","5 a 300 m"]]},
+55:{brand:"fiberfox",series:"Fiberfox Cuatro Canales",title:"Bobinas de cable Fiberfox 4CH",sub:"Bobinas y adaptadores para cableado de fibra óptica de cuatro canales",tags:["fiberfox","bobinas de cable","cable drum","adaptador","cuatro canales","fibra optica"],specs:[["Longitud máx.","150 / 300 / 400 m"],["Adaptador","1x EBC1504 a 2x EBC1502, 1x NO4 o 2x NO2"],["Protección","IP65 (EBC/EBC) o IP42 (EBC/NO)"]]},
+56:{brand:"fiberfox",series:"Fiberfox Cuatro Canales",title:"EBC1504 Bridge",sub:"Puente compacto de fibra óptica de cuatro canales",tags:["fiberfox","ebc1504","bridge","4 canales","fibra optica","opticalcon"],specs:[["Canales","4 canales (4x LC)"],["Fibra","50/125 µm OM4"],["Diseño","Compacto, encaja en orificio D como opticalCON"]]},
+57:{brand:"fiberfox",series:"Fiberfox Cuatro Canales",title:"Fiberfox 4CH",sub:"Cable de fibra óptica prefabricado de 4 canales, resistente a flexión",tags:["fiberfox","4ch","ebc1504","cable fibra optica","ip68"],specs:[["Diámetro","5,5 mm, PUR ignífugo"],["Conectores","EBC1504, IP68"],["Longitudes","5 a 300 m"]]},
+59:{brand:"joyned",series:"Interfaces de audio en red",title:"JOYNED MU16",sub:"Interfaz USB a red Milan de 16x16 canales",tags:["joyned","mu16","milan","interfaz audio","usb","red audio"],specs:[["Canales","16x16 bidireccional"],["Resolución","32 bits a 48/96 kHz"],["Alimentación","Bus USB-C (2,5 W), sin drivers"]]},
+79:{brand:"remic",series:"Serie Pro",title:"Micrófonos PRO Remic",sub:"Micrófonos de contacto profesionales para instrumentos de cuerda y viento",tags:["v5200","c5300","d5400","w3000","p6100","adaptadores rad"],specs:[["Modelos","V5200, B5201, C5300, D5400, D5401, W3000"],["Versiones","Studio/Live, B Live, WLM y LB-WLM inalámbrico"]]},
+80:{brand:"remic",series:"Serie Reshape",title:"RE7100 / RE7200 multi-instrumento",sub:"Micrófonos de contacto ligeros con soportes intercambiables",tags:["re7100","re7200","reshape","soporte violin","soporte viola","wi7000"],specs:[["Cable","2 m recubierto de algodón, conector XLR"],["Accesorio incluido","Soporte para cable (arandela)"]]},
+81:{brand:"remic",series:"Accesorios",title:"Flight case para orquestas",sub:"Protección profesional para micrófonos Remic en gira",tags:["flight case","caja de transporte","seahorse se120","seahorse se300"],specs:[["Estuche","Seahorse SE120"],["Resistencia","Impermeable, hermético y anti-aplastamiento"]]},
+83:{brand:"sounddevices",series:"Astral Series · Micrófonos inalámbricos",title:"ASTRAL-HH",sub:"Micrófono de mano digital inalámbrico, sonido y RF superiores",tags:["astral-hh","a20-hh","microfono de mano","inalambrico","cd1"],specs:[["Ancho de banda de audio","10 Hz - 20 kHz"],["Autonomía","10 horas"],["Cápsula","CD1 dinámica calibrada"]]},
+84:{brand:"sounddevices",series:"Astral Series · Accesorios",title:"Accesorios ASTRAL-HH",sub:"Personaliza tu micrófono de mano con anillos, cápsulas y fundas",tags:["a20-hh","anillo de control","cd1","bateria xl-b18650","contrapeso-30"],specs:[["Baterías","XL-B18650, 10 mWh, +10 horas de autonomía"],["Anillos de control","4 modelos: Control 0/1/3/Switch"]]},
+85:{brand:"sounddevices",series:"Astral Series · Emisores",title:"ASTRAL-TX",sub:"Petaca emisora digital de alto rendimiento para giras",tags:["astral-tx","a20-tx","petaca","emisor inalambrico","nexlink"],specs:[["Rango de sintonización","169-1525 MHz VHF/UHF"],["Batería","Hasta 12 horas, litio o AA"],["Ancho de banda de audio","10 Hz - 20 kHz"]]},
+86:{brand:"sounddevices",series:"Astral Series · Emisores",title:"ASTRAL-Mini",sub:"Petaca compacta con grabadora integrada, resistente al agua",tags:["astral-mini","a20-mini","petaca compacta","grabadora 32-bit","powerstation-8m"],specs:[["Rango de sintonización","470-1525 MHz"],["Grabadora","32-bit, 48 kHz, 64 GB, +80 horas"],["Diseño","Resistente al agua y compacto"]]},
+87:{brand:"sounddevices",series:"Astral Series · Receptores",title:"Astral ARX32",sub:"Receptor de máxima densidad de canales para instalaciones exigentes",tags:["arx32","arx16","arx8","opto-hma","receptor inalambrico"],specs:[["Canales","16 con diversidad HexVersity, expandible a 32"],["Rango de sintonización","169-1525 MHz"],["Formato","1U rack 19″"]],
+   compare:{cols:["ARX32","ARX16","ARX8"], rows:[["Canales","16 (exp. a 32)","8 (exp. a 12/16)","4 (exp. a 8)"],["Formato","1U rack 19″","Rack","Medio rack"],["Rango sintonización","169-1525 MHz","169-1525 MHz","169-1525 MHz"]]}},
+88:{brand:"sounddevices",series:"Astral Series · Accesorios",title:"Accesorios inalámbricos",sub:"Antenas y filtros RF para sistemas inalámbricos Astral",tags:["a-sma","a-smar","astral vhf whip","a-filter","antena"],specs:[["Reducción RF","Aprox. 40 dB (A-Filter)"],["Antena VHF","Flexible recortable, conector SMA"]]},
+90:{brand:"optocore",series:"M Series · Convertidores de red",title:"M Series MADI",sub:"Conmutadores MADI para redes de audio digital redundantes",tags:["m8-0pt","m12-0pt","madi","suministro redundante","v3r-fx intercomic"],specs:[["Puertos","4-8 MADI, ópticos o coaxiales"],["Alimentación","2x suministro redundante"]]},
+91:{brand:"optocore",series:"Festival Box & Transceivers",title:"Festival Box",sub:"Sistema de transporte de fibra punto a punto para eventos",tags:["festival box petit","festival box grand","transceivers","autorouter","cwdm"],specs:[["Multiplexación","Coarse Wave Division Multiplexing (CWDM)"],["Suministro","2x redundante"]],
+   compare:{cols:["Petit","Grand"], rows:[["Conversión SFP","6 a 2 puertos dúplex multimodo","12 a 2 puertos dúplex multimodo"],["Multiplexación","CWDM","CWDM"]]}},
+92:{brand:"optocore",series:"Convertidores de fibra óptica",title:"X6R-FX 16 Channel",sub:"Convertidores de fibra multicanal para entradas y salidas de audio",tags:["v3r-fx","x6r-fx","convertidor de fibra","aes3","entradas de microfono"],specs:[["Canales","16 (8 parejas AES3) o combinaciones mic/línea"],["Redundancia","2x suministro redundante"]]},
+93:{brand:"optocore",series:"Convertidores de fibra óptica / Red CAT5",title:"Y3R-TP / YG2 / YS2",sub:"Módulos de tarjeta para integración Yamaha y transporte MADI/AES",tags:["y3r-tp","yg2","ys2","yamaha ygdai","dd32r-fx","x6r-tp"],specs:[["Yamaha YGDAI","8 o 16 canales de audio I/O HA"],["Transporte remoto","Ethernet 10/100 Mb"],["Digital audio","DD2ER-EX, DD4MR-EX, DD32R-FX"]]},
+94:{brand:"optocore",series:"Accesorios · Fibra óptica",title:"OptoCon Fibra Multimodo",sub:"Conectores y cables de fibra óptica resistentes para giras",tags:["optocon","hma","cable de fibra","transceivers","fibra multimodo"],specs:[["Cable resistente","150 m con conectores HMA de doble o cuádruple lente"],["Transceivers","2 Gb multimodo, 1-2 Gb monomodo"]]},
+95:{brand:"optocore",series:"Accesorios · Cableado",title:"Cables Copper y Paneles",sub:"Cableado y paneles de conexión para sistemas Optocore",tags:["cable d-sub","xlr panel","festival box rack","bi-c","tri-a"],specs:[["Panel XLR","16 canales de alimentación en 1U rack"],["Cables D-sub","BI-C, TRI-Y, TRI-A/B, DD32/X6/V3 breakout"]]},
+61:{brand:"luminex",series:"Accesorios",title:"LumiNode",sub:"Interfaces de red DMX/RDM en varios formatos y puertos",tags:["luminode","lumisplit","gigacore30i","interfaz dmx","rdm","accesorios"],specs:[["Modelos","LumiNode 1 / 2 / 4 / 8-IP / 12"],["Formatos","Rack 1U, pared (Wall) y carril DIN"]]},
+62:{brand:"luminex",series:"Ethernet Switches",title:"GigaCore 30i 1Gb",sub:"Switch gestionado 24 puertos, SFP+, PoE++ opcional",tags:["gigacore30i","gigacore10i","gigacore16i","switch ethernet","sfp+","poe++"],specs:[["Puertos","24x1G + 6x1G (SFP+)"],["PoE","PoE++ opcional"],["Alimentación","Doble PSU opcional 100W/550W"]]},
+63:{brand:"luminex",series:"Ethernet Switches",title:"GigaCore 10i-IP",sub:"Switch robusto para exteriores, PoE++ y conexión óptica",tags:["gigacore10i-ip","switch exterior","poe++","robusto","intemperie"],specs:[["Puertos","10x PoE++ (Neutrik/Fiberfox combinables)"],["Versiones","1Gb y 10Gb"]]},
+64:{brand:"luminex",series:"Ethernet Switches",title:"GigaCore 10t",sub:"Switch portátil todoterreno con conectores impermeables profesionales",tags:["gigacore10t","switch portatil","ethercon","neutrik","fiberfox","touring"],specs:[["Puertos","8x etherCON + 2 combo fibra/cobre"],["Conectores","EtherCON, Neutrik DUO/QUAD, Fiberfox"],["Versiones","1G y 10G"]]},
+65:{brand:"luminex",series:"Ethernet Switches",title:"GigaCore 16tf OpticalCON",sub:"Switch stagebox 16 puertos, OpticalCON y PoE",tags:["gigacore16tf","opticalcon","ethercon","stagebox","poe","fibra"],specs:[["Conector","OpticalCON / etherCON"],["PoE","Sí (PoE++)"],["Formato","Stagebox 1U"]]},
+66:{brand:"luminex",series:"Ethernet Switches",title:"GigaCore 16tf FiberFox",sub:"Switch stagebox 16 puertos, fibra FiberFox y PoE",tags:["gigacore16tf","fiberfox","lc feed through","stagebox","poe","fibra"],specs:[["Conector","FiberFox MMF/SMF"],["PoE","Sí (PoE++)"],["Formato","Stagebox 1U"]]},
+67:{brand:"luminex",series:"Ethernet Switches",title:"GigaCore 16tf OpticalCON sin PoE",sub:"Switch stagebox 16 puertos, OpticalCON, sin PoE",tags:["gigacore16tf","opticalcon","ethercon","stagebox","sin poe","fibra"],specs:[["Conector","OpticalCON / etherCON"],["PoE","No"],["Formato","Stagebox 1U"]]},
+68:{brand:"luminex",series:"Ethernet Switches",title:"GigaCore 16tf Range sin PoE",sub:"Switch stagebox 16 puertos, fibra de largo alcance",tags:["gigacore16tf","range","lc alimentacion","stagebox","fibra","sin poe"],specs:[["Conector","Fibra Range (F2/F4) / LC alimentación"],["PoE","No"],["Formato","Stagebox 1U"]]},
+69:{brand:"luminex",series:"Ethernet Switches",title:"GigaCore 16tf Range 10Gb",sub:"Switch stagebox 16 puertos 10G, fibra Range, con PoE",tags:["gigacore16tf","10gb","range","fiberfox","stagebox","poe"],specs:[["Conector","OpticalCON Range / FiberFox"],["PoE","Sí (PoE++)"],["Velocidad","10 Gigabit"]]},
+70:{brand:"luminex",series:"Ethernet Switches",title:"GigaCore 16tf etherCON 10Gb",sub:"Switch stagebox 16 puertos 10G, etherCON/OpticalCON, con PoE",tags:["gigacore16tf","10gb","ethercon","opticalcon","stagebox","poe"],specs:[["Conector","etherCON / OpticalCON"],["Velocidad","10 Gigabit"],["Formato","Stagebox 1U"]]},
+71:{brand:"luminex",series:"Ethernet Switches",title:"GigaCore 16tf FiberFox 10Gb sin PoE",sub:"Switch stagebox 16 puertos 10G, fibra, sin PoE",tags:["gigacore16tf","10gb","fiberfox","lc feed through","ethercon","sin poe"],specs:[["Conector","FiberFox / etherCON / LC feed through"],["PoE","No"],["Velocidad","10 Gigabit"]]},
+73:{brand:"pointsource",series:"Series 9",title:"GO-9WL",sub:"Micrófono de solapa condensador omnidireccional, resistente al agua",tags:["go-9wl","go2-9wl","eo-9w","eo2-9wl","go-9wd","go2-9wd","series9","lavalier","earmount","headset"],specs:[["Tipo","Condensador omnidireccional"],["Protección","IP57 (agua, sudor, maquillaje)"],["Conector","ENDURE patentado"]]},
+74:{brand:"pointsource",series:"Point Source Audio · Headsets",title:"Micrófonos de Diadema",sub:"Comparativa micrófonos headset Series 8 y 9",tags:["headset","diadema","go-9wd","go2-9wd","co-8wd","co2-8wd","co2-8wlp","cr-8l","earmount","eo-9wl"],specs:[["Protección","IP57 en modelos WD"]],
+   compare:{cols:["GO-9WD","GO2-9WD","CO-8WD","CO2-8WD","CO2-8WLp","CR-8L"], rows:[["Cápsulas","Individual","Doble","Individual","Individual","Doble","Individual"],["Patrón polar","Omni","Omni doble","Omni","Omni","Omni doble","Cardioide"],["Max SPL","142 dB","142 dB","136 dB","118 dB","136 dB","135 dB"],["Frecuencia","20Hz-20kHz","20Hz-20kHz","20Hz-20kHz","20Hz-20kHz","20Hz-20kHz","160Hz-14kHz"]]}},
+75:{brand:"pointsource",series:"Point Source Audio · Earset",title:"Micrófonos de Oreja",sub:"Comparativa micrófonos earset Series 3, 6 y 8",tags:["earset","oreja","go-8ws","cr-8s","co-6","co-3","auriculares","cm-i5","go-8wlh-kit"],specs:[["Auriculares CM-I5","Cancelación de ruido, cable 1,2 m, 28 g"]],
+   compare:{cols:["GO-8WS","CR-8S","CO-6","CO-6-KIT","CO-3","CO-3-KIT"], rows:[["Patrón polar","Omni","Cardioide","Omni","Omni","Omni","Omni"],["Max SPL","136 dB","135 dB","125 dB","125 dB","116 dB","116 dB"],["Frecuencia","20Hz-20kHz","160Hz-14kHz","40Hz-17kHz","40Hz-17kHz","50Hz-16kHz","50Hz-16kHz"]]}},
+76:{brand:"pointsource",series:"Point Source Audio · Lavalier",title:"Lavaliers",sub:"Comparativa lavaliers Series 6, 8 y 9",tags:["lavalier","solapa","go-9wl","go2-9wlp","co-8wl","co-8wlh","co2-8wlp","cr-8l","co2-8wl","kit lavalier"],specs:[["Protección","IP57 en toda la gama"]],
+   compare:{cols:["GO-9WL","GO2-9WLp","CO-8WL","CO-8WLh","CO2-8WLp","CR-8L","CO2-8WL"], rows:[["Cápsulas","Individual","Doble","Individual","Individual","Doble","Individual","Doble"],["Patrón polar","Omni","Omni doble","Omni","Omni","Omni doble","Cardioide","Omni+Cardioide"],["Max SPL","142 dB","142 dB","136 dB","118 dB","136 dB","135 dB","136 dB"],["Frecuencia","20Hz-20kHz","20Hz-20kHz","20Hz-20kHz","20Hz-20kHz","20Hz-20kHz","160Hz-14kHz","20Hz-20kHz"]]}},
+77:{brand:"pointsource",series:"Point Source Audio · Guía de selección",title:"Guía de Cápsulas",sub:"Guía comparativa de cápsulas para voz y vocal",tags:["capsulas","performance vocals","optimized speech","basic voice","eo","co-6","cr-8","co-5w","co-3","guia seleccion"],specs:[["Elemento","Back Electret Condenser en toda la gama"],["Impedancia","1.400Ω a 5.000Ω según modelo"]],
+   compare:{cols:["Perf. Vocals Omni","Perf. Vocals Cardioide","Opt. Speech Omni","Opt. Speech Cardioide","Basic Voice Omni"], rows:[["Modelo","EO/CO/CO2/CX2/GO-8","CR-8","CO-6","CO-5W","CO-3"],["Max SPL","136 dB","135 dB","125 dB","125 dB","116 dB"],["Frecuencia","20Hz-20kHz","160Hz-14kHz","40Hz-17kHz","40Hz-17kHz","50Hz-16kHz"],["Sensibilidad","-43 dB 1V/Pa","-50 dB 1V/Pa","-47 dB 1V/Pa","-47 dB 1V/Pa","-44 dB 1V/Pa"]]}},
+97:{brand:"auvitran",series:"Audio ToolBox AxC Cards",title:"AxC-DANTE",sub:"Tarjeta de interfaz Dante para plataformas Audio ToolBox",tags:["axc-dante","dante","tarjeta interfaz","avbx7","avbx3","audio toolbox"],specs:[["Entradas/Salidas","64x64"],["Conectividad","2 EtherCon + 2 RJ45"],["Switch","Gigabit integrado"]]},
+98:{brand:"auvitran",series:"Audio ToolBox Platforms",title:"AVBx7 IS+r",sub:"Caja StageBox/Instalación escalable con 7 ranuras AxC",tags:["avbx7","avbx3","stagebox","instalacion","matriz audio","auvitran"],specs:[["Ranuras AxC","7"],["Matriz de audio","448x448 canales @48kHz"],["Alimentacion","AC/DC redundante"]],
+    compare:{cols:["IS+r","SB+r","ISM+r","SBM+r"], rows:[["Ranuras AxC","7","7","3","3"],["Matriz de audio","448x448","448x448","192x192","192x192"],["Peso","6,10 kg","6 kg","4 kg","3,9 kg"]]}},
+99:{brand:"auvitran",series:"AV-WALL",title:"AV-WALL-DT4i",sub:"Placa de pared Dante Mic/Line compacta y económica",tags:["av-wall","dante","placa pared","mic line","dt4i","dt4i-le","dt2i-b","dt4o"],specs:[["Canales","Mezclador a 4 canales Dante"],["Alimentacion","PoE (1 cable Cat5e/6)"],["Dimensiones","18,5cmx14,5cmx5,5cm"]]},
+100:{brand:"auvitran",series:"AVDT-BOB",title:"AVDT-BOB-AE8io",sub:"Caja de distribución Dante compacta con DSP integrado",tags:["avdt-bob","dante","dsp","breakout box","mic line","auvitran"],specs:[["Entradas Dante","4"],["Preamplificadores","Ganancia 60dB, EIN -123dBu"],["Conectividad","2xRJ45 (1xPoE)"]],
+    compare:{cols:["AE4io","AEG6io","AE8io","ADE8io"], rows:[["Entradas mic","2","2","4","2"],["Salidas de linea","2","4","4","2"],["GPIO","-","4","-","4"],["Peso","0,45 kg","0,55 kg","0,5 kg","0,5 kg"]]}},
+1001:{brand:"atlasied",series:"Atmosphere",title:"Atmosphere",sub:"Procesadores, amplificadores y controladores de zona",tags:["azm4","azm8","azmp4","azmp8","azmp8-dw","c-t4","c-zsv","x-zps","x-ans-eu","aza404","aza804","atmosphere"],specs:[["Zonas","4 u 8"],["Amplificación","hasta 1200 W"]]},
+1002:{brand:"atlasied",series:"Mixer-Amp + FC Series",title:"Mixer-Amplifier + FC Series",sub:"Mezcladores de zona única y altavoces de techo premium IsoFlare",tags:["dma101","dma201","dma401","lma101","lma201","lma401","wtsd-mix31k","wtsd-mix41k","fc-4t","fc-6t","fc-8t","fc-4d","fc-6d","fc-8d","fc-8st","isoflare"],specs:[["Mixer-Amp","100–400 W"],["FC Series","4″/6″/8″, Dante NEW"]]},
+1003:{brand:"atlasied",series:"FC Acc. + FS Series",title:"FC Series (accesorios) + FS Series",sub:"Accesorios de montaje FC y altavoces de superficie FS IsoFlare",tags:["fc-4cr","fc-6cr","fc-8cr","fc-tb","fc-4mr","fc-6mr","fc-8mr","fc-sg","fc-rg","fs-4t","fs-4d"],specs:[["FC accesorios","Anillos y rejillas"]]},
+1004:{brand:"atlasied",series:"FS + AS Series",title:"FS Series + AS Series",sub:"Altavoces de superficie premium FS y montaje en superficie AS",tags:["fs-6t","fs-8t","fs-6d","fs-8d","as-4t","as-5t","as-6t","as-8t","as-10t","as-10st","as-u","as-ul"],specs:[["FS Series","6″/8″"],["AS Series","4″ a 10″"]]},
+1005:{brand:"atlasied",series:"SM + PM Series",title:"SM Series + PM Series",sub:"Altavoces todo clima SM y de montaje colgante PM",tags:["sm42t","sm52t","sm63t","sm82t","sm42ten","en54-24","pm4fa","pm8fa","pm8sub"],specs:[["SM Series","4″ a 8″, EN54-24"],["PM Series","4″ / 8″"]]},
+1006:{brand:"atlasied",series:"FS Horns",title:"FS12T",sub:"Sistema de altavoz de bocina multiuso de 12″",tags:["fs12t-66","fs12t-94","fs12t-99","fs12t-sub","fs12ten-66","fs12ten-94","fs12ten-99","bocina"],specs:[["Cobertura","60°x60° / 90°x40° / 90°x90°"],["Certificación","EN54-24 disponible"]]},
+1007:{brand:"atlasied",series:"ALX-D + ALA Series",title:"ALX-D Series + ALA Series",sub:"Columnas direccionables Dante y columnas pasivas EN54-24",tags:["alx-4d","alx-8d","alx-16d","alx-24d","alx-32d","alx-40d","alx-48d","ala5taw","ala10taw","ala15taw","ala20taw","dante","en54-24"],specs:[["ALX-D","4 a 48 altavoces, Dante"]]},
+1008:{brand:"atlasied",series:"Masking + SHS + FAP",title:"Sound Masking + SHS + FAP Series",sub:"Enmascaramiento de sonido, altavoces ocultos y de techo coaxiales",tags:["z4-b","z2-b","m1000","shs-3t2","shs-6t2","fap42t","fap33t","fap43t","fap62ten","fap63t","fap6260t"],specs:[["Sound Masking","2 o 4 zonas"],["FAP","3″ a 6,5″"]]},
+1009:{brand:"atlasied",series:"CLA + DPA + HPA",title:"CLA + DPA + HPA Series",sub:"Amplificadores de reparto de potencia, red Dante y comerciales",tags:["cla202","cla402","cla404","cla802","cla804","dpa404","dpa602","dpa804","dpa1202","dpa2402","hpa602","hpa1204","hpa1302","hpa2408","hpa2602","hpa2604","hpa4202"],specs:[["CLA","200 a 800 W"],["DPA/HPA","400 a 4800 W"]]},
+1010:{brand:"atlasied",series:"Mic Stands",title:"Soportes de Micrófono",sub:"Soportes, jirafas y accesorios para micrófono",tags:["dms7","dms10","ms-10c","ms-12c","ms20","ms25","tm-1","ch-1b","lo-2b"],specs:[["Acabados","Cromado / Ébano"]]},
+1011:{brand:"atlasied",series:"Mic Stands",title:"Accesorios de Soporte",sub:"Adaptadores y tubos de extensión para soporte de micrófono",tags:["qr-2","tb3664","ad19b","ad19be"],specs:[]},
+118:{brand:"furman",series:"Accesorios",title:"Accesorios Furman",sub:"Cables, reguladores y repuestos para racks de energía",tags:["accesorios","cables iec","p-3600 ar g","elite-16","furman"],specs:[["P-3600 AR G","Regulador de voltaje global 30A, entrada 90-265V"],["ELITE-16 PF E I","Acondicionador de corriente 16A 240V"]]},
+119:{brand:"furman",series:"Serie Classic",title:"PL-PRO DM CE",sub:"Acondicionador de energía con display de voltaje y amperaje",tags:["pl-pro dm ce","pl-8 ce","pl-plus ce","m-10 lx e","m-10 xe","acondicionador"],specs:[["Corriente","16A"],["Display","Volt/Amp, consumo RMS real"],["Extras","2 lámparas LED retráctiles, cargador USB"]]},
+120:{brand:"furman",series:"Serie Prestige",title:"P-1400 ARE",sub:"Regulador de voltaje con display y carga USB integrada",tags:["p-1400 are","cn-3600 se","ps-8 re iii","ac-210 a e","f1500-ups e","regulador"],specs:[["Corriente","6A"],["Display","Volt/Amp, consumo RMS real"],["Carga USB","Sí"]]},
+122:{brand:"harvey",series:"Harvey Pro",title:"HARVEY Pro",sub:"Procesador modular de audio con interfaz analógica, AES y Dante",tags:["harvey pro","dsp","matriz de audio","dante","aes","procesador"],specs:[["Sin Dante","8x8 hasta 24x8, interfaz analógica y AES"],["Con Dante","0x0-DA hasta 24x8-DA, interfaz analógica y AES"],["Amplificador","8x8-DA-AMP4 Clase-D, limitado a 80W"]]},
+123:{brand:"harvey",series:"Harvey RC",title:"HARVEY RC4",sub:"Panel de control de pared con mando giratorio y LEDs",tags:["harvey rc4","harvey rc12","panel de pared","control de volumen"],specs:[["RC4","Panel de control de pared, formato EU o US"],["Acabados","Aluminio plateado u oro"],["RC12","Placa frontal de 12 controles"]]},
+125:{brand:"klang",series:"Sonido Inmersivo · Sistema de Monitoreo Personal en 3D",title:"KLANG:konductor",sub:"Consola de mezcla inmersiva en 3D para monitores in-ear",tags:["klang konductor","klang vokal","dmi-klang","klang fabrik","monitoraje personal","mezcla inmersiva"],specs:[["Mezclas","16 mezclas inmersivas, 128 canales de entrada a 96kHz"],["Latencia","Interna menor de 0,25 ms"],["Pantalla","Táctil a color de 7″"]]},
+127:{brand:"teqsas",series:"Pro Audio Tools",title:"LAP-TEQ PLUS",sub:"Kit inclinómetro de precisión para alineación de line arrays",tags:["lap-teq plus","inclinometro","line array","alineacion","pan-c","teqsas"],specs:[["Función","Mide el ángulo de alineación vertical con precisión de grados"],["Incluye","Módulo sensor y módulo de visualización"],["Accesorios","Soporte magnético universal y maletín de transporte"]]},
+129:{brand:"sony",series:"Receptores DWX Series",title:"DWR-R03D",sub:"Receptor digital inalámbrico de alta gama con Dante",tags:["dwr-r03d","dwr-r02dn","dwr-s03d","dwr-s02dn","dante","receptor inalambrico"],specs:[["Conectividad","Dante"],["Rango de frecuencia","470,125 a 714,000 MHz según región"],["Generación","3ª generación serie DWX"]]},
+130:{brand:"sony",series:"Transmisores DWX Series",title:"DWT-B30",sub:"Transmisor de petaca digital de 3ª generación, baja latencia",tags:["dwt-b30","dwt-b03r","dwt-b01n","dwm-02n","dwt-p01n","transmisor inalambrico"],specs:[["Generación","3ª generación DWX"],["Frecuencia","470,125 a 714,000 MHz según región"],["Seguridad","Cifrado y transmisión RF estable"]]},
+131:{brand:"sony",series:"Accesorios",title:"RMU-01",sub:"Unidad de control remoto para gestionar transmisores DWX",tags:["rmu-01","an-01","an-57","an-820a","wd-850a","dwa-f01d"],specs:[["Capacidad","Controla hasta 82 transmisores"],["Compatibilidad","Sistema de micrófono inalámbrico digital serie DWX"]]}
+};
+
+/* =========================================================
+   RENDER: SHELL
+========================================================= */
+const app = document.getElementById("app");
+
+function shell(inner){
+  return `
+  <header class="site">
+    <div class="wrap site-bar">
+      <div class="mark" onclick="location.hash=''">
+        <img class="blogo" src="${LOGO.rms}" alt="RMS Proaudio">
+      </div>
+      <div class="searchbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Buscar producto o serie…" autocomplete="off">
+        <span class="kbd">/</span>
+        <div class="results" id="results"></div>
+      </div>
+      <a class="contact-link" href="#/contacto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="5"/></svg>
+        <span>Tu comercial</span>
+      </a>
+      <button class="theme-btn" onclick="toggleTheme()" aria-label="Cambiar tema">
+        <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+        <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+    </div>
+  </header>
+  <div class="view">${inner}</div>
+  `;
+}
+
+/* =========================================================
+   RENDER: HOME
+========================================================= */
+function renderHome(){
+  const featured = [3,9,19,28,32,36,41,50,65,74,83,98,1005,119,125,130];
+  const marquee = featured.concat(featured).map(p =>
+    `<div class="m-item" onclick="openViewer(${p})" title="${PAGES[p].title}"><img loading="lazy" src="${thumbImg(p)}" alt=""></div>`
+  ).join("");
+
+  const groupChips = [`<button class="gchip active" data-group="all">Todas</button>`]
+    .concat(GROUPS.map(g => `<button class="gchip" data-group="${g.key}">${g.label}</button>`)).join("");
+
+  const brandCards = Object.entries(BRANDS).map(([key,b]) => `
+    <div class="brand-card" data-brand="${key}" data-groups="${b.groups.join(' ')}" style="--brand:${b.accent}" onclick="location.hash='#/brand/${key}'">
+      <img class="blogo" src="${b.logo}" alt="${b.name}">
+      <p class="btag">${b.tagline}</p>
+      <div class="brand-meta">
+        <span class="brand-count">${b.pages.length} ${b.pages.length===1?'ficha':'fichas'}</span>
+        <span class="brand-cta">Ver catálogo
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </span>
+      </div>
+    </div>
+  `).join("");
+
+  app.innerHTML = shell(`
+    <div class="wrap hero">
+      <span class="eyebrow">RMS Proaudio · 2026</span>
+      <h1 class="hero-title">Todo el sonido profesional.</h1>
+      <p class="lede">Las marcas de referencia mundial en audio, iluminación y conectividad para directo e instalación.</p>
+      <div class="marquee"><div class="marquee-track">${marquee}</div></div>
+    </div>
+
+    <div class="wrap">
+      <div style="margin-top:48px;">
+        <h2 class="section-title">Marcas</h2>
+        <p class="section-sub">Elige un uso para filtrar, o explora el catálogo completo.</p>
+        <div class="group-nav" id="groupNav">${groupChips}</div>
+        <div class="brand-grid" id="brandGrid">${brandCards}</div>
+      </div>
+    </div>
+
+    <footer class="site"><div class="wrap">
+      <span>RMS Proaudio · Distribuidor oficial</span>
+      <span>955 542 111 · info@rmsproaudio.com</span>
+    </div></footer>
+  `);
+  bindSearch();
+  bindGroupNav();
+}
+
+function bindGroupNav(){
+  const chips = document.querySelectorAll(".gchip");
+  const cards = document.querySelectorAll(".brand-card");
+  chips.forEach(c => c.addEventListener("click", () => {
+    chips.forEach(x => x.classList.remove("active"));
+    c.classList.add("active");
+    const g = c.dataset.group;
+    cards.forEach(card => {
+      const groups = card.dataset.groups.split(" ");
+      card.classList.toggle("hidden", g !== "all" && !groups.includes(g));
+    });
+  }));
+}
+
+/* =========================================================
+   RENDER: CONTACTO
+========================================================= */
+function renderContact(){
+  const cards = REPS.map(r => `
+    <div class="rep-card">
+      <img class="rep-photo" src="${r.photo}" alt="${r.name}">
+      <div class="rep-info">
+        <p class="rep-name">${r.name}</p>
+        <a class="rep-line" href="mailto:${r.email}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+          ${r.email}
+        </a>
+        <a class="rep-line" href="tel:${r.phone.replace(/\s+/g,'')}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+          ${r.phone}
+        </a>
+      </div>
+    </div>
+  `).join("");
+
+  app.innerHTML = shell(`
+    <div class="wrap chero">
+      <span class="eyebrow">RMS Proaudio · Equipo comercial</span>
+      <h1 class="hero-title">Contacta con tu comercial.</h1>
+      <p class="lede">Resolvemos dudas de producto, disponibilidad y presupuestos. Escríbenos o llámanos directamente.</p>
+    </div>
+    <div class="wrap">
+      <div class="rep-grid">${cards}</div>
+    </div>
+    <footer class="site"><div class="wrap">
+      <span>RMS Proaudio · Distribuidor oficial</span>
+      <span>955 542 111 · info@rmsproaudio.com</span>
+    </div></footer>
+  `);
+  bindSearch();
+}
+
+/* =========================================================
+   RENDER: BRAND
+========================================================= */
+function renderBrand(key){
+  const b = BRANDS[key];
+  if(!b){ location.hash=''; return; }
+
+  if(!b.pages.length){
+    app.innerHTML = shell(`
+      <div class="bhero" style="--brand:${b.accent}">
+        <div class="wrap">
+          <span class="back-link" onclick="location.hash=''"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>Todas las marcas</span>
+          <img class="bhero-logo" src="${b.logo}" alt="${b.name}">
+          <p class="bhero-sub">${b.tagline}</p>
+        </div>
+      </div>
+      <div class="wrap empty-state">Las fichas de ${b.name} se están preparando y llegarán muy pronto a este catálogo.</div>
+      <footer class="site"><div class="wrap">
+        <span>RMS Proaudio · Distribuidor oficial</span>
+        <span>955 542 111 · info@rmsproaudio.com</span>
+      </div></footer>
+    `);
+    bindSearch();
+    return;
+  }
+
+  const seriesOrder = [];
+  const bySeries = {};
+  b.pages.forEach(p => {
+    const d = PAGES[p];
+    if(!bySeries[d.series]){ bySeries[d.series]=[]; seriesOrder.push(d.series); }
+    bySeries[d.series].push(p);
+  });
+
+  const chips = seriesOrder.map((s,i) => `<button class="chip ${i===0?'active':''}" data-target="s-${slug(s)}">${s}</button>`).join("");
+
+  const blocks = seriesOrder.map(s => {
+    const cards = bySeries[s].map(p => {
+      const d = PAGES[p];
+      const specs = d.specs.map(([k,v]) => `<span class="spec">${k} ${v}</span>`).join("");
+      const compareHtml = d.compare ? `
+        <div class="compare"><table>
+          <tr><th>Modelo</th>${d.compare.cols.map(c=>`<th>${c}</th>`).join("")}</tr>
+          ${d.compare.rows.map(r => `<tr><td>${r[0]}</td>${r.slice(1).map(v=>`<td>${v}</td>`).join("")}</tr>`).join("")}
+        </table></div>` : "";
+      const datasheetHtml = d.datasheet ? `
+        <a class="datasheet-btn" href="${d.datasheet}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
+          Datasheet
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M8 7h9v9"/></svg>
+        </a>` : "";
+      return `
+        <div class="pcard" onclick="openViewer(${p})">
+          <div class="thumb"><img loading="lazy" src="${thumbImg(p)}" alt="${d.title}"></div>
+          <div class="body">
+            <p class="ptitle">${d.title}</p>
+            <p class="psub">${d.sub}</p>
+            <div class="specs">${specs}</div>
+            ${compareHtml}
+            ${datasheetHtml}
+          </div>
+        </div>`;
+    }).join("");
+    return `
+      <div class="wrap series-block" id="s-${slug(s)}">
+        <div class="series-head"><h2>${s}</h2><span class="count">${bySeries[s].length}</span></div>
+        <div class="card-grid">${cards}</div>
+      </div>`;
+  }).join("");
+
+  app.innerHTML = shell(`
+    <div class="bhero" style="--brand:${b.accent}">
+      <div class="wrap">
+        <span class="back-link" onclick="location.hash=''"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>Todas las marcas</span>
+        <img class="bhero-logo" src="${b.logo}" alt="${b.name}">
+        <p class="bhero-sub">${b.tagline}</p>
+        <div class="bhero-stats">
+          <div class="stat"><b>${b.pages.length}</b><span>Fichas</span></div>
+          <div class="stat"><b>${seriesOrder.length}</b><span>Series</span></div>
+        </div>
+      </div>
+    </div>
+    <nav class="series-nav" style="--brand:${b.accent}"><div class="wrap series-nav-track">${chips}</div></nav>
+    ${blocks}
+    <footer class="site"><div class="wrap">
+      <span>RMS Proaudio · Distribuidor oficial</span>
+      <span>955 542 111 · info@rmsproaudio.com</span>
+    </div></footer>
+  `);
+  bindSearch();
+  bindSeriesNav();
+}
+
+function slug(s){ return s.toLowerCase().normalize("NFD").replace(/[^\x00-\x7F]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,""); }
+
+function bindSeriesNav(){
+  const chips = document.querySelectorAll(".chip");
+  chips.forEach(c => c.addEventListener("click", () => {
+    const el = document.getElementById(c.dataset.target);
+    if(el) el.scrollIntoView({behavior:"smooth", block:"start", inline:"nearest"});
+  }));
+  const blocks = document.querySelectorAll(".series-block");
+  if(!blocks.length) return;
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if(e.isIntersecting){
+        chips.forEach(c => c.classList.toggle("active", c.dataset.target === e.target.id));
+      }
+    });
+  }, {rootMargin:"-140px 0px -70% 0px", threshold:0});
+  blocks.forEach(b => obs.observe(b));
+}
+
+/* =========================================================
+   SEARCH
+========================================================= */
+function bindSearch(){
+  const input = document.getElementById("searchInput");
+  const results = document.getElementById("results");
+  if(!input) return;
+
+  function doSearch(q){
+    q = q.trim().toLowerCase();
+    if(!q){ results.classList.remove("open"); results.innerHTML=""; return; }
+    const matches = Object.entries(PAGES).filter(([p,d]) => {
+      const hay = [d.title, d.sub, d.series, BRANDS[d.brand].name, ...(d.tags||[])].join(" ").toLowerCase();
+      return hay.includes(q);
+    }).slice(0,8);
+    if(!matches.length){
+      results.innerHTML = `<div class="r-empty">Sin resultados para "${q}"</div>`;
+    } else {
+      results.innerHTML = matches.map(([p,d]) => `
+        <div class="r-item" onclick="openViewer(${p})">
+          <img src="${thumbImg(p)}" alt="">
+          <div class="r-text">
+            <div class="r-brand">${BRANDS[d.brand].name} · ${d.series}</div>
+            <div class="r-title">${d.title}</div>
+            <div class="r-sub">${d.sub}</div>
+          </div>
+        </div>`).join("");
+    }
+    results.classList.add("open");
+  }
+
+  input.addEventListener("input", e => doSearch(e.target.value));
+  input.addEventListener("focus", e => { if(e.target.value) doSearch(e.target.value); });
+  document.addEventListener("click", e => { if(!e.target.closest(".searchbox")) results.classList.remove("open"); });
+  document.addEventListener("keydown", e => {
+    if(e.key === "/" && document.activeElement !== input && !viewerOpen()){ e.preventDefault(); input.focus(); }
+    if(e.key === "Escape"){ results.classList.remove("open"); input.blur(); }
+  });
+}
+
+/* =========================================================
+   VIEWER
+========================================================= */
+const viewerEl = document.getElementById("viewer");
+const vImg = document.getElementById("vImg");
+const vImgWrap = document.getElementById("vImgWrap");
+const vStage = document.getElementById("vStage");
+let currentList = [];
+let currentIndex = -1;
+let scale = 1, panX = 0, panY = 0;
+
+function viewerOpen(){ return viewerEl.classList.contains("open"); }
+
+function openViewer(page){
+  const d = PAGES[page];
+  currentList = BRANDS[d.brand].pages;
+  currentIndex = currentList.indexOf(page);
+  document.getElementById("results").classList.remove("open");
+  renderViewer();
+  viewerEl.classList.add("open");
+  document.body.style.overflow = "hidden";
+  location.hash = `#/view/${page}`;
+}
+
+function closeViewer(){
+  viewerEl.classList.remove("open");
+  document.body.style.overflow = "";
+  const d = PAGES[currentList[currentIndex]];
+  location.hash = d ? `#/brand/${d.brand}` : "";
+}
+
+function renderViewer(){
+  const page = currentList[currentIndex];
+  const d = PAGES[page];
+  const b = BRANDS[d.brand];
+  resetZoom();
+  vImg.src = fullImg(page);
+  vImg.alt = d.title;
+  document.getElementById("vCrumb").textContent = `${b.name} · ${d.series}`;
+  document.getElementById("vTitle").textContent = d.title;
+  document.getElementById("vCount").textContent = `${currentIndex+1} / ${currentList.length}`;
+  document.getElementById("vStrip").innerHTML = currentList.map((p,i) => `
+    <div class="v-thumb ${i===currentIndex?'active':''}" onclick="goTo(${i})"><img src="${thumbImg(p)}" alt=""></div>
+  `).join("");
+  const active = document.querySelector(".v-thumb.active");
+  if(active) active.scrollIntoView({inline:"center", block:"nearest"});
+}
+
+function goTo(i){
+  if(i < 0 || i >= currentList.length) return;
+  currentIndex = i;
+  renderViewer();
+  location.hash = `#/view/${currentList[currentIndex]}`;
+}
+function goNext(){ goTo(currentIndex+1); }
+function goPrev(){ goTo(currentIndex-1); }
+
+function resetZoom(){ scale=1; panX=0; panY=0; applyTransform(); vImgWrap.classList.remove("zoomed"); }
+function applyTransform(){ vImgWrap.style.transform = `translate(${panX}px,${panY}px) scale(${scale})`; }
+
+vImgWrap.addEventListener("dblclick", () => {
+  if(scale === 1){ scale = 2.2; vImgWrap.classList.add("zoomed"); }
+  else { resetZoom(); }
+  applyTransform();
+});
+vStage.addEventListener("wheel", e => {
+  e.preventDefault();
+  const delta = -e.deltaY * 0.0016;
+  scale = Math.min(4, Math.max(1, scale + delta));
+  if(scale === 1){ panX=0; panY=0; vImgWrap.classList.remove("zoomed"); } else vImgWrap.classList.add("zoomed");
+  applyTransform();
+}, {passive:false});
+
+let dragging = false, lastX=0, lastY=0;
+vImgWrap.addEventListener("pointerdown", e => {
+  if(scale === 1) return;
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  vImgWrap.classList.add("dragging");
+  vImgWrap.setPointerCapture(e.pointerId);
+});
+vImgWrap.addEventListener("pointermove", e => {
+  if(!dragging) return;
+  panX += e.clientX - lastX; panY += e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  applyTransform();
+});
+function endDrag(){ if(dragging){ dragging=false; vImgWrap.classList.remove("dragging"); } }
+vImgWrap.addEventListener("pointerup", endDrag);
+vImgWrap.addEventListener("pointercancel", endDrag);
+
+let touchStartX = 0, touchStartY = 0;
+vStage.addEventListener("touchstart", e => {
+  if(e.touches.length===1){ touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; }
+}, {passive:true});
+vStage.addEventListener("touchend", e => {
+  if(scale > 1) return;
+  const dx = (e.changedTouches[0].clientX - touchStartX);
+  const dy = (e.changedTouches[0].clientY - touchStartY);
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)*1.5){
+    if(dx < 0) goNext(); else goPrev();
+  }
+}, {passive:true});
+
+document.getElementById("vClose").addEventListener("click", closeViewer);
+document.getElementById("vNext").addEventListener("click", goNext);
+document.getElementById("vPrev").addEventListener("click", goPrev);
+document.addEventListener("keydown", e => {
+  if(!viewerOpen()) return;
+  if(e.key === "Escape") closeViewer();
+  if(e.key === "ArrowRight") goNext();
+  if(e.key === "ArrowLeft") goPrev();
+});
+
+/* =========================================================
+   ROUTER
+========================================================= */
+function route(){
+  const h = location.hash.replace(/^#\/?/, "");
+  const parts = h.split("/").filter(Boolean);
+  if(parts[0] === "brand" && BRANDS[parts[1]]){
+    viewerEl.classList.remove("open"); document.body.style.overflow="";
+    renderBrand(parts[1]);
+  } else if(parts[0] === "contacto"){
+    viewerEl.classList.remove("open"); document.body.style.overflow="";
+    renderContact();
+  } else if(parts[0] === "view" && PAGES[parts[1]]){
+    const page = Number(parts[1]);
+    const d = PAGES[page];
+    renderBrand(d.brand);
+    openViewer(page);
+  } else {
+    viewerEl.classList.remove("open"); document.body.style.overflow="";
+    renderHome();
+  }
+  window.scrollTo({top:0});
+}
+window.addEventListener("hashchange", route);
+route();
+</script>
