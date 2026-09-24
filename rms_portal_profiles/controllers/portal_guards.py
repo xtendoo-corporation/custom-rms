@@ -93,3 +93,9 @@ class CatalogProfileGuard(B2BCatalogPortal):
         if not _has_any_group('rms_portal_profiles.group_portal_customer'):
             return request.redirect('/my')
         return super().portal_catalog_asset(subpath, **kw)
+
+    @http.route()
+    def portal_catalog_rep_photo(self, **kw):
+        if not _has_any_group('rms_portal_profiles.group_portal_customer'):
+            return request.redirect('/my')
+        return super().portal_catalog_rep_photo(**kw)
