@@ -257,7 +257,8 @@
   .price-modal-body{display:flex; flex-direction:column;}
   .price-row{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:11px 0; border-bottom:1px solid var(--line); font-size:14px;}
   .price-row:last-child{border-bottom:none;}
-  .price-info{display:flex; flex-direction:column; gap:2px; min-width:0;}
+  .price-thumb{width:40px; height:40px; flex:none; border-radius:8px; object-fit:contain; background:var(--surface-2); border:1px solid var(--line);}
+  .price-info{display:flex; flex-direction:column; gap:2px; min-width:0; flex:1;}
   .price-name{color:var(--ink);}
   .price-desc{font-size:12px; color:var(--muted); line-height:1.4;}
   .price-value{font-family:var(--mono); color:var(--accent-ink); font-weight:600; white-space:nowrap; padding-top:1px;}
@@ -868,6 +869,7 @@ async function openPrices(page){
     const fmt = new Intl.NumberFormat("es-ES", {style:"currency", currency:"EUR"});
     document.getElementById("priceModalBody").innerHTML = data.products.map(p => `
       <div class="price-row">
+        ${p.has_image ? `<img class="price-thumb" loading="lazy" src="/my/catalog/product-image/${p.id}" alt="">` : ""}
         <div class="price-info">
           <span class="price-name">${escapeHtml(p.name)}</span>
           ${p.description ? `<span class="price-desc">${escapeHtml(p.description)}</span>` : ""}

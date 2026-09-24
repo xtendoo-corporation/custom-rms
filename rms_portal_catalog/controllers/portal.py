@@ -74,6 +74,7 @@ class B2BCatalogPortal(http.Controller):
                     'name': product.display_name,
                     'description': html2plaintext(product.description or ''),
                     'list_price': product.list_price,
+                    'has_image': bool(product.image_128),
                 }
                 for product in products
             ],
@@ -82,6 +83,14 @@ class B2BCatalogPortal(http.Controller):
             json.dumps(payload),
             headers=[('Content-Type', 'application/json')],
         )
+
+    @http.route('/my/catalog/product-image/<int:product_id>', type='http', auth='user')
+    def portal_catalog_product_image(self, product_id, **kw):
+        product = request.env['product.template'].sudo().browse(product_id).exists()
+        if not product or not product.image_128:
+            return request.not_found()
+        content = base64.b64decode(product.image_128)
+        return request.make_response(content, headers=[('Content-Type', 'image/png')])
 
     @http.route('/my/catalog/images/<path:subpath>', type='http', auth='user')
     def portal_catalog_asset(self, subpath, **kw):
