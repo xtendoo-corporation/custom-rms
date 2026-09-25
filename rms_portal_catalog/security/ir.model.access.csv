@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_rms_catalog_card_user,rms.catalog.card.user,model_rms_catalog_card,base.group_user,1,1,1,1
+access_rms_catalog_card_line_user,rms.catalog.card.line.user,model_rms_catalog_card_line,base.group_user,1,1,1,1

@@ -41,10 +41,29 @@ class B2BCatalogPortal(http.Controller):
         # Se escapa "<" para que un nombre/email con "</script>" no pueda
         # cortar el bloque script al incrustarlo en el HTML.
         rep_json = json.dumps(self._current_rep()).replace('<', '\\u003c')
-        injection = BASE_TAG + ('<script>window.RMS_CATALOG_REP = %s;</script>\n' % rep_json).encode('utf-8')
+        is_internal = request.env.user.has_group('base.group_user')
+        injection = BASE_TAG + (
+            '<script>\n'
+            'window.RMS_CATALOG_REP = %s;\n'
+            'window.RMS_CATALOG_IS_INTERNAL = %s;\n'
+            '</script>\n' % (rep_json, 'true' if is_internal else 'false')
+        ).encode('utf-8')
         return request.make_response(
             injection + content,
             headers=[('Content-Type', 'text/html; charset=utf-8')],
+        )
+
+    @http.route('/my/catalog/admin/card/<string:page_key>', type='http', auth='user')
+    def portal_catalog_admin_card(self, page_key, **kw):
+        if not request.env.user.has_group('base.group_user'):
+            return request.not_found()
+        Card = request.env['rms.catalog.card']
+        card = Card.search([('page_key', '=', page_key)], limit=1)
+        if not card:
+            card = Card.create({'page_key': page_key})
+        action = request.env.ref('rms_portal_catalog.action_rms_catalog_card')
+        return request.redirect(
+            '/web#model=rms.catalog.card&view_type=form&id=%d&action=%d' % (card.id, action.id)
         )
 
     @http.route('/my/catalog/rep-photo', type='http', auth='user')

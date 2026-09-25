@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_catalog_card_form" model="ir.ui.view">
+        <field name="name">rms.catalog.card.form</field>
+        <field name="model">rms.catalog.card</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="title" string="Título"/>
+                        <h1><field name="title" placeholder="Título de la ficha"/></h1>
+                    </div>
+                    <group>
+                        <field name="page_key" readonly="1"/>
+                        <field name="brand"/>
+                        <field name="product_count"/>
+                    </group>
+                    <button name="action_add_from_catalog" type="object"
+                            string="Catálogo de productos" class="btn-primary mb-3"/>
+                    <field name="line_ids">
+                        <list editable="bottom">
+                            <field name="product_id"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_rms_catalog_card_list" model="ir.ui.view">
+        <field name="name">rms.catalog.card.list</field>
+        <field name="model">rms.catalog.card</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="page_key"/>
+                <field name="brand"/>
+                <field name="title"/>
+                <field name="product_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_catalog_card_search" model="ir.ui.view">
+        <field name="name">rms.catalog.card.search</field>
+        <field name="model">rms.catalog.card</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="page_key"/>
+                <field name="brand"/>
+                <field name="title"/>
+                <filter name="no_products" string="Sin productos asignados"
+                        domain="[('product_count', '=', 0)]"/>
+                <group expand="0" string="Agrupar por">
+                    <filter name="group_brand" string="Marca" context="{'group_by': 'brand'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_rms_catalog_card" model="ir.actions.act_window">
+        <field name="name">Fichas del catálogo B2B</field>
+        <field name="res_model">rms.catalog.card</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_rms_catalog_card_root"
+              name="Catálogo B2B"
+              parent="sale.sale_menu_root"
+              sequence="90"/>
+    <menuitem id="menu_rms_catalog_card"
+              name="Fichas del catálogo"
+              parent="menu_rms_catalog_card_root"
+              action="action_rms_catalog_card"
+              sequence="10"/>
+</odoo>
