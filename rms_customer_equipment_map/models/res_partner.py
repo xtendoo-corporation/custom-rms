@@ -1,10 +1,11 @@
 import logging
-import time
 from collections import defaultdict
 from datetime import timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+from . import nominatim
 
 _logger = logging.getLogger(__name__)
 
@@ -16,8 +17,6 @@ GEO_LOCALIZE_RETRY_DAYS = (1, 7, 30)
 GEO_LOCALIZE_CRON_BATCH = 200
 # Contacts processed per call when an administrator geolocates from the map.
 GEO_LOCALIZE_MANUAL_BATCH = 5
-# Seconds between requests: Nominatim allows at most one request per second.
-GEO_LOCALIZE_REQUEST_DELAY = 1.1
 GEO_LOCALIZE_MAX_SERVICE_ERRORS = 3
 GEO_LOCALIZE_TRIGGER_DELAY_MINUTES = 1
 
@@ -222,7 +221,7 @@ class ResPartner(models.Model):
             order="geo_localize_last_try asc nulls first, id",
             limit=limit,
         )
-        located = failed = 0
+        located = failed = retry_after = 0
         service_error = False
         if candidates:
             self.env.cr.execute(
@@ -230,11 +229,10 @@ class ResPartner(models.Model):
                 [tuple(candidates.ids)],
             )
             locked_ids = {row[0] for row in self.env.cr.fetchall()}
-            for index, partner in enumerate(
-                candidates.filtered(lambda candidate: candidate.id in locked_ids)
+            # Requests are spaced out by the geocoder (Nominatim: 1 per second).
+            for partner in candidates.filtered(
+                lambda candidate: candidate.id in locked_ids
             ):
-                if index:
-                    time.sleep(GEO_LOCALIZE_REQUEST_DELAY)
                 try:
                     if partner._geo_localize_partner():
                         located += 1
@@ -245,6 +243,7 @@ class ResPartner(models.Model):
                         "Geolocation service error for partner %s: %s", partner.id, error
                     )
                     service_error = str(error)
+                    retry_after = getattr(error, "retry_after", 0)
                     break
         remaining = Partner.search_count(
             [("active", "=", True), ("geo_localize_state", "=", "pending")]
@@ -254,6 +253,7 @@ class ResPartner(models.Model):
             "failed": failed,
             "remaining": remaining,
             "service_error": service_error,
+            "retry_after": retry_after,
         }
 
     # ------------------------------------------------------------------
@@ -404,6 +404,42 @@ class ResPartner(models.Model):
         )
         return False
 
+    @api.model
+    def _geo_localize(self, street="", zip="", city="", state="", country=""):  # noqa: A002
+        """Use a Nominatim search tuned for Spanish addresses.
+
+        Only when OpenStreetMap is the configured provider; other providers
+        (e.g. Google Maps) keep Odoo's standard behaviour.
+        """
+        provider = self.env["base.geocoder"]._get_provider()
+        if provider.tech_name != "openstreetmap":
+            return super()._geo_localize(street, zip, city, state, country)
+        country_code = ""
+        if country:
+            country_code = (
+                self.env["res.country"]
+                .with_context(lang="en_US")
+                .search([("name", "=ilike", country)], limit=1)
+                .code
+                or ""
+            )
+        company = self.env.company
+        base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url", "")
+        headers = {
+            "User-Agent": f"Odoo customer map - {company.name} ({base_url})",
+            "Referer": base_url,
+        }
+        return nominatim.geo_localize(
+            street=street,
+            zip_code=zip,
+            city=city,
+            state=state,
+            country=country,
+            country_code=country_code,
+            headers=headers,
+            email=company.email or "",
+        )
+
     def _get_geo_localize_not_found_message(self):
         """Explain which address was searched and which parts are missing."""
         self.ensure_one()
@@ -461,9 +497,7 @@ class ResPartner(models.Model):
         batch = partners[:limit]
         IrCron._commit_progress(remaining=len(partners))
         service_errors = 0
-        for index, partner in enumerate(batch):
-            if index:
-                time.sleep(GEO_LOCALIZE_REQUEST_DELAY)
+        for partner in batch:
             try:
                 partner._geo_localize_partner()
                 service_errors = 0

@@ -23,6 +23,9 @@ const { DateTime } = luxon;
 const SIDEBAR_PAGE_SIZE = 200;
 // Reload the markers every N batches while geolocating from the map.
 const GEO_RELOAD_EVERY_BATCHES = 4;
+// When Nominatim answers "too many requests", wait and resume this many times.
+const GEO_MAX_AUTOMATIC_WAITS = 3;
+const GEO_MAX_WAIT_SECONDS = 120;
 
 /**
  * Load Leaflet and its marker cluster plugin only when a map is opened,
@@ -309,11 +312,14 @@ export class CustomerEquipmentMap extends Component {
             processed: 0,
             located: 0,
             failed: 0,
+            // Seconds left before resuming after a "too many requests".
+            waiting: 0,
             serviceError: false,
         };
         // Work on the reactive proxy so that the panel shows each step.
         const run = this.state.geoRun;
         let batches = 0;
+        let waits = 0;
         try {
             while (run.running && !this.isDestroyed) {
                 const result = await this.orm.call(
@@ -326,9 +332,16 @@ export class CustomerEquipmentMap extends Component {
                 run.processed = Math.min(run.total, run.processed + result.located + result.failed);
                 batches++;
                 if (result.service_error) {
+                    if (result.retry_after && waits < GEO_MAX_AUTOMATIC_WAITS) {
+                        // Nominatim asked to slow down: wait and resume.
+                        waits++;
+                        await this.waitGeoRetry(run, result.retry_after);
+                        continue;
+                    }
                     run.serviceError = result.service_error;
                     break;
                 }
+                waits = 0;
                 if (!result.remaining || !(result.located + result.failed)) {
                     break;
                 }
@@ -336,8 +349,9 @@ export class CustomerEquipmentMap extends Component {
                 if (result.located && batches % GEO_RELOAD_EVERY_BATCHES === 0) {
                     await this.reloadPartners();
                 }
-                // Nominatim allows at most one request per second.
-                await new Promise((resolve) => setTimeout(resolve, 1100));
+                // Each batch may run in another server process: keep the pause
+                // between requests that Nominatim requires across batches too.
+                await new Promise((resolve) => setTimeout(resolve, 1500));
             }
         } catch (error) {
             run.serviceError = error.data?.message || "Error inesperado durante la geolocalización.";
@@ -365,6 +379,15 @@ export class CustomerEquipmentMap extends Component {
                 { type: run.failed ? "warning" : "success" }
             );
         }
+    }
+
+    async waitGeoRetry(run, seconds) {
+        run.waiting = Math.min(seconds, GEO_MAX_WAIT_SECONDS);
+        while (run.waiting > 0 && run.running && !this.isDestroyed) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            run.waiting--;
+        }
+        run.waiting = 0;
     }
 
     onStopGeolocation() {

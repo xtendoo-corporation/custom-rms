@@ -1,10 +1,11 @@
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from odoo import fields
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, new_test_user
 
+from odoo.addons.rms_customer_equipment_map.models import nominatim
 from odoo.addons.rms_customer_equipment_map.models import res_partner as res_partner_module
 
 
@@ -22,7 +23,7 @@ class TestGeoLocalize(TransactionCase):
     def setUp(self):
         super().setUp()
         # No real waiting nor real commits during the tests.
-        self.patch(res_partner_module.time, "sleep", lambda seconds: None)
+        self.patch(nominatim.time, "sleep", lambda seconds: None)
         self.patch(
             type(self.env["ir.cron"]),
             "_commit_progress",
@@ -267,3 +268,95 @@ class TestGeoLocalize(TransactionCase):
         )
         with self.assertRaises(UserError):
             self.Partner.with_user(user).action_geo_localize_batch()
+
+
+class TestNominatim(TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.patch(nominatim.time, "sleep", lambda seconds: None)
+
+    def test_clean_street(self):
+        cases = {
+            "C/ Gran Vía, 28, 2º B": "Calle Gran Vía 28",
+            "Polígono Ind. Calonge, nave 7B": "Polígono Industrial Calonge",
+            "Avda. de la Constitución 12 bajo": "Avenida de la Constitución 12",
+            "Plaza España, s/n": "Plaza España",
+            "Calle Mayor nº 5, 3ºA": "Calle Mayor 5",
+            "Pº de la Castellana 100": "Paseo de la Castellana 100",
+            "Calle Sierpes 1": "Calle Sierpes 1",
+        }
+        for street, expected in cases.items():
+            self.assertEqual(nominatim.clean_street(street), expected, street)
+
+    def _response(self, status=200, payload=None, headers=None):
+        response = MagicMock(status_code=status, headers=headers or {})
+        if isinstance(payload, Exception):
+            response.json.side_effect = payload
+        else:
+            response.json.return_value = payload
+        return response
+
+    def _patch_get(self, responses):
+        return patch("requests.get", side_effect=responses)
+
+    def test_rejects_result_in_another_town(self):
+        majadahonda = {
+            "lat": "40.47", "lon": "-3.87",
+            "address": {"town": "Majadahonda", "postcode": "28220"},
+        }
+        madrid = {
+            "lat": "40.42", "lon": "-3.70",
+            "address": {"city": "Madrid", "postcode": "28013"},
+        }
+        with self._patch_get(
+            [self._response(payload=[majadahonda]), self._response(payload=[madrid])]
+        ) as get:
+            result = nominatim.geo_localize(
+                "C/ Gran Vía, 28", "28013", "Madrid", "Madrid", country_code="ES"
+            )
+        self.assertEqual(result, (40.42, -3.70))
+        self.assertEqual(get.call_args_list[1].kwargs["params"]["q"], "Gran Vía 28, 28013 Madrid, Madrid")
+
+    def test_falls_back_to_postal_code_and_returns_none_when_nothing(self):
+        with self._patch_get([self._response(payload=[])] * 3):
+            self.assertIsNone(
+                nominatim.geo_localize("Plaza Inventada 1", "41004", "Sevilla", "Sevilla")
+            )
+
+    def test_too_many_requests_is_a_service_error_with_delay(self):
+        html = ValueError("Expecting value: line 2 column 1 (char 1)")
+        with self._patch_get([self._response(429, html, {"Retry-After": "12"})]):
+            with self.assertRaises(nominatim.GeoLocalizeServiceError) as error:
+                nominatim.geo_localize("Calle Sierpes 1", "41004", "Sevilla")
+        self.assertEqual(error.exception.retry_after, 12)
+        self.assertIn("429", str(error.exception))
+
+    def test_blocked_and_invalid_answers_are_explained(self):
+        with self._patch_get([self._response(403)]):
+            with self.assertRaisesRegex(nominatim.GeoLocalizeServiceError, "403"):
+                nominatim.geo_localize("Calle Sierpes 1", "41004", "Sevilla")
+        with self._patch_get([self._response(200, ValueError("bad json"))]):
+            with self.assertRaisesRegex(nominatim.GeoLocalizeServiceError, "no válida"):
+                nominatim.geo_localize("Calle Sierpes 1", "41004", "Sevilla")
+
+    def test_partner_uses_tuned_search_with_openstreetmap(self):
+        partner = self.env["res.partner"].create(
+            {
+                "name": "Cliente Sevilla",
+                "street": "C/ Sierpes, 1",
+                "zip": "41004",
+                "city": "Sevilla",
+                "country_id": self.env.ref("base.es").id,
+            }
+        )
+        found = {
+            "lat": "37.39", "lon": "-5.99",
+            "address": {"city": "Sevilla", "postcode": "41004"},
+        }
+        with self._patch_get([self._response(payload=[found])]) as get:
+            self.assertTrue(partner._geo_localize_partner())
+        params = get.call_args.kwargs["params"]
+        self.assertEqual(params["q"], "Calle Sierpes 1, 41004 Sevilla")
+        self.assertEqual(params["countrycodes"], "es")
+        self.assertIn("User-Agent", get.call_args.kwargs["headers"])
+        self.assertEqual(partner.geo_localize_state, "done")
