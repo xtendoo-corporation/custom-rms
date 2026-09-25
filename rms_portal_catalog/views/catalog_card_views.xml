@@ -75,8 +75,8 @@
               action="action_rms_catalog_open"
               sequence="90"/>
     <menuitem id="menu_rms_catalog_card"
-              name="Fichas asignadas (backend)"
-              parent="menu_rms_catalog_card_root"
+              name="Fichas del catálogo B2B"
+              parent="sale.menu_sale_config"
               action="action_rms_catalog_card"
-              sequence="10"/>
+              sequence="90"/>
 </odoo>
