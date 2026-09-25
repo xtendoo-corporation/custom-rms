@@ -46,10 +46,10 @@ export class CustomerEquipmentMap extends Component {
             search: "",
             partners: [],
             geolocating: false,
-            geolocationDone: 0,
-            geolocationTotal: 0,
             isAdmin: false,
             withoutAddressIds: [],
+            failedIds: [],
+            pendingCount: 0,
         });
         this.markers = new Map();
 
@@ -128,6 +128,8 @@ export class CustomerEquipmentMap extends Component {
             []
         );
         this.state.withoutAddressIds = candidates.without_address_ids || [];
+        this.state.failedIds = candidates.failed_ids || [];
+        this.state.pendingCount = candidates.pending || 0;
         return candidates;
     }
 
@@ -136,6 +138,15 @@ export class CustomerEquipmentMap extends Component {
             "res.partner",
             "action_view_partners_without_address",
             [this.state.withoutAddressIds]
+        );
+        return this.actionService.doAction(action);
+    }
+
+    async onViewPartnersGeolocationFailed() {
+        const action = await this.orm.call(
+            "res.partner",
+            "action_view_partners_geo_localize_failed",
+            [this.state.failedIds]
         );
         return this.actionService.doAction(action);
     }
@@ -158,67 +169,58 @@ export class CustomerEquipmentMap extends Component {
         this.dialog.add(ConfirmationDialog, {
             title: "Geolocalizar todos los contactos",
             body:
-                "Se procesarán " +
+                "Se encolarán " +
                 candidates.count +
-                " contactos pendientes." +
+                " contactos pendientes o con error." +
                 skippedMessage +
-                " El proceso puede tardar varios minutos.",
+                " La geolocalización se hace en segundo plano en el servidor:" +
+                " puedes cerrar esta pantalla y los clientes irán apareciendo en el mapa.",
             confirmLabel: "Geolocalizar",
             confirm: () => {
-                void this.runBulkGeolocation(candidates.ids);
+                void this.enqueueGeolocation();
             },
             cancel: () => {},
         });
     }
 
-    async runBulkGeolocation(partnerIds) {
+    async enqueueGeolocation() {
         this.state.geolocating = true;
-        this.state.geolocationDone = 0;
-        this.state.geolocationTotal = partnerIds.length;
-        let localizedCount = 0;
-        const failedNames = [];
         try {
-            for (const partnerId of partnerIds) {
-                const result = await this.orm.call(
-                    "res.partner",
-                    "bulk_geo_localize_partners",
-                    [[partnerId]]
-                );
-                localizedCount += result.localized_ids.length;
-                failedNames.push(...result.failed.map((partner) => partner.name));
-                this.state.geolocationDone += 1;
-                if (result.error) {
-                    throw new Error(result.error);
-                }
-                if (this.state.geolocationDone < partnerIds.length) {
-                    await new Promise((resolve) => setTimeout(resolve, 2200));
-                }
-            }
-            const data = await this.orm.call(
+            const result = await this.orm.call(
                 "res.partner",
-                "get_customer_equipment_map_data",
+                "action_enqueue_geo_localize",
                 []
             );
-            this.state.partners = Array.isArray(data.partners) ? data.partners : [];
-            this.state.isAdmin = data.is_admin;
-            this.renderMarkers();
-            const failedMessage = failedNames.length
-                ? " No se encontró la dirección de " + failedNames.length + " contactos."
-                : "";
+            await this.refreshWithoutAddress();
             this.notification.add(
-                "Geolocalización terminada: " +
-                    localizedCount +
-                    " contactos actualizados." +
-                    failedMessage,
-                { type: failedNames.length ? "warning" : "success", sticky: true }
+                result.count +
+                    " contactos encolados. Se geolocalizarán en segundo plano" +
+                    " (aprox. " +
+                    Math.max(1, Math.ceil((result.count * 1.5) / 60)) +
+                    " min).",
+                { type: "success", sticky: true }
             );
         } catch (error) {
             this.notification.add(
-                error.message || "Se produjo un error durante la geolocalización.",
+                error.data?.message || "No se pudo encolar la geolocalización.",
                 { type: "danger", sticky: true }
             );
         } finally {
             this.state.geolocating = false;
+        }
+    }
+
+    async onReloadPartners() {
+        const data = await this.orm.call(
+            "res.partner",
+            "get_customer_equipment_map_data",
+            []
+        );
+        this.state.partners = Array.isArray(data.partners) ? data.partners : [];
+        this.state.isAdmin = data.is_admin;
+        this.renderMarkers();
+        if (this.state.isAdmin) {
+            await this.refreshWithoutAddress();
         }
     }
 
