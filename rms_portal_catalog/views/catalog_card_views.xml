@@ -63,12 +63,19 @@
         <field name="view_mode">list,form</field>
     </record>
 
+    <record id="action_rms_catalog_open" model="ir.actions.act_url">
+        <field name="name">Catálogo B2B</field>
+        <field name="url">/my/catalog</field>
+        <field name="target">self</field>
+    </record>
+
     <menuitem id="menu_rms_catalog_card_root"
               name="Catálogo B2B"
               parent="sale.sale_menu_root"
+              action="action_rms_catalog_open"
               sequence="90"/>
     <menuitem id="menu_rms_catalog_card"
-              name="Fichas del catálogo"
+              name="Fichas asignadas (backend)"
               parent="menu_rms_catalog_card_root"
               action="action_rms_catalog_card"
               sequence="10"/>
