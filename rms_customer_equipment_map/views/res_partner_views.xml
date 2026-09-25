@@ -11,6 +11,33 @@
                     string="Sin dirección"
                     domain="[('street', '=', False), ('zip', '=', False), ('city', '=', False), ('state_id', '=', False), ('country_id', '=', False)]"
                 />
+                <filter
+                    name="filter_geo_localize_pending"
+                    string="Geolocalización pendiente"
+                    domain="[('geo_localize_state', '=', 'pending')]"
+                />
+                <filter
+                    name="filter_geo_localize_failed"
+                    string="Geolocalización con error"
+                    domain="[('geo_localize_state', '=', 'failed')]"
+                />
+            </xpath>
+        </field>
+    </record>
+
+    <record id="res_partner_view_form_geo_localize_state" model="ir.ui.view">
+        <field name="name">res.partner.form.geo.localize.state</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base_geolocalize.view_crm_partner_geo_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='geo_localize_button']" position="before">
+                <span>Estado: <field name="geo_localize_state" nolabel="1" readonly="1" class="oe_inline"/></span>
+                <br/>
+                <span invisible="not geo_localize_error" class="text-danger">
+                    <field name="geo_localize_error" nolabel="1" readonly="1" class="oe_inline"/>
+                    (<field name="geo_localize_attempts" nolabel="1" readonly="1" class="oe_inline"/> intentos)
+                    <br/>
+                </span>
             </xpath>
         </field>
     </record>

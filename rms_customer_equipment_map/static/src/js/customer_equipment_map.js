@@ -1,35 +1,42 @@
 /** @odoo-module **/
 
 import { registry } from "@web/core/registry";
+import { loadCSS, loadJS } from "@web/core/assets";
 import { useService } from "@web/core/utils/hooks";
+import { useDebounced } from "@web/core/utils/timing";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
-
-const LEAFLET_STYLESHEET =
-    "/rms_customer_equipment_map/static/lib/leaflet/leaflet.css";
-
-function loadLeafletStyles() {
-    if (document.querySelector("link[data-customer-equipment-map-leaflet]")) {
-        return Promise.resolve();
-    }
-    return new Promise((resolve, reject) => {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.dataset.customerEquipmentMapLeaflet = "1";
-        link.href = LEAFLET_STYLESHEET;
-        link.onload = resolve;
-        link.onerror = reject;
-        document.head.appendChild(link);
-    });
-}
 import {
     Component,
+    markRaw,
     onMounted,
     onWillStart,
     onWillUnmount,
     useRef,
     useState,
 } from "@odoo/owl";
+
+const LIB_PATH = "/rms_customer_equipment_map/static/lib";
+const SIDEBAR_PAGE_SIZE = 200;
+
+/**
+ * Load Leaflet and its marker cluster plugin only when a map is opened,
+ * instead of shipping them in every backend page. Another map module may
+ * already have loaded them: reuse its copy instead of loading a second one.
+ */
+async function loadLeaflet() {
+    await Promise.all([
+        loadCSS(`${LIB_PATH}/leaflet/leaflet.css`),
+        loadCSS(`${LIB_PATH}/leaflet.markercluster/MarkerCluster.css`),
+        loadCSS(`${LIB_PATH}/leaflet.markercluster/MarkerCluster.Default.css`),
+    ]);
+    if (!window.L) {
+        await loadJS(`${LIB_PATH}/leaflet/leaflet.js`);
+    }
+    if (!window.L.MarkerClusterGroup) {
+        await loadJS(`${LIB_PATH}/leaflet.markercluster/leaflet.markercluster.js`);
+    }
+}
 
 export class CustomerEquipmentMap extends Component {
     static template = "rms_customer_equipment_map.CustomerEquipmentMap";
@@ -44,14 +51,26 @@ export class CustomerEquipmentMap extends Component {
         this.state = useState({
             loading: true,
             search: "",
-            partners: [],
+            // Bumped whenever the (non reactive) partner list changes.
+            dataVersion: 0,
+            sidebarLimit: SIDEBAR_PAGE_SIZE,
             geolocating: false,
-            geolocationDone: 0,
-            geolocationTotal: 0,
             isAdmin: false,
             withoutAddressIds: [],
+            failedIds: [],
+            pendingCount: 0,
         });
+        // Partner data is kept out of the reactive state: wrapping thousands
+        // of records in proxies makes every search noticeably slower.
+        this.partners = [];
+        this.searchIndex = new Map();
         this.markers = new Map();
+        this.filterCache = null;
+        this.applySearch = useDebounced(() => {
+            this.state.search = this.pendingSearch;
+            this.state.sidebarLimit = SIDEBAR_PAGE_SIZE;
+            this.renderMarkers();
+        }, 250);
 
         onWillStart(async () => {
             const [data] = await Promise.all([
@@ -60,10 +79,9 @@ export class CustomerEquipmentMap extends Component {
                     "get_customer_equipment_map_data",
                     []
                 ),
-                loadLeafletStyles(),
+                loadLeaflet(),
             ]);
-            this.state.partners = Array.isArray(data.partners) ? data.partners : [];
-            this.state.isAdmin = data.is_admin;
+            this.setPartners(data);
             this.state.loading = false;
             if (this.state.isAdmin) {
                 void this.refreshWithoutAddress();
@@ -76,29 +94,59 @@ export class CustomerEquipmentMap extends Component {
         });
     }
 
+    setPartners(data) {
+        this.partners = markRaw(Array.isArray(data.partners) ? data.partners : []);
+        this.searchIndex = new Map(
+            this.partners.map((partner) => [
+                partner.id,
+                [
+                    partner.name,
+                    partner.address,
+                    partner.phone,
+                    partner.email,
+                    partner.salesperson?.name || "",
+                    partner.country?.name || "",
+                    partner.industry?.name || "",
+                    ...partner.equipment.map(
+                        (item) => item.name + " " + item.serial_no + " " + item.category
+                    ),
+                ]
+                    .join(" ")
+                    .toLowerCase(),
+            ])
+        );
+        // Markers are rebuilt lazily for the new data.
+        this.markers.clear();
+        this.filterCache = null;
+        this.state.isAdmin = data.is_admin;
+        this.state.dataVersion++;
+    }
+
     get filteredPartners() {
         const term = this.state.search.trim().toLowerCase();
-        return this.state.partners.filter((partner) => {
-            if (!term) {
-                return true;
-            }
-            const equipment = partner.equipment
-                .map((item) => item.name + " " + item.serial_no + " " + item.category)
-                .join(" ");
-            return [
-                partner.name,
-                partner.address,
-                partner.phone,
-                partner.email,
-                partner.salesperson?.name || "",
-                partner.country?.name || "",
-                partner.industry?.name || "",
-                equipment,
-            ]
-                .join(" ")
-                .toLowerCase()
-                .includes(term);
-        });
+        const version = this.state.dataVersion;
+        if (
+            this.filterCache &&
+            this.filterCache.term === term &&
+            this.filterCache.version === version
+        ) {
+            return this.filterCache.result;
+        }
+        const result = term
+            ? this.partners.filter((partner) =>
+                  this.searchIndex.get(partner.id).includes(term)
+              )
+            : this.partners;
+        this.filterCache = { term, version, result };
+        return result;
+    }
+
+    get visiblePartners() {
+        return this.filteredPartners.slice(0, this.state.sidebarLimit);
+    }
+
+    onShowMorePartners() {
+        this.state.sidebarLimit += SIDEBAR_PAGE_SIZE;
     }
 
     initializeMap() {
@@ -114,7 +162,11 @@ export class CustomerEquipmentMap extends Component {
                 '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
             maxZoom: 19,
         }).addTo(this.map);
-        this.markerLayer = window.L.layerGroup().addTo(this.map);
+        this.markerLayer = window.L.markerClusterGroup({
+            chunkedLoading: true,
+            showCoverageOnHover: false,
+            maxClusterRadius: 50,
+        }).addTo(this.map);
         this.renderMarkers();
         this.resizeObserver = new ResizeObserver(() => this.map.invalidateSize());
         this.resizeObserver.observe(this.mapRef.el);
@@ -128,6 +180,8 @@ export class CustomerEquipmentMap extends Component {
             []
         );
         this.state.withoutAddressIds = candidates.without_address_ids || [];
+        this.state.failedIds = candidates.failed_ids || [];
+        this.state.pendingCount = candidates.pending || 0;
         return candidates;
     }
 
@@ -136,6 +190,15 @@ export class CustomerEquipmentMap extends Component {
             "res.partner",
             "action_view_partners_without_address",
             [this.state.withoutAddressIds]
+        );
+        return this.actionService.doAction(action);
+    }
+
+    async onViewPartnersGeolocationFailed() {
+        const action = await this.orm.call(
+            "res.partner",
+            "action_view_partners_geo_localize_failed",
+            [this.state.failedIds]
         );
         return this.actionService.doAction(action);
     }
@@ -158,63 +221,40 @@ export class CustomerEquipmentMap extends Component {
         this.dialog.add(ConfirmationDialog, {
             title: "Geolocalizar todos los contactos",
             body:
-                "Se procesarán " +
+                "Se encolarán " +
                 candidates.count +
-                " contactos pendientes." +
+                " contactos pendientes o con error." +
                 skippedMessage +
-                " El proceso puede tardar varios minutos.",
+                " La geolocalización se hace en segundo plano en el servidor:" +
+                " puedes cerrar esta pantalla y los clientes irán apareciendo en el mapa.",
             confirmLabel: "Geolocalizar",
             confirm: () => {
-                void this.runBulkGeolocation(candidates.ids);
+                void this.enqueueGeolocation();
             },
             cancel: () => {},
         });
     }
 
-    async runBulkGeolocation(partnerIds) {
+    async enqueueGeolocation() {
         this.state.geolocating = true;
-        this.state.geolocationDone = 0;
-        this.state.geolocationTotal = partnerIds.length;
-        let localizedCount = 0;
-        const failedNames = [];
         try {
-            for (const partnerId of partnerIds) {
-                const result = await this.orm.call(
-                    "res.partner",
-                    "bulk_geo_localize_partners",
-                    [[partnerId]]
-                );
-                localizedCount += result.localized_ids.length;
-                failedNames.push(...result.failed.map((partner) => partner.name));
-                this.state.geolocationDone += 1;
-                if (result.error) {
-                    throw new Error(result.error);
-                }
-                if (this.state.geolocationDone < partnerIds.length) {
-                    await new Promise((resolve) => setTimeout(resolve, 2200));
-                }
-            }
-            const data = await this.orm.call(
+            const result = await this.orm.call(
                 "res.partner",
-                "get_customer_equipment_map_data",
+                "action_enqueue_geo_localize",
                 []
             );
-            this.state.partners = Array.isArray(data.partners) ? data.partners : [];
-            this.state.isAdmin = data.is_admin;
-            this.renderMarkers();
-            const failedMessage = failedNames.length
-                ? " No se encontró la dirección de " + failedNames.length + " contactos."
-                : "";
+            await this.refreshWithoutAddress();
             this.notification.add(
-                "Geolocalización terminada: " +
-                    localizedCount +
-                    " contactos actualizados." +
-                    failedMessage,
-                { type: failedNames.length ? "warning" : "success", sticky: true }
+                result.count +
+                    " contactos encolados. Se geolocalizarán en segundo plano" +
+                    " (aprox. " +
+                    Math.max(1, Math.ceil((result.count * 1.5) / 60)) +
+                    " min).",
+                { type: "success", sticky: true }
             );
         } catch (error) {
             this.notification.add(
-                error.message || "Se produjo un error durante la geolocalización.",
+                error.data?.message || "No se pudo encolar la geolocalización.",
                 { type: "danger", sticky: true }
             );
         } finally {
@@ -222,22 +262,29 @@ export class CustomerEquipmentMap extends Component {
         }
     }
 
-    onSearchInput(event) {
-        this.state.search = event.target.value;
+    async onReloadPartners() {
+        const data = await this.orm.call(
+            "res.partner",
+            "get_customer_equipment_map_data",
+            []
+        );
+        this.setPartners(data);
         this.renderMarkers();
+        if (this.state.isAdmin) {
+            await this.refreshWithoutAddress();
+        }
     }
 
-    renderMarkers() {
-        if (!this.markerLayer) {
-            return;
-        }
-        this.markerLayer.clearLayers();
-        this.markers.clear();
-        const bounds = [];
-        for (const partner of this.filteredPartners) {
-            const coordinates = [partner.latitude, partner.longitude];
+    onSearchInput(event) {
+        this.pendingSearch = event.target.value;
+        this.applySearch();
+    }
+
+    getMarker(partner) {
+        let marker = this.markers.get(partner.id);
+        if (!marker) {
             const equipmentCount = partner.equipment.length;
-            const marker = window.L.marker(coordinates, {
+            marker = window.L.marker([partner.latitude, partner.longitude], {
                 icon: window.L.divIcon({
                     className: "o_customer_equipment_map_marker",
                     html: equipmentCount ? `<span>${equipmentCount}</span>` : "",
@@ -247,15 +294,31 @@ export class CustomerEquipmentMap extends Component {
                 }),
                 title: partner.name,
             });
-            marker.bindPopup(this.buildPopup(partner), { minWidth: 280 });
-            marker.addTo(this.markerLayer);
+            // The popup content is only built when it is opened.
+            marker.bindPopup(() => this.buildPopup(partner), { minWidth: 280 });
             this.markers.set(partner.id, marker);
-            bounds.push(coordinates);
         }
-        if (bounds.length === 1) {
-            this.map.setView(bounds[0], 14);
-        } else if (bounds.length > 1) {
-            this.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+        return marker;
+    }
+
+    renderMarkers() {
+        if (!this.markerLayer) {
+            return;
+        }
+        const partners = this.filteredPartners;
+        const markers = partners.map((partner) => this.getMarker(partner));
+        this.markerLayer.clearLayers();
+        this.markerLayer.addLayers(markers);
+        if (markers.length === 1) {
+            this.map.setView(markers[0].getLatLng(), 14);
+        } else if (markers.length > 1) {
+            // Bounds are computed from the markers themselves: with chunked
+            // loading the cluster layer may still be adding them.
+            const bounds = window.L.latLngBounds(markers.map((marker) => marker.getLatLng()));
+            this.map.fitBounds(bounds, {
+                padding: [40, 40],
+                maxZoom: 15,
+            });
         }
     }
 
@@ -303,8 +366,8 @@ export class CustomerEquipmentMap extends Component {
     focusPartner(partnerId) {
         const marker = this.markers.get(partnerId);
         if (marker) {
-            this.map.setView(marker.getLatLng(), Math.max(this.map.getZoom(), 14));
-            marker.openPopup();
+            // The marker may be hidden inside a cluster: zoom until it shows.
+            this.markerLayer.zoomToShowLayer(marker, () => marker.openPopup());
         }
     }
 

@@ -1,11 +1,14 @@
 /** @odoo-module **/
 
 import { registry } from "@web/core/registry";
+import { loadCSS, loadJS } from "@web/core/assets";
 import { rpc } from "@web/core/network/rpc";
 import { useService } from "@web/core/utils/hooks";
+import { useDebounced } from "@web/core/utils/timing";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import {
     Component,
+    markRaw,
     onMounted,
     onWillStart,
     onWillUnmount,
@@ -13,22 +16,26 @@ import {
     useState,
 } from "@odoo/owl";
 
-const LEAFLET_STYLESHEET =
-    "/rms_global_equipment_map/static/lib/leaflet/leaflet.css";
+const LIB_PATH = "/rms_global_equipment_map/static/lib";
+const SIDEBAR_PAGE_SIZE = 200;
 
-function loadLeafletStyles() {
-    if (document.querySelector("link[data-global-equipment-map-leaflet]")) {
-        return Promise.resolve();
+/**
+ * Load Leaflet and its marker cluster plugin only when a map is opened,
+ * instead of shipping them in every backend page. Another map module may
+ * already have loaded them: reuse its copy instead of loading a second one.
+ */
+async function loadLeaflet() {
+    await Promise.all([
+        loadCSS(`${LIB_PATH}/leaflet/leaflet.css`),
+        loadCSS(`${LIB_PATH}/leaflet.markercluster/MarkerCluster.css`),
+        loadCSS(`${LIB_PATH}/leaflet.markercluster/MarkerCluster.Default.css`),
+    ]);
+    if (!window.L) {
+        await loadJS(`${LIB_PATH}/leaflet/leaflet.js`);
     }
-    return new Promise((resolve, reject) => {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.dataset.globalEquipmentMapLeaflet = "1";
-        link.href = LEAFLET_STYLESHEET;
-        link.onload = resolve;
-        link.onerror = reject;
-        document.head.appendChild(link);
-    });
+    if (!window.L.MarkerClusterGroup) {
+        await loadJS(`${LIB_PATH}/leaflet.markercluster/leaflet.markercluster.js`);
+    }
 }
 
 export class GlobalEquipmentMap extends Component {
@@ -41,7 +48,9 @@ export class GlobalEquipmentMap extends Component {
         this.state = useState({
             loading: true,
             search: "",
-            partners: [],
+            // Bumped whenever the (non reactive) partner list changes.
+            dataVersion: 0,
+            sidebarLimit: SIDEBAR_PAGE_SIZE,
             filtersOpen: false,
             modelFilterSearch: "",
             exporting: false,
@@ -50,14 +59,25 @@ export class GlobalEquipmentMap extends Component {
                 operator: "or",
             },
         });
+        // Partner data is kept out of the reactive state: wrapping thousands
+        // of records in proxies makes every search noticeably slower.
+        this.partners = [];
+        this.searchIndex = new Map();
         this.markers = new Map();
+        this.filterCache = null;
+        this.equipmentModelsCache = null;
+        this.applySearch = useDebounced(() => {
+            this.state.search = this.pendingSearch;
+            this.state.sidebarLimit = SIDEBAR_PAGE_SIZE;
+            this.renderMarkers();
+        }, 250);
 
         onWillStart(async () => {
             const [partners] = await Promise.all([
                 rpc("/rms_global_equipment_map/partners", {}),
-                loadLeafletStyles(),
+                loadLeaflet(),
             ]);
-            this.state.partners = partners;
+            this.setPartners(partners);
             this.state.loading = false;
         });
         onMounted(() => this.initializeMap());
@@ -67,16 +87,44 @@ export class GlobalEquipmentMap extends Component {
         });
     }
 
+    setPartners(partners) {
+        this.partners = markRaw(Array.isArray(partners) ? partners : []);
+        this.searchIndex = new Map(
+            this.partners.map((partner) => [
+                partner.id,
+                [
+                    partner.name,
+                    partner.contact_name,
+                    partner.email,
+                    partner.phone,
+                    ...partner.equipment_models.map((model) => model.name),
+                ]
+                    .join(" ")
+                    .toLowerCase(),
+            ])
+        );
+        this.markers.clear();
+        this.filterCache = null;
+        this.equipmentModelsCache = null;
+        this.state.dataVersion++;
+    }
+
     get equipmentModels() {
+        const version = this.state.dataVersion;
+        if (this.equipmentModelsCache?.version === version) {
+            return this.equipmentModelsCache.result;
+        }
         const equipmentModels = new Map();
-        for (const partner of this.state.partners) {
+        for (const partner of this.partners) {
             for (const model of partner.equipment_models) {
                 equipmentModels.set(`${model.id}`, { ...model, id: `${model.id}` });
             }
         }
-        return [...equipmentModels.values()].sort((left, right) =>
+        const result = [...equipmentModels.values()].sort((left, right) =>
             left.name.localeCompare(right.name)
         );
+        this.equipmentModelsCache = { version, result };
+        return result;
     }
 
     get availableEquipmentModels() {
@@ -104,36 +152,36 @@ export class GlobalEquipmentMap extends Component {
         const term = this.state.search.trim().toLowerCase();
         const selectedModelIds = this.state.filters.equipmentModelIds;
         const operator = this.state.filters.operator;
-        return this.state.partners.filter((partner) => {
-            const partnerModelIds = partner.equipment_models.map((model) => `${model.id}`);
+        const version = this.state.dataVersion;
+        const key = [version, term, operator, selectedModelIds.join(",")].join("|");
+        if (this.filterCache?.key === key) {
+            return this.filterCache.result;
+        }
+        const result = this.partners.filter((partner) => {
             if (selectedModelIds.length) {
-                if (operator === "and") {
-                    if (!selectedModelIds.every((modelId) => partnerModelIds.includes(modelId))) {
-                        return false;
-                    }
-                } else {
-                    if (!selectedModelIds.some((modelId) => partnerModelIds.includes(modelId))) {
-                        return false;
-                    }
+                const partnerModelIds = new Set(
+                    partner.equipment_models.map((model) => `${model.id}`)
+                );
+                const matches =
+                    operator === "and"
+                        ? selectedModelIds.every((modelId) => partnerModelIds.has(modelId))
+                        : selectedModelIds.some((modelId) => partnerModelIds.has(modelId));
+                if (!matches) {
+                    return false;
                 }
             }
-            if (!term) {
-                return true;
-            }
-            const equipmentModels = partner.equipment_models
-                .map((model) => model.name)
-                .join(" ");
-            return [
-                partner.name,
-                partner.contact_name,
-                partner.email,
-                partner.phone,
-                equipmentModels,
-            ]
-                .join(" ")
-                .toLowerCase()
-                .includes(term);
+            return !term || this.searchIndex.get(partner.id).includes(term);
         });
+        this.filterCache = { key, result };
+        return result;
+    }
+
+    get visiblePartners() {
+        return this.filteredPartners.slice(0, this.state.sidebarLimit);
+    }
+
+    onShowMorePartners() {
+        this.state.sidebarLimit += SIDEBAR_PAGE_SIZE;
     }
 
     toggleFilters() {
@@ -182,8 +230,8 @@ export class GlobalEquipmentMap extends Component {
     }
 
     onSearchInput(event) {
-        this.state.search = event.target.value;
-        this.renderMarkers();
+        this.pendingSearch = event.target.value;
+        this.applySearch();
     }
 
     initializeMap() {
@@ -202,24 +250,22 @@ export class GlobalEquipmentMap extends Component {
                 '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
             maxZoom: 19,
         }).addTo(this.map);
-        this.markerLayer = window.L.layerGroup().addTo(this.map);
+        this.markerLayer = window.L.markerClusterGroup({
+            chunkedLoading: true,
+            showCoverageOnHover: false,
+            maxClusterRadius: 50,
+        }).addTo(this.map);
         this.renderMarkers();
         this.resizeObserver = new ResizeObserver(() => this.map.invalidateSize());
         this.resizeObserver.observe(this.mapRef.el);
         requestAnimationFrame(() => this.map.invalidateSize());
     }
 
-    renderMarkers() {
-        if (!this.markerLayer) {
-            return;
-        }
-        this.markerLayer.clearLayers();
-        this.markers.clear();
-        const bounds = [];
-        for (const partner of this.filteredPartners) {
-            const coordinates = [partner.latitude, partner.longitude];
+    getMarker(partner) {
+        let marker = this.markers.get(partner.id);
+        if (!marker) {
             const equipmentCount = partner.equipment_models.length;
-            const marker = window.L.marker(coordinates, {
+            marker = window.L.marker([partner.latitude, partner.longitude], {
                 title: partner.name,
                 icon: window.L.divIcon({
                     className: "o_global_equipment_map_marker",
@@ -229,14 +275,26 @@ export class GlobalEquipmentMap extends Component {
                     popupAnchor: [0, -40],
                 }),
             });
-            marker.bindPopup(this.buildPopup(partner), { minWidth: 260 });
-            marker.addTo(this.markerLayer);
+            // The popup content is only built when it is opened.
+            marker.bindPopup(() => this.buildPopup(partner), { minWidth: 260 });
             this.markers.set(partner.id, marker);
-            bounds.push(coordinates);
         }
-        if (bounds.length === 1) {
-            this.map.setView(bounds[0], 14);
-        } else if (bounds.length > 1) {
+        return marker;
+    }
+
+    renderMarkers() {
+        if (!this.markerLayer) {
+            return;
+        }
+        const markers = this.filteredPartners.map((partner) => this.getMarker(partner));
+        this.markerLayer.clearLayers();
+        this.markerLayer.addLayers(markers);
+        if (markers.length === 1) {
+            this.map.setView(markers[0].getLatLng(), 14);
+        } else if (markers.length > 1) {
+            // Bounds are computed from the markers themselves: with chunked
+            // loading the cluster layer may still be adding them.
+            const bounds = window.L.latLngBounds(markers.map((marker) => marker.getLatLng()));
             this.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
         }
     }
@@ -305,8 +363,8 @@ export class GlobalEquipmentMap extends Component {
     focusPartner(partnerId) {
         const marker = this.markers.get(partnerId);
         if (marker) {
-            this.map.setView(marker.getLatLng(), Math.max(this.map.getZoom(), 14));
-            marker.openPopup();
+            // The marker may be hidden inside a cluster: zoom until it shows.
+            this.markerLayer.zoomToShowLayer(marker, () => marker.openPopup());
         }
     }
 

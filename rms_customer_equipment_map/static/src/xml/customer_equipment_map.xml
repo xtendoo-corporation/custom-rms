@@ -12,10 +12,24 @@
                     t-on-click="onBulkGeolocate"
                 >
                     <i class="fa fa-map-marker me-1"/>
-                    <t t-if="state.geolocating">
-                        Geolocalizando <t t-esc="state.geolocationDone"/>/<t t-esc="state.geolocationTotal"/>
-                    </t>
-                    <t t-else="">Geolocalizar todos</t>
+                    Geolocalizar todos
+                </button>
+                <span
+                    t-if="state.isAdmin and state.pendingCount"
+                    class="text-muted"
+                    title="Se geolocalizan automáticamente en segundo plano"
+                >
+                    <i class="fa fa-clock-o me-1"/>
+                    <t t-esc="state.pendingCount"/> pendientes
+                </span>
+                <button
+                    t-if="state.isAdmin and state.failedIds.length"
+                    type="button"
+                    class="btn btn-outline-danger"
+                    t-on-click="onViewPartnersGeolocationFailed"
+                >
+                    <i class="fa fa-times-circle me-1"/>
+                    <t t-esc="state.failedIds.length"/> con error
                 </button>
                 <button
                     t-if="state.isAdmin and state.withoutAddressIds.length"
@@ -25,6 +39,14 @@
                 >
                     <i class="fa fa-exclamation-triangle me-1"/>
                     <t t-esc="state.withoutAddressIds.length"/> sin dirección
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-light"
+                    title="Recargar clientes"
+                    t-on-click="onReloadPartners"
+                >
+                    <i class="fa fa-refresh"/>
                 </button>
                 <div class="ms-auto">
                     <input
@@ -46,7 +68,7 @@
                         </div>
                     </t>
                     <button
-                        t-foreach="filteredPartners"
+                        t-foreach="visiblePartners"
                         t-as="partner"
                         t-key="partner.id"
                         type="button"
@@ -61,6 +83,17 @@
                             </span>
                         </div>
                     </button>
+                    <div
+                        t-if="filteredPartners.length > visiblePartners.length"
+                        class="p-3 text-center"
+                    >
+                        <small class="d-block text-muted mb-2">
+                            Mostrando <t t-esc="visiblePartners.length"/> de <t t-esc="filteredPartners.length"/>
+                        </small>
+                        <button type="button" class="btn btn-link btn-sm" t-on-click="onShowMorePartners">
+                            Mostrar más
+                        </button>
+                    </div>
                 </aside>
                 <div t-ref="map" class="o_customer_equipment_map_canvas flex-grow-1"/>
             </div>
