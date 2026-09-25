@@ -31,7 +31,7 @@ class B2BCatalogPortal(http.Controller):
         rep['photo'] = '/my/catalog/rep-photo'
         return rep
 
-    @http.route('/my/catalog', type='http', auth='user', website=True)
+    @http.route('/my/catalog', type='http', auth='user')
     def portal_catalog_home(self, **kw):
         try:
             with file_open('rms_portal_catalog/static/catalog/index.html', 'rb') as f:
