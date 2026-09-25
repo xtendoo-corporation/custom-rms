@@ -14,6 +14,10 @@ def _has_any_group(*group_xmlids):
     return any(user.has_group(xmlid) for xmlid in group_xmlids)
 
 
+def _is_internal_user():
+    return request.env.user.has_group('base.group_user')
+
+
 class SaleOrdersProfileGuard(SaleCustomerPortal):
 
     @http.route()
@@ -84,30 +88,30 @@ class CatalogProfileGuard(B2BCatalogPortal):
 
     @http.route()
     def portal_catalog_home(self, **kw):
-        if not _has_any_group('rms_portal_profiles.group_portal_customer'):
+        if not _is_internal_user() and not _has_any_group('rms_portal_profiles.group_portal_customer'):
             return request.redirect('/my')
         return super().portal_catalog_home(**kw)
 
     @http.route()
     def portal_catalog_asset(self, subpath, **kw):
-        if not _has_any_group('rms_portal_profiles.group_portal_customer'):
+        if not _is_internal_user() and not _has_any_group('rms_portal_profiles.group_portal_customer'):
             return request.redirect('/my')
         return super().portal_catalog_asset(subpath, **kw)
 
     @http.route()
     def portal_catalog_prices(self, category_ids, **kw):
-        if not _has_any_group('rms_portal_profiles.group_portal_customer'):
+        if not _is_internal_user() and not _has_any_group('rms_portal_profiles.group_portal_customer'):
             return request.redirect('/my')
         return super().portal_catalog_prices(category_ids, **kw)
 
     @http.route()
     def portal_catalog_product_image(self, product_id, **kw):
-        if not _has_any_group('rms_portal_profiles.group_portal_customer'):
+        if not _is_internal_user() and not _has_any_group('rms_portal_profiles.group_portal_customer'):
             return request.redirect('/my')
         return super().portal_catalog_product_image(product_id, **kw)
 
     @http.route()
     def portal_catalog_rep_photo(self, **kw):
-        if not _has_any_group('rms_portal_profiles.group_portal_customer'):
+        if not _is_internal_user() and not _has_any_group('rms_portal_profiles.group_portal_customer'):
             return request.redirect('/my')
         return super().portal_catalog_rep_photo(**kw)
