@@ -60,14 +60,18 @@ class B2BCatalogPortal(http.Controller):
             return request.not_found()
         return request.make_response(content, headers=[('Content-Type', 'image/jpeg')])
 
-    @http.route('/my/catalog/prices/<int:category_id>', type='http', auth='user')
-    def portal_catalog_prices(self, category_id, **kw):
+    @http.route('/my/catalog/prices/<string:category_ids>', type='http', auth='user')
+    def portal_catalog_prices(self, category_ids, **kw):
+        try:
+            ids = [int(part) for part in category_ids.split(',') if part]
+        except ValueError:
+            return request.not_found()
         products = request.env['product.template'].sudo().search(
-            [('categ_id', '=', category_id), ('sale_ok', '=', True), ('active', '=', True)],
+            [('categ_id', 'in', ids), ('sale_ok', '=', True), ('active', '=', True)],
             order='list_price desc',
         )
         payload = {
-            'category_id': category_id,
+            'category_ids': ids,
             'products': [
                 {
                     'id': product.id,
