@@ -88,6 +88,11 @@
                                         ·
                                         <span t-att-class="run.failed ? 'text-danger' : ''"><t t-esc="run.failed"/> con error</span>
                                     </div>
+                                    <div t-if="run.waiting" class="alert alert-warning small p-2 mt-2 mb-0">
+                                        <i class="fa fa-hourglass-half me-1"/>
+                                        OpenStreetMap pide ir más despacio. Se reanuda en
+                                        <strong t-esc="run.waiting"/> s…
+                                    </div>
                                     <div t-if="run.serviceError" class="alert alert-danger small p-2 mt-2 mb-0">
                                         <strong>El servicio de geolocalización no responde.</strong>
                                         <div t-esc="run.serviceError"/>
