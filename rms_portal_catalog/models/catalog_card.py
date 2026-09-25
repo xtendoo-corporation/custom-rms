@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.fields import Domain
 
 
@@ -20,13 +20,14 @@ class RmsCatalogCard(models.Model):
     line_ids = fields.One2many(
         'rms.catalog.card.line', 'card_id', string='Productos asignados',
     )
-    product_count = fields.Integer(compute='_compute_product_count')
+    product_count = fields.Integer(compute='_compute_product_count', store=True)
 
-    _sql_constraints = [
-        ('page_key_uniq', 'unique(page_key)',
-         'Ya existe una ficha del catálogo con esta clave (page_key).'),
-    ]
+    _page_key_uniq = models.Constraint(
+        'unique(page_key)',
+        'Ya existe una ficha del catálogo con esta clave (page_key).',
+    )
 
+    @api.depends('line_ids')
     def _compute_product_count(self):
         for card in self:
             card.product_count = len(card.line_ids)
@@ -77,10 +78,10 @@ class RmsCatalogCardLine(models.Model):
         'product.product', required=True, ondelete='cascade', string='Producto',
     )
 
-    _sql_constraints = [
-        ('card_product_uniq', 'unique(card_id, product_id)',
-         'Este producto ya está asignado a esta ficha.'),
-    ]
+    _card_product_uniq = models.Constraint(
+        'unique(card_id, product_id)',
+        'Este producto ya está asignado a esta ficha.',
+    )
 
     def _get_product_catalog_lines_data(self, **kwargs):
         if not self:
