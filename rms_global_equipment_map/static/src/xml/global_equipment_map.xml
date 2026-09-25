@@ -147,7 +147,7 @@
                         </div>
                     </t>
                     <button
-                        t-foreach="filteredPartners"
+                        t-foreach="visiblePartners"
                         t-as="partner"
                         t-key="partner.id"
                         type="button"
@@ -195,6 +195,17 @@
                             </span>
                         </div>
                     </button>
+                    <div
+                        t-if="filteredPartners.length > visiblePartners.length"
+                        class="p-3 text-center"
+                    >
+                        <small class="d-block text-muted mb-2">
+                            Mostrando <t t-esc="visiblePartners.length"/> de <t t-esc="filteredPartners.length"/>
+                        </small>
+                        <button type="button" class="btn btn-link btn-sm" t-on-click="onShowMorePartners">
+                            Mostrar más
+                        </button>
+                    </div>
                 </aside>
                 <div t-ref="map" class="o_global_equipment_map_canvas flex-grow-1"/>
             </div>

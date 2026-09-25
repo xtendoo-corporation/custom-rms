@@ -1,6 +1,6 @@
 {
     "name": "Customer Equipment Map",
-    "version": "19.0.8.0.0",
+    "version": "19.0.8.1.0",
     "category": "Services/Maintenance",
     "summary": "Geolocaliza clientes y vincula sus equipos instalados",
     "author": "Xtendoo",
@@ -21,7 +21,6 @@
     "assets": {
         "web.assets_backend": [
             "rms_customer_equipment_map/static/src/scss/customer_equipment_map.scss",
-            "rms_customer_equipment_map/static/lib/leaflet/leaflet.js",
             "rms_customer_equipment_map/static/src/js/customer_equipment_map.js",
             "rms_customer_equipment_map/static/src/xml/customer_equipment_map.xml",
         ],
