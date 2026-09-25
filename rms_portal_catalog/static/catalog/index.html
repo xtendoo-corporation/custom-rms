@@ -266,6 +266,21 @@
   .price-desc{font-size:12px; color:var(--muted); line-height:1.4;}
   .price-value{font-family:var(--mono); color:var(--accent-ink); font-weight:600; white-space:nowrap; padding-top:1px;}
   .price-status{font-size:13px; color:var(--muted); padding:8px 0;}
+
+  .admin-search-input{
+    width:100%; box-sizing:border-box; font-size:14px; padding:9px 12px; margin-bottom:12px;
+    border:1px solid var(--line); border-radius:10px; background:var(--surface-2); color:var(--ink);
+  }
+  .admin-search-input:focus{outline:none; border-color:var(--brand);}
+  .admin-section-title{font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:18px 0 4px;}
+  .admin-section-title:first-of-type{margin-top:0;}
+  .admin-btn{
+    flex:none; font-size:11px; font-weight:600; border-radius:980px; padding:5px 11px; border:1px solid var(--line);
+    background:none; cursor:pointer; transition:border-color .15s ease, color .15s ease; color:var(--brand);
+  }
+  .admin-btn:hover{border-color:var(--brand);}
+  .admin-btn.remove{color:#c0392b;}
+  .admin-btn.remove:hover{border-color:#c0392b;}
 </style>
 
 <div id="app"></div>
@@ -307,6 +322,23 @@
 
 <div class="img-lightbox" id="imgLightbox" onclick="closeImageLightbox()">
   <img id="imgLightboxImg" src="" alt="">
+</div>
+
+<div class="price-modal" id="adminModal">
+  <div class="price-modal-backdrop" onclick="closeAdmin()"></div>
+  <div class="price-modal-card">
+    <button class="v-close price-modal-close" onclick="closeAdmin()" aria-label="Cerrar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <p class="eyebrow">RMS Proaudio · Interno</p>
+    <h3 class="price-modal-title" id="adminModalTitle">—</h3>
+    <p class="price-modal-sub">Productos de Odoo asignados a esta ficha del catálogo.</p>
+    <p class="admin-section-title">Asignados</p>
+    <div class="price-modal-body" id="adminAssignedBody"></div>
+    <p class="admin-section-title">Añadir producto</p>
+    <input type="text" class="admin-search-input" id="adminSearchInput" placeholder="Busca por nombre o referencia…" oninput="adminOnSearchInput(this.value)">
+    <div class="price-modal-body" id="adminSearchResults"></div>
+  </div>
 </div>
 
 <script>
@@ -716,7 +748,7 @@ function renderBrand(key){
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         </button>` : "";
       const adminHtml = window.RMS_CATALOG_IS_INTERNAL ? `
-        <button class="datasheet-btn" onclick="event.stopPropagation(); window.open('/my/catalog/admin/card/${p}', '_blank')">
+        <button class="datasheet-btn" onclick="event.stopPropagation(); openAdmin(${p})">
           Editar productos
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>` : "";
@@ -899,6 +931,93 @@ async function openPrices(page){
 function closePrices(){
   document.getElementById("priceModal").classList.remove("open");
   document.body.style.overflow = "";
+}
+
+/* =========================================================
+   ADMIN — asignar productos de Odoo a una ficha (solo internos)
+========================================================= */
+let adminPageKey = null;
+let adminSearchTimer = null;
+
+function openAdmin(page){
+  const d = PAGES[page];
+  adminPageKey = String(page);
+  document.getElementById("adminModalTitle").textContent = d.title;
+  document.getElementById("adminSearchInput").value = "";
+  document.getElementById("adminSearchResults").innerHTML = "";
+  document.getElementById("adminModal").classList.add("open");
+  document.body.style.overflow = "hidden";
+  loadAdminAssigned();
+}
+
+function closeAdmin(){
+  document.getElementById("adminModal").classList.remove("open");
+  document.body.style.overflow = "";
+  adminPageKey = null;
+}
+
+async function loadAdminAssigned(){
+  const body = document.getElementById("adminAssignedBody");
+  body.innerHTML = '<p class="price-status">Cargando…</p>';
+  try{
+    const res = await fetch(`/my/catalog/admin/card/${adminPageKey}/products`);
+    if(!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    if(!data.products.length){
+      body.innerHTML = '<p class="price-status">Sin productos asignados todavía.</p>';
+      return;
+    }
+    body.innerHTML = data.products.map(p => `
+      <div class="price-row">
+        ${p.has_image ? `<img class="price-thumb" loading="lazy" src="/my/catalog/product-image/${p.id}" alt="">` : ""}
+        <div class="price-info"><span class="price-name">${escapeHtml(p.name)}</span></div>
+        <button class="admin-btn remove" onclick="adminRemoveProduct(${p.id})">Quitar</button>
+      </div>
+    `).join("");
+  }catch(e){
+    body.innerHTML = '<p class="price-status">No se pudo cargar. Inténtalo de nuevo.</p>';
+  }
+}
+
+function adminOnSearchInput(value){
+  clearTimeout(adminSearchTimer);
+  adminSearchTimer = setTimeout(() => adminDoSearch(value), 300);
+}
+
+async function adminDoSearch(q){
+  const results = document.getElementById("adminSearchResults");
+  if(!q || q.trim().length < 2){ results.innerHTML = ""; return; }
+  results.innerHTML = '<p class="price-status">Buscando…</p>';
+  try{
+    const res = await fetch(`/my/catalog/admin/products/search?q=${encodeURIComponent(q)}`);
+    if(!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    if(!data.products.length){
+      results.innerHTML = '<p class="price-status">Sin resultados.</p>';
+      return;
+    }
+    results.innerHTML = data.products.map(p => `
+      <div class="price-row">
+        ${p.has_image ? `<img class="price-thumb" loading="lazy" src="/my/catalog/product-image/${p.id}" alt="">` : ""}
+        <div class="price-info"><span class="price-name">${escapeHtml(p.name)}</span></div>
+        <button class="admin-btn" onclick="adminAddProduct(${p.id})">Añadir</button>
+      </div>
+    `).join("");
+  }catch(e){
+    results.innerHTML = '<p class="price-status">Error en la búsqueda.</p>';
+  }
+}
+
+async function adminAddProduct(productId){
+  await fetch(`/my/catalog/admin/card/${adminPageKey}/products/${productId}/add`, {method: "POST"});
+  document.getElementById("adminSearchInput").value = "";
+  document.getElementById("adminSearchResults").innerHTML = "";
+  await loadAdminAssigned();
+}
+
+async function adminRemoveProduct(productId){
+  await fetch(`/my/catalog/admin/card/${adminPageKey}/products/${productId}/remove`, {method: "POST"});
+  await loadAdminAssigned();
 }
 
 function openImageLightbox(url){
