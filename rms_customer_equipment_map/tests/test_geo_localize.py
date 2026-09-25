@@ -194,10 +194,33 @@ class TestGeoLocalize(TransactionCase):
         self.assertIn(failed, self.Partner._get_geo_localize_due_partners())
         self.assertEqual(done.geo_localize_state, "done")
 
-        action = self.Partner.with_user(admin).action_view_partners_geo_localize_failed(
-            failed.ids
+        action = self.Partner.with_user(admin).action_view_geo_localize_partners(
+            "failed"
         )
+        self.assertIn(("geo_localize_state", "=", "failed"), action["domain"])
+        self.assertNotIn(failed, self.Partner.search(action["domain"]))
         self.assertEqual(
             action["views"][0][0],
             self.env.ref("rms_customer_equipment_map.res_partner_view_list_geo_localize").id,
         )
+
+    def test_summary_counts_states_and_next_run(self):
+        admin = new_test_user(
+            self.env,
+            login="customer_map_geo_summary_admin",
+            groups="base.group_user,base.group_system",
+        )
+        before = self.Partner.with_user(admin).get_geo_localize_summary()
+        self._create_partner(name="Pendiente")
+        self.Partner.create({"name": "Sin dirección"})
+        after = self.Partner.with_user(admin).get_geo_localize_summary()
+        self.assertEqual(after["pending"], before["pending"] + 1)
+        self.assertEqual(after["no_address"], before["no_address"] + 1)
+        self.assertTrue(after["next_run"])
+
+    def test_summary_requires_admin(self):
+        user = new_test_user(
+            self.env, login="customer_map_geo_summary_user", groups="base.group_user"
+        )
+        with self.assertRaises(UserError):
+            self.Partner.with_user(user).get_geo_localize_summary()

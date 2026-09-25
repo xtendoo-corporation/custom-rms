@@ -99,65 +99,58 @@ class ResPartner(models.Model):
         return self
 
     @api.model
-    def get_bulk_geolocation_candidates(self):
-        self.check_access("read")
+    def get_geo_localize_summary(self):
+        """Counts per geolocation state and next automatic run, for the map."""
         if not self._is_customer_equipment_map_admin():
             raise UserError(_("Only administrators can perform bulk geolocation."))
         Partner = self._customer_equipment_map_partner_model()
-        pending = Partner.search([("geo_localize_state", "=", "pending")])
-        failed = Partner.search([("geo_localize_state", "=", "failed")])
-        without_address = Partner.search(
-            [("geo_localize_state", "=", "no_address")], order="name, id"
-        )
-        return {
-            "ids": (pending | failed).ids,
-            "count": len(pending) + len(failed),
-            "pending": len(pending),
-            "failed": len(failed),
-            "failed_ids": failed.ids,
-            "without_address": len(without_address),
-            "without_address_ids": without_address.ids,
+        counts = dict.fromkeys(("done", "pending", "failed", "no_address"), 0)
+        for state, count in Partner._read_group(
+            [("active", "=", True)], ["geo_localize_state"], ["__count"]
+        ):
+            if state in counts:
+                counts[state] = count
+        next_run = False
+        cron = self.env.ref(GEO_LOCALIZE_CRON_XMLID, raise_if_not_found=False)
+        if cron and cron.sudo().active:
+            cron = cron.sudo()
+            trigger = self.env["ir.cron.trigger"].sudo().search(
+                [("cron_id", "=", cron.id)], order="call_at", limit=1
+            )
+            next_run = min(filter(None, (cron.nextcall, trigger.call_at)))
+        return {**counts, "next_run": next_run}
+
+    @api.model
+    def action_view_geo_localize_partners(self, state):
+        """Open the geolocation list filtered on one state."""
+        if not self._is_customer_equipment_map_admin():
+            raise UserError(_("Only administrators can perform bulk geolocation."))
+        titles = {
+            "done": _("Clientes geolocalizados"),
+            "pending": _("Clientes pendientes de geolocalizar"),
+            "failed": _("Clientes con error de geolocalización"),
+            "no_address": _("Clientes sin dirección"),
         }
-
-    @api.model
-    def action_view_partners_without_address(self, partner_ids):
-        if not self._is_customer_equipment_map_admin():
-            raise UserError(_("Only administrators can perform bulk geolocation."))
-        action = self.env["ir.actions.actions"]._for_xml_id("contacts.action_contacts")
-        action.update(
-            {
-                "name": _("Clientes sin dirección"),
-                "display_name": _("Clientes sin dirección"),
-                "domain": [("id", "in", partner_ids)],
-                "context": {},
-            }
-        )
-        return action
-
-    @api.model
-    def action_view_partners_geo_localize_failed(self, partner_ids):
-        if not self._is_customer_equipment_map_admin():
-            raise UserError(_("Only administrators can perform bulk geolocation."))
-        action = self.env["ir.actions.actions"]._for_xml_id("contacts.action_contacts")
-        action.update(
-            {
-                "name": _("Clientes con error de geolocalización"),
-                "display_name": _("Clientes con error de geolocalización"),
-                "domain": [("id", "in", partner_ids)],
-                "context": {"create": False},
-                "view_mode": "list,form",
-                "views": [
-                    (
-                        self.env.ref(
-                            "rms_customer_equipment_map.res_partner_view_list_geo_localize"
-                        ).id,
-                        "list",
-                    ),
-                    (False, "form"),
-                ],
-            }
-        )
-        return action
+        if state not in titles:
+            raise UserError(_("Estado de geolocalización desconocido: %s", state))
+        return {
+            "type": "ir.actions.act_window",
+            "name": titles[state],
+            "display_name": titles[state],
+            "res_model": "res.partner",
+            "domain": [("active", "=", True), ("geo_localize_state", "=", state)],
+            "context": {"create": False},
+            "views": [
+                (
+                    self.env.ref(
+                        "rms_customer_equipment_map.res_partner_view_list_geo_localize"
+                    ).id,
+                    "list",
+                ),
+                (False, "form"),
+            ],
+            "target": "current",
+        }
 
     def action_geo_localize_retry(self):
         """Put the selected contacts back in the geolocation queue now."""
