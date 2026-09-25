@@ -14,6 +14,8 @@ GEO_LOCALIZE_CRON_XMLID = "rms_customer_equipment_map.ir_cron_geo_localize_partn
 GEO_LOCALIZE_RETRY_DAYS = (1, 7, 30)
 # Contacts processed per cron run; the cron reschedules itself until done.
 GEO_LOCALIZE_CRON_BATCH = 200
+# Contacts processed per call when an administrator geolocates from the map.
+GEO_LOCALIZE_MANUAL_BATCH = 5
 # Seconds between requests: Nominatim allows at most one request per second.
 GEO_LOCALIZE_REQUEST_DELAY = 1.1
 GEO_LOCALIZE_MAX_SERVICE_ERRORS = 3
@@ -182,10 +184,12 @@ class ResPartner(models.Model):
 
     @api.model
     def action_enqueue_geo_localize(self):
-        """Queue every pending or failed contact and wake up the geolocation cron.
+        """Queue every pending or failed contact before a manual run.
 
         Failed contacts are retried right away instead of waiting for their
-        back-off delay, because an administrator explicitly asked for it.
+        back-off delay, because an administrator explicitly asked for it. The
+        map then processes the queue with ``action_geo_localize_batch``; the
+        cron is not woken up to avoid querying the service twice in parallel.
         """
         if not self._is_customer_equipment_map_admin():
             raise UserError(_("Only administrators can perform bulk geolocation."))
@@ -194,12 +198,63 @@ class ResPartner(models.Model):
         failed.with_context(skip_geo_localize_trigger=True).write(
             {"geo_localize_state": "pending"}
         )
-        count = Partner.search_count([("geo_localize_state", "=", "pending")])
-        if count:
-            cron = self.env.ref(GEO_LOCALIZE_CRON_XMLID, raise_if_not_found=False)
-            if cron:
-                cron.sudo()._trigger()
+        count = Partner.search_count(
+            [("active", "=", True), ("geo_localize_state", "=", "pending")]
+        )
         return {"count": count}
+
+    @api.model
+    def action_geo_localize_batch(self, limit=GEO_LOCALIZE_MANUAL_BATCH):
+        """Geolocate a few pending contacts right now, for the map's progress.
+
+        Contacts being processed by the cron at the same time are skipped.
+
+        :return: dict with the number of contacts ``located`` and ``failed``
+            in this batch, the ``remaining`` pending contacts, and
+            ``service_error``: the message of the geolocation service when it
+            is not answering (the batch stops at the first such error).
+        """
+        if not self._is_customer_equipment_map_admin():
+            raise UserError(_("Only administrators can perform bulk geolocation."))
+        Partner = self.sudo()
+        candidates = Partner.search(
+            [("active", "=", True), ("geo_localize_state", "=", "pending")],
+            order="geo_localize_last_try asc nulls first, id",
+            limit=limit,
+        )
+        located = failed = 0
+        service_error = False
+        if candidates:
+            self.env.cr.execute(
+                "SELECT id FROM res_partner WHERE id IN %s FOR UPDATE SKIP LOCKED",
+                [tuple(candidates.ids)],
+            )
+            locked_ids = {row[0] for row in self.env.cr.fetchall()}
+            for index, partner in enumerate(
+                candidates.filtered(lambda candidate: candidate.id in locked_ids)
+            ):
+                if index:
+                    time.sleep(GEO_LOCALIZE_REQUEST_DELAY)
+                try:
+                    if partner._geo_localize_partner():
+                        located += 1
+                    else:
+                        failed += 1
+                except UserError as error:
+                    _logger.warning(
+                        "Geolocation service error for partner %s: %s", partner.id, error
+                    )
+                    service_error = str(error)
+                    break
+        remaining = Partner.search_count(
+            [("active", "=", True), ("geo_localize_state", "=", "pending")]
+        )
+        return {
+            "located": located,
+            "failed": failed,
+            "remaining": remaining,
+            "service_error": service_error,
+        }
 
     # ------------------------------------------------------------------
     # Automatic geolocation
@@ -464,7 +519,11 @@ class ResPartner(models.Model):
                     "name": partner.display_name,
                     "latitude": partner.partner_latitude,
                     "longitude": partner.partner_longitude,
-                    "address": partner.contact_address or "",
+                    "address": ", ".join(
+                        line.strip()
+                        for line in partner._display_address(without_company=True).splitlines()
+                        if line.strip()
+                    ),
                     "phone": partner.phone or "",
                     "email": partner.email or "",
                     "salesperson": {

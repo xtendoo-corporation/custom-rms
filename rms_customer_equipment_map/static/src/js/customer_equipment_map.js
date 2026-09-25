@@ -21,8 +21,8 @@ import {
 const LIB_PATH = "/rms_customer_equipment_map/static/lib";
 const { DateTime } = luxon;
 const SIDEBAR_PAGE_SIZE = 200;
-const GEO_POLLING_INTERVAL = 8000;
-const GEO_POLLING_IDLE_TIMEOUT = 15 * 60 * 1000;
+// Reload the markers every N batches while geolocating from the map.
+const GEO_RELOAD_EVERY_BATCHES = 4;
 
 /**
  * Load Leaflet and its marker cluster plugin only when a map is opened,
@@ -59,10 +59,10 @@ export class CustomerEquipmentMap extends Component {
             // Bumped whenever the (non reactive) partner list changes.
             dataVersion: 0,
             sidebarLimit: SIDEBAR_PAGE_SIZE,
-            geolocating: false,
             isAdmin: false,
             geoSummary: null,
-            geoPolling: false,
+            // Progress of a geolocation launched from the map.
+            geoRun: null,
         });
         // Partner data is kept out of the reactive state: wrapping thousands
         // of records in proxies makes every search noticeably slower.
@@ -92,14 +92,8 @@ export class CustomerEquipmentMap extends Component {
             }
         });
         onMounted(() => this.initializeMap());
-        onMounted(() => {
-            // Keep following a geolocation that is already running.
-            if (this.state.geoSummary?.pending && this.isGeoRunImminent) {
-                this.startGeoPolling();
-            }
-        });
         onWillUnmount(() => {
-            this.stopGeoPolling();
+            this.isDestroyed = true;
             this.resizeObserver?.disconnect();
             this.map?.remove();
         });
@@ -258,16 +252,11 @@ export class CustomerEquipmentMap extends Component {
         if (!this.state.isAdmin) {
             return;
         }
-        const previousDone = this.state.geoSummary?.done;
         this.state.geoSummary = await this.orm.call(
             "res.partner",
             "get_geo_localize_summary",
             []
         );
-        if (previousDone !== undefined && this.state.geoSummary.done !== previousDone) {
-            // New contacts were located in the background: show them.
-            await this.reloadPartners();
-        }
     }
 
     async openGeoList(state) {
@@ -279,73 +268,109 @@ export class CustomerEquipmentMap extends Component {
         return this.actionService.doAction(action);
     }
 
+    get geoRunPercent() {
+        const run = this.state.geoRun;
+        return run && run.total ? Math.floor((run.processed / run.total) * 100) : 0;
+    }
+
+    /**
+     * Geolocate the pending contacts from the map, in small batches, so the
+     * administrator sees the progress. Closing the map stops the run; the
+     * nightly cron takes over the contacts left.
+     */
     async onGeolocateNow() {
-        if (this.state.geolocating) {
+        if (this.state.geoRun?.running) {
             return;
         }
-        this.state.geolocating = true;
+        let total;
         try {
-            const result = await this.orm.call(
+            ({ count: total } = await this.orm.call(
                 "res.partner",
                 "action_enqueue_geo_localize",
                 []
-            );
-            if (!result.count) {
-                this.notification.add("No hay contactos pendientes de geolocalizar.", {
-                    type: "info",
-                });
-                return;
-            }
-            this.notification.add(
-                "Geolocalizando " +
-                    result.count +
-                    " contactos en segundo plano. Aparecerán en el mapa a medida que se procesen.",
-                { type: "success" }
-            );
-            await this.refreshGeoSummary();
-            this.startGeoPolling();
+            ));
         } catch (error) {
             this.notification.add(
                 error.data?.message || "No se pudo iniciar la geolocalización.",
                 { type: "danger", sticky: true }
             );
-        } finally {
-            this.state.geolocating = false;
-        }
-    }
-
-    /**
-     * Follow the background geolocation until the queue is empty, refreshing
-     * the counters and the markers. Gives up after 15 minutes without progress
-     * (e.g. no cron worker running).
-     */
-    startGeoPolling() {
-        if (this.geoPollTimer) {
             return;
         }
-        this.state.geoPolling = true;
-        let lastPending = this.geoToProcess;
-        let idleSince = Date.now();
-        this.geoPollTimer = setInterval(async () => {
+        if (!total) {
+            this.notification.add("No hay contactos pendientes de geolocalizar.", {
+                type: "info",
+            });
             await this.refreshGeoSummary();
-            if (this.state.geoSummary.pending === 0) {
-                this.stopGeoPolling();
-                this.notification.add("Geolocalización terminada.", {
-                    type: this.state.geoSummary.failed ? "warning" : "success",
-                });
-            } else if (this.geoToProcess !== lastPending) {
-                lastPending = this.geoToProcess;
-                idleSince = Date.now();
-            } else if (Date.now() - idleSince > GEO_POLLING_IDLE_TIMEOUT) {
-                this.stopGeoPolling();
+            return;
+        }
+        this.state.geoRun = {
+            running: true,
+            total,
+            processed: 0,
+            located: 0,
+            failed: 0,
+            serviceError: false,
+        };
+        // Work on the reactive proxy so that the panel shows each step.
+        const run = this.state.geoRun;
+        let batches = 0;
+        try {
+            while (run.running && !this.isDestroyed) {
+                const result = await this.orm.call(
+                    "res.partner",
+                    "action_geo_localize_batch",
+                    []
+                );
+                run.located += result.located;
+                run.failed += result.failed;
+                run.processed = Math.min(run.total, run.processed + result.located + result.failed);
+                batches++;
+                if (result.service_error) {
+                    run.serviceError = result.service_error;
+                    break;
+                }
+                if (!result.remaining || !(result.located + result.failed)) {
+                    break;
+                }
+                await this.refreshGeoSummary();
+                if (result.located && batches % GEO_RELOAD_EVERY_BATCHES === 0) {
+                    await this.reloadPartners();
+                }
+                // Nominatim allows at most one request per second.
+                await new Promise((resolve) => setTimeout(resolve, 1100));
             }
-        }, GEO_POLLING_INTERVAL);
+        } catch (error) {
+            run.serviceError = error.data?.message || "Error inesperado durante la geolocalización.";
+        } finally {
+            run.running = false;
+        }
+        if (this.isDestroyed) {
+            return;
+        }
+        await this.reloadPartners();
+        await this.refreshGeoSummary();
+        if (run.serviceError) {
+            this.notification.add(
+                "El servicio de geolocalización no responde. Se han geolocalizado " +
+                    run.located +
+                    " contactos; el resto se reintentará automáticamente.",
+                { type: "danger", sticky: true }
+            );
+        } else {
+            this.notification.add(
+                "Geolocalización terminada: " +
+                    run.located +
+                    " encontrados" +
+                    (run.failed ? ", " + run.failed + " con error." : "."),
+                { type: run.failed ? "warning" : "success" }
+            );
+        }
     }
 
-    stopGeoPolling() {
-        clearInterval(this.geoPollTimer);
-        this.geoPollTimer = null;
-        this.state.geoPolling = false;
+    onStopGeolocation() {
+        if (this.state.geoRun) {
+            this.state.geoRun.running = false;
+        }
     }
 
     async reloadPartners() {
