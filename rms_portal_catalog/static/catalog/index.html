@@ -742,11 +742,11 @@ function renderBrand(key){
           Datasheet
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M8 7h9v9"/></svg>
         </a>` : "";
-      const pricesHtml = d.priceCategoryId ? `
+      const pricesHtml = `
         <button class="datasheet-btn" onclick="event.stopPropagation(); openPrices(${p})">
           Ver precios
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        </button>` : "";
+        </button>`;
       const adminHtml = window.RMS_CATALOG_IS_INTERNAL ? `
         <button class="datasheet-btn" onclick="event.stopPropagation(); openAdmin(${p})">
           Editar productos
@@ -896,7 +896,7 @@ function escapeHtml(s){
 
 async function openPrices(page){
   const d = PAGES[page];
-  if(!d || !d.priceCategoryId) return;
+  if(!d) return;
   const modal = document.getElementById("priceModal");
   document.getElementById("priceModalTitle").textContent = d.title;
   document.getElementById("priceModalBody").innerHTML = '<p class="price-status">Cargando precios…</p>';
@@ -904,12 +904,11 @@ async function openPrices(page){
   document.body.style.overflow = "hidden";
 
   try{
-    const categoryIds = Array.isArray(d.priceCategoryId) ? d.priceCategoryId.join(",") : d.priceCategoryId;
-    const res = await fetch(`/my/catalog/prices/${categoryIds}`);
+    const res = await fetch(`/my/catalog/prices/${page}`);
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
     if(!data.products || !data.products.length){
-      document.getElementById("priceModalBody").innerHTML = '<p class="price-status">No hay productos disponibles en esta categoría todavía.</p>';
+      document.getElementById("priceModalBody").innerHTML = '<p class="price-status">Todavía no hay productos disponibles para esta ficha.</p>';
       return;
     }
     const fmt = new Intl.NumberFormat("es-ES", {style:"currency", currency:"EUR"});
