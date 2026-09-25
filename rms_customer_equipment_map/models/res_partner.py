@@ -127,6 +127,7 @@ class ResPartner(models.Model):
         action.update(
             {
                 "name": _("Clientes sin dirección"),
+                "display_name": _("Clientes sin dirección"),
                 "domain": [("id", "in", partner_ids)],
                 "context": {},
             }
@@ -141,13 +142,50 @@ class ResPartner(models.Model):
         action.update(
             {
                 "name": _("Clientes con error de geolocalización"),
+                "display_name": _("Clientes con error de geolocalización"),
                 "domain": [("id", "in", partner_ids)],
-                "context": {},
+                "context": {"create": False},
                 "view_mode": "list,form",
-                "views": [(False, "list"), (False, "form")],
+                "views": [
+                    (
+                        self.env.ref(
+                            "rms_customer_equipment_map.res_partner_view_list_geo_localize"
+                        ).id,
+                        "list",
+                    ),
+                    (False, "form"),
+                ],
             }
         )
         return action
+
+    def action_geo_localize_retry(self):
+        """Put the selected contacts back in the geolocation queue now."""
+        if not self._is_customer_equipment_map_admin():
+            raise UserError(_("Only administrators can perform bulk geolocation."))
+        partners = self._customer_equipment_map_partner_model().browse(self.ids)
+        partners = partners.filtered(
+            lambda partner: partner.geo_localize_state in ("pending", "failed")
+        )
+        partners.with_context(skip_geo_localize_trigger=True).write(
+            {"geo_localize_state": "pending", "geo_localize_error": False}
+        )
+        if partners:
+            cron = self.env.ref(GEO_LOCALIZE_CRON_XMLID, raise_if_not_found=False)
+            if cron:
+                cron.sudo()._trigger()
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "type": "success",
+                "message": _(
+                    "%s contactos encolados: se geolocalizarán en los próximos minutos.",
+                    len(partners),
+                ),
+                "next": {"type": "ir.actions.act_window_close"},
+            },
+        }
 
     @api.model
     def action_enqueue_geo_localize(self):
@@ -291,7 +329,10 @@ class ResPartner(models.Model):
             partner.write(
                 {
                     "geo_localize_last_try": now,
-                    "geo_localize_error": str(error)[:255],
+                        "geo_localize_error": _(
+                        "Servicio de geolocalización no disponible (se reintentará): %s",
+                        error,
+                    ),
                 }
             )
             raise
@@ -310,10 +351,54 @@ class ResPartner(models.Model):
                 "geo_localize_state": "failed",
                 "geo_localize_attempts": partner.geo_localize_attempts + 1,
                 "geo_localize_last_try": now,
-                "geo_localize_error": _("Dirección no encontrada"),
+                "geo_localize_error": self._get_geo_localize_not_found_message(),
             }
         )
         return False
+
+    def _get_geo_localize_not_found_message(self):
+        """Explain which address was searched and which parts are missing."""
+        self.ensure_one()
+        searched = ", ".join(
+            part
+            for part in (
+                self.street,
+                " ".join(filter(None, (self.zip, self.city))),
+                self.state_id.name,
+                self.country_id.name,
+            )
+            if part
+        )
+        missing = [
+            label
+            for label, value in (
+                (_("calle"), self.street),
+                (_("código postal"), self.zip),
+                (_("ciudad"), self.city),
+                (_("país"), self.country_id),
+            )
+            if not value
+        ]
+        message = _("No se encontró la dirección «%s».", searched)
+        if missing:
+            message += " " + _("Falta: %s.", ", ".join(missing))
+        else:
+            message += " " + _(
+                "Revisa que la calle esté bien escrita (sin piso, puerta ni local)."
+            )
+        return message
+
+    @api.model
+    def _refresh_geo_localize_error_messages(self):
+        """Explain the errors stored by previous versions of the module."""
+        partners = self.with_context(active_test=False).search(
+            [
+                ("geo_localize_state", "=", "failed"),
+                ("geo_localize_error", "in", ("Dirección no encontrada", False)),
+            ]
+        )
+        for partner in partners:
+            partner.geo_localize_error = partner._get_geo_localize_not_found_message()
 
     @api.model
     def _cron_geo_localize_partners(self, limit=GEO_LOCALIZE_CRON_BATCH):

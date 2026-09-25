@@ -42,6 +42,37 @@
         </field>
     </record>
 
+    <record id="res_partner_view_list_geo_localize" model="ir.ui.view">
+        <field name="name">res.partner.list.geo.localize</field>
+        <field name="model">res.partner</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list string="Geolocalización" editable="bottom" create="0" delete="0">
+                <header>
+                    <button
+                        name="action_geo_localize_retry"
+                        type="object"
+                        string="Reintentar geolocalización"
+                        class="btn-primary"
+                    />
+                </header>
+                <field name="display_name" string="Contacto" readonly="1"/>
+                <field name="street"/>
+                <field name="zip"/>
+                <field name="city"/>
+                <field name="state_id" optional="show"/>
+                <field name="country_id"/>
+                <field name="geo_localize_state" readonly="1" widget="badge"
+                    decoration-danger="geo_localize_state == 'failed'"
+                    decoration-warning="geo_localize_state == 'pending'"
+                    decoration-success="geo_localize_state == 'done'"/>
+                <field name="geo_localize_error" readonly="1"/>
+                <field name="geo_localize_attempts" readonly="1" optional="show"/>
+                <field name="geo_localize_last_try" readonly="1" optional="show"/>
+            </list>
+        </field>
+    </record>
+
     <record id="res_partner_view_form_equipment" model="ir.ui.view">
         <field name="name">res.partner.form.equipment</field>
         <field name="model">res.partner</field>
