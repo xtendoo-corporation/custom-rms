@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Replace the old generic "not found" error with the detailed one. -->
+    <function model="res.partner" name="_refresh_geo_localize_error_messages"/>
+</odoo>

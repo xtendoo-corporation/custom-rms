@@ -5,7 +5,9 @@ import { loadCSS, loadJS } from "@web/core/assets";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { Dropdown } from "@web/core/dropdown/dropdown";
+import { DropdownItem } from "@web/core/dropdown/dropdown_item";
+import { deserializeDateTime, formatDateTime } from "@web/core/l10n/dates";
 import {
     Component,
     markRaw,
@@ -17,7 +19,10 @@ import {
 } from "@odoo/owl";
 
 const LIB_PATH = "/rms_customer_equipment_map/static/lib";
+const { DateTime } = luxon;
 const SIDEBAR_PAGE_SIZE = 200;
+const GEO_POLLING_INTERVAL = 8000;
+const GEO_POLLING_IDLE_TIMEOUT = 15 * 60 * 1000;
 
 /**
  * Load Leaflet and its marker cluster plugin only when a map is opened,
@@ -41,12 +46,12 @@ async function loadLeaflet() {
 export class CustomerEquipmentMap extends Component {
     static template = "rms_customer_equipment_map.CustomerEquipmentMap";
     static props = { ...standardActionServiceProps };
+    static components = { Dropdown, DropdownItem };
 
     setup() {
         this.orm = useService("orm");
         this.actionService = useService("action");
         this.notification = useService("notification");
-        this.dialog = useService("dialog");
         this.mapRef = useRef("map");
         this.state = useState({
             loading: true,
@@ -56,9 +61,8 @@ export class CustomerEquipmentMap extends Component {
             sidebarLimit: SIDEBAR_PAGE_SIZE,
             geolocating: false,
             isAdmin: false,
-            withoutAddressIds: [],
-            failedIds: [],
-            pendingCount: 0,
+            geoSummary: null,
+            geoPolling: false,
         });
         // Partner data is kept out of the reactive state: wrapping thousands
         // of records in proxies makes every search noticeably slower.
@@ -84,11 +88,18 @@ export class CustomerEquipmentMap extends Component {
             this.setPartners(data);
             this.state.loading = false;
             if (this.state.isAdmin) {
-                void this.refreshWithoutAddress();
+                await this.refreshGeoSummary();
             }
         });
         onMounted(() => this.initializeMap());
+        onMounted(() => {
+            // Keep following a geolocation that is already running.
+            if (this.state.geoSummary?.pending && this.isGeoRunImminent) {
+                this.startGeoPolling();
+            }
+        });
         onWillUnmount(() => {
+            this.stopGeoPolling();
             this.resizeObserver?.disconnect();
             this.map?.remove();
         });
@@ -173,69 +184,105 @@ export class CustomerEquipmentMap extends Component {
         requestAnimationFrame(() => this.map.invalidateSize());
     }
 
-    async refreshWithoutAddress() {
-        const candidates = await this.orm.call(
+    // ------------------------------------------------------------------
+    // Geolocation panel (administrators only)
+    // ------------------------------------------------------------------
+
+    get geoTotal() {
+        const summary = this.state.geoSummary;
+        return summary ? summary.done + summary.pending + summary.failed : 0;
+    }
+
+    get geoPercent() {
+        const total = this.geoTotal;
+        return total ? Math.floor((this.state.geoSummary.done / total) * 100) : 100;
+    }
+
+    get geoToProcess() {
+        const summary = this.state.geoSummary;
+        return summary ? summary.pending + summary.failed : 0;
+    }
+
+    /** Whether the background geolocation is running or about to start. */
+    get isGeoRunImminent() {
+        const nextRun = this.state.geoSummary?.next_run;
+        return Boolean(
+            nextRun && deserializeDateTime(nextRun) <= DateTime.now().plus({ minutes: 2 })
+        );
+    }
+
+    get geoNextRunLabel() {
+        const nextRun = this.state.geoSummary?.next_run;
+        if (!nextRun) {
+            return "";
+        }
+        if (this.isGeoRunImminent) {
+            return "en unos instantes";
+        }
+        return formatDateTime(deserializeDateTime(nextRun), { format: "ccc d LLL, HH:mm" });
+    }
+
+    get geoRows() {
+        const summary = this.state.geoSummary || {};
+        return [
+            {
+                state: "done",
+                label: "Geolocalizados",
+                icon: "fa-check-circle text-success",
+                count: summary.done || 0,
+            },
+            {
+                state: "pending",
+                label: "Pendientes",
+                icon: "fa-clock-o text-warning",
+                count: summary.pending || 0,
+            },
+            {
+                state: "failed",
+                label: "Con error",
+                help: "Dirección no encontrada: corrígela y se reintentará sola",
+                icon: "fa-times-circle text-danger",
+                count: summary.failed || 0,
+            },
+            {
+                state: "no_address",
+                label: "Sin dirección",
+                help: "Completa la dirección para que aparezcan en el mapa",
+                icon: "fa-question-circle text-muted",
+                count: summary.no_address || 0,
+            },
+        ];
+    }
+
+    async refreshGeoSummary() {
+        if (!this.state.isAdmin) {
+            return;
+        }
+        const previousDone = this.state.geoSummary?.done;
+        this.state.geoSummary = await this.orm.call(
             "res.partner",
-            "get_bulk_geolocation_candidates",
+            "get_geo_localize_summary",
             []
         );
-        this.state.withoutAddressIds = candidates.without_address_ids || [];
-        this.state.failedIds = candidates.failed_ids || [];
-        this.state.pendingCount = candidates.pending || 0;
-        return candidates;
+        if (previousDone !== undefined && this.state.geoSummary.done !== previousDone) {
+            // New contacts were located in the background: show them.
+            await this.reloadPartners();
+        }
     }
 
-    async onViewPartnersWithoutAddress() {
+    async openGeoList(state) {
         const action = await this.orm.call(
             "res.partner",
-            "action_view_partners_without_address",
-            [this.state.withoutAddressIds]
+            "action_view_geo_localize_partners",
+            [state]
         );
         return this.actionService.doAction(action);
     }
 
-    async onViewPartnersGeolocationFailed() {
-        const action = await this.orm.call(
-            "res.partner",
-            "action_view_partners_geo_localize_failed",
-            [this.state.failedIds]
-        );
-        return this.actionService.doAction(action);
-    }
-
-    async onBulkGeolocate() {
+    async onGeolocateNow() {
         if (this.state.geolocating) {
             return;
         }
-        const candidates = await this.refreshWithoutAddress();
-        if (!candidates.count) {
-            this.notification.add(
-                "No hay contactos pendientes con una dirección utilizable.",
-                { type: "info" }
-            );
-            return;
-        }
-        const skippedMessage = candidates.without_address
-            ? " " + candidates.without_address + " contactos sin dirección se omitirán."
-            : "";
-        this.dialog.add(ConfirmationDialog, {
-            title: "Geolocalizar todos los contactos",
-            body:
-                "Se encolarán " +
-                candidates.count +
-                " contactos pendientes o con error." +
-                skippedMessage +
-                " La geolocalización se hace en segundo plano en el servidor:" +
-                " puedes cerrar esta pantalla y los clientes irán apareciendo en el mapa.",
-            confirmLabel: "Geolocalizar",
-            confirm: () => {
-                void this.enqueueGeolocation();
-            },
-            cancel: () => {},
-        });
-    }
-
-    async enqueueGeolocation() {
         this.state.geolocating = true;
         try {
             const result = await this.orm.call(
@@ -243,18 +290,23 @@ export class CustomerEquipmentMap extends Component {
                 "action_enqueue_geo_localize",
                 []
             );
-            await this.refreshWithoutAddress();
+            if (!result.count) {
+                this.notification.add("No hay contactos pendientes de geolocalizar.", {
+                    type: "info",
+                });
+                return;
+            }
             this.notification.add(
-                result.count +
-                    " contactos encolados. Se geolocalizarán en segundo plano" +
-                    " (aprox. " +
-                    Math.max(1, Math.ceil((result.count * 1.5) / 60)) +
-                    " min).",
-                { type: "success", sticky: true }
+                "Geolocalizando " +
+                    result.count +
+                    " contactos en segundo plano. Aparecerán en el mapa a medida que se procesen.",
+                { type: "success" }
             );
+            await this.refreshGeoSummary();
+            this.startGeoPolling();
         } catch (error) {
             this.notification.add(
-                error.data?.message || "No se pudo encolar la geolocalización.",
+                error.data?.message || "No se pudo iniciar la geolocalización.",
                 { type: "danger", sticky: true }
             );
         } finally {
@@ -262,7 +314,41 @@ export class CustomerEquipmentMap extends Component {
         }
     }
 
-    async onReloadPartners() {
+    /**
+     * Follow the background geolocation until the queue is empty, refreshing
+     * the counters and the markers. Gives up after 15 minutes without progress
+     * (e.g. no cron worker running).
+     */
+    startGeoPolling() {
+        if (this.geoPollTimer) {
+            return;
+        }
+        this.state.geoPolling = true;
+        let lastPending = this.geoToProcess;
+        let idleSince = Date.now();
+        this.geoPollTimer = setInterval(async () => {
+            await this.refreshGeoSummary();
+            if (this.state.geoSummary.pending === 0) {
+                this.stopGeoPolling();
+                this.notification.add("Geolocalización terminada.", {
+                    type: this.state.geoSummary.failed ? "warning" : "success",
+                });
+            } else if (this.geoToProcess !== lastPending) {
+                lastPending = this.geoToProcess;
+                idleSince = Date.now();
+            } else if (Date.now() - idleSince > GEO_POLLING_IDLE_TIMEOUT) {
+                this.stopGeoPolling();
+            }
+        }, GEO_POLLING_INTERVAL);
+    }
+
+    stopGeoPolling() {
+        clearInterval(this.geoPollTimer);
+        this.geoPollTimer = null;
+        this.state.geoPolling = false;
+    }
+
+    async reloadPartners() {
         const data = await this.orm.call(
             "res.partner",
             "get_customer_equipment_map_data",
@@ -270,9 +356,6 @@ export class CustomerEquipmentMap extends Component {
         );
         this.setPartners(data);
         this.renderMarkers();
-        if (this.state.isAdmin) {
-            await this.refreshWithoutAddress();
-        }
     }
 
     onSearchInput(event) {

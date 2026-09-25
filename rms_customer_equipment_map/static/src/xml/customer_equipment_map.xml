@@ -4,50 +4,96 @@
         <div class="o_customer_equipment_map h-100 d-flex flex-column">
             <div class="o_customer_equipment_map_toolbar d-flex align-items-center gap-3 px-3 py-2 border-bottom bg-view">
                 <h2 class="mb-0">Mapa de Clientes</h2>
-                <button
+                <Dropdown
                     t-if="state.isAdmin"
-                    type="button"
-                    class="btn btn-primary"
-                    t-att-disabled="state.geolocating"
-                    t-on-click="onBulkGeolocate"
+                    position="'bottom-start'"
+                    beforeOpen.bind="refreshGeoSummary"
+                    menuClass="'o_customer_equipment_map_geo_panel p-0'"
                 >
-                    <i class="fa fa-map-marker me-1"/>
-                    Geolocalizar todos
-                </button>
-                <span
-                    t-if="state.isAdmin and state.pendingCount"
-                    class="text-muted"
-                    title="Se geolocalizan automáticamente en segundo plano"
-                >
-                    <i class="fa fa-clock-o me-1"/>
-                    <t t-esc="state.pendingCount"/> pendientes
-                </span>
-                <button
-                    t-if="state.isAdmin and state.failedIds.length"
-                    type="button"
-                    class="btn btn-outline-danger"
-                    t-on-click="onViewPartnersGeolocationFailed"
-                >
-                    <i class="fa fa-times-circle me-1"/>
-                    <t t-esc="state.failedIds.length"/> con error
-                </button>
-                <button
-                    t-if="state.isAdmin and state.withoutAddressIds.length"
-                    type="button"
-                    class="btn btn-outline-warning"
-                    t-on-click="onViewPartnersWithoutAddress"
-                >
-                    <i class="fa fa-exclamation-triangle me-1"/>
-                    <t t-esc="state.withoutAddressIds.length"/> sin dirección
-                </button>
-                <button
-                    type="button"
-                    class="btn btn-light"
-                    title="Recargar clientes"
-                    t-on-click="onReloadPartners"
-                >
-                    <i class="fa fa-refresh"/>
-                </button>
+                    <button type="button" class="btn btn-secondary d-flex align-items-center gap-2">
+                        <i t-att-class="state.geoPolling ? 'fa fa-circle-o-notch fa-spin' : 'fa fa-map-marker'"/>
+                        <span>Geolocalización</span>
+                        <span
+                            t-if="state.geoPolling"
+                            class="badge rounded-pill text-bg-info"
+                            t-esc="state.geoSummary.pending"
+                            title="Pendientes"
+                        />
+                        <span
+                            t-elif="state.geoSummary and state.geoSummary.failed"
+                            class="badge rounded-pill text-bg-danger"
+                            t-esc="state.geoSummary.failed"
+                            title="Con error"
+                        />
+                        <span
+                            t-elif="state.geoSummary and state.geoSummary.pending"
+                            class="badge rounded-pill text-bg-warning"
+                            t-esc="state.geoSummary.pending"
+                            title="Pendientes"
+                        />
+                    </button>
+                    <t t-set-slot="content">
+                        <div t-if="state.geoSummary" class="o_customer_equipment_map_geo_panel_body">
+                            <div class="px-3 pt-3 pb-2">
+                                <div class="d-flex justify-content-between align-items-baseline mb-2">
+                                    <strong>Estado de la geolocalización</strong>
+                                    <small class="text-muted"><t t-esc="geoPercent"/>%</small>
+                                </div>
+                                <div class="progress" style="height: 6px;">
+                                    <div
+                                        class="progress-bar bg-success"
+                                        role="progressbar"
+                                        t-att-style="'width: ' + geoPercent + '%'"
+                                    />
+                                </div>
+                            </div>
+                            <DropdownItem
+                                t-foreach="geoRows"
+                                t-as="row"
+                                t-key="row.state"
+                                onSelected="() => this.openGeoList(row.state)"
+                                class="'o_customer_equipment_map_geo_row d-flex align-items-center gap-2 px-3 py-2'"
+                            >
+                                <i t-att-class="'fa fa-fw ' + row.icon"/>
+                                <span class="flex-grow-1">
+                                    <span class="d-block" t-esc="row.label"/>
+                                    <small t-if="row.help and row.count" class="d-block text-muted" t-esc="row.help"/>
+                                </span>
+                                <strong t-esc="row.count"/>
+                                <i class="fa fa-angle-right text-muted"/>
+                            </DropdownItem>
+                            <div class="border-top px-3 py-3">
+                                <div class="small text-muted mb-2">
+                                    <t t-if="state.geoPolling">
+                                        <i class="fa fa-circle-o-notch fa-spin me-1"/>
+                                        Geolocalizando en segundo plano… quedan
+                                        <strong t-esc="state.geoSummary.pending"/>.
+                                        Puedes seguir trabajando.
+                                    </t>
+                                    <t t-elif="geoNextRunLabel">
+                                        <i class="fa fa-calendar me-1"/>
+                                        Próxima geolocalización automática:
+                                        <strong t-esc="geoNextRunLabel"/>
+                                    </t>
+                                    <t t-else="">
+                                        <i class="fa fa-exclamation-triangle me-1"/>
+                                        La geolocalización automática está desactivada.
+                                    </t>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="btn btn-primary w-100"
+                                    t-att-disabled="!geoToProcess or state.geoPolling or state.geolocating"
+                                    t-on-click="onGeolocateNow"
+                                >
+                                    <i class="fa fa-refresh me-1"/>
+                                    <t t-if="geoToProcess">Geolocalizar <t t-esc="geoToProcess"/> ahora</t>
+                                    <t t-else="">Todo está al día</t>
+                                </button>
+                            </div>
+                        </div>
+                    </t>
+                </Dropdown>
                 <div class="ms-auto">
                     <input
                         type="search"
@@ -78,7 +124,7 @@
                         <strong class="d-block" t-esc="partner.name"/>
                         <small class="d-block text-muted text-truncate" t-esc="partner.address"/>
                         <div class="d-flex flex-wrap gap-1 mt-2">
-                            <span class="badge text-bg-primary">
+                            <span t-att-class="'badge rounded-pill o_customer_equipment_map_equipment_badge' + (partner.equipment.length ? '' : ' o_empty')">
                                 <t t-esc="partner.equipment.length"/> equipos
                             </span>
                         </div>
