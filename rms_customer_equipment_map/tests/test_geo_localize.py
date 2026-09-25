@@ -224,3 +224,46 @@ class TestGeoLocalize(TransactionCase):
         )
         with self.assertRaises(UserError):
             self.Partner.with_user(user).get_geo_localize_summary()
+
+    def _admin(self, login):
+        return new_test_user(
+            self.env, login=login, groups="base.group_user,base.group_system"
+        )
+
+    def test_manual_batch_geolocates_and_reports_progress(self):
+        admin = self._admin("customer_map_geo_batch_admin")
+        found = self._create_partner(name="Encontrado", zip="41001")
+        not_found = self._create_partner(name="No encontrado")
+        self.Partner.with_user(admin).action_enqueue_geo_localize()
+
+        def fake_geo_localize(self, street, zip_code, *args):
+            return (37.38, -5.98) if zip_code else None
+
+        with self._patch_geo_localize(fake_geo_localize):
+            result = self.Partner.with_user(admin).action_geo_localize_batch(limit=50)
+        self.assertEqual(result["remaining"], 0)
+        self.assertFalse(result["service_error"])
+        self.assertGreaterEqual(result["located"], 1)
+        self.assertGreaterEqual(result["failed"], 1)
+        self.assertEqual(found.geo_localize_state, "done")
+        self.assertEqual(not_found.geo_localize_state, "failed")
+
+    def test_manual_batch_reports_service_error(self):
+        admin = self._admin("customer_map_geo_batch_error_admin")
+        partner = self._create_partner()
+
+        def service_down(*args):
+            raise UserError("Error with geolocation server: timeout")
+
+        with self._patch_geo_localize(service_down):
+            result = self.Partner.with_user(admin).action_geo_localize_batch()
+        self.assertIn("timeout", result["service_error"])
+        self.assertEqual(partner.geo_localize_state, "pending")
+        self.assertGreaterEqual(result["remaining"], 1)
+
+    def test_manual_batch_requires_admin(self):
+        user = new_test_user(
+            self.env, login="customer_map_geo_batch_user", groups="base.group_user"
+        )
+        with self.assertRaises(UserError):
+            self.Partner.with_user(user).action_geo_localize_batch()
