@@ -50,7 +50,7 @@
                 <field name="title"/>
                 <filter name="no_products" string="Sin productos asignados"
                         domain="[('product_count', '=', 0)]"/>
-                <group expand="0" string="Agrupar por">
+                <group>
                     <filter name="group_brand" string="Marca" context="{'group_by': 'brand'}"/>
                 </group>
             </search>
