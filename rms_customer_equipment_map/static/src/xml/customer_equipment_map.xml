@@ -11,14 +11,15 @@
                     menuClass="'o_customer_equipment_map_geo_panel p-0'"
                 >
                     <button type="button" class="btn btn-secondary d-flex align-items-center gap-2">
-                        <i t-att-class="state.geoPolling ? 'fa fa-circle-o-notch fa-spin' : 'fa fa-map-marker'"/>
+                        <i t-att-class="state.geoRun and state.geoRun.running ? 'fa fa-circle-o-notch fa-spin' : 'fa fa-map-marker'"/>
                         <span>Geolocalización</span>
                         <span
-                            t-if="state.geoPolling"
+                            t-if="state.geoRun and state.geoRun.running"
                             class="badge rounded-pill text-bg-info"
-                            t-esc="state.geoSummary.pending"
-                            title="Pendientes"
-                        />
+                            title="Geolocalizando"
+                        >
+                            <t t-esc="state.geoRun.processed"/>/<t t-esc="state.geoRun.total"/>
+                        </span>
                         <span
                             t-elif="state.geoSummary and state.geoSummary.failed"
                             class="badge rounded-pill text-bg-danger"
@@ -63,14 +64,37 @@
                                 <i class="fa fa-angle-right text-muted"/>
                             </DropdownItem>
                             <div class="border-top px-3 py-3">
-                                <div class="small text-muted mb-2">
-                                    <t t-if="state.geoPolling">
-                                        <i class="fa fa-circle-o-notch fa-spin me-1"/>
-                                        Geolocalizando en segundo plano… quedan
-                                        <strong t-esc="state.geoSummary.pending"/>.
-                                        Puedes seguir trabajando.
-                                    </t>
-                                    <t t-elif="geoNextRunLabel">
+                                <t t-set="run" t-value="state.geoRun"/>
+                                <div t-if="run" class="mb-3">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <strong t-if="run.running">
+                                            <i class="fa fa-circle-o-notch fa-spin me-1"/>
+                                            Geolocalizando <t t-esc="run.processed"/> de <t t-esc="run.total"/>
+                                        </strong>
+                                        <strong t-else="">
+                                            Última ejecución: <t t-esc="run.processed"/> de <t t-esc="run.total"/>
+                                        </strong>
+                                        <span class="text-muted"><t t-esc="geoRunPercent"/>%</span>
+                                    </div>
+                                    <div class="progress mb-1" style="height: 6px;">
+                                        <div
+                                            t-att-class="'progress-bar' + (run.running ? ' progress-bar-striped progress-bar-animated' : '')"
+                                            role="progressbar"
+                                            t-att-style="'width: ' + geoRunPercent + '%'"
+                                        />
+                                    </div>
+                                    <div class="small text-muted">
+                                        <span class="text-success"><t t-esc="run.located"/> encontrados</span>
+                                        ·
+                                        <span t-att-class="run.failed ? 'text-danger' : ''"><t t-esc="run.failed"/> con error</span>
+                                    </div>
+                                    <div t-if="run.serviceError" class="alert alert-danger small p-2 mt-2 mb-0">
+                                        <strong>El servicio de geolocalización no responde.</strong>
+                                        <div t-esc="run.serviceError"/>
+                                    </div>
+                                </div>
+                                <div t-if="!run or !run.running" class="small text-muted mb-2">
+                                    <t t-if="geoNextRunLabel">
                                         <i class="fa fa-calendar me-1"/>
                                         Próxima geolocalización automática:
                                         <strong t-esc="geoNextRunLabel"/>
@@ -81,9 +105,19 @@
                                     </t>
                                 </div>
                                 <button
+                                    t-if="run and run.running"
+                                    type="button"
+                                    class="btn btn-secondary w-100"
+                                    t-on-click="onStopGeolocation"
+                                >
+                                    <i class="fa fa-stop me-1"/>
+                                    Detener
+                                </button>
+                                <button
+                                    t-else=""
                                     type="button"
                                     class="btn btn-primary w-100"
-                                    t-att-disabled="!geoToProcess or state.geoPolling or state.geolocating"
+                                    t-att-disabled="!geoToProcess"
                                     t-on-click="onGeolocateNow"
                                 >
                                     <i class="fa fa-refresh me-1"/>
@@ -123,11 +157,12 @@
                     >
                         <strong class="d-block" t-esc="partner.name"/>
                         <small class="d-block text-muted text-truncate" t-esc="partner.address"/>
-                        <div class="d-flex flex-wrap gap-1 mt-2">
-                            <span t-att-class="'badge rounded-pill o_customer_equipment_map_equipment_badge' + (partner.equipment.length ? '' : ' o_empty')">
-                                <t t-esc="partner.equipment.length"/> equipos
-                            </span>
-                        </div>
+                        <small t-if="partner.phone" class="d-block text-muted mt-1">
+                            <i class="fa fa-phone fa-fw me-1"/><t t-esc="partner.phone"/>
+                        </small>
+                        <small t-if="partner.email" class="d-block text-muted text-truncate">
+                            <i class="fa fa-envelope fa-fw me-1"/><t t-esc="partner.email"/>
+                        </small>
                     </button>
                     <div
                         t-if="filteredPartners.length > visiblePartners.length"
