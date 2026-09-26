@@ -23,9 +23,14 @@ const { DateTime } = luxon;
 const SIDEBAR_PAGE_SIZE = 200;
 // Reload the markers every N batches while geolocating from the map.
 const GEO_RELOAD_EVERY_BATCHES = 4;
-// When Nominatim answers "too many requests", wait and resume this many times.
-const GEO_MAX_AUTOMATIC_WAITS = 3;
-const GEO_MAX_WAIT_SECONDS = 120;
+// When Nominatim answers "too many requests", wait (1, 2, 4... up to 10 min)
+// and resume, this many times before giving up.
+const GEO_MAX_AUTOMATIC_WAITS = 6;
+const GEO_FIRST_WAIT_SECONDS = 60;
+const GEO_MAX_WAIT_SECONDS = 600;
+// While the automatic geolocation is running, check every N seconds.
+const GEO_BUSY_WAIT_SECONDS = 15;
+const GEO_MAX_BUSY_WAITS = 40;
 
 /**
  * Load Leaflet and its marker cluster plugin only when a map is opened,
@@ -312,14 +317,19 @@ export class CustomerEquipmentMap extends Component {
             processed: 0,
             located: 0,
             failed: 0,
-            // Seconds left before resuming after a "too many requests".
+            // Seconds left before the next call (throttled or busy).
             waiting: 0,
+            // Nominatim asked to slow down / the cron is geolocating.
+            throttled: false,
+            busy: false,
+            busyGaveUp: false,
             serviceError: false,
         };
         // Work on the reactive proxy so that the panel shows each step.
         const run = this.state.geoRun;
         let batches = 0;
         let waits = 0;
+        let busyWaits = 0;
         try {
             while (run.running && !this.isDestroyed) {
                 const result = await this.orm.call(
@@ -329,19 +339,41 @@ export class CustomerEquipmentMap extends Component {
                 );
                 run.located += result.located;
                 run.failed += result.failed;
-                run.processed = Math.min(run.total, run.processed + result.located + result.failed);
-                batches++;
+                // Count what the cron may have processed too.
+                run.processed = Math.max(
+                    run.processed,
+                    Math.min(run.total, run.total - result.remaining)
+                );
+                if (result.busy) {
+                    // The automatic geolocation is running: wait for our turn.
+                    if (++busyWaits > GEO_MAX_BUSY_WAITS) {
+                        run.busyGaveUp = true;
+                        break;
+                    }
+                    run.busy = true;
+                    await this.waitGeoRetry(run, GEO_BUSY_WAIT_SECONDS);
+                    continue;
+                }
+                run.busy = false;
                 if (result.service_error) {
                     if (result.retry_after && waits < GEO_MAX_AUTOMATIC_WAITS) {
-                        // Nominatim asked to slow down: wait and resume.
+                        // Nominatim asked to slow down: wait longer each time.
+                        const seconds = Math.min(
+                            Math.max(result.retry_after, GEO_FIRST_WAIT_SECONDS * 2 ** waits),
+                            GEO_MAX_WAIT_SECONDS
+                        );
                         waits++;
-                        await this.waitGeoRetry(run, result.retry_after);
+                        run.throttled = true;
+                        await this.refreshGeoSummary();
+                        await this.waitGeoRetry(run, seconds);
+                        run.throttled = false;
                         continue;
                     }
                     run.serviceError = result.service_error;
                     break;
                 }
                 waits = 0;
+                batches++;
                 if (!result.remaining || !(result.located + result.failed)) {
                     break;
                 }
@@ -357,13 +389,21 @@ export class CustomerEquipmentMap extends Component {
             run.serviceError = error.data?.message || "Error inesperado durante la geolocalización.";
         } finally {
             run.running = false;
+            run.busy = false;
+            run.throttled = false;
+            run.waiting = 0;
         }
         if (this.isDestroyed) {
             return;
         }
         await this.reloadPartners();
         await this.refreshGeoSummary();
-        if (run.serviceError) {
+        if (run.busyGaveUp) {
+            this.notification.add(
+                "La geolocalización automática sigue en marcha en el servidor: los clientes irán apareciendo en el mapa.",
+                { type: "info" }
+            );
+        } else if (run.serviceError) {
             this.notification.add(
                 "El servicio de geolocalización no responde. Se han geolocalizado " +
                     run.located +
@@ -382,12 +422,18 @@ export class CustomerEquipmentMap extends Component {
     }
 
     async waitGeoRetry(run, seconds) {
-        run.waiting = Math.min(seconds, GEO_MAX_WAIT_SECONDS);
+        run.waiting = Math.round(seconds);
         while (run.waiting > 0 && run.running && !this.isDestroyed) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
             run.waiting--;
         }
         run.waiting = 0;
+    }
+
+    get geoWaitLabel() {
+        const seconds = this.state.geoRun?.waiting || 0;
+        const minutes = Math.floor(seconds / 60);
+        return minutes ? `${minutes} min ${String(seconds % 60).padStart(2, "0")} s` : `${seconds} s`;
     }
 
     onStopGeolocation() {
