@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="action_hr_expense_quick_capture" model="ir.actions.client">
+    <!-- action_hr_expense_quick_capture (ir.actions.act_window) de una
+         versión anterior de este módulo se queda huérfana en la base de
+         datos: Odoo no permite reutilizar el mismo ID externo para un
+         registro de otro modelo (ir.actions.client), así que esta acción
+         usa un ID nuevo. -->
+    <record id="action_hr_expense_quick_capture_screen" model="ir.actions.client">
         <field name="name">Foto de Gasto</field>
         <field name="tag">rms_hr_expense_quick_capture.capture</field>
     </record>
@@ -8,7 +13,7 @@
     <menuitem
         id="menu_hr_expense_quick_capture"
         name="Foto de Gasto"
-        action="action_hr_expense_quick_capture"
+        action="action_hr_expense_quick_capture_screen"
         sequence="90"
         groups="base.group_user"
     />
