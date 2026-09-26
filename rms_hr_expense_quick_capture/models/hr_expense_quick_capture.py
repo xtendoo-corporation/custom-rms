@@ -25,10 +25,16 @@ class HrExpenseQuickCapture(models.TransientModel):
         if not image:
             raise UserError(_("Falta la foto del ticket."))
 
-        employee = self.env.user.employee_id
+        # self.env.user.employee_id solo mira la compañía activa en este
+        # momento; si no coincide exactamente con la del registro de
+        # empleado (habitual con varias compañías), sale vacío aunque el
+        # usuario sí tenga un empleado vinculado. employee_ids no tiene
+        # esa restricción.
+        employee = self.env.user.employee_id or self.env.user.employee_ids[:1]
         if not employee:
             raise UserError(_(
-                "Tu usuario no tiene un empleado asociado: no se puede "
+                "Tu usuario no tiene ningún empleado vinculado (revisa el "
+                "campo \"Usuario\" en tu ficha de Empleado): no se puede "
                 "crear el gasto a tu nombre."
             ))
 
