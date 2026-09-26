@@ -38,11 +38,16 @@ class HrExpenseQuickCapture(models.TransientModel):
                 "crear el gasto a tu nombre."
             ))
 
-        expense = self.env['hr.expense'].create({
+        # El gasto tiene que crearse en la misma compañía que el empleado
+        # (Odoo no permite mezclar compañías entre hr.expense y su
+        # employee_id): no se puede dejar que use la compañía activa de
+        # la sesión sin más, con varias compañías puede no coincidir.
+        expense = self.env['hr.expense'].with_company(employee.company_id).create({
             'name': _("Ticket %s") % fields.Datetime.context_timestamp(
                 self, fields.Datetime.now()
             ).strftime('%d/%m/%Y %H:%M'),
             'employee_id': employee.id,
+            'company_id': employee.company_id.id,
             'date': fields.Date.context_today(self),
             'total_amount': 0.0,
         })
