@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hr_expense_quick_capture_form" model="ir.ui.view">
+        <field name="name">hr.expense.quick.capture.form</field>
+        <field name="model">hr.expense.quick.capture</field>
+        <field name="arch" type="xml">
+            <form string="Foto de Gasto">
+                <sheet>
+                    <div class="text-center" invisible="state != 'draft'">
+                        <p class="text-muted">
+                            Haz una foto del ticket. Se creará el gasto a tu
+                            nombre y la IA rellenará fecha, importe,
+                            proveedor y categoría automáticamente.
+                        </p>
+                        <field name="image" widget="image" filename="image_filename" class="oe_avatar"/>
+                        <field name="image_filename" invisible="1"/>
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_capture" string="Crear gasto" type="object"
+                            class="oe_highlight" invisible="not image"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_hr_expense_quick_capture" model="ir.actions.act_window">
+        <field name="name">Foto de Gasto</field>
+        <field name="res_model">hr.expense.quick.capture</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
+
+    <menuitem
+        id="menu_hr_expense_quick_capture"
+        name="Foto de Gasto"
+        action="action_hr_expense_quick_capture"
+        sequence="90"
+        groups="base.group_user"
+    />
+</odoo>
