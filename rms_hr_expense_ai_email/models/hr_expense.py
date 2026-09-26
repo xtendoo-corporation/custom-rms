@@ -145,11 +145,17 @@ class HrExpense(models.Model):
             'rms_hr_expense_ai_email.max_attempts', 3))
         batch_limit = int(self.env['ir.config_parameter'].sudo().get_param(
             'rms_hr_expense_ai_email.batch_limit', 20))
+        # created_from_email_alias cubre los que llegan por correo (algunos
+        # todavía sin repartir/analizar); ai_source_attachment_id cubre los
+        # de otros orígenes (p. ej. rms_hr_expense_quick_capture) cuyo
+        # primer intento, síncrono, haya fallado y necesite reintentarse.
         expenses = self.sudo().search([
-            ('created_from_email_alias', '=', True),
             ('state', '=', 'draft'),
             ('ai_processed', '=', False),
             ('ai_import_attempts', '<', max_attempts),
+            '|',
+                ('created_from_email_alias', '=', True),
+                ('ai_source_attachment_id', '!=', False),
         ], limit=batch_limit)
         for expense in expenses:
             # El reparto se hace aquí, en el cron, y no al recibir el correo:
