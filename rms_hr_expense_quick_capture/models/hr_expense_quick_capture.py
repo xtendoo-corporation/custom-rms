@@ -59,4 +59,13 @@ class HrExpenseQuickCapture(models.TransientModel):
         })
         expense.ai_source_attachment_id = attachment.id
 
+        # El adjunto por sí solo no aparece en el chatter (solo en el
+        # contador de archivos); se publica también como nota para que se
+        # vea la foto directamente al abrir el gasto, igual que con los
+        # tickets llegados por correo.
+        expense.message_post(
+            body=_("Ticket subido desde la app de captura rápida."),
+            attachment_ids=[attachment.id],
+        )
+
         return {'expense_id': expense.id}
