@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_hr_expense_quick_capture.QuickCapture">
+        <div class="o_rms_quick_capture d-flex flex-column align-items-center justify-content-center h-100 w-100">
+            <input type="file" accept="image/*" capture="environment"
+                   t-ref="fileInput" class="d-none" t-on-change="onFileChange"/>
+
+            <t t-if="state.phase === 'idle'">
+                <button class="o_rms_quick_capture_button btn btn-primary rounded-circle"
+                        t-on-click="openCamera">
+                    <i class="fa fa-camera"/>
+                </button>
+                <div class="mt-4 fs-4 fw-bold text-center">Hacer foto del ticket</div>
+            </t>
+
+            <t t-if="state.phase === 'uploading'">
+                <i class="fa fa-spinner fa-spin fa-3x text-primary"/>
+                <div class="mt-4 fs-4 text-center">Subiendo y analizando con IA…</div>
+            </t>
+
+            <t t-if="state.phase === 'done'">
+                <i class="fa fa-check-circle fa-3x text-success"/>
+                <div class="mt-3 fs-4 fw-bold text-center">¡Gasto creado!</div>
+                <t t-if="state.result.ai_processed">
+                    <div class="mt-2 text-center">
+                        <div><t t-esc="state.result.vendor || '(proveedor no detectado)'"/></div>
+                        <div>
+                            <t t-esc="state.result.amount.toFixed(2)"/>
+                            <t t-esc="' ' + state.result.currency"/>
+                        </div>
+                        <div><t t-esc="state.result.category || '(sin categoría)'"/></div>
+                    </div>
+                </t>
+                <t t-else="">
+                    <div class="mt-2 text-center text-danger fw-bold">
+                        NO ES POSIBLE ESCANEARLO. Revísalo manualmente.
+                    </div>
+                </t>
+                <div class="mt-4 d-flex gap-2">
+                    <button class="btn btn-secondary" t-on-click="openExpense">Ver gasto</button>
+                    <button class="btn btn-primary" t-on-click="reset">Hacer otro ticket</button>
+                </div>
+            </t>
+
+            <t t-if="state.phase === 'error'">
+                <i class="fa fa-exclamation-triangle fa-3x text-danger"/>
+                <div class="mt-3 fs-5 text-center text-danger">
+                    <t t-esc="state.error"/>
+                </div>
+                <button class="btn btn-primary mt-4" t-on-click="reset">Reintentar</button>
+            </t>
+        </div>
+    </t>
+</templates>

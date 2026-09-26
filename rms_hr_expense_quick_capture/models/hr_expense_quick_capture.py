@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -7,16 +7,15 @@ class HrExpenseQuickCapture(models.TransientModel):
     _name = 'hr.expense.quick.capture'
     _description = "Captura rápida de ticket de gasto (foto con el móvil)"
 
-    image = fields.Binary(string="Foto del ticket", required=True)
-    image_filename = fields.Char(string="Nombre del archivo", default="ticket.jpg")
-    state = fields.Selection([
-        ('draft', "Borrador"),
-        ('done', "Hecho"),
-    ], default='draft')
-    expense_id = fields.Many2one('hr.expense', string="Gasto creado", readonly=True)
+    @api.model
+    def create_from_photo(self, image, filename):
+        """Crea un hr.expense a partir de una foto y lo procesa con IA al
+        momento. Se llama por RPC desde la pantalla ligera de captura
+        rápida (rms_hr_expense_quick_capture.capture, sin formulario
+        clásico de Odoo por medio)."""
+        if not image:
+            raise UserError(_("Falta la foto del ticket."))
 
-    def action_capture(self):
-        self.ensure_one()
         employee = self.env.user.employee_id
         if not employee:
             raise UserError(_(
@@ -33,8 +32,8 @@ class HrExpenseQuickCapture(models.TransientModel):
             'total_amount': 0.0,
         })
         attachment = self.env['ir.attachment'].create({
-            'name': self.image_filename or 'ticket.jpg',
-            'datas': self.image,
+            'name': filename or 'ticket.jpg',
+            'datas': image,
             'res_model': 'hr.expense',
             'res_id': expense.id,
         })
@@ -45,16 +44,18 @@ class HrExpenseQuickCapture(models.TransientModel):
         # esperar al siguiente ciclo. Reutiliza el mismo motor de IA que
         # ya usa el correo de gastos (rms_hr_expense_ai_email), incluido
         # su manejo de reintentos/errores y el aviso "NO ES POSIBLE
-        # ESCANEARLO" si falla.
+        # ESCANEARLO" si falla (el cron generalizado de ese módulo
+        # reintentará automáticamente si este primer intento falla).
         max_attempts = int(self.env['ir.config_parameter'].sudo().get_param(
             'rms_hr_expense_ai_email.max_attempts', 3))
         expense._rms_run_ai_import(max_attempts)
 
-        self.write({'expense_id': expense.id, 'state': 'done'})
         return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'hr.expense',
-            'res_id': expense.id,
-            'view_mode': 'form',
-            'target': 'current',
+            'expense_id': expense.id,
+            'ai_processed': expense.ai_processed,
+            'has_corrections': expense.ai_has_corrections,
+            'vendor': expense.vendor_id.name or '',
+            'amount': expense.total_amount,
+            'currency': expense.currency_id.name or '',
+            'category': expense.product_id.name or '',
         }

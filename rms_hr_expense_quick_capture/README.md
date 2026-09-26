@@ -3,9 +3,14 @@
 ## Qué hace
 
 Añade una app "Foto de Gasto" (visible en el selector de aplicaciones de
-Odoo) con una única pantalla: un campo de imagen y un botón "Crear gasto".
+Odoo): una pantalla propia (client action OWL, sin la barra/breadcrumb
+habitual de Odoo) con un único botón grande centrado para hacer la foto.
+Al tocarlo se abre directamente la cámara del móvil (input de archivo con
+`capture="environment"`, sin necesidad de pedir permisos de cámara vía
+JavaScript ni de streaming de vídeo).
 
-Al elegir/hacer una foto y pulsar el botón:
+En cuanto se hace la foto, se sube sola (sin botón de confirmación
+aparte):
 
 1. Se crea un `hr.expense` en borrador a nombre del empleado asociado al
    usuario que ha entrado (no depende del remitente de un correo, como el
@@ -22,12 +27,11 @@ Al elegir/hacer una foto y pulsar el botón:
 
 ## Pensado para acceso directo en el móvil
 
-Al entrar en esta acción desde un navegador móvil (Chrome/Safari), el
-selector de imagen del formulario ya ofrece la cámara como opción nativa
-del sistema operativo — no hace falta ningún JavaScript adicional para
-abrir la cámara. Guardando la URL de esta acción como acceso directo en la
-pantalla de inicio del móvil ("Añadir a pantalla de inicio"), queda como un
-icono más, similar a una app nativa.
+Mínimo número de toques: abrir la app → tocar el botón → hacer la foto →
+confirmar en la cámara nativa → listo (sin ningún paso más). Guardando la
+URL de esta acción como acceso directo en la pantalla de inicio del móvil
+("Añadir a pantalla de inicio"), queda como un icono más, similar a una
+app nativa.
 
 ## Dependencias
 
