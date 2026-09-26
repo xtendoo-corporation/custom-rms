@@ -5,6 +5,13 @@ import { useService } from "@web/core/utils/hooks";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { Component, useRef, useState } from "@odoo/owl";
 
+// Una foto de una cámara moderna puede pesar varios MB; con poca cobertura
+// móvil eso puede tardar más de un minuto en subirse. Un ticket es texto:
+// no hace falta resolución completa para que la IA lo lea bien, así que se
+// reduce/comprime en el propio móvil antes de subirla.
+const MAX_IMAGE_DIMENSION = 1800;
+const IMAGE_QUALITY = 0.8;
+
 export class HrExpenseQuickCapture extends Component {
     static template = "rms_hr_expense_quick_capture.QuickCapture";
     static props = { ...standardActionServiceProps };
@@ -36,11 +43,11 @@ export class HrExpenseQuickCapture extends Component {
         this.state.error = null;
 
         try {
-            const image = await this._readFileAsBase64(file);
+            const { image, filename } = await this._compressImage(file);
             const result = await this.orm.call(
                 "hr.expense.quick.capture",
                 "create_from_photo",
-                [image, file.name]
+                [image, filename]
             );
             this.state.result = result;
             this.state.phase = "done";
@@ -53,13 +60,60 @@ export class HrExpenseQuickCapture extends Component {
         }
     }
 
-    _readFileAsBase64(file) {
+    _readFileAsDataUrl(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => resolve(reader.result.split(",")[1]);
+            reader.onload = () => resolve(reader.result);
             reader.onerror = reject;
             reader.readAsDataURL(file);
         });
+    }
+
+    _loadImage(dataUrl) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = dataUrl;
+        });
+    }
+
+    async _compressImage(file) {
+        let dataUrl;
+        try {
+            dataUrl = await this._readFileAsDataUrl(file);
+            const img = await this._loadImage(dataUrl);
+
+            let { width, height } = img;
+            if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+                if (width >= height) {
+                    height = Math.round((height * MAX_IMAGE_DIMENSION) / width);
+                    width = MAX_IMAGE_DIMENSION;
+                } else {
+                    width = Math.round((width * MAX_IMAGE_DIMENSION) / height);
+                    height = MAX_IMAGE_DIMENSION;
+                }
+            }
+
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const compressed = canvas.toDataURL("image/jpeg", IMAGE_QUALITY);
+            return {
+                image: compressed.split(",")[1],
+                filename: (file.name || "ticket").replace(/\.\w+$/, "") + ".jpg",
+            };
+        } catch (error) {
+            // Si por lo que sea no se puede comprimir (formato raro,
+            // navegador antiguo...), se sube la foto original tal cual en
+            // vez de fallar del todo.
+            console.error("No se pudo comprimir la imagen, se sube el original", error);
+            dataUrl = dataUrl || (await this._readFileAsDataUrl(file));
+            return { image: dataUrl.split(",")[1], filename: file.name || "ticket.jpg" };
+        }
     }
 
     reset() {
