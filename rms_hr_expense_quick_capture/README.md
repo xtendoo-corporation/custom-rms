@@ -14,16 +14,21 @@ aparte):
 
 1. Se crea un `hr.expense` en borrador a nombre del empleado asociado al
    usuario que ha entrado (no depende del remitente de un correo, como el
-   alias de email).
-2. Se dispara **al momento** (sin esperar al cron) el mismo motor de IA que
-   usa `rms_hr_expense_ai_email` (`hr.expense.ai.wizard` de
-   `xtendoo_hr_expense_ai`), reutilizando su lógica de extracción,
-   categorización por palabras clave y aviso de fallo ("NO ES POSIBLE
-   ESCANEARLO" si no se puede procesar) — no se reimplementa nada.
+   alias de email), y se guarda la foto como su adjunto de IA
+   (`ai_source_attachment_id`).
+2. La pantalla confirma al momento que la foto se ha subido y el gasto se
+   ha creado — **no espera a la IA en esa misma petición**: una foto real
+   desde el móvil (4G) más el tiempo que tarda Gemini puede superar el
+   timeout del proxy/la conexión, y esa espera no debe arriesgar que se
+   pierda la subida. El análisis con IA lo hace el cron ya existente de
+   `rms_hr_expense_ai_email` (generalizado para recoger cualquier gasto
+   con `ai_source_attachment_id`, no solo los llegados por correo),
+   reutilizando el mismo motor (`hr.expense.ai.wizard` de
+   `xtendoo_hr_expense_ai`) sin reimplementar nada.
 3. Si la IA falla, el propio `hr.expense` se marca con "Correcciones de IA
-   Pendientes" y el cron de `rms_hr_expense_ai_email` lo recogerá para
-   reintentarlo automáticamente más adelante (hasta el límite de intentos
-   configurado), igual que con los gastos llegados por correo.
+   Pendientes" y ese mismo cron lo reintenta automáticamente más adelante
+   (hasta el límite de intentos configurado), igual que con los gastos
+   llegados por correo.
 
 ## Pensado para acceso directo en el móvil
 

@@ -9,10 +9,19 @@ class HrExpenseQuickCapture(models.TransientModel):
 
     @api.model
     def create_from_photo(self, image, filename):
-        """Crea un hr.expense a partir de una foto y lo procesa con IA al
-        momento. Se llama por RPC desde la pantalla ligera de captura
-        rápida (rms_hr_expense_quick_capture.capture, sin formulario
-        clásico de Odoo por medio)."""
+        """Crea un hr.expense a partir de una foto y deja marcado el
+        adjunto para que el cron de rms_hr_expense_ai_email lo procese
+        con IA en segundo plano. Se llama por RPC desde la pantalla
+        ligera de captura rápida (rms_hr_expense_quick_capture.capture,
+        sin formulario clásico de Odoo por medio).
+
+        No se llama a la IA aquí, en la misma petición: una foto real
+        desde el móvil (4G) más el tiempo de Gemini puede tardar más de
+        lo que aguanta la conexión/el proxy antes de cortarse, y esa
+        petición fallando no debe impedir que el gasto quede guardado.
+        Subir la foto es rápido y fiable; el análisis con IA es lo que
+        puede tardar, así que se deja para el cron.
+        """
         if not image:
             raise UserError(_("Falta la foto del ticket."))
 
@@ -39,23 +48,4 @@ class HrExpenseQuickCapture(models.TransientModel):
         })
         expense.ai_source_attachment_id = attachment.id
 
-        # Se procesa al momento (no se espera al cron): es una sola foto
-        # recién hecha, tiene sentido dar feedback inmediato en vez de
-        # esperar al siguiente ciclo. Reutiliza el mismo motor de IA que
-        # ya usa el correo de gastos (rms_hr_expense_ai_email), incluido
-        # su manejo de reintentos/errores y el aviso "NO ES POSIBLE
-        # ESCANEARLO" si falla (el cron generalizado de ese módulo
-        # reintentará automáticamente si este primer intento falla).
-        max_attempts = int(self.env['ir.config_parameter'].sudo().get_param(
-            'rms_hr_expense_ai_email.max_attempts', 3))
-        expense._rms_run_ai_import(max_attempts)
-
-        return {
-            'expense_id': expense.id,
-            'ai_processed': expense.ai_processed,
-            'has_corrections': expense.ai_has_corrections,
-            'vendor': expense.vendor_id.name or '',
-            'amount': expense.total_amount,
-            'currency': expense.currency_id.name or '',
-            'category': expense.product_id.name or '',
-        }
+        return {'expense_id': expense.id}
