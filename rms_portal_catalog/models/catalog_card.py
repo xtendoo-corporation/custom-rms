@@ -77,6 +77,10 @@ class RmsCatalogCardLine(models.Model):
     product_id = fields.Many2one(
         'product.product', required=True, ondelete='cascade', string='Producto',
     )
+    featured = fields.Boolean(
+        string='Destacado',
+        help='Se muestra con una estrella y en primer lugar en "Ver precios" del catálogo.',
+    )
 
     _card_product_uniq = models.Constraint(
         'unique(card_id, product_id)',

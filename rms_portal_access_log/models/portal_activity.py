@@ -39,6 +39,7 @@ class PortalActivity(models.Model):
             ('search', 'Búsqueda en el catálogo'),
             ('quote_add', 'Añadido al presupuesto'),
             ('quote_pdf', 'Descarga del presupuesto'),
+            ('catalog_pdf', 'Descarga del catálogo de una marca'),
             ('sale_order', 'Presupuesto / pedido'),
             ('invoice', 'Factura'),
             ('project', 'Proyecto de instalación'),

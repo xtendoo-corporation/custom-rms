@@ -19,6 +19,7 @@
                             string="Catálogo de productos" class="btn-primary mb-3"/>
                     <field name="line_ids">
                         <list editable="bottom">
+                            <field name="featured" widget="boolean_favorite" nolabel="1"/>
                             <field name="product_id"/>
                         </list>
                     </field>

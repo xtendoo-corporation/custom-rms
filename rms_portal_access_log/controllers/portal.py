@@ -217,6 +217,14 @@ class CatalogActivity(CatalogProfileGuard):
             _log('quote_pdf', sale_order_id=order.id or False, name=order.name or 'Presupuesto')
         return res
 
+    @http.route()
+    def portal_catalog_brand_pdf(self, brand, **kw):
+        res = super().portal_catalog_brand_pdf(brand, **kw)
+        if _ok(res):
+            brand_name = _clean(kw.get('name'), 64) or brand
+            _log('catalog_pdf', brand=brand_name, name='Catálogo %s' % brand_name)
+        return res
+
     @staticmethod
     def _quote_response_ok(res):
         try:

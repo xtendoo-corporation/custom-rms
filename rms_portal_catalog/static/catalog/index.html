@@ -289,6 +289,33 @@
   .admin-btn:hover{border-color:var(--brand);}
   .admin-btn.remove{color:#c0392b;}
   .admin-btn.remove:hover{border-color:#c0392b;}
+
+  /* Destacados: estrella sutil a la izquierda del producto */
+  .star{flex:none; width:22px; height:22px; margin-top:1px; padding:0; border:none; background:none; color:var(--line); line-height:0;}
+  .star svg{width:18px; height:18px;}
+  .star.on{color:#d4a017;}
+  button.star{cursor:pointer; transition:color .15s ease, transform .15s ease;}
+  button.star:hover{color:#d4a017; transform:scale(1.12);}
+  .star-slot{flex:none; width:22px;}
+
+  /* Unidades en el presupuesto: − N + */
+  .qty-slot{flex:none; display:flex; align-items:center;}
+  .qty{display:inline-flex; align-items:center; border:1px solid var(--brand); border-radius:980px; overflow:hidden;}
+  .qty-btn{width:28px; height:26px; border:none; background:none; color:var(--brand); font-size:15px; font-weight:600; cursor:pointer; line-height:1;}
+  .qty-btn:hover{background:color-mix(in srgb, var(--brand) 12%, transparent);}
+  .qty-btn:disabled{opacity:.4; cursor:default;}
+  .qty-n{min-width:26px; text-align:center; font-family:var(--mono); font-size:12px; font-weight:600; color:var(--ink);}
+  .cart-actions{flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:6px;}
+
+  /* Descargar catálogo de la marca */
+  .bhero-pdf{
+    display:inline-flex; align-items:center; gap:8px; margin:0 0 24px; padding:9px 16px; border-radius:980px;
+    border:1px solid var(--brand); color:var(--brand); background:none; font-size:13px; font-weight:600; cursor:pointer;
+    transition:background .15s ease, color .15s ease;
+  }
+  .bhero-pdf:hover{background:var(--brand); color:#fff;}
+  .bhero-pdf svg{width:15px; height:15px;}
+  .bhero-pdf[disabled]{opacity:.6; cursor:progress;}
 </style>
 
 <div id="app"></div>
@@ -774,7 +801,7 @@ function renderBrand(key){
       const pricesHtml = `
         <button class="datasheet-btn" onclick="event.stopPropagation(); openPrices(${p})">
           Ver precios
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6.3A7 7 0 1 0 18 17.7"/><path d="M4 10h10M4 14h10"/></svg>
         </button>`;
       const adminHtml = window.RMS_CATALOG_IS_INTERNAL ? `
         <button class="datasheet-btn" onclick="event.stopPropagation(); openAdmin(${p})">
@@ -812,6 +839,10 @@ function renderBrand(key){
           <div class="stat"><b>${b.pages.length}</b><span>Fichas</span></div>
           <div class="stat"><b>${seriesOrder.length}</b><span>Series</span></div>
         </div>
+        <button class="bhero-pdf" onclick="downloadBrandPdf('${key}', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
+          Descargar catálogo
+        </button>
       </div>
     </div>
     <nav class="series-nav" style="--brand:${b.accent}"><div class="wrap series-nav-track">${chips}</div></nav>
@@ -934,6 +965,14 @@ function closeViewer(){
 /* =========================================================
    PRECIOS — PoC: PVP de una categoría de Odoo asociada a una ficha.
 ========================================================= */
+/* Precios siempre como 1.234,56 € ("." miles, "," decimales). Intl con
+   es-ES no agrupa los números de 4 cifras (8450,00 €), por eso se hace a mano. */
+function formatEUR(value){
+  const n = Number(value) || 0;
+  const [int, dec] = Math.abs(n).toFixed(2).split(".");
+  return (n < 0 ? "-" : "") + int.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + dec + " €";
+}
+
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
@@ -949,23 +988,28 @@ async function openPrices(page){
   trackPage("prices", page);
 
   try{
-    const res = await fetch(`/my/catalog/prices/${page}`);
+    const [res, cartRes] = await Promise.all([fetch(`/my/catalog/prices/${page}`), fetch("/my/catalog/quote")]);
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
+    if(cartRes.ok) syncCartQty(await cartRes.json());
+    pricePageKey = String(page);
     if(!data.products || !data.products.length){
       document.getElementById("priceModalBody").innerHTML = '<p class="price-status">Todavía no hay productos disponibles para esta ficha.</p>';
       return;
     }
-    const fmt = new Intl.NumberFormat("es-ES", {style:"currency", currency:"EUR"});
+    // Los internos ven siempre la estrella (para marcar/desmarcar); los
+    // clientes solo la de los destacados, y solo si la ficha tiene alguno.
+    const showStars = window.RMS_CATALOG_IS_INTERNAL || data.products.some(p => p.featured);
     document.getElementById("priceModalBody").innerHTML = data.products.map(p => `
       <div class="price-row">
+        ${showStars ? starHtml(p.id, p.featured) : ""}
         ${p.has_image ? `<img class="price-thumb" loading="lazy" src="/my/catalog/product-image/${p.id}" alt="" onclick="openImageLightbox('/my/catalog/product-image/${p.id}?size=full')">` : ""}
         <div class="price-info">
           <span class="price-name">${escapeHtml(p.name)}</span>
           ${p.description ? `<span class="price-desc">${escapeHtml(p.description)}</span>` : ""}
         </div>
-        <span class="price-value">${fmt.format(p.list_price)}</span>
-        <button class="admin-btn" onclick="addToQuote(${p.id}, this)">Añadir</button>
+        <span class="price-value">${formatEUR(p.list_price)}</span>
+        <div class="qty-slot" data-pid="${p.id}">${qtyControlHtml(p.id)}</div>
       </div>
     `).join("");
   }catch(e){
@@ -976,6 +1020,98 @@ async function openPrices(page){
 function closePrices(){
   document.getElementById("priceModal").classList.remove("open");
   document.body.style.overflow = "";
+}
+
+/* =========================================================
+   DESTACADOS — estrella junto al producto (los internos la marcan)
+========================================================= */
+let pricePageKey = null;
+const STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.83 5.73 6.32.92-4.57 4.46 1.08 6.3L12 17.24l-5.66 2.97 1.08-6.3L2.85 9.45l6.32-.92z"/></svg>';
+
+function starHtml(productId, featured){
+  if(window.RMS_CATALOG_IS_INTERNAL){
+    const label = featured ? "Quitar de destacados" : "Marcar como destacado";
+    return `<button class="star ${featured ? "on" : ""}" title="${label}" aria-label="${label}" aria-pressed="${featured}" onclick="toggleFeatured(${productId}, this)">${STAR_SVG}</button>`;
+  }
+  return featured ? `<span class="star on" title="Producto destacado" aria-label="Producto destacado">${STAR_SVG}</span>` : '<span class="star-slot"></span>';
+}
+
+async function toggleFeatured(productId, btn, pageKey){
+  const key = pageKey || pricePageKey;
+  if(!key) return;
+  btn.disabled = true;
+  try{
+    const res = await fetch(`/my/catalog/admin/card/${key}/products/${productId}/featured`, {method: "POST"});
+    if(!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    btn.classList.toggle("on", data.featured);
+    btn.setAttribute("aria-pressed", data.featured);
+    btn.title = btn.ariaLabel = data.featured ? "Quitar de destacados" : "Marcar como destacado";
+  }catch(e){ /* se puede reintentar */ }
+  btn.disabled = false;
+}
+
+/* =========================================================
+   UNIDADES — "Añadir" se convierte en  − N +
+========================================================= */
+const cartQty = {};
+
+function syncCartQty(data){
+  Object.keys(cartQty).forEach(k => delete cartQty[k]);
+  (data.lines || []).forEach(l => { cartQty[l.product_id] = (cartQty[l.product_id] || 0) + l.qty; });
+  updateCartBadge(data.count);
+}
+
+function qtyControlHtml(productId){
+  const qty = cartQty[productId] || 0;
+  if(!qty) return `<button class="admin-btn" onclick="changeQty(${productId}, 1)">Añadir</button>`;
+  return `
+    <div class="qty" role="group" aria-label="Unidades en el presupuesto">
+      <button class="qty-btn" onclick="changeQty(${productId}, -1)" aria-label="Quitar una unidad">−</button>
+      <span class="qty-n" aria-live="polite">${Number.isInteger(qty) ? qty : qty.toFixed(2)}</span>
+      <button class="qty-btn" onclick="changeQty(${productId}, 1)" aria-label="Añadir una unidad">+</button>
+    </div>`;
+}
+
+function refreshQtySlots(productId){
+  document.querySelectorAll(`.qty-slot[data-pid="${productId}"]`).forEach(slot => {
+    slot.innerHTML = qtyControlHtml(productId);
+  });
+}
+
+let qtyBusy = false;
+async function changeQty(productId, delta){
+  if(qtyBusy) return;
+  qtyBusy = true;
+  document.querySelectorAll(`.qty-slot[data-pid="${productId}"] button`).forEach(b => b.disabled = true);
+  try{
+    const res = await fetch(delta > 0 ? "/my/catalog/quote/add" : "/my/catalog/quote/decrease", {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body: `product_id=${encodeURIComponent(productId)}`,
+    });
+    if(!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    syncCartQty(data);
+    if(document.getElementById("cartModal").classList.contains("open")) renderCartBody(data);
+  }catch(e){ /* se puede reintentar */ }
+  qtyBusy = false;
+  refreshQtySlots(productId);
+}
+
+/* =========================================================
+   CATÁLOGO DE LA MARCA EN PDF
+========================================================= */
+function downloadBrandPdf(key, btn){
+  const b = BRANDS[key];
+  if(!b || !b.pages.length) return;
+  const pages = [...new Set(b.pages.map(imgOf))].join(",");
+  const url = `/my/catalog/brand-pdf/${key}?pages=${pages}&name=${encodeURIComponent(b.name)}`;
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  btn.lastChild.textContent = " Preparando PDF…";
+  window.location.href = url;
+  setTimeout(() => { btn.innerHTML = label; btn.disabled = false; }, 3000);
 }
 
 /* =========================================================
@@ -1005,15 +1141,16 @@ function renderCartBody(data){
     downloadBtn.disabled = true;
     return;
   }
-  const fmt = new Intl.NumberFormat("es-ES", {style:"currency", currency:"EUR"});
   body.innerHTML = data.lines.map(l => `
     <div class="price-row">
       <div class="price-info">
         <span class="price-name">${escapeHtml(l.name)}</span>
-        <span class="price-desc">${l.qty} ud.</span>
+        <span class="price-value">${formatEUR(l.price_subtotal)}</span>
       </div>
-      <span class="price-value">${fmt.format(l.price_subtotal)}</span>
-      <button class="admin-btn remove" onclick="removeFromCart(${l.product_id})">Quitar</button>
+      <div class="cart-actions">
+        <div class="qty-slot" data-pid="${l.product_id}">${qtyControlHtml(l.product_id)}</div>
+        <button class="admin-btn remove" onclick="removeFromCart(${l.product_id})">Quitar</button>
+      </div>
     </div>
   `).join("");
   downloadBtn.disabled = false;
@@ -1028,7 +1165,7 @@ async function openCart(event){
     const res = await fetch("/my/catalog/quote");
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
-    updateCartBadge(data.count);
+    syncCartQty(data);
     renderCartBody(data);
   }catch(e){
     document.getElementById("cartModalBody").innerHTML = '<p class="price-status">No se pudo cargar tu presupuesto.</p>';
@@ -1050,34 +1187,14 @@ async function removeFromCart(productId){
     });
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
-    updateCartBadge(data.count);
+    syncCartQty(data);
     renderCartBody(data);
+    refreshQtySlots(productId);
   }catch(e){ /* el usuario puede reintentar */ }
 }
 
 function downloadCartPdf(){
   window.open("/my/catalog/quote/pdf", "_blank", "noopener");
-}
-
-async function addToQuote(productId, btn){
-  const original = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Añadiendo…";
-  try{
-    const res = await fetch(`/my/catalog/quote/add`, {
-      method: "POST",
-      headers: {"Content-Type": "application/x-www-form-urlencoded"},
-      body: `product_id=${encodeURIComponent(productId)}`,
-    });
-    if(!res.ok) throw new Error("http " + res.status);
-    const data = await res.json();
-    updateCartBadge(data.count);
-    btn.textContent = "Añadido ✓";
-    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1200);
-  }catch(e){
-    btn.textContent = "Error, reintenta";
-    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1500);
-  }
 }
 
 /* =========================================================
@@ -1116,6 +1233,7 @@ async function loadAdminAssigned(){
     }
     body.innerHTML = data.products.map(p => `
       <div class="price-row">
+        <button class="star ${p.featured ? "on" : ""}" title="${p.featured ? "Quitar de destacados" : "Marcar como destacado"}" aria-pressed="${p.featured}" onclick="toggleFeatured(${p.id}, this, adminPageKey)">${STAR_SVG}</button>
         ${p.has_image ? `<img class="price-thumb" loading="lazy" src="/my/catalog/product-image/${p.id}" alt="">` : ""}
         <div class="price-info"><span class="price-name">${escapeHtml(p.name)}</span></div>
         <button class="admin-btn remove" onclick="adminRemoveProduct(${p.id})">Quitar</button>
