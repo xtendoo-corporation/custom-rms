@@ -191,6 +191,75 @@ class B2BCatalogPortal(http.Controller):
             headers=[('Content-Type', 'application/json')],
         )
 
+    def _get_portal_cart(self, create=False):
+        partner = request.env.user.partner_id
+        Order = request.env['sale.order'].sudo()
+        order = Order.search([
+            ('partner_id', '=', partner.id),
+            ('rms_portal_cart', '=', True),
+            ('state', '=', 'draft'),
+        ], order='create_date desc', limit=1)
+        if not order and create:
+            order = Order.create({
+                'partner_id': partner.id,
+                'pricelist_id': partner.property_product_pricelist.id,
+                'rms_portal_cart': True,
+                'rms_hide_price_detail': True,
+            })
+        return order
+
+    def _portal_cart_payload(self, order):
+        if not order:
+            return {'order_id': None, 'count': 0, 'url': None}
+        return {
+            'order_id': order.id,
+            'count': int(sum(order.order_line.mapped('product_uom_qty'))),
+            'url': '/my/orders/%d' % order.id,
+        }
+
+    @http.route('/my/catalog/quote', type='http', auth='user')
+    def portal_catalog_quote(self, **kw):
+        order = self._get_portal_cart()
+        return request.make_response(
+            json.dumps(self._portal_cart_payload(order)),
+            headers=[('Content-Type', 'application/json')],
+        )
+
+    @http.route('/my/catalog/quote/add', type='http', auth='user', methods=['POST'], csrf=False)
+    def portal_catalog_quote_add(self, product_id, **kw):
+        template = request.env['product.template'].sudo().browse(int(product_id)).exists()
+        if not template or not template.product_variant_id:
+            return request.make_response(
+                json.dumps({'ok': False}), headers=[('Content-Type', 'application/json')],
+            )
+        order = self._get_portal_cart(create=True)
+        variant = template.product_variant_id
+        line = order.order_line.filtered(lambda l: l.product_id.id == variant.id)
+        if line:
+            line.product_uom_qty += 1
+        else:
+            request.env['sale.order.line'].sudo().create({
+                'order_id': order.id,
+                'product_id': variant.id,
+                'product_uom_qty': 1,
+            })
+        return request.make_response(
+            json.dumps(self._portal_cart_payload(order)),
+            headers=[('Content-Type', 'application/json')],
+        )
+
+    @http.route('/my/catalog/quote/remove', type='http', auth='user', methods=['POST'], csrf=False)
+    def portal_catalog_quote_remove(self, product_id, **kw):
+        order = self._get_portal_cart()
+        if order:
+            template = request.env['product.template'].sudo().browse(int(product_id)).exists()
+            variant_ids = template.product_variant_ids.ids if template else []
+            order.order_line.filtered(lambda l: l.product_id.id in variant_ids).unlink()
+        return request.make_response(
+            json.dumps(self._portal_cart_payload(order)),
+            headers=[('Content-Type', 'application/json')],
+        )
+
     @http.route('/my/catalog/product-image/<int:product_id>', type='http', auth='user')
     def portal_catalog_product_image(self, product_id, size=None, **kw):
         product = request.env['product.template'].sudo().browse(product_id).exists()

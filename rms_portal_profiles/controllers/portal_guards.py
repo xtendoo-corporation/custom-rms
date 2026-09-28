@@ -115,3 +115,21 @@ class CatalogProfileGuard(B2BCatalogPortal):
         if not _is_internal_user() and not _has_any_group('rms_portal_profiles.group_portal_customer'):
             return request.redirect('/my')
         return super().portal_catalog_rep_photo(**kw)
+
+    @http.route()
+    def portal_catalog_quote(self, **kw):
+        if not _is_internal_user() and not _has_any_group('rms_portal_profiles.group_portal_customer'):
+            return request.redirect('/my')
+        return super().portal_catalog_quote(**kw)
+
+    @http.route()
+    def portal_catalog_quote_add(self, product_id, **kw):
+        if not _is_internal_user() and not _has_any_group('rms_portal_profiles.group_portal_customer'):
+            return request.redirect('/my')
+        return super().portal_catalog_quote_add(product_id, **kw)
+
+    @http.route()
+    def portal_catalog_quote_remove(self, product_id, **kw):
+        if not _is_internal_user() and not _has_any_group('rms_portal_profiles.group_portal_customer'):
+            return request.redirect('/my')
+        return super().portal_catalog_quote_remove(product_id, **kw)
