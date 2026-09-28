@@ -43,6 +43,7 @@
         <field name="context">{'search_default_group_partner': 1}</field>
     </record>
 
-    <menuitem id="menu_portal_access_log_root" name="Accesos al Portal" sequence="65"/>
+    <menuitem id="menu_portal_access_log_root" name="Accesos al Portal" sequence="65"
+              web_icon="rms_portal_access_log,static/description/icon.png"/>
     <menuitem id="menu_portal_access_log" name="Accesos" parent="menu_portal_access_log_root" action="action_portal_access_log" sequence="10"/>
 </odoo>

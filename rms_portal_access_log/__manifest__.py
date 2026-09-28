@@ -1,6 +1,6 @@
 {
     'name': 'RMS Portal Access Log',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.1.0',
     'category': 'Sales',
     'summary': 'Registra cada acceso (login) de los usuarios de portal, con fecha, IP y perfil.',
     'description': """

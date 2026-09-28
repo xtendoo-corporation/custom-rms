@@ -58,6 +58,7 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_installation_project_root" name="Entregar Proyecto" sequence="60"/>
+    <menuitem id="menu_installation_project_root" name="Entregar Proyecto" sequence="60"
+              web_icon="rms_portal_projects,static/description/icon.png"/>
     <menuitem id="menu_installation_project" name="Proyectos" parent="menu_installation_project_root" action="action_installation_project" sequence="10"/>
 </odoo>

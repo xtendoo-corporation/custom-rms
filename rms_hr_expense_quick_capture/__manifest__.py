@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS HR Expense Quick Capture',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.1.0',
     'category': 'Human Resources/Expenses',
     'summary': 'Crear un gasto al momento haciendo una foto del ticket con el móvil, con la misma IA que el correo',
     'description': """

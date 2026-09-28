@@ -16,5 +16,6 @@
         action="action_hr_expense_quick_capture_screen"
         sequence="90"
         groups="base.group_user"
+        web_icon="rms_hr_expense_quick_capture,static/description/icon.png"
     />
 </odoo>
