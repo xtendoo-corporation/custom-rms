@@ -210,11 +210,19 @@ class B2BCatalogPortal(http.Controller):
 
     def _portal_cart_payload(self, order):
         if not order:
-            return {'order_id': None, 'count': 0, 'url': None}
+            return {'order_id': None, 'count': 0, 'lines': []}
         return {
             'order_id': order.id,
             'count': int(sum(order.order_line.mapped('product_uom_qty'))),
-            'url': '/my/orders/%d' % order.id,
+            'lines': [
+                {
+                    'product_id': line.product_id.product_tmpl_id.id,
+                    'name': line.product_id.display_name,
+                    'qty': line.product_uom_qty,
+                    'price_subtotal': line.price_subtotal,
+                }
+                for line in order.order_line
+            ],
         }
 
     @http.route('/my/catalog/quote', type='http', auth='user')
@@ -223,6 +231,23 @@ class B2BCatalogPortal(http.Controller):
         return request.make_response(
             json.dumps(self._portal_cart_payload(order)),
             headers=[('Content-Type', 'application/json')],
+        )
+
+    @http.route('/my/catalog/quote/pdf', type='http', auth='user')
+    def portal_catalog_quote_pdf(self, **kw):
+        order = self._get_portal_cart()
+        if not order or not order.order_line:
+            return request.not_found()
+        pdf_content, _ = request.env['ir.actions.report'].sudo()._render_qweb_pdf(
+            'sale.action_report_saleorder', [order.id],
+        )
+        filename = 'Presupuesto %s.pdf' % (order.name or order.id)
+        return request.make_response(
+            pdf_content,
+            headers=[
+                ('Content-Type', 'application/pdf'),
+                ('Content-Disposition', 'attachment; filename="%s"' % filename),
+            ],
         )
 
     @http.route('/my/catalog/quote/add', type='http', auth='user', methods=['POST'], csrf=False)

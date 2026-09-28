@@ -349,6 +349,22 @@
   </div>
 </div>
 
+<div class="price-modal" id="cartModal">
+  <div class="price-modal-backdrop" onclick="closeCart()"></div>
+  <div class="price-modal-card">
+    <button class="v-close price-modal-close" onclick="closeCart()" aria-label="Cerrar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <p class="eyebrow">RMS Proaudio · Mi presupuesto</p>
+    <h3 class="price-modal-title">Revisa tu presupuesto</h3>
+    <p class="price-modal-sub">Confirma los productos antes de descargar el presupuesto en PDF.</p>
+    <div class="price-modal-body" id="cartModalBody"></div>
+    <button class="admin-btn mb-3" id="cartDownloadBtn" onclick="downloadCartPdf()" style="margin-top:16px; width:100%; text-align:center;" disabled>
+      Descargar presupuesto en PDF
+    </button>
+  </div>
+</div>
+
 <script>
 /* =========================================================
    THEME
@@ -587,7 +603,7 @@ function shell(inner){
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="5"/></svg>
         <span>Tu comercial</span>
       </a>
-      <a class="contact-link cart-link" id="cartLink" href="#" target="_blank" rel="noopener noreferrer" onclick="return onCartLinkClick(event)">
+      <a class="contact-link cart-link" id="cartLink" href="#" onclick="return openCart(event)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
         <span>Mi presupuesto</span>
         <span class="cart-badge" id="cartBadge" hidden>0</span>
@@ -949,29 +965,82 @@ function closePrices(){
 /* =========================================================
    PRESUPUESTO — el cliente va montando su propio presupuesto
 ========================================================= */
-let cartUrl = null;
+function updateCartBadge(count){
+  const badge = document.getElementById("cartBadge");
+  if(!badge) return;
+  if(count > 0){ badge.textContent = count; badge.hidden = false; }
+  else { badge.hidden = true; }
+}
 
 async function refreshCartBadge(){
   try{
     const res = await fetch("/my/catalog/quote");
     if(!res.ok) return;
     const data = await res.json();
-    cartUrl = data.url;
-    const badge = document.getElementById("cartBadge");
-    if(!badge) return;
-    if(data.count > 0){
-      badge.textContent = data.count;
-      badge.hidden = false;
-    } else {
-      badge.hidden = true;
-    }
+    updateCartBadge(data.count);
   }catch(e){ /* silencioso: no bloquea la navegación */ }
 }
 
-function onCartLinkClick(event){
-  event.preventDefault();
-  if(cartUrl) window.open(cartUrl, "_blank", "noopener");
+function renderCartBody(data){
+  const body = document.getElementById("cartModalBody");
+  const downloadBtn = document.getElementById("cartDownloadBtn");
+  if(!data.lines.length){
+    body.innerHTML = '<p class="price-status">Tu presupuesto está vacío. Añade productos desde "Ver precios".</p>';
+    downloadBtn.disabled = true;
+    return;
+  }
+  const fmt = new Intl.NumberFormat("es-ES", {style:"currency", currency:"EUR"});
+  body.innerHTML = data.lines.map(l => `
+    <div class="price-row">
+      <div class="price-info">
+        <span class="price-name">${escapeHtml(l.name)}</span>
+        <span class="price-desc">${l.qty} ud.</span>
+      </div>
+      <span class="price-value">${fmt.format(l.price_subtotal)}</span>
+      <button class="admin-btn remove" onclick="removeFromCart(${l.product_id})">Quitar</button>
+    </div>
+  `).join("");
+  downloadBtn.disabled = false;
+}
+
+async function openCart(event){
+  if(event) event.preventDefault();
+  document.getElementById("cartModalBody").innerHTML = '<p class="price-status">Cargando…</p>';
+  document.getElementById("cartModal").classList.add("open");
+  document.body.style.overflow = "hidden";
+  try{
+    const res = await fetch("/my/catalog/quote");
+    if(!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    updateCartBadge(data.count);
+    renderCartBody(data);
+  }catch(e){
+    document.getElementById("cartModalBody").innerHTML = '<p class="price-status">No se pudo cargar tu presupuesto.</p>';
+  }
   return false;
+}
+
+function closeCart(){
+  document.getElementById("cartModal").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+async function removeFromCart(productId){
+  try{
+    const res = await fetch(`/my/catalog/quote/remove`, {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body: `product_id=${encodeURIComponent(productId)}`,
+    });
+    if(!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    updateCartBadge(data.count);
+    renderCartBody(data);
+  }catch(e){ /* el usuario puede reintentar */ }
+}
+
+function downloadCartPdf(){
+  window.open("/my/catalog/quote/pdf", "_blank", "noopener");
 }
 
 async function addToQuote(productId, btn){
@@ -986,9 +1055,7 @@ async function addToQuote(productId, btn){
     });
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
-    cartUrl = data.url;
-    const badge = document.getElementById("cartBadge");
-    if(badge && data.count > 0){ badge.textContent = data.count; badge.hidden = false; }
+    updateCartBadge(data.count);
     btn.textContent = "Añadido ✓";
     setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1200);
   }catch(e){
