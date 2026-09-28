@@ -1,6 +1,6 @@
 {
     'name': 'RMS Portal Access Log',
-    'version': '19.0.1.3.0',
+    'version': '19.0.1.4.0',
     'category': 'Sales',
     'summary': 'Registra los accesos al portal y qué mira cada cliente (fichas, precios, presupuestos, facturas).',
     'description': """
@@ -15,15 +15,22 @@
         facturas o proyectos consultados. El informe "Intereses por cliente"
         resume qué fichas mira más cada contacto.
 
+        Cada lunes envía por email un informe semanal (clientes que han
+        entrado, % de interés, fichas más vistas y búsquedas sin resultado)
+        a los usuarios con el permiso "Recibe el informe semanal del portal".
+
         Solo se registran usuarios de portal (share=True); la actividad de
         usuarios internos no se registra aquí.
     """,
     'author': 'Antigravity',
-    'depends': ['portal', 'sale', 'account', 'rms_portal_profiles', 'rms_portal_catalog', 'rms_portal_projects'],
+    'depends': ['portal', 'mail', 'sale', 'account', 'rms_portal_profiles', 'rms_portal_catalog', 'rms_portal_projects'],
     'data': [
+        'security/portal_access_log_security.xml',
         'security/ir.model.access.csv',
         'views/portal_access_log_views.xml',
         'views/portal_activity_views.xml',
+        'views/portal_weekly_report_templates.xml',
+        'data/portal_weekly_report_data.xml',
     ],
     'installable': True,
     'application': False,
