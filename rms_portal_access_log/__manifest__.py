@@ -1,6 +1,6 @@
 {
     'name': 'RMS Portal Access Log',
-    'version': '19.0.1.2.0',
+    'version': '19.0.1.3.0',
     'category': 'Sales',
     'summary': 'Registra los accesos al portal y qué mira cada cliente (fichas, precios, presupuestos, facturas).',
     'description': """

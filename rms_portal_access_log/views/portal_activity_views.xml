@@ -101,7 +101,11 @@
                 <field name="view_count" sum="Total"/>
                 <field name="price_count" sum="Total"/>
                 <field name="quote_count" sum="Total"/>
-                <field name="score"/>
+                <field name="return_days" optional="hide"/>
+                <field name="score" widget="progressbar"/>
+                <field name="level" widget="badge"
+                       decoration-danger="level == 'hot'" decoration-warning="level == 'warm'"
+                       decoration-info="level == 'cold'"/>
                 <field name="last_date"/>
                 <field name="first_date" optional="hide"/>
                 <button name="action_open_activity" type="object" string="Ver detalle" icon="fa-list"/>
@@ -132,6 +136,10 @@
                 <field name="commercial_partner_id"/>
                 <field name="page_title"/>
                 <field name="brand"/>
+                <filter string="Caliente (70 % o más)" name="filter_hot" domain="[('level', '=', 'hot')]"/>
+                <filter string="Templado (40-69 %)" name="filter_warm" domain="[('level', '=', 'warm')]"/>
+                <filter string="Frío (menos del 40 %)" name="filter_cold" domain="[('level', '=', 'cold')]"/>
+                <separator/>
                 <filter string="Varias visitas (3 o más)" name="filter_repeat" domain="[('view_count', '&gt;=', 3)]"/>
                 <filter string="Ha consultado precios" name="filter_prices" domain="[('price_count', '&gt;', 0)]"/>
                 <filter string="Lo ha añadido al presupuesto" name="filter_quote" domain="[('quote_count', '&gt;', 0)]"/>
@@ -140,6 +148,7 @@
                 <group>
                     <filter string="Contacto" name="group_partner" context="{'group_by': 'partner_id'}"/>
                     <filter string="Empresa" name="group_company" context="{'group_by': 'commercial_partner_id'}"/>
+                    <filter string="Nivel" name="group_level" context="{'group_by': 'level'}"/>
                     <filter string="Marca" name="group_brand" context="{'group_by': 'brand'}"/>
                     <filter string="Ficha" name="group_page" context="{'group_by': 'page_title'}"/>
                 </group>
@@ -156,7 +165,10 @@
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Todavía no hay intereses registrados</p>
             <p>Cada cliente aparecerá con las fichas del catálogo que más mira, cuántas
-               veces ha consultado precios y qué ha añadido a su presupuesto.</p>
+               veces ha consultado precios y qué ha añadido a su presupuesto, con un
+               % de interés: visitas (máx. 25), precios (máx. 25), presupuesto (máx. 40)
+               y volver otros días (máx. 10). Cada acción pierde la mitad de su valor
+               cada 30 días.</p>
         </field>
     </record>
 
