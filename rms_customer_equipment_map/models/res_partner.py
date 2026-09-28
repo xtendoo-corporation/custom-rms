@@ -18,6 +18,12 @@ GEO_LOCALIZE_CRON_BATCH = 200
 # Contacts processed per call when an administrator geolocates from the map.
 GEO_LOCALIZE_MANUAL_BATCH = 5
 GEO_LOCALIZE_MAX_SERVICE_ERRORS = 3
+# Only one process may query the geolocation service at a time (map or cron),
+# otherwise their requests add up and Nominatim answers "429 Too many requests".
+GEO_LOCALIZE_LOCK_KEY = 7182035511
+# After a "429", nobody queries the service until this moment (UTC).
+GEO_LOCALIZE_PAUSE_PARAM = "rms_customer_equipment_map.geo_localize_paused_until"
+GEO_LOCALIZE_MIN_PAUSE = 60
 GEO_LOCALIZE_TRIGGER_DELAY_MINUTES = 1
 
 
@@ -206,55 +212,101 @@ class ResPartner(models.Model):
     def action_geo_localize_batch(self, limit=GEO_LOCALIZE_MANUAL_BATCH):
         """Geolocate a few pending contacts right now, for the map's progress.
 
-        Contacts being processed by the cron at the same time are skipped.
-
         :return: dict with the number of contacts ``located`` and ``failed``
-            in this batch, the ``remaining`` pending contacts, and
-            ``service_error``: the message of the geolocation service when it
-            is not answering (the batch stops at the first such error).
+            in this batch, the ``remaining`` pending contacts, ``busy`` when
+            the cron is geolocating at the same time, and ``service_error``
+            with the message of the geolocation service when it is not
+            answering; ``retry_after`` is then the number of seconds to wait
+            before calling again (after a "too many requests").
         """
         if not self._is_customer_equipment_map_admin():
             raise UserError(_("Only administrators can perform bulk geolocation."))
         Partner = self.sudo()
-        candidates = Partner.search(
-            [("active", "=", True), ("geo_localize_state", "=", "pending")],
-            order="geo_localize_last_try asc nulls first, id",
-            limit=limit,
-        )
-        located = failed = retry_after = 0
-        service_error = False
-        if candidates:
-            self.env.cr.execute(
-                "SELECT id FROM res_partner WHERE id IN %s FOR UPDATE SKIP LOCKED",
-                [tuple(candidates.ids)],
+        result = {
+            "located": 0,
+            "failed": 0,
+            "busy": False,
+            "service_error": False,
+            "retry_after": 0,
+        }
+        paused = Partner._get_geo_localize_pause_seconds()
+        if paused:
+            result.update(
+                service_error=_(
+                    "Nominatim (OpenStreetMap) pide esperar: demasiadas peticiones "
+                    "seguidas (HTTP 429)."
+                ),
+                retry_after=paused,
             )
-            locked_ids = {row[0] for row in self.env.cr.fetchall()}
-            # Requests are spaced out by the geocoder (Nominatim: 1 per second).
-            for partner in candidates.filtered(
-                lambda candidate: candidate.id in locked_ids
-            ):
-                try:
-                    if partner._geo_localize_partner():
-                        located += 1
-                    else:
-                        failed += 1
-                except UserError as error:
-                    _logger.warning(
-                        "Geolocation service error for partner %s: %s", partner.id, error
-                    )
-                    service_error = str(error)
-                    retry_after = getattr(error, "retry_after", 0)
-                    break
-        remaining = Partner.search_count(
+        elif not Partner._acquire_geo_localize_lock():
+            result["busy"] = True
+        else:
+            try:
+                candidates = Partner.search(
+                    [("active", "=", True), ("geo_localize_state", "=", "pending")],
+                    order="geo_localize_last_try asc nulls first, id",
+                    limit=limit,
+                )
+                # Requests are spaced out by the geocoder (Nominatim: 1 per second).
+                for partner in candidates:
+                    try:
+                        if partner._geo_localize_partner():
+                            result["located"] += 1
+                        else:
+                            result["failed"] += 1
+                    except UserError as error:
+                        _logger.warning(
+                            "Geolocation service error for partner %s: %s", partner.id, error
+                        )
+                        result["service_error"] = str(error)
+                        retry_after = getattr(error, "retry_after", 0)
+                        if retry_after:
+                            result["retry_after"] = Partner._pause_geo_localize(retry_after)
+                        break
+            finally:
+                Partner._release_geo_localize_lock()
+        result["remaining"] = Partner.search_count(
             [("active", "=", True), ("geo_localize_state", "=", "pending")]
         )
-        return {
-            "located": located,
-            "failed": failed,
-            "remaining": remaining,
-            "service_error": service_error,
-            "retry_after": retry_after,
-        }
+        return result
+
+    @api.model
+    def _acquire_geo_localize_lock(self):
+        """Session lock: it survives the commits done by the cron."""
+        self.env.cr.execute("SELECT pg_try_advisory_lock(%s)", [GEO_LOCALIZE_LOCK_KEY])
+        return self.env.cr.fetchone()[0]
+
+    @api.model
+    def _release_geo_localize_lock(self):
+        self.env.cr.execute("SELECT pg_advisory_unlock(%s)", [GEO_LOCALIZE_LOCK_KEY])
+
+    @api.model
+    def _get_geo_localize_pause_seconds(self):
+        """Seconds left before the geolocation service may be queried again."""
+        value = self.env["ir.config_parameter"].sudo().get_param(GEO_LOCALIZE_PAUSE_PARAM)
+        if not value:
+            return 0
+        try:
+            paused_until = fields.Datetime.to_datetime(value)
+        except ValueError:
+            return 0
+        return max(0, int((paused_until - fields.Datetime.now()).total_seconds()))
+
+    @api.model
+    def _pause_geo_localize(self, seconds):
+        """Stop querying the service for a while and resume with the cron.
+
+        :return: the pause, in seconds.
+        """
+        seconds = max(int(seconds or 0), GEO_LOCALIZE_MIN_PAUSE)
+        paused_until = fields.Datetime.now() + timedelta(seconds=seconds)
+        self.env["ir.config_parameter"].sudo().set_param(
+            GEO_LOCALIZE_PAUSE_PARAM, fields.Datetime.to_string(paused_until)
+        )
+        cron = self.env.ref(GEO_LOCALIZE_CRON_XMLID, raise_if_not_found=False)
+        if cron:
+            cron.sudo()._trigger(paused_until + timedelta(seconds=30))
+        return seconds
 
     # ------------------------------------------------------------------
     # Automatic geolocation
@@ -490,8 +542,20 @@ class ResPartner(models.Model):
 
         The cron reports the remaining contacts so that Odoo reschedules it
         immediately until the queue is empty, and commits after each contact
-        so a timeout never loses the work already done.
+        so a timeout never loses the work already done. It does nothing while
+        the service asked to wait or while the map is geolocating.
         """
+        IrCron = self.env["ir.cron"]
+        if self._get_geo_localize_pause_seconds() or not self._acquire_geo_localize_lock():
+            IrCron._commit_progress(remaining=0)
+            return
+        try:
+            self._run_geo_localize_cron(limit)
+        finally:
+            self._release_geo_localize_lock()
+
+    @api.model
+    def _run_geo_localize_cron(self, limit):
         IrCron = self.env["ir.cron"]
         partners = self._get_geo_localize_due_partners()
         batch = partners[:limit]
@@ -506,6 +570,12 @@ class ResPartner(models.Model):
                 _logger.warning(
                     "Geolocation service error for partner %s: %s", partner.id, error
                 )
+                retry_after = getattr(error, "retry_after", 0)
+                if retry_after:
+                    # "Too many requests": stop now and resume after the pause.
+                    self._pause_geo_localize(retry_after)
+                    IrCron._commit_progress(remaining=0)
+                    break
             if not IrCron._commit_progress(1):
                 break
             if service_errors >= GEO_LOCALIZE_MAX_SERVICE_ERRORS:

@@ -1,7 +1,7 @@
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
-from odoo import fields
+from odoo import fields, sql_db
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, new_test_user
 
@@ -268,6 +268,58 @@ class TestGeoLocalize(TransactionCase):
         )
         with self.assertRaises(UserError):
             self.Partner.with_user(user).action_geo_localize_batch()
+
+    def test_manual_batch_waits_while_another_process_geolocates(self):
+        admin = self._admin("customer_map_geo_busy_admin")
+        self._create_partner()
+        other = sql_db.db_connect(self.env.cr.dbname).cursor()
+        try:
+            other.execute(
+                "SELECT pg_advisory_lock(%s)", [res_partner_module.GEO_LOCALIZE_LOCK_KEY]
+            )
+            with self._patch_geo_localize(lambda *args: (37.3, -5.9)) as geo_localize:
+                result = self.Partner.with_user(admin).action_geo_localize_batch()
+                self.Partner._cron_geo_localize_partners()
+            self.assertTrue(result["busy"])
+            geo_localize.assert_not_called()
+        finally:
+            other.execute(
+                "SELECT pg_advisory_unlock(%s)", [res_partner_module.GEO_LOCALIZE_LOCK_KEY]
+            )
+            other.close()
+
+    def test_too_many_requests_pauses_everybody(self):
+        admin = self._admin("customer_map_geo_pause_admin")
+        partner = self._create_partner()
+
+        def too_many_requests(*args):
+            raise nominatim.GeoLocalizeServiceError("HTTP 429", retry_after=5)
+
+        with self._patch_geo_localize(too_many_requests) as geo_localize:
+            first = self.Partner.with_user(admin).action_geo_localize_batch()
+            second = self.Partner.with_user(admin).action_geo_localize_batch()
+            self.Partner._cron_geo_localize_partners()
+        self.assertEqual(geo_localize.call_count, 1)
+        self.assertGreaterEqual(first["retry_after"], res_partner_module.GEO_LOCALIZE_MIN_PAUSE)
+        self.assertTrue(second["service_error"])
+        self.assertGreater(second["retry_after"], 0)
+        self.assertEqual(partner.geo_localize_state, "pending")
+        # The cron is scheduled to resume after the pause.
+        cron = self.env.ref("rms_customer_equipment_map.ir_cron_geo_localize_partners")
+        self.assertTrue(
+            self.env["ir.cron.trigger"].search(
+                [("cron_id", "=", cron.id), ("call_at", ">", fields.Datetime.now())]
+            )
+        )
+
+        # Once the pause is over, the service is queried again.
+        self.env["ir.config_parameter"].set_param(
+            res_partner_module.GEO_LOCALIZE_PAUSE_PARAM,
+            fields.Datetime.to_string(fields.Datetime.now() - timedelta(seconds=1)),
+        )
+        with self._patch_geo_localize(lambda *args: (37.3, -5.9)):
+            self.Partner.with_user(admin).action_geo_localize_batch(limit=500)
+        self.assertEqual(partner.geo_localize_state, "done")
 
 
 class TestNominatim(TransactionCase):

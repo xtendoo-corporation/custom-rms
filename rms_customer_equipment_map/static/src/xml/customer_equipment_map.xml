@@ -88,10 +88,16 @@
                                         ·
                                         <span t-att-class="run.failed ? 'text-danger' : ''"><t t-esc="run.failed"/> con error</span>
                                     </div>
-                                    <div t-if="run.waiting" class="alert alert-warning small p-2 mt-2 mb-0">
+                                    <div t-if="run.throttled and run.waiting" class="alert alert-warning small p-2 mt-2 mb-0">
                                         <i class="fa fa-hourglass-half me-1"/>
                                         OpenStreetMap pide ir más despacio. Se reanuda en
-                                        <strong t-esc="run.waiting"/> s…
+                                        <strong t-esc="geoWaitLabel"/>.
+                                        Puedes cerrar el mapa: la geolocalización automática continuará sola.
+                                    </div>
+                                    <div t-if="run.busy" class="alert alert-info small p-2 mt-2 mb-0">
+                                        <i class="fa fa-cog fa-spin me-1"/>
+                                        La geolocalización automática está trabajando en el servidor.
+                                        Esperando turno…
                                     </div>
                                     <div t-if="run.serviceError" class="alert alert-danger small p-2 mt-2 mb-0">
                                         <strong>El servicio de geolocalización no responde.</strong>
