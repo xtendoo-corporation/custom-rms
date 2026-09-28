@@ -2,9 +2,11 @@
 <odoo>
     <record id="action_portal_weekly_report_send_now" model="ir.actions.server">
         <field name="name">Enviarme el informe semanal ahora</field>
-        <field name="model_id" ref="model_rms_portal_weekly_report"/>
+        <!-- Ligada a un modelo con permisos de lectura: Odoo oculta los menús
+             cuya acción apunta a un modelo sin ACL (como el AbstractModel). -->
+        <field name="model_id" ref="model_rms_portal_activity"/>
         <field name="state">code</field>
-        <field name="code">action = model.action_send_now()</field>
+        <field name="code">action = env['rms.portal.weekly.report'].action_send_now()</field>
     </record>
 
     <menuitem id="menu_portal_weekly_report_send_now" name="Enviarme el informe semanal"
