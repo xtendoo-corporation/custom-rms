@@ -20,9 +20,11 @@
         <field name="arch" type="xml">
             <xpath expr="//a[@name='action_show_details']" position="after">
                 <a name="action_scan_serials"
-                   title="Escanear números de serie"
-                   class="o_icon_button fa fa-camera" type="object"
-                   invisible="not show_details_visible or has_tracking == 'none' or state in ('done', 'cancel')"/>
+                   title="Escanear números de serie" role="button"
+                   class="o_rms_bs_kanban_scan_btn btn btn-sm btn-outline-primary fa fa-camera" type="object"
+                   invisible="not show_details_visible or has_tracking == 'none' or state in ('done', 'cancel')">
+                    <span class="ms-1">Escanear</span>
+                </a>
             </xpath>
         </field>
     </record>

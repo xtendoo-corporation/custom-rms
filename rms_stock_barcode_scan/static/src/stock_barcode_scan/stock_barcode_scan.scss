@@ -57,3 +57,20 @@
         }
     }
 }
+
+// Botón "Escanear" de la tarjeta kanban móvil de líneas de movimiento
+// (recepción/entrega/traslado). Va justo al lado del icono "Detalles"
+// (o_icon_button, icono suelto sin padding): para que no queden dos zonas
+// táctiles minúsculas pegadas, este se pone en su propia línea, con texto
+// y relleno de sobra para el dedo (mínimo ~44px de alto recomendado).
+.o_rms_bs_kanban_scan_btn {
+    // display:flex (no inline-flex): genera una caja de bloque, así que
+    // cae en su propia línea aunque el icono "Detalles" de al lado sea
+    // inline — es justo lo que separa los dos objetivos táctiles.
+    display: flex;
+    width: fit-content;
+    align-items: center;
+    margin-top: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    min-height: 40px;
+}
