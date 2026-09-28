@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ===================== Actividad (cada acción del cliente) ===================== -->
+    <record id="view_portal_activity_list" model="ir.ui.view">
+        <field name="name">rms.portal.activity.list</field>
+        <field name="model">rms.portal.activity</field>
+        <field name="arch" type="xml">
+            <list string="Actividad en el portal" create="false" edit="false" delete="false">
+                <field name="date"/>
+                <field name="partner_id"/>
+                <field name="commercial_partner_id" optional="hide"/>
+                <field name="activity_type"/>
+                <field name="name"/>
+                <field name="brand" optional="show"/>
+                <field name="product_tmpl_id" optional="hide"/>
+                <field name="sale_order_id" optional="hide"/>
+                <field name="result_count" optional="hide"/>
+                <field name="url" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_portal_activity_pivot" model="ir.ui.view">
+        <field name="name">rms.portal.activity.pivot</field>
+        <field name="model">rms.portal.activity</field>
+        <field name="arch" type="xml">
+            <pivot string="Actividad en el portal">
+                <field name="partner_id" type="row"/>
+                <field name="activity_type" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_portal_activity_graph" model="ir.ui.view">
+        <field name="name">rms.portal.activity.graph</field>
+        <field name="model">rms.portal.activity</field>
+        <field name="arch" type="xml">
+            <graph string="Actividad en el portal" type="bar">
+                <field name="date" interval="week"/>
+                <field name="activity_type"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_portal_activity_search" model="ir.ui.view">
+        <field name="name">rms.portal.activity.search</field>
+        <field name="model">rms.portal.activity</field>
+        <field name="arch" type="xml">
+            <search string="Actividad en el portal">
+                <field name="partner_id"/>
+                <field name="commercial_partner_id"/>
+                <field name="name"/>
+                <field name="brand"/>
+                <field name="product_tmpl_id"/>
+                <filter string="Fichas de producto" name="filter_card" domain="[('activity_type', '=', 'card')]"/>
+                <filter string="Consultas de precio" name="filter_prices" domain="[('activity_type', '=', 'prices')]"/>
+                <filter string="Añadidos al presupuesto" name="filter_quote_add" domain="[('activity_type', '=', 'quote_add')]"/>
+                <filter string="Búsquedas" name="filter_search" domain="[('activity_type', '=', 'search')]"/>
+                <filter string="Búsquedas sin resultados" name="filter_search_empty"
+                        domain="[('activity_type', '=', 'search'), ('result_count', '=', 0)]"/>
+                <filter string="Presupuestos, pedidos y facturas" name="filter_documents"
+                        domain="[('activity_type', 'in', ('sale_order', 'invoice', 'quote_pdf'))]"/>
+                <separator/>
+                <filter string="Fecha" name="filter_date" date="date"/>
+                <group>
+                    <filter string="Contacto" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Empresa" name="group_company" context="{'group_by': 'commercial_partner_id'}"/>
+                    <filter string="Tipo" name="group_type" context="{'group_by': 'activity_type'}"/>
+                    <filter string="Marca" name="group_brand" context="{'group_by': 'brand'}"/>
+                    <filter string="Detalle" name="group_name" context="{'group_by': 'name'}"/>
+                    <filter string="Día" name="group_day" context="{'group_by': 'date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_portal_activity" model="ir.actions.act_window">
+        <field name="name">Actividad en el portal</field>
+        <field name="res_model">rms.portal.activity</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="search_view_id" ref="view_portal_activity_search"/>
+        <field name="context">{'search_default_group_partner': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Todavía no hay actividad registrada</p>
+            <p>Aquí aparecerá cada pantalla, ficha de producto, búsqueda o documento
+               que abran los usuarios de portal.</p>
+        </field>
+    </record>
+
+    <!-- ===================== Intereses (cliente × ficha) ===================== -->
+    <record id="view_portal_interest_list" model="ir.ui.view">
+        <field name="name">rms.portal.interest.list</field>
+        <field name="model">rms.portal.interest</field>
+        <field name="arch" type="xml">
+            <list string="Intereses por cliente" create="false" edit="false" delete="false"
+                  default_order="score desc">
+                <field name="partner_id"/>
+                <field name="commercial_partner_id" optional="hide"/>
+                <field name="brand"/>
+                <field name="page_title"/>
+                <field name="view_count" sum="Total"/>
+                <field name="price_count" sum="Total"/>
+                <field name="quote_count" sum="Total"/>
+                <field name="score"/>
+                <field name="last_date"/>
+                <field name="first_date" optional="hide"/>
+                <button name="action_open_activity" type="object" string="Ver detalle" icon="fa-list"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_portal_interest_pivot" model="ir.ui.view">
+        <field name="name">rms.portal.interest.pivot</field>
+        <field name="model">rms.portal.interest</field>
+        <field name="arch" type="xml">
+            <pivot string="Intereses por cliente">
+                <field name="page_title" type="row"/>
+                <field name="view_count" type="measure"/>
+                <field name="price_count" type="measure"/>
+                <field name="quote_count" type="measure"/>
+                <field name="score" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_portal_interest_search" model="ir.ui.view">
+        <field name="name">rms.portal.interest.search</field>
+        <field name="model">rms.portal.interest</field>
+        <field name="arch" type="xml">
+            <search string="Intereses por cliente">
+                <field name="partner_id"/>
+                <field name="commercial_partner_id"/>
+                <field name="page_title"/>
+                <field name="brand"/>
+                <filter string="Varias visitas (3 o más)" name="filter_repeat" domain="[('view_count', '&gt;=', 3)]"/>
+                <filter string="Ha consultado precios" name="filter_prices" domain="[('price_count', '&gt;', 0)]"/>
+                <filter string="Lo ha añadido al presupuesto" name="filter_quote" domain="[('quote_count', '&gt;', 0)]"/>
+                <separator/>
+                <filter string="Última vez" name="filter_last_date" date="last_date"/>
+                <group>
+                    <filter string="Contacto" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Empresa" name="group_company" context="{'group_by': 'commercial_partner_id'}"/>
+                    <filter string="Marca" name="group_brand" context="{'group_by': 'brand'}"/>
+                    <filter string="Ficha" name="group_page" context="{'group_by': 'page_title'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_portal_interest" model="ir.actions.act_window">
+        <field name="name">Intereses por cliente</field>
+        <field name="res_model">rms.portal.interest</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="search_view_id" ref="view_portal_interest_search"/>
+        <field name="context">{'search_default_group_partner': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Todavía no hay intereses registrados</p>
+            <p>Cada cliente aparecerá con las fichas del catálogo que más mira, cuántas
+               veces ha consultado precios y qué ha añadido a su presupuesto.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_portal_interest" name="Intereses por cliente" parent="menu_portal_access_log_root"
+              action="action_portal_interest" sequence="5"/>
+    <menuitem id="menu_portal_activity" name="Actividad" parent="menu_portal_access_log_root"
+              action="action_portal_activity" sequence="20"/>
+
+    <!-- ===================== Botón en el contacto ===================== -->
+    <record id="view_partner_form_portal_activity" model="ir.ui.view">
+        <field name="name">res.partner.form.portal.activity</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_open_portal_interest" type="object" class="oe_stat_button"
+                        icon="fa-eye" groups="base.group_user" invisible="not portal_activity_count">
+                    <field name="portal_activity_count" widget="statinfo" string="Actividad portal"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+</odoo>

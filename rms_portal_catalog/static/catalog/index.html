@@ -876,7 +876,22 @@ function bindSearch(){
     results.classList.add("open");
   }
 
-  input.addEventListener("input", e => doSearch(e.target.value));
+  // La búsqueda se registra cuando el cliente deja de escribir 1,5 s.
+  let searchTimer = null;
+  function trackSearch(q){
+    clearTimeout(searchTimer);
+    q = q.trim();
+    if(q.length < 3) return;
+    searchTimer = setTimeout(() => {
+      const ql = q.toLowerCase();
+      const n = Object.values(PAGES).filter(d =>
+        [d.title, d.sub, d.series, BRANDS[d.brand].name, ...(d.tags||[])].join(" ").toLowerCase().includes(ql)
+      ).length;
+      track("search", {query: q, results: String(n)});
+    }, 1500);
+  }
+
+  input.addEventListener("input", e => { doSearch(e.target.value); trackSearch(e.target.value); });
   input.addEventListener("focus", e => { if(e.target.value) doSearch(e.target.value); });
   document.addEventListener("click", e => { if(!e.target.closest(".searchbox")) results.classList.remove("open"); });
   document.addEventListener("keydown", e => {
@@ -931,6 +946,7 @@ async function openPrices(page){
   document.getElementById("priceModalBody").innerHTML = '<p class="price-status">Cargando precios…</p>';
   modal.classList.add("open");
   document.body.style.overflow = "hidden";
+  trackPage("prices", page);
 
   try{
     const res = await fetch(`/my/catalog/prices/${page}`);
@@ -1243,6 +1259,26 @@ document.addEventListener("keydown", e => {
 });
 
 /* =========================================================
+   ACTIVIDAD — avisa a Odoo (rms_portal_access_log) de qué mira el
+   cliente. Silencioso: si el módulo no está instalado, no pasa nada.
+========================================================= */
+let lastTracked = "";
+function track(kind, data){
+  if(window.RMS_CATALOG_IS_INTERNAL) return;
+  const sig = kind + "|" + JSON.stringify(data);
+  if(sig === lastTracked) return;
+  lastTracked = sig;
+  try{
+    const body = new URLSearchParams({kind, hash: location.hash.replace(/^#/, ""), ...data});
+    fetch("/my/portal/track", {method:"POST", body, keepalive:true, credentials:"same-origin"}).catch(() => {});
+  }catch(e){}
+}
+function trackPage(kind, page){
+  const d = PAGES[page];
+  if(d) track(kind, {key: String(page), title: d.title, brand: BRANDS[d.brand].name});
+}
+
+/* =========================================================
    ROUTER
 ========================================================= */
 function route(){
@@ -1251,6 +1287,7 @@ function route(){
   if(parts[0] === "brand" && BRANDS[parts[1]]){
     viewerEl.classList.remove("open"); document.body.style.overflow="";
     renderBrand(parts[1]);
+    track("brand", {brand: BRANDS[parts[1]].name});
   } else if(parts[0] === "contacto"){
     viewerEl.classList.remove("open"); document.body.style.overflow="";
     renderContact();
@@ -1259,6 +1296,7 @@ function route(){
     const d = PAGES[page];
     renderBrand(d.brand);
     openViewer(page);
+    trackPage("card", page);
   } else {
     viewerEl.classList.remove("open"); document.body.style.overflow="";
     renderHome();

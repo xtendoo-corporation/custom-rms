@@ -20,3 +20,12 @@ class PortalAccessLog(models.Model):
         ],
         string='Perfil de portal', readonly=True,
     )
+    activity_ids = fields.One2many('rms.portal.activity', 'access_log_id', string='Actividad', readonly=True)
+    activity_count = fields.Integer(string='Acciones', compute='_compute_activity_count')
+
+    def _compute_activity_count(self):
+        counts = dict(self.env['rms.portal.activity']._read_group(
+            [('access_log_id', 'in', self.ids)], ['access_log_id'], ['__count'],
+        ))
+        for log in self:
+            log.activity_count = counts.get(log, 0)
