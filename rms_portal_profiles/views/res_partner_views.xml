@@ -5,6 +5,13 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_open_portal_invite_link" type="object"
+                        class="oe_stat_button" icon="fa-link"
+                        groups="base.group_erp_manager"
+                        invisible="not email"
+                        string="Enlace portal"/>
+            </xpath>
             <xpath expr="//page[@name='sales_purchases']//group[@name='misc']" position="inside">
                 <field name="portal_profile"/>
             </xpath>

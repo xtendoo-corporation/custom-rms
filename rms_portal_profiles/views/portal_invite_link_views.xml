@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_portal_invite_link_form" model="ir.ui.view">
+        <field name="name">rms.portal.invite.link.form</field>
+        <field name="model">rms.portal.invite.link</field>
+        <field name="arch" type="xml">
+            <form string="Enlace de invitación al portal">
+                <div class="alert alert-info" role="alert">
+                    Los correos a dominios externos están bloqueados (módulo
+                    <strong>rms_mail_server</strong>), así que la invitación automática
+                    no le llega al cliente. Copia este enlace y envíaselo tú.
+                </div>
+                <group>
+                    <field name="partner_id"/>
+                    <field name="login"/>
+                    <field name="link_type"/>
+                    <field name="url" widget="CopyClipboardChar"/>
+                    <field name="validity_hours"/>
+                </group>
+                <div class="text-muted small">
+                    El enlace deja de funcionar al caducar, cuando el cliente inicia sesión
+                    o si se genera uno nuevo después de que haya entrado.
+                </div>
+                <footer>
+                    <button string="Cerrar" class="btn-primary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

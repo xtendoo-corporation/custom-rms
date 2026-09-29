@@ -42,3 +42,17 @@ class ResPartner(models.Model):
             portal_users.write({
                 'group_ids': [(3, group.id) for group in all_profile_groups] + [(4, target_group.id)],
             })
+
+    def action_open_portal_invite_link(self):
+        """Muestra el enlace de invitación al portal para enviarlo a mano."""
+        self.ensure_one()
+        Link = self.env['rms.portal.invite.link']
+        wizard = Link.create(Link._prepare_for_partner(self))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Enlace de invitación al portal',
+            'res_model': 'rms.portal.invite.link',
+            'res_id': wizard.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
