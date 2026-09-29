@@ -1,3 +1,5 @@
+from urllib.parse import urlencode as url_encode, urljoin
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
@@ -48,7 +50,14 @@ class RmsPortalInviteLink(models.TransientModel):
         # generamos uno de restablecer contraseña.
         link_type = 'reset' if portal_user.login_date else 'signup'
         partner.signup_prepare(signup_type=link_type)
-        url = partner._get_signup_url_for_action()[partner.id]
+        # Con varias BD en el dbfilter, /web/signup sin sesión da 404: se entra
+        # por /web/login (que sí aplica ?db=) y de ahí se salta al registro.
+        # Ver controllers/signup_redirect.py.
+        relative = partner.with_context(relative_url=True)._get_signup_url_for_action()[partner.id]
+        url = urljoin(partner.get_base_url(), '/web/login?' + url_encode({
+            'db': self.env.cr.dbname,
+            'redirect': relative,
+        }))
 
         if link_type == 'reset':
             param, default = 'auth_signup.reset_password.validity.hours', 4
