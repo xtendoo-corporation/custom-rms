@@ -1,29 +1,16 @@
 /** @odoo-module **/
 
 import { registry } from "@web/core/registry";
+import { loadCSS, loadJS } from "@web/core/assets";
 import { useService } from "@web/core/utils/hooks";
+import { useDebounced } from "@web/core/utils/timing";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
-
-const LEAFLET_STYLESHEET =
-    "/rms_customer_equipment_map/static/lib/leaflet/leaflet.css";
-
-function loadLeafletStyles() {
-    if (document.querySelector("link[data-customer-equipment-map-leaflet]")) {
-        return Promise.resolve();
-    }
-    return new Promise((resolve, reject) => {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.dataset.customerEquipmentMapLeaflet = "1";
-        link.href = LEAFLET_STYLESHEET;
-        link.onload = resolve;
-        link.onerror = reject;
-        document.head.appendChild(link);
-    });
-}
+import { Dropdown } from "@web/core/dropdown/dropdown";
+import { DropdownItem } from "@web/core/dropdown/dropdown_item";
+import { deserializeDateTime, formatDateTime } from "@web/core/l10n/dates";
 import {
     Component,
+    markRaw,
     onMounted,
     onWillStart,
     onWillUnmount,
@@ -31,26 +18,71 @@ import {
     useState,
 } from "@odoo/owl";
 
+const LIB_PATH = "/rms_customer_equipment_map/static/lib";
+const { DateTime } = luxon;
+const SIDEBAR_PAGE_SIZE = 200;
+// Reload the markers every N batches while geolocating from the map.
+const GEO_RELOAD_EVERY_BATCHES = 4;
+// When Nominatim answers "too many requests", wait (1, 2, 4... up to 10 min)
+// and resume, this many times before giving up.
+const GEO_MAX_AUTOMATIC_WAITS = 6;
+const GEO_FIRST_WAIT_SECONDS = 60;
+const GEO_MAX_WAIT_SECONDS = 600;
+// While the automatic geolocation is running, check every N seconds.
+const GEO_BUSY_WAIT_SECONDS = 15;
+const GEO_MAX_BUSY_WAITS = 40;
+
+/**
+ * Load Leaflet and its marker cluster plugin only when a map is opened,
+ * instead of shipping them in every backend page. Another map module may
+ * already have loaded them: reuse its copy instead of loading a second one.
+ */
+async function loadLeaflet() {
+    await Promise.all([
+        loadCSS(`${LIB_PATH}/leaflet/leaflet.css`),
+        loadCSS(`${LIB_PATH}/leaflet.markercluster/MarkerCluster.css`),
+        loadCSS(`${LIB_PATH}/leaflet.markercluster/MarkerCluster.Default.css`),
+    ]);
+    if (!window.L) {
+        await loadJS(`${LIB_PATH}/leaflet/leaflet.js`);
+    }
+    if (!window.L.MarkerClusterGroup) {
+        await loadJS(`${LIB_PATH}/leaflet.markercluster/leaflet.markercluster.js`);
+    }
+}
+
 export class CustomerEquipmentMap extends Component {
     static template = "rms_customer_equipment_map.CustomerEquipmentMap";
     static props = { ...standardActionServiceProps };
+    static components = { Dropdown, DropdownItem };
 
     setup() {
         this.orm = useService("orm");
         this.actionService = useService("action");
         this.notification = useService("notification");
-        this.dialog = useService("dialog");
         this.mapRef = useRef("map");
         this.state = useState({
             loading: true,
             search: "",
-            partners: [],
-            geolocating: false,
-            geolocationDone: 0,
-            geolocationTotal: 0,
+            // Bumped whenever the (non reactive) partner list changes.
+            dataVersion: 0,
+            sidebarLimit: SIDEBAR_PAGE_SIZE,
             isAdmin: false,
+            geoSummary: null,
+            // Progress of a geolocation launched from the map.
+            geoRun: null,
         });
+        // Partner data is kept out of the reactive state: wrapping thousands
+        // of records in proxies makes every search noticeably slower.
+        this.partners = [];
+        this.searchIndex = new Map();
         this.markers = new Map();
+        this.filterCache = null;
+        this.applySearch = useDebounced(() => {
+            this.state.search = this.pendingSearch;
+            this.state.sidebarLimit = SIDEBAR_PAGE_SIZE;
+            this.renderMarkers();
+        }, 250);
 
         onWillStart(async () => {
             const [data] = await Promise.all([
@@ -59,42 +91,75 @@ export class CustomerEquipmentMap extends Component {
                     "get_customer_equipment_map_data",
                     []
                 ),
-                loadLeafletStyles(),
+                loadLeaflet(),
             ]);
-            this.state.partners = Array.isArray(data.partners) ? data.partners : [];
-            this.state.isAdmin = data.is_admin;
+            this.setPartners(data);
             this.state.loading = false;
+            if (this.state.isAdmin) {
+                await this.refreshGeoSummary();
+            }
         });
         onMounted(() => this.initializeMap());
         onWillUnmount(() => {
+            this.isDestroyed = true;
             this.resizeObserver?.disconnect();
             this.map?.remove();
         });
     }
 
+    setPartners(data) {
+        this.partners = markRaw(Array.isArray(data.partners) ? data.partners : []);
+        this.searchIndex = new Map(
+            this.partners.map((partner) => [
+                partner.id,
+                [
+                    partner.name,
+                    partner.address,
+                    partner.phone,
+                    partner.email,
+                    partner.salesperson?.name || "",
+                    partner.country?.name || "",
+                    partner.industry?.name || "",
+                    ...partner.equipment.map(
+                        (item) => item.name + " " + item.serial_no + " " + item.category
+                    ),
+                ]
+                    .join(" ")
+                    .toLowerCase(),
+            ])
+        );
+        // Markers are rebuilt lazily for the new data.
+        this.markers.clear();
+        this.filterCache = null;
+        this.state.isAdmin = data.is_admin;
+        this.state.dataVersion++;
+    }
+
     get filteredPartners() {
         const term = this.state.search.trim().toLowerCase();
-        return this.state.partners.filter((partner) => {
-            if (!term) {
-                return true;
-            }
-            const equipment = partner.equipment
-                .map((item) => item.name + " " + item.serial_no + " " + item.category)
-                .join(" ");
-            return [
-                partner.name,
-                partner.address,
-                partner.phone,
-                partner.email,
-                partner.salesperson?.name || "",
-                partner.country?.name || "",
-                partner.industry?.name || "",
-                equipment,
-            ]
-                .join(" ")
-                .toLowerCase()
-                .includes(term);
-        });
+        const version = this.state.dataVersion;
+        if (
+            this.filterCache &&
+            this.filterCache.term === term &&
+            this.filterCache.version === version
+        ) {
+            return this.filterCache.result;
+        }
+        const result = term
+            ? this.partners.filter((partner) =>
+                  this.searchIndex.get(partner.id).includes(term)
+              )
+            : this.partners;
+        this.filterCache = { term, version, result };
+        return result;
+    }
+
+    get visiblePartners() {
+        return this.filteredPartners.slice(0, this.state.sidebarLimit);
+    }
+
+    onShowMorePartners() {
+        this.state.sidebarLimit += SIDEBAR_PAGE_SIZE;
     }
 
     initializeMap() {
@@ -110,115 +175,293 @@ export class CustomerEquipmentMap extends Component {
                 '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
             maxZoom: 19,
         }).addTo(this.map);
-        this.markerLayer = window.L.layerGroup().addTo(this.map);
+        this.markerLayer = window.L.markerClusterGroup({
+            chunkedLoading: true,
+            showCoverageOnHover: false,
+            maxClusterRadius: 50,
+        }).addTo(this.map);
         this.renderMarkers();
         this.resizeObserver = new ResizeObserver(() => this.map.invalidateSize());
         this.resizeObserver.observe(this.mapRef.el);
         requestAnimationFrame(() => this.map.invalidateSize());
     }
 
-    async onBulkGeolocate() {
-        if (this.state.geolocating) {
+    // ------------------------------------------------------------------
+    // Geolocation panel (administrators only)
+    // ------------------------------------------------------------------
+
+    get geoTotal() {
+        const summary = this.state.geoSummary;
+        return summary ? summary.done + summary.pending + summary.failed : 0;
+    }
+
+    get geoPercent() {
+        const total = this.geoTotal;
+        return total ? Math.floor((this.state.geoSummary.done / total) * 100) : 100;
+    }
+
+    get geoToProcess() {
+        const summary = this.state.geoSummary;
+        return summary ? summary.pending + summary.failed : 0;
+    }
+
+    /** Whether the background geolocation is running or about to start. */
+    get isGeoRunImminent() {
+        const nextRun = this.state.geoSummary?.next_run;
+        return Boolean(
+            nextRun && deserializeDateTime(nextRun) <= DateTime.now().plus({ minutes: 2 })
+        );
+    }
+
+    get geoNextRunLabel() {
+        const nextRun = this.state.geoSummary?.next_run;
+        if (!nextRun) {
+            return "";
+        }
+        if (this.isGeoRunImminent) {
+            return "en unos instantes";
+        }
+        return formatDateTime(deserializeDateTime(nextRun), { format: "ccc d LLL, HH:mm" });
+    }
+
+    get geoRows() {
+        const summary = this.state.geoSummary || {};
+        return [
+            {
+                state: "done",
+                label: "Geolocalizados",
+                icon: "fa-check-circle text-success",
+                count: summary.done || 0,
+            },
+            {
+                state: "pending",
+                label: "Pendientes",
+                icon: "fa-clock-o text-warning",
+                count: summary.pending || 0,
+            },
+            {
+                state: "failed",
+                label: "Con error",
+                help: "Dirección no encontrada: corrígela y se reintentará sola",
+                icon: "fa-times-circle text-danger",
+                count: summary.failed || 0,
+            },
+            {
+                state: "no_address",
+                label: "Sin dirección",
+                help: "Completa la dirección para que aparezcan en el mapa",
+                icon: "fa-question-circle text-muted",
+                count: summary.no_address || 0,
+            },
+        ];
+    }
+
+    async refreshGeoSummary() {
+        if (!this.state.isAdmin) {
             return;
         }
-        const candidates = await this.orm.call(
+        this.state.geoSummary = await this.orm.call(
             "res.partner",
-            "get_bulk_geolocation_candidates",
+            "get_geo_localize_summary",
             []
         );
-        if (!candidates.count) {
+    }
+
+    async openGeoList(state) {
+        const action = await this.orm.call(
+            "res.partner",
+            "action_view_geo_localize_partners",
+            [state]
+        );
+        return this.actionService.doAction(action);
+    }
+
+    get geoRunPercent() {
+        const run = this.state.geoRun;
+        return run && run.total ? Math.floor((run.processed / run.total) * 100) : 0;
+    }
+
+    /**
+     * Geolocate the pending contacts from the map, in small batches, so the
+     * administrator sees the progress. Closing the map stops the run; the
+     * nightly cron takes over the contacts left.
+     */
+    async onGeolocateNow() {
+        if (this.state.geoRun?.running) {
+            return;
+        }
+        let total;
+        try {
+            ({ count: total } = await this.orm.call(
+                "res.partner",
+                "action_enqueue_geo_localize",
+                []
+            ));
+        } catch (error) {
             this.notification.add(
-                "No hay contactos pendientes con una dirección utilizable.",
-                { type: "info" }
+                error.data?.message || "No se pudo iniciar la geolocalización.",
+                { type: "danger", sticky: true }
             );
             return;
         }
-        const skippedMessage = candidates.without_address
-            ? " " + candidates.without_address + " contactos sin dirección se omitirán."
-            : "";
-        this.dialog.add(ConfirmationDialog, {
-            title: "Geolocalizar todos los contactos",
-            body:
-                "Se procesarán " +
-                candidates.count +
-                " contactos pendientes." +
-                skippedMessage +
-                " El proceso puede tardar varios minutos.",
-            confirmLabel: "Geolocalizar",
-            confirm: () => {
-                void this.runBulkGeolocation(candidates.ids);
-            },
-            cancel: () => {},
-        });
-    }
-
-    async runBulkGeolocation(partnerIds) {
-        this.state.geolocating = true;
-        this.state.geolocationDone = 0;
-        this.state.geolocationTotal = partnerIds.length;
-        let localizedCount = 0;
-        const failedNames = [];
+        if (!total) {
+            this.notification.add("No hay contactos pendientes de geolocalizar.", {
+                type: "info",
+            });
+            await this.refreshGeoSummary();
+            return;
+        }
+        this.state.geoRun = {
+            running: true,
+            total,
+            processed: 0,
+            located: 0,
+            failed: 0,
+            // Seconds left before the next call (throttled or busy).
+            waiting: 0,
+            // Nominatim asked to slow down / the cron is geolocating.
+            throttled: false,
+            busy: false,
+            busyGaveUp: false,
+            serviceError: false,
+        };
+        // Work on the reactive proxy so that the panel shows each step.
+        const run = this.state.geoRun;
+        let batches = 0;
+        let waits = 0;
+        let busyWaits = 0;
         try {
-            for (const partnerId of partnerIds) {
+            while (run.running && !this.isDestroyed) {
                 const result = await this.orm.call(
                     "res.partner",
-                    "bulk_geo_localize_partners",
-                    [[partnerId]]
+                    "action_geo_localize_batch",
+                    []
                 );
-                localizedCount += result.localized_ids.length;
-                failedNames.push(...result.failed.map((partner) => partner.name));
-                this.state.geolocationDone += 1;
-                if (result.error) {
-                    throw new Error(result.error);
+                run.located += result.located;
+                run.failed += result.failed;
+                // Count what the cron may have processed too.
+                run.processed = Math.max(
+                    run.processed,
+                    Math.min(run.total, run.total - result.remaining)
+                );
+                if (result.busy) {
+                    // The automatic geolocation is running: wait for our turn.
+                    if (++busyWaits > GEO_MAX_BUSY_WAITS) {
+                        run.busyGaveUp = true;
+                        break;
+                    }
+                    run.busy = true;
+                    await this.waitGeoRetry(run, GEO_BUSY_WAIT_SECONDS);
+                    continue;
                 }
-                if (this.state.geolocationDone < partnerIds.length) {
-                    await new Promise((resolve) => setTimeout(resolve, 2200));
+                run.busy = false;
+                if (result.service_error) {
+                    if (result.retry_after && waits < GEO_MAX_AUTOMATIC_WAITS) {
+                        // Nominatim asked to slow down: wait longer each time.
+                        const seconds = Math.min(
+                            Math.max(result.retry_after, GEO_FIRST_WAIT_SECONDS * 2 ** waits),
+                            GEO_MAX_WAIT_SECONDS
+                        );
+                        waits++;
+                        run.throttled = true;
+                        await this.refreshGeoSummary();
+                        await this.waitGeoRetry(run, seconds);
+                        run.throttled = false;
+                        continue;
+                    }
+                    run.serviceError = result.service_error;
+                    break;
                 }
+                waits = 0;
+                batches++;
+                if (!result.remaining || !(result.located + result.failed)) {
+                    break;
+                }
+                await this.refreshGeoSummary();
+                if (result.located && batches % GEO_RELOAD_EVERY_BATCHES === 0) {
+                    await this.reloadPartners();
+                }
+                // Each batch may run in another server process: keep the pause
+                // between requests that Nominatim requires across batches too.
+                await new Promise((resolve) => setTimeout(resolve, 1500));
             }
-            const data = await this.orm.call(
-                "res.partner",
-                "get_customer_equipment_map_data",
-                []
-            );
-            this.state.partners = Array.isArray(data.partners) ? data.partners : [];
-            this.state.isAdmin = data.is_admin;
-            this.renderMarkers();
-            const failedMessage = failedNames.length
-                ? " No se encontró la dirección de " + failedNames.length + " contactos."
-                : "";
-            this.notification.add(
-                "Geolocalización terminada: " +
-                    localizedCount +
-                    " contactos actualizados." +
-                    failedMessage,
-                { type: failedNames.length ? "warning" : "success", sticky: true }
-            );
         } catch (error) {
+            run.serviceError = error.data?.message || "Error inesperado durante la geolocalización.";
+        } finally {
+            run.running = false;
+            run.busy = false;
+            run.throttled = false;
+            run.waiting = 0;
+        }
+        if (this.isDestroyed) {
+            return;
+        }
+        await this.reloadPartners();
+        await this.refreshGeoSummary();
+        if (run.busyGaveUp) {
             this.notification.add(
-                error.message || "Se produjo un error durante la geolocalización.",
+                "La geolocalización automática sigue en marcha en el servidor: los clientes irán apareciendo en el mapa.",
+                { type: "info" }
+            );
+        } else if (run.serviceError) {
+            this.notification.add(
+                "El servicio de geolocalización no responde. Se han geolocalizado " +
+                    run.located +
+                    " contactos; el resto se reintentará automáticamente.",
                 { type: "danger", sticky: true }
             );
-        } finally {
-            this.state.geolocating = false;
+        } else {
+            this.notification.add(
+                "Geolocalización terminada: " +
+                    run.located +
+                    " encontrados" +
+                    (run.failed ? ", " + run.failed + " con error." : "."),
+                { type: run.failed ? "warning" : "success" }
+            );
         }
     }
 
-    onSearchInput(event) {
-        this.state.search = event.target.value;
+    async waitGeoRetry(run, seconds) {
+        run.waiting = Math.round(seconds);
+        while (run.waiting > 0 && run.running && !this.isDestroyed) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            run.waiting--;
+        }
+        run.waiting = 0;
+    }
+
+    get geoWaitLabel() {
+        const seconds = this.state.geoRun?.waiting || 0;
+        const minutes = Math.floor(seconds / 60);
+        return minutes ? `${minutes} min ${String(seconds % 60).padStart(2, "0")} s` : `${seconds} s`;
+    }
+
+    onStopGeolocation() {
+        if (this.state.geoRun) {
+            this.state.geoRun.running = false;
+        }
+    }
+
+    async reloadPartners() {
+        const data = await this.orm.call(
+            "res.partner",
+            "get_customer_equipment_map_data",
+            []
+        );
+        this.setPartners(data);
         this.renderMarkers();
     }
 
-    renderMarkers() {
-        if (!this.markerLayer) {
-            return;
-        }
-        this.markerLayer.clearLayers();
-        this.markers.clear();
-        const bounds = [];
-        for (const partner of this.filteredPartners) {
-            const coordinates = [partner.latitude, partner.longitude];
+    onSearchInput(event) {
+        this.pendingSearch = event.target.value;
+        this.applySearch();
+    }
+
+    getMarker(partner) {
+        let marker = this.markers.get(partner.id);
+        if (!marker) {
             const equipmentCount = partner.equipment.length;
-            const marker = window.L.marker(coordinates, {
+            marker = window.L.marker([partner.latitude, partner.longitude], {
                 icon: window.L.divIcon({
                     className: "o_customer_equipment_map_marker",
                     html: equipmentCount ? `<span>${equipmentCount}</span>` : "",
@@ -228,15 +471,31 @@ export class CustomerEquipmentMap extends Component {
                 }),
                 title: partner.name,
             });
-            marker.bindPopup(this.buildPopup(partner), { minWidth: 280 });
-            marker.addTo(this.markerLayer);
+            // The popup content is only built when it is opened.
+            marker.bindPopup(() => this.buildPopup(partner), { minWidth: 280 });
             this.markers.set(partner.id, marker);
-            bounds.push(coordinates);
         }
-        if (bounds.length === 1) {
-            this.map.setView(bounds[0], 14);
-        } else if (bounds.length > 1) {
-            this.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+        return marker;
+    }
+
+    renderMarkers() {
+        if (!this.markerLayer) {
+            return;
+        }
+        const partners = this.filteredPartners;
+        const markers = partners.map((partner) => this.getMarker(partner));
+        this.markerLayer.clearLayers();
+        this.markerLayer.addLayers(markers);
+        if (markers.length === 1) {
+            this.map.setView(markers[0].getLatLng(), 14);
+        } else if (markers.length > 1) {
+            // Bounds are computed from the markers themselves: with chunked
+            // loading the cluster layer may still be adding them.
+            const bounds = window.L.latLngBounds(markers.map((marker) => marker.getLatLng()));
+            this.map.fitBounds(bounds, {
+                padding: [40, 40],
+                maxZoom: 15,
+            });
         }
     }
 
@@ -284,8 +543,8 @@ export class CustomerEquipmentMap extends Component {
     focusPartner(partnerId) {
         const marker = this.markers.get(partnerId);
         if (marker) {
-            this.map.setView(marker.getLatLng(), Math.max(this.map.getZoom(), 14));
-            marker.openPopup();
+            // The marker may be hidden inside a cluster: zoom until it shows.
+            this.markerLayer.zoomToShowLayer(marker, () => marker.openPopup());
         }
     }
 

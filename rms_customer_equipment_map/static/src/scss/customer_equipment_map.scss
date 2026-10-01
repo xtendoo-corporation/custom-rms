@@ -113,3 +113,12 @@
         }
     }
 }
+
+.o_customer_equipment_map_geo_panel {
+    width: 340px;
+
+    .o_customer_equipment_map_geo_row {
+        cursor: pointer;
+        white-space: normal;
+    }
+}

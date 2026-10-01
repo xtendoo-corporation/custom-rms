@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_product_state.SerialSelectorButton">
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary rms_serial_selector_btn"
+                t-on-click="onClick"
+                title="Vender como 2ª Mano / Ex-Demo">
+            <i class="fa fa-barcode me-1"/>
+            <t t-esc="label"/>
+        </button>
+    </t>
+</templates>

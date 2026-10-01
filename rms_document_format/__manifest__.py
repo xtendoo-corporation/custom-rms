@@ -10,11 +10,12 @@
         'sale_management',
         'web',
         'product_pricelist_triple_discount',
-        'sale_global_discount'
+        'sale_global_discount',
+        'rms_product_state',
     ],
     'data': [
         'views/res_config_settings_views.xml',
-        'views/product_pricelist_views.xml',
+        'views/sale_order_views.xml',
         'reports/report_action.xml',
         'reports/report_template.xml',
     ],

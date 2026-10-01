@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_product_state.SerialAvailabilityPicker">
+        <table class="table table-sm rms_serial_availability_picker">
+            <thead>
+                <tr>
+                    <th style="width: 2em;"/>
+                    <th>Nº de serie</th>
+                    <th>Almacén</th>
+                    <th/>
+                </tr>
+            </thead>
+            <tbody>
+                <tr t-if="!candidates.length">
+                    <td colspan="4" class="text-muted">No hay números de serie en este estado.</td>
+                </tr>
+                <tr t-foreach="candidates" t-as="candidate" t-key="candidate.id"
+                    t-att-class="candidate.reserved_by ? 'text-muted' : ''">
+                    <td>
+                        <input type="checkbox"
+                               t-att-checked="isSelected(candidate.id)"
+                               t-att-disabled="candidate.reserved_by ? true : false"
+                               t-on-change="() => this.toggle(candidate)"/>
+                    </td>
+                    <td><t t-esc="candidate.name"/></td>
+                    <td><t t-esc="candidate.location"/></td>
+                    <td>
+                        <span t-if="candidate.reserved_by" class="badge text-bg-warning">
+                            Reservado por <t t-esc="candidate.reserved_by"/>
+                        </span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </t>
+</templates>

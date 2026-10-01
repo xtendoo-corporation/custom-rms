@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vista de calendario ligera para "Proyecto compartido" (portal). Se
+         usa la vista genérica de Odoo (sin el js_class "project_task_calendar"
+         interno, que trae panel lateral de planificación y otras piezas no
+         pensadas para un colaborador externo). -->
+    <record id="project_sharing_task_view_calendar" model="ir.ui.view">
+        <field name="name">project.task.calendar.sharing</field>
+        <field name="model">project.task</field>
+        <field name="arch" type="xml">
+            <calendar date_start="date_deadline" string="Tareas" mode="month"
+                      color="stage_id_color" event_limit="5" hide_time="true"
+                      quick_create="0">
+                <field name="stage_id" invisible="not project_id or not stage_id"/>
+                <field name="user_ids" widget="many2many_avatar_user" invisible="not user_ids"/>
+                <field name="partner_id" invisible="not partner_id"/>
+                <field name="priority" widget="priority" readonly="1"/>
+            </calendar>
+        </field>
+    </record>
+
+    <!-- Reabre la acción core de Odoo para añadir la pestaña Calendario. -->
+    <record id="project.project_sharing_project_task_action" model="ir.actions.act_window">
+        <field name="view_mode">kanban,list,form,calendar</field>
+    </record>
+
+    <record id="project_sharing_calendar_action_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="15"/>
+        <field name="view_mode">calendar</field>
+        <field name="act_window_id" ref="project.project_sharing_project_task_action"/>
+        <field name="view_id" ref="project_sharing_task_view_calendar"/>
+    </record>
+</odoo>

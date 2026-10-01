@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_portal_weekly_report_send_now" model="ir.actions.server">
+        <field name="name">Enviarme el informe semanal ahora</field>
+        <!-- Ligada a un modelo con permisos de lectura: Odoo oculta los menús
+             cuya acción apunta a un modelo sin ACL (como el AbstractModel).
+             Con group_ids, Odoo solo comprueba el grupo; sin él exigiría
+             permiso de escritura sobre el modelo, que es de solo lectura. -->
+        <field name="model_id" ref="model_rms_portal_activity"/>
+        <field name="group_ids" eval="[(6, 0, [ref('base.group_user')])]"/>
+        <field name="state">code</field>
+        <field name="code">action = env['rms.portal.weekly.report'].action_send_now()</field>
+    </record>
+
+    <menuitem id="menu_portal_weekly_report_send_now" name="Enviarme el informe semanal"
+              parent="menu_portal_access_log_root" action="action_portal_weekly_report_send_now"
+              sequence="90"/>
+
+    <data noupdate="1">
+        <!-- Cada lunes a las 06:00 UTC (08:00 en Madrid en verano, 07:00 en invierno). -->
+        <record id="ir_cron_portal_weekly_report" model="ir.cron">
+            <field name="name">Portal: informe semanal de actividad</field>
+            <field name="model_id" ref="model_rms_portal_weekly_report"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_send_weekly_report()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">weeks</field>
+            <field name="nextcall" eval="(DateTime.now() + relativedelta(days=1, weekday=0)).strftime('%Y-%m-%d 06:00:00')"/>
+            <field name="active" eval="True"/>
+        </record>
+    </data>
+</odoo>

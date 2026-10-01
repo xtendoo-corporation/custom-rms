@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_stock_barcode_scan" model="ir.actions.client">
+        <field name="name">Escanear código de barras</field>
+        <field name="tag">rms_stock_barcode_scan.scan</field>
+    </record>
+
+    <!--
+        Se coloca como entrada de menú propia dentro de la app Inventario,
+        en vez de intentar injertar un botón dentro de la vista estándar de
+        "Inventario físico" (stock.quant): no podemos verificar aquí el id
+        técnico exacto de esa vista/acción en esta instalación, y un xpath
+        equivocado rompería la instalación de todo el módulo. Si queréis el
+        botón embebido literalmente en esa pantalla, activad el modo
+        desarrollador, abrid esa vista, mirad su "Id externo" (Editar >
+        Ver Metadatos) y lo ajustamos con un inherit_id preciso.
+    -->
+    <menuitem
+        id="menu_stock_barcode_scan"
+        name="Escanear código de barras"
+        action="action_stock_barcode_scan"
+        parent="stock.menu_stock_root"
+        sequence="1"
+        groups="stock.group_stock_user"
+    />
+</odoo>

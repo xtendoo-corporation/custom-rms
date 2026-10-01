@@ -139,17 +139,23 @@ class TestCustomerEquipmentMap(TransactionCase):
         self.assertIn(second_partner.id, partner_ids)
         self.assertTrue(map_data["is_admin"])
 
-        # Can also list and relaunch bulk geolocation without being a
-        # Settings administrator.
+        # Can also see the geolocation summary and the list of failing
+        # addresses, and relaunch them, without being a Settings admin.
         candidate = self.env["res.partner"].create(
             {
                 "name": "Cliente con dirección pendiente",
                 "street": "Calle Falsa 123",
             }
         )
-        candidates = (
-            self.env["res.partner"]
-            .with_user(geolocation_user)
-            .get_bulk_geolocation_candidates()
-        )
-        self.assertIn(candidate.id, candidates["ids"])
+        self.assertEqual(candidate.geo_localize_state, "pending")
+
+        Partner = self.env["res.partner"].with_user(geolocation_user)
+        summary = Partner.get_geo_localize_summary()
+        self.assertGreaterEqual(summary["pending"], 1)
+
+        action = Partner.action_view_geo_localize_partners("pending")
+        self.assertIn(("geo_localize_state", "=", "pending"), action["domain"])
+
+        candidate.geo_localize_state = "failed"
+        candidate.with_user(geolocation_user).action_geo_localize_retry()
+        self.assertEqual(candidate.geo_localize_state, "pending")

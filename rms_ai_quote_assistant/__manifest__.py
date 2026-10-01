@@ -12,7 +12,7 @@ exclusivamente los permisos del usuario que lo pide (nunca sudo). Sustituye
 al toolkit CLI standalone en ia-presupuestos por una app nativa de Odoo.
     """,
     'author': 'Custom RMS',
-    'depends': ['base', 'web', 'sale', 'sale_crm'],
+    'depends': ['base', 'web', 'sale', 'sale_crm', 'rms_product_state'],
     'data': [
         'security/ir.model.access.csv',
         'data/ir_config_parameter_data.xml',

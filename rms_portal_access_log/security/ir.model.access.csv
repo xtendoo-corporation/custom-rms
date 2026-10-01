@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_rms_portal_access_log_user,rms.portal.access.log.user,model_rms_portal_access_log,base.group_user,1,0,0,0
+access_rms_portal_activity_user,rms.portal.activity.user,model_rms_portal_activity,base.group_user,1,0,0,0
+access_rms_portal_interest_user,rms.portal.interest.user,model_rms_portal_interest,base.group_user,1,0,0,0

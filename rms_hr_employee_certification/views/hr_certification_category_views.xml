@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hr_certification_category_list" model="ir.ui.view">
+        <field name="name">rms.hr.certification.category.list</field>
+        <field name="model">rms.hr.certification.category</field>
+        <field name="arch" type="xml">
+            <list string="Categorías de Certificación" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="color" widget="color_picker"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_hr_certification_category_form" model="ir.ui.view">
+        <field name="name">rms.hr.certification.category.form</field>
+        <field name="model">rms.hr.certification.category</field>
+        <field name="arch" type="xml">
+            <form string="Categoría de Certificación">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="Ej. Formación"/></h1>
+                    </div>
+                    <group>
+                        <field name="color" widget="color_picker"/>
+                        <field name="active"/>
+                    </group>
+                    <group>
+                        <field name="description" placeholder="Descripción de la categoría..."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_hr_certification_category" model="ir.actions.act_window">
+        <field name="name">Categorías de Certificación</field>
+        <field name="res_model">rms.hr.certification.category</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Crea una categoría de certificación
+            </p>
+            <p>
+                Organiza tus tipos de certificación en categorías propias
+                (por ejemplo: Formación, Consentimientos, Reconocimientos médicos...).
+            </p>
+        </field>
+    </record>
+</odoo>
