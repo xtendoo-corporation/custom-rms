@@ -45,7 +45,16 @@ class ResPartner(models.Model):
 
     @api.model
     def _is_customer_equipment_map_admin(self):
-        return self.env.user.has_group("base.group_system")
+        """Users allowed to see/relaunch bulk geolocation of customers.
+
+        Technical administrators always qualify; the narrower
+        "Puede geolocalizar clientes" group lets other users do the same
+        without granting full Settings administrator access.
+        """
+        user = self.env.user
+        return user.has_group("base.group_system") or user.has_group(
+            "rms_customer_equipment_map.group_customer_equipment_map_geolocation"
+        )
 
     @api.model
     def _customer_equipment_map_partner_model(self):
@@ -57,7 +66,7 @@ class ResPartner(models.Model):
     def get_bulk_geolocation_candidates(self):
         self.check_access("read")
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("Only administrators can perform bulk geolocation."))
+            raise UserError(_("You don't have permission to perform bulk geolocation."))
         domain = [
             ("active", "=", True),
             "|",
@@ -86,7 +95,7 @@ class ResPartner(models.Model):
     @api.model
     def bulk_geo_localize_partners(self, partner_ids):
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("Only administrators can perform bulk geolocation."))
+            raise UserError(_("You don't have permission to perform bulk geolocation."))
         Partner = self._customer_equipment_map_partner_model()
         partners = Partner.browse(partner_ids).exists()
         partners.check_access("write")

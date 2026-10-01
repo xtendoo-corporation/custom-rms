@@ -13,6 +13,7 @@
         "maintenance",
     ],
     "data": [
+        "security/security.xml",
         "views/maintenance_equipment_views.xml",
         "views/res_partner_views.xml",
         "views/customer_equipment_map_views.xml",

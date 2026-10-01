@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="module_category_customer_equipment_map" model="ir.module.category">
+        <field name="name">Mapa de Clientes</field>
+        <field name="description">
+            Permisos relacionados con el Mapa de Clientes y la geolocalización
+            de direcciones.
+        </field>
+        <field name="sequence">20</field>
+    </record>
+
+    <record id="group_customer_equipment_map_geolocation" model="res.groups">
+        <field name="name">Puede geolocalizar clientes</field>
+        <field name="category_id" ref="module_category_customer_equipment_map"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="comment">
+            Permite ver en el Mapa de Clientes qué empresas tienen una
+            dirección errónea o pendiente de geolocalizar, y relanzar la
+            geolocalización masiva, sin necesidad de ser Administrador de
+            Ajustes.
+        </field>
+    </record>
+</odoo>
