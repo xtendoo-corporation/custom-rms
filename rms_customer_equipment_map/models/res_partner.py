@@ -97,7 +97,16 @@ class ResPartner(models.Model):
 
     @api.model
     def _is_customer_equipment_map_admin(self):
-        return self.env.user.has_group("base.group_system")
+        """Users allowed to see/relaunch bulk geolocation of customers.
+
+        Technical administrators always qualify; the narrower
+        "Puede geolocalizar clientes" group lets other users do the same
+        without granting full Settings administrator access.
+        """
+        user = self.env.user
+        return user.has_group("base.group_system") or user.has_group(
+            "rms_customer_equipment_map.group_customer_equipment_map_geolocation"
+        )
 
     @api.model
     def _customer_equipment_map_partner_model(self):
@@ -109,7 +118,7 @@ class ResPartner(models.Model):
     def get_geo_localize_summary(self):
         """Counts per geolocation state and next automatic run, for the map."""
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("Only administrators can perform bulk geolocation."))
+            raise UserError(_("You don't have permission to perform bulk geolocation."))
         Partner = self._customer_equipment_map_partner_model()
         counts = dict.fromkeys(("done", "pending", "failed", "no_address"), 0)
         for state, count in Partner._read_group(
@@ -131,7 +140,7 @@ class ResPartner(models.Model):
     def action_view_geo_localize_partners(self, state):
         """Open the geolocation list filtered on one state."""
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("Only administrators can perform bulk geolocation."))
+            raise UserError(_("You don't have permission to perform bulk geolocation."))
         titles = {
             "done": _("Clientes geolocalizados"),
             "pending": _("Clientes pendientes de geolocalizar"),
@@ -162,7 +171,7 @@ class ResPartner(models.Model):
     def action_geo_localize_retry(self):
         """Put the selected contacts back in the geolocation queue now."""
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("Only administrators can perform bulk geolocation."))
+            raise UserError(_("You don't have permission to perform bulk geolocation."))
         partners = self._customer_equipment_map_partner_model().browse(self.ids)
         partners = partners.filtered(
             lambda partner: partner.geo_localize_state in ("pending", "failed")
@@ -197,7 +206,7 @@ class ResPartner(models.Model):
         cron is not woken up to avoid querying the service twice in parallel.
         """
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("Only administrators can perform bulk geolocation."))
+            raise UserError(_("You don't have permission to perform bulk geolocation."))
         Partner = self._customer_equipment_map_partner_model()
         failed = Partner.search([("geo_localize_state", "=", "failed")])
         failed.with_context(skip_geo_localize_trigger=True).write(
@@ -220,7 +229,7 @@ class ResPartner(models.Model):
             before calling again (after a "too many requests").
         """
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("Only administrators can perform bulk geolocation."))
+            raise UserError(_("You don't have permission to perform bulk geolocation."))
         Partner = self.sudo()
         result = {
             "located": 0,

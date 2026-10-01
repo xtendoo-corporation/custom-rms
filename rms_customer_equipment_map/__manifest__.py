@@ -13,6 +13,7 @@
         "maintenance",
     ],
     "data": [
+        "security/security.xml",
         "data/ir_cron_data.xml",
         "data/geo_localize_data.xml",
         "views/maintenance_equipment_views.xml",

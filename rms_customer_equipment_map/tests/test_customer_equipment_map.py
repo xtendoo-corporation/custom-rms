@@ -103,3 +103,59 @@ class TestCustomerEquipmentMap(TransactionCase):
         self.assertIn(first_partner.id, partner_ids)
         self.assertIn(second_partner.id, partner_ids)
         self.assertTrue(map_data["is_admin"])
+
+    def test_map_data_geolocation_group_without_system_admin(self):
+        geolocation_user = new_test_user(
+            self.env,
+            login="customer_equipment_map_geolocation_user",
+            groups="base.group_user,"
+            "rms_customer_equipment_map.group_customer_equipment_map_geolocation",
+        )
+        self.assertFalse(geolocation_user.has_group("base.group_system"))
+
+        first_partner = self.env["res.partner"].create(
+            {
+                "name": "Cliente uno",
+                "partner_latitude": 40.4168,
+                "partner_longitude": -3.7038,
+            }
+        )
+        second_partner = self.env["res.partner"].create(
+            {
+                "name": "Cliente dos",
+                "partner_latitude": 41.3874,
+                "partner_longitude": 2.1686,
+            }
+        )
+
+        map_data = (
+            self.env["res.partner"]
+            .with_user(geolocation_user)
+            .get_customer_equipment_map_data()
+        )
+
+        partner_ids = {item["id"] for item in map_data["partners"]}
+        self.assertIn(first_partner.id, partner_ids)
+        self.assertIn(second_partner.id, partner_ids)
+        self.assertTrue(map_data["is_admin"])
+
+        # Can also see the geolocation summary and the list of failing
+        # addresses, and relaunch them, without being a Settings admin.
+        candidate = self.env["res.partner"].create(
+            {
+                "name": "Cliente con dirección pendiente",
+                "street": "Calle Falsa 123",
+            }
+        )
+        self.assertEqual(candidate.geo_localize_state, "pending")
+
+        Partner = self.env["res.partner"].with_user(geolocation_user)
+        summary = Partner.get_geo_localize_summary()
+        self.assertGreaterEqual(summary["pending"], 1)
+
+        action = Partner.action_view_geo_localize_partners("pending")
+        self.assertIn(("geo_localize_state", "=", "pending"), action["domain"])
+
+        candidate.geo_localize_state = "failed"
+        candidate.with_user(geolocation_user).action_geo_localize_retry()
+        self.assertEqual(candidate.geo_localize_state, "pending")
