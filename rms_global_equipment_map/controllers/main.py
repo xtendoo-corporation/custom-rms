@@ -40,6 +40,7 @@ class GlobalEquipmentMapController(http.Controller):
                 {
                     "id": partner.id,
                     "name": partner.name or "",
+                    "city": partner.city or "",
                     "latitude": partner.partner_latitude,
                     "longitude": partner.partner_longitude,
                     "contact_name": contact.name or "",
@@ -84,6 +85,7 @@ class GlobalEquipmentMapController(http.Controller):
 
         headers = [
             "Empresa",
+            "Ciudad",
             "Nombre de Contacto",
             "Correo",
             "Teléfono",
@@ -101,6 +103,7 @@ class GlobalEquipmentMapController(http.Controller):
             sheet.append(
                 [
                     partner["name"],
+                    partner["city"],
                     partner["contact_name"],
                     partner["email"],
                     partner["phone"],
@@ -111,7 +114,7 @@ class GlobalEquipmentMapController(http.Controller):
                 ]
             )
 
-        widths = [40, 24, 28, 18, 14, 60, 12, 12]
+        widths = [40, 20, 24, 28, 18, 14, 60, 12, 12]
         for index, width in enumerate(widths, start=1):
             sheet.column_dimensions[sheet.cell(row=1, column=index).column_letter].width = width
 

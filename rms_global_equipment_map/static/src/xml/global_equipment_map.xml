@@ -138,12 +138,22 @@
                     <div class="o_global_equipment_map_sidebar_header px-3 py-2 border-bottom">
                         <t t-if="state.loading">Cargando clientes...</t>
                         <t t-else="">
-                            <t t-esc="filteredPartners.length"/> clientes geolocalizados
+                            <t t-if="partnersInView.length === filteredPartners.length">
+                                <t t-esc="filteredPartners.length"/> clientes geolocalizados
+                            </t>
+                            <t t-else="">
+                                <t t-esc="partnersInView.length"/> de <t t-esc="filteredPartners.length"/> clientes en la zona visible
+                            </t>
                         </t>
                     </div>
                     <t t-if="!state.loading and !filteredPartners.length">
                         <div class="p-4 text-center text-muted">
                             No hay clientes geolocalizados que coincidan con la búsqueda.
+                        </div>
+                    </t>
+                    <t t-elif="!state.loading and !partnersInView.length">
+                        <div class="p-4 text-center text-muted">
+                            No hay clientes en la zona visible del mapa.
                         </div>
                     </t>
                     <button
@@ -166,9 +176,13 @@
                             />
                         </div>
                         <div
-                            t-if="partner.contact_name or partner.email or partner.phone"
+                            t-if="partner.city or partner.contact_name or partner.email or partner.phone"
                             class="o_global_equipment_map_partner_meta mt-2"
                         >
+                            <div t-if="partner.city" class="d-flex align-items-center gap-1">
+                                <i class="fa fa-map-marker"/>
+                                <span class="text-truncate" t-esc="partner.city"/>
+                            </div>
                             <div t-if="partner.contact_name" class="d-flex align-items-center gap-1">
                                 <i class="fa fa-user"/>
                                 <span class="text-truncate" t-esc="partner.contact_name"/>
@@ -196,11 +210,11 @@
                         </div>
                     </button>
                     <div
-                        t-if="filteredPartners.length > visiblePartners.length"
+                        t-if="partnersInView.length > visiblePartners.length"
                         class="p-3 text-center"
                     >
                         <small class="d-block text-muted mb-2">
-                            Mostrando <t t-esc="visiblePartners.length"/> de <t t-esc="filteredPartners.length"/>
+                            Mostrando <t t-esc="visiblePartners.length"/> de <t t-esc="partnersInView.length"/>
                         </small>
                         <button type="button" class="btn btn-link btn-sm" t-on-click="onShowMorePartners">
                             Mostrar más

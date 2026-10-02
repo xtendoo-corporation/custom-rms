@@ -51,6 +51,8 @@ export class GlobalEquipmentMap extends Component {
             // Bumped whenever the (non reactive) partner list changes.
             dataVersion: 0,
             sidebarLimit: SIDEBAR_PAGE_SIZE,
+            // Bumped whenever the map is panned or zoomed.
+            viewVersion: 0,
             filtersOpen: false,
             modelFilterSearch: "",
             exporting: false,
@@ -65,6 +67,8 @@ export class GlobalEquipmentMap extends Component {
         this.searchIndex = new Map();
         this.markers = new Map();
         this.filterCache = null;
+        this.mapViewCache = null;
+        this.mapBounds = null;
         this.equipmentModelsCache = null;
         this.applySearch = useDebounced(() => {
             this.state.search = this.pendingSearch;
@@ -94,6 +98,7 @@ export class GlobalEquipmentMap extends Component {
                 partner.id,
                 [
                     partner.name,
+                    partner.city,
                     partner.contact_name,
                     partner.email,
                     partner.phone,
@@ -176,8 +181,35 @@ export class GlobalEquipmentMap extends Component {
         return result;
     }
 
+    /**
+     * Partners matching the filters whose marker lies inside the visible map
+     * area, so the sidebar only lists what the map currently shows.
+     */
+    get partnersInView() {
+        const filteredPartners = this.filteredPartners;
+        const bounds = this.mapBounds;
+        const key = [this.filterCache.key, this.state.viewVersion].join("|");
+        if (!bounds) {
+            return filteredPartners;
+        }
+        if (this.mapViewCache?.key === key) {
+            return this.mapViewCache.result;
+        }
+        const result = filteredPartners.filter((partner) =>
+            bounds.contains([partner.latitude, partner.longitude])
+        );
+        this.mapViewCache = { key, result };
+        return result;
+    }
+
     get visiblePartners() {
-        return this.filteredPartners.slice(0, this.state.sidebarLimit);
+        return this.partnersInView.slice(0, this.state.sidebarLimit);
+    }
+
+    onMapViewChange() {
+        this.mapBounds = this.map.getBounds();
+        this.state.sidebarLimit = SIDEBAR_PAGE_SIZE;
+        this.state.viewVersion++;
     }
 
     onShowMorePartners() {
@@ -255,7 +287,9 @@ export class GlobalEquipmentMap extends Component {
             showCoverageOnHover: false,
             maxClusterRadius: 50,
         }).addTo(this.map);
+        this.map.on("moveend", () => this.onMapViewChange());
         this.renderMarkers();
+        this.onMapViewChange();
         this.resizeObserver = new ResizeObserver(() => this.map.invalidateSize());
         this.resizeObserver.observe(this.mapRef.el);
         requestAnimationFrame(() => this.map.invalidateSize());
@@ -316,6 +350,7 @@ export class GlobalEquipmentMap extends Component {
         container.appendChild(header);
 
         const metaLines = [
+            { icon: "fa-map-marker", value: partner.city },
             { icon: "fa-user", value: partner.contact_name },
             { icon: "fa-phone", value: partner.phone },
             { icon: "fa-envelope", value: partner.email },
