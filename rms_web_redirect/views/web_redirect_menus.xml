@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_url_sala_in" model="ir.actions.act_url">
+        <field name="name">Sala IN</field>
+        <field name="url">http://192.168.11.41:8080/#/demos</field>
+        <field name="target">new</field>
+    </record>
+
+    <record id="action_url_club" model="ir.actions.act_url">
+        <field name="name">CLUB</field>
+        <field name="url">https://club.rmsproaudio.com/admin</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem
+        id="menu_sala_in"
+        name="Sala IN"
+        action="action_url_sala_in"
+        web_icon="rms_web_redirect,static/img/sala_in.png"
+        groups="base.group_system"
+        sequence="200"
+    />
+
+    <menuitem
+        id="menu_club"
+        name="CLUB"
+        action="action_url_club"
+        web_icon="rms_web_redirect,static/img/club.png"
+        groups="base.group_system"
+        sequence="201"
+    />
+</odoo>
