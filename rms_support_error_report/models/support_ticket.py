@@ -388,10 +388,19 @@ class RmsSupportTicket(models.Model):
             self._installed_custom_modules_text() or "(no se han podido determinar)",
             "",
             "<codigo>",
-            self._collect_code_context() or "(no se ha podido leer código del servidor)",
+            self._safe_code_context() or "(no se ha podido leer código del servidor)",
             "</codigo>",
         ]
         return "\n".join(lines)
+
+    def _safe_code_context(self):
+        # El código fuente es un extra: si falla su lectura, la IA debe
+        # poder analizar igualmente el error con el traceback.
+        try:
+            return self._collect_code_context()
+        except Exception:
+            _logger.exception("No se pudo reunir el código de la incidencia %s", self.name)
+            return ""
 
     def _installed_custom_modules_text(self):
         try:
@@ -414,8 +423,10 @@ class RmsSupportTicket(models.Model):
 
     @api.model
     def _allowed_source_roots(self):
+        # En Odoo 19 "odoo" es un paquete de espacio de nombres (sin
+        # __init__.py): odoo.__file__ es None, así que se usa __path__.
         roots = [os.path.realpath(p) for p in odoo.addons.__path__]
-        roots.append(os.path.realpath(os.path.dirname(odoo.__file__)))
+        roots += [os.path.realpath(p) for p in odoo.__path__]
         roots.append(CUSTOM_ADDONS_ROOT)
         return roots
 
