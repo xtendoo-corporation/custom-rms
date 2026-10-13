@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="rms_support_error_report.SupportReportPanel">
+        <div t-if="supportReport.state.step !== 'idle'" class="o_rms_support_report mt-3 pt-3 border-top">
+            <t t-if="supportReport.state.step === 'form' or supportReport.state.step === 'sending'">
+                <label class="form-label" for="rms_support_report_comment">
+                    ¿Qué estabas haciendo cuando ha salido el error? (opcional)
+                </label>
+                <textarea id="rms_support_report_comment" class="form-control" rows="3"
+                          placeholder="Ej.: Estaba duplicando el presupuesto A22003 desde Acción → Duplicar"
+                          t-att-disabled="supportReport.state.step === 'sending'"
+                          t-model="supportReport.state.comment"/>
+            </t>
+            <div t-if="supportReport.state.step === 'sent'" class="alert alert-success mb-0" role="status">
+                <i class="fa fa-check me-1"/><t t-esc="supportReport.state.result"/>
+            </div>
+            <div t-if="supportReport.state.step === 'error'" class="alert alert-danger mb-0" role="alert">
+                <t t-esc="supportReport.state.result"/>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="rms_support_error_report.SupportReportButtons">
+        <button t-if="supportReport.state.step === 'idle'" class="btn btn-secondary"
+                t-on-click="() => supportReport.open()">
+            <i class="fa fa-life-ring me-1"/>Notificar a soporte
+        </button>
+        <button t-if="supportReport.state.step === 'form' or supportReport.state.step === 'sending' or supportReport.state.step === 'error'"
+                class="btn btn-secondary"
+                t-att-disabled="supportReport.state.step === 'sending'"
+                t-on-click="() => supportReport.send()">
+            <i t-attf-class="fa {{ supportReport.state.step === 'sending' ? 'fa-spinner fa-spin' : 'fa-paper-plane' }} me-1"/>Enviar a soporte
+        </button>
+    </t>
+
+    <t t-inherit="web.ErrorDialog" t-inherit-mode="extension">
+        <xpath expr="//div[@role='alert']" position="after">
+            <t t-call="rms_support_error_report.SupportReportPanel"/>
+        </xpath>
+        <xpath expr="//t[@t-set-slot='footer']" position="inside">
+            <t t-call="rms_support_error_report.SupportReportButtons"/>
+        </xpath>
+    </t>
+
+    <t t-inherit="web.WarningDialog" t-inherit-mode="extension">
+        <xpath expr="//div[@role='alert']" position="after">
+            <t t-call="rms_support_error_report.SupportReportPanel"/>
+        </xpath>
+        <xpath expr="//t[@t-set-slot='footer']" position="inside">
+            <t t-call="rms_support_error_report.SupportReportButtons"/>
+        </xpath>
+    </t>
+
+</templates>
