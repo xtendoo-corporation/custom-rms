@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_training_user_summary_list" model="ir.ui.view">
+        <field name="name">rms.training.user.summary.list</field>
+        <field name="model">rms.training.user.summary</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0"
+                  decoration-success="progress &gt;= 100" decoration-danger="progress == 0 and available_count">
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="department" optional="show"/>
+                <field name="available_count"/>
+                <field name="done_count"/>
+                <field name="in_progress_count" optional="show"/>
+                <field name="pending_count"/>
+                <field name="progress" widget="progressbar"/>
+                <field name="last_activity"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_training_user_summary_pivot" model="ir.ui.view">
+        <field name="name">rms.training.user.summary.pivot</field>
+        <field name="model">rms.training.user.summary</field>
+        <field name="arch" type="xml">
+            <pivot string="Avance de formación">
+                <field name="department" type="row"/>
+                <field name="available_count" type="measure"/>
+                <field name="done_count" type="measure"/>
+                <field name="progress" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_rms_training_user_summary_search" model="ir.ui.view">
+        <field name="name">rms.training.user.summary.search</field>
+        <field name="model">rms.training.user.summary</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="user_id"/>
+                <field name="department"/>
+                <filter string="Sin empezar" name="not_started" domain="[('done_count', '=', 0), ('in_progress_count', '=', 0)]"/>
+                <filter string="A medias" name="ongoing" domain="[('progress', '&gt;', 0), ('progress', '&lt;', 100)]"/>
+                <filter string="Formación completa" name="complete" domain="[('progress', '&gt;=', 100)]"/>
+                <group>
+                    <filter string="Departamento" name="group_department" context="{'group_by': 'department'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_rms_training_user_summary" model="ir.actions.act_window">
+        <field name="name">Avance por empleado</field>
+        <field name="res_model">rms.training.user.summary</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay empleados</p>
+        </field>
+    </record>
+
+    <!-- El menú pasa por aquí para recalcular el resumen justo antes de abrirlo -->
+    <record id="action_server_training_user_summary" model="ir.actions.server">
+        <field name="name">Avance por empleado</field>
+        <field name="model_id" ref="model_rms_training_user_summary"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open()</field>
+        <field name="group_ids" eval="[(4, ref('rms_training_academy.group_training_manager'))]"/>
+    </record>
+</odoo>

@@ -41,7 +41,7 @@ Si es la primera vez que este cliente va a acceder al portal de Odoo:
 ESTADOS DEL PROYECTO
 - Borrador: solo lo veis vosotros, el cliente no lo ve aunque ya tenga el documento subido. Util para preparar el proyecto con calma antes de mandarlo.
 - Enviado: el cliente ya lo ve en su portal.
-- Aceptado / Rechazado: puedes cambiarlo manualmente vosotros para llevar seguimiento interno de la respuesta del cliente (el cliente no puede cambiar esto desde el portal, solo vosotros desde el backend).
+- Aceptado / Rechazado: cuando el cliente os responda, pulsad en el proyecto el boton "Aceptado por el cliente" o "Rechazado por el cliente" para llevar el seguimiento interno (el cliente no puede cambiar esto desde el portal, solo vosotros desde el backend).
 
 COSAS QUE EL CLIENTE PUEDE Y NO PUEDE HACER
 PUEDE:

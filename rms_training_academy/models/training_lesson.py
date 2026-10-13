@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.tools import html2plaintext
 
 LEVELS = [
     ("1_basic", "Básico"),
@@ -23,23 +23,18 @@ class RmsTrainingLesson(models.Model):
 
     name = fields.Char(string="Lección", required=True, translate=True)
     path_id = fields.Many2one(
-        "rms.training.path", string="Ruta formativa", required=True, ondelete="cascade", index=True
+        "rms.training.path", string="Aplicación", required=True, ondelete="cascade", index=True
     )
     path_sequence = fields.Integer(related="path_id.sequence", store=True)
     sequence = fields.Integer(string="Orden", default=10)
     active = fields.Boolean(default=True)
     level = fields.Selection(LEVELS, string="Nivel", required=True, default="1_basic")
     duration = fields.Integer(string="Duración (min)", default=10)
-    module_name = fields.Char(
-        string="Módulo relacionado",
-        help="Nombre técnico del módulo de Odoo que aporta la funcionalidad (p. ej. stock_cession).",
-    )
     menu_path = fields.Char(
         string="Dónde se hace",
         translate=True,
         help="Ruta de menú en Odoo, p. ej. Inventario > Operaciones > Cesiones.",
     )
-    audience = fields.Char(string="Dirigida a")
     keywords = fields.Char(
         string="Palabras clave",
         help="Términos con los que un empleado podría preguntar por esta lección (los usa también el asistente de IA).",
@@ -54,13 +49,39 @@ class RmsTrainingLesson(models.Model):
     )
     step_ids = fields.One2many("rms.training.step", "lesson_id", string="Paso a paso", copy=True)
     tips = fields.Html(string="Consejos y errores frecuentes", translate=True)
-    question_ids = fields.One2many(
-        "rms.training.question", "lesson_id", string="Test de comprobación", copy=True
-    )
-    pass_percent = fields.Integer(string="Nota mínima para aprobar (%)", default=70)
-    step_count = fields.Integer(compute="_compute_counts", string="Nº pasos")
-    question_count = fields.Integer(compute="_compute_counts", string="Nº preguntas")
+    step_count = fields.Integer(compute="_compute_step_count", string="Nº pasos")
 
+    # --- A quién se le muestra -------------------------------------------
+    # No hay rutas "por departamento": cada lección declara qué permiso
+    # real de Odoo hace falta para poder hacer lo que explica, y cada
+    # empleado ve solo las lecciones que puede poner en práctica. Así la
+    # formación sigue automáticamente los cambios de permisos de cada
+    # usuario, sin mantener listas aparte.
+    module_name = fields.Char(
+        string="Módulo necesario",
+        help="Nombre técnico del módulo que aporta la funcionalidad. Si no está instalado, la lección no se muestra a nadie.",
+    )
+    menu_xmlid = fields.Char(
+        string="Menú necesario",
+        help="ID externo del menú de Odoo (p. ej. stock_cession.menu_stock_cession). La lección solo se muestra "
+        "a quien puede ver ese menú. Vacío = no depende de ningún menú.",
+    )
+    group_xmlids = fields.Char(
+        string="Grupos necesarios",
+        help="IDs externos de grupos separados por comas (p. ej. base.group_system). La lección solo se muestra a "
+        "quien pertenezca al menos a uno de ellos. Vacío = cualquier empleado.",
+    )
+    access_summary = fields.Char(
+        string="Quién la ve", compute="_compute_access_summary",
+        help="Resumen de los requisitos de acceso de la lección.",
+    )
+    is_available = fields.Boolean(
+        string="Disponible para mí",
+        compute="_compute_is_available",
+        search="_search_is_available",
+    )
+
+    # --- Progreso del usuario actual ------------------------------------
     progress_ids = fields.One2many("rms.training.progress", "lesson_id", string="Progreso")
     my_state = fields.Selection(
         PROGRESS_STATES,
@@ -68,16 +89,97 @@ class RmsTrainingLesson(models.Model):
         compute="_compute_my_progress",
         search="_search_my_state",
     )
-    my_score = fields.Float(string="Mi nota (%)", compute="_compute_my_progress")
     done_user_count = fields.Integer(
         string="Empleados que la han completado", compute="_compute_done_user_count"
     )
 
-    @api.depends("step_ids", "question_ids")
-    def _compute_counts(self):
+    @api.depends("step_ids")
+    def _compute_step_count(self):
         for lesson in self:
             lesson.step_count = len(lesson.step_ids)
-            lesson.question_count = len(lesson.question_ids)
+
+    @api.depends("module_name", "menu_xmlid", "group_xmlids")
+    def _compute_access_summary(self):
+        for lesson in self:
+            parts = []
+            if lesson.menu_xmlid:
+                menu = self.env.ref(lesson.menu_xmlid, raise_if_not_found=False)
+                parts.append("menú %s" % (menu.complete_name if menu else lesson.menu_xmlid))
+            if lesson.group_xmlids:
+                names = []
+                for xmlid in lesson._split_xmlids(lesson.group_xmlids):
+                    group = self.env.ref(xmlid, raise_if_not_found=False)
+                    names.append(group.display_name if group else xmlid)
+                parts.append("grupo " + " o ".join(names))
+            lesson.access_summary = ("Quien tenga " + " y ".join(parts)) if parts else "Todos los empleados"
+
+    # ------------------------------------------------------------------
+    # Disponibilidad según los permisos reales del usuario
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _split_xmlids(value):
+        return [x.strip() for x in (value or "").split(",") if x.strip()]
+
+    @api.model
+    def _get_available_lesson_ids(self, user=None):
+        """IDs de las lecciones activas que ``user`` puede poner en práctica:
+        módulo instalado, menú visible para él (mismo cálculo que hace Odoo
+        para pintar sus menús) y pertenencia a alguno de los grupos pedidos."""
+        user = user or self.env.user
+        lessons = self.sudo().search([])
+        modules = {name for name in lessons.mapped("module_name") if name}
+        installed = set(
+            self.env["ir.module.module"].sudo().search(
+                [("name", "in", list(modules)), ("state", "=", "installed")]
+            ).mapped("name")
+        )
+        visible_menu_ids = self.env["ir.ui.menu"].with_user(user)._visible_menu_ids()
+        user_group_ids = set(user.all_group_ids.ids)
+        available = []
+        for lesson in lessons:
+            if lesson.module_name and lesson.module_name not in installed:
+                continue
+            if lesson.menu_xmlid:
+                menu = self.env.ref(lesson.menu_xmlid, raise_if_not_found=False)
+                if not menu or menu._name != "ir.ui.menu":
+                    continue
+                # _visible_menu_ids puede incluir un submenú sin grupos aunque
+                # su aplicación no sea visible; en la interfaz solo se llega a
+                # él si toda la cadena de menús padre es visible.
+                chain = menu.sudo()
+                while chain and chain.id in visible_menu_ids:
+                    chain = chain.parent_id
+                if chain:
+                    continue
+            if lesson.group_xmlids:
+                group_ids = {
+                    group.id
+                    for group in (
+                        self.env.ref(xmlid, raise_if_not_found=False)
+                        for xmlid in self._split_xmlids(lesson.group_xmlids)
+                    )
+                    if group and group._name == "res.groups"
+                }
+                if not group_ids & user_group_ids:
+                    continue
+            available.append(lesson.id)
+        return available
+
+    def _compute_is_available(self):
+        available = set(self._get_available_lesson_ids())
+        for lesson in self:
+            lesson.is_available = lesson.id in available
+
+    def _search_is_available(self, operator, value):
+        if operator not in ("=", "!=") or not isinstance(value, bool):
+            return NotImplemented
+        positive = (operator == "=") == value
+        return [("id", "in" if positive else "not in", self._get_available_lesson_ids())]
+
+    # ------------------------------------------------------------------
+    # Progreso
+    # ------------------------------------------------------------------
 
     def _my_progress_records(self):
         return self.env["rms.training.progress"].search(
@@ -89,7 +191,6 @@ class RmsTrainingLesson(models.Model):
         for lesson in self:
             progress = by_lesson.get(lesson.id)
             lesson.my_state = progress.state if progress else "not_started"
-            lesson.my_score = progress.score if progress else 0.0
 
     def _search_my_state(self, operator, value):
         if operator not in ("=", "!=", "in", "not in"):
@@ -113,10 +214,6 @@ class RmsTrainingLesson(models.Model):
         for lesson in self:
             lesson.done_user_count = counts.get(lesson.id, 0)
 
-    # ------------------------------------------------------------------
-    # Acciones del empleado
-    # ------------------------------------------------------------------
-
     def _get_or_create_my_progress(self):
         self.ensure_one()
         Progress = self.env["rms.training.progress"]
@@ -137,40 +234,13 @@ class RmsTrainingLesson(models.Model):
         return True
 
     def action_mark_done(self):
-        self.ensure_one()
-        if self.question_ids:
-            raise UserError(
-                "Esta lección tiene un test de comprobación: apruébalo con el botón "
-                "\"Hacer el test\" para marcarla como completada."
-            )
-        self._get_or_create_my_progress()._set_done()
+        for lesson in self:
+            lesson._get_or_create_my_progress()._set_done()
         return True
 
     def action_reset_my_progress(self):
-        self.ensure_one()
-        progress = self._my_progress_records()
-        progress.sudo().write({"state": "in_progress", "date_done": False})
+        self._my_progress_records().sudo().write({"state": "in_progress", "date_done": False})
         return True
-
-    def action_take_quiz(self):
-        self.ensure_one()
-        if not self.question_ids:
-            raise UserError("Esta lección no tiene test de comprobación.")
-        self.action_start()
-        wizard = self.env["rms.training.quiz.wizard"].create(
-            {
-                "lesson_id": self.id,
-                "line_ids": [(0, 0, {"question_id": q.id}) for q in self.question_ids],
-            }
-        )
-        return {
-            "type": "ir.actions.act_window",
-            "name": "Test: %s" % self.name,
-            "res_model": "rms.training.quiz.wizard",
-            "res_id": wizard.id,
-            "view_mode": "form",
-            "target": "new",
-        }
 
     # ------------------------------------------------------------------
     # Texto plano para el asistente de IA (rms_ai_help_assistant)
@@ -182,7 +252,7 @@ class RmsTrainingLesson(models.Model):
         self.ensure_one()
         level_label = dict(LEVELS).get(self.level, "")
         lines = [
-            "%s (nivel %s, ruta '%s')" % (self.name, level_label, self.path_id.name),
+            "%s (nivel %s, aplicación '%s')" % (self.name, level_label, self.path_id.name),
         ]
         if self.menu_path:
             lines.append("Dónde: %s" % self.menu_path)
@@ -196,8 +266,6 @@ class RmsTrainingLesson(models.Model):
                 text += " (Resultado: %s)" % step.expected_result
             lines.append(text)
         if self.tips:
-            from odoo.tools import html2plaintext
-
             lines.append("Consejos: %s" % html2plaintext(self.tips))
         return "\n".join(lines)
 

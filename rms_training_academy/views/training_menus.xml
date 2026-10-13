@@ -7,9 +7,9 @@
               web_icon="rms_training_academy,static/description/icon.png"/>
 
     <menuitem id="menu_training_learn" name="Aprender" parent="menu_training_root" sequence="10"/>
-    <menuitem id="menu_training_paths" name="Rutas formativas" parent="menu_training_learn"
+    <menuitem id="menu_training_paths" name="Mi formación por aplicación" parent="menu_training_learn"
               action="action_rms_training_path" sequence="10"/>
-    <menuitem id="menu_training_lessons" name="Plan de formación completo" parent="menu_training_learn"
+    <menuitem id="menu_training_lessons" name="Mi plan de formación" parent="menu_training_learn"
               action="action_rms_training_lesson" sequence="20"/>
     <menuitem id="menu_training_todo" name="Mis lecciones pendientes" parent="menu_training_learn"
               action="action_rms_training_lesson_todo" sequence="30"/>
@@ -17,6 +17,9 @@
               action="action_rms_training_progress_mine" sequence="40"/>
 
     <menuitem id="menu_training_control" name="Control de formación" parent="menu_training_root"
-              action="action_rms_training_progress_all" sequence="20"
-              groups="rms_training_academy.group_training_manager"/>
+              sequence="20" groups="rms_training_academy.group_training_manager"/>
+    <menuitem id="menu_training_user_summary" name="Avance por empleado" parent="menu_training_control"
+              action="action_server_training_user_summary" sequence="10"/>
+    <menuitem id="menu_training_progress_all" name="Detalle de lecciones completadas" parent="menu_training_control"
+              action="action_rms_training_progress_all" sequence="20"/>
 </odoo>

@@ -9,11 +9,9 @@
                 <field name="level" widget="badge" decoration-success="level == '1_basic'" decoration-warning="level == '2_intermediate'" decoration-danger="level == '3_advanced'"/>
                 <field name="name"/>
                 <field name="menu_path" optional="show"/>
-                <field name="audience" optional="hide"/>
                 <field name="duration" optional="show" sum="Total"/>
-                <field name="question_count" optional="hide"/>
+                <field name="access_summary" optional="hide" groups="rms_training_academy.group_training_manager"/>
                 <field name="my_state" widget="badge" decoration-success="my_state == 'done'" decoration-info="my_state == 'in_progress'"/>
-                <field name="my_score" optional="hide"/>
             </list>
         </field>
     </record>
@@ -24,20 +22,21 @@
         <field name="arch" type="xml">
             <form>
                 <header>
+                    <field name="is_available" invisible="1"/>
                     <button name="action_start" type="object" string="Empezar lección" class="btn-primary"
-                            invisible="my_state != 'not_started'"/>
+                            invisible="my_state != 'not_started' or not is_available"/>
                     <button name="action_mark_done" type="object" string="Marcar como completada" class="btn-primary"
-                            invisible="my_state == 'done' or question_count"/>
-                    <button name="action_take_quiz" type="object" string="Hacer el test" class="btn-primary"
-                            invisible="my_state == 'done' or not question_count"/>
-                    <button name="action_take_quiz" type="object" string="Repetir el test"
-                            invisible="my_state != 'done' or not question_count"/>
+                            invisible="my_state == 'done' or not is_available"/>
                     <button name="action_reset_my_progress" type="object" string="Volver a repasar"
                             invisible="my_state != 'done'"/>
                     <field name="my_state" widget="statusbar"/>
                 </header>
                 <sheet>
                     <widget name="web_ribbon" title="Completada" bg_color="text-bg-success" invisible="my_state != 'done'"/>
+                    <div class="alert alert-warning" role="status" invisible="is_available">
+                        Con tus permisos actuales no tienes acceso a esta funcionalidad. Puedes leer la lección, pero no
+                        cuenta en tu plan de formación. Si la necesitas para tu trabajo, pide acceso a administración.
+                    </div>
                     <div class="oe_title">
                         <field name="level" widget="badge" decoration-success="level == '1_basic'" decoration-warning="level == '2_intermediate'" decoration-danger="level == '3_advanced'"/>
                         <h1><field name="name" placeholder="p. ej. Crear un presupuesto"/></h1>
@@ -46,12 +45,10 @@
                         <group>
                             <field name="path_id"/>
                             <field name="menu_path"/>
-                            <field name="audience"/>
                         </group>
                         <group>
                             <field name="duration"/>
                             <field name="prerequisite_ids" widget="many2many_tags"/>
-                            <field name="my_score" invisible="not question_count"/>
                             <field name="done_user_count" groups="rms_training_academy.group_training_manager"/>
                         </group>
                     </group>
@@ -72,35 +69,15 @@
                         <page string="Consejos y errores frecuentes" name="tips">
                             <field name="tips"/>
                         </page>
-                        <page string="Test de comprobación" name="quiz" groups="rms_training_academy.group_training_manager">
-                            <group>
-                                <field name="pass_percent"/>
-                            </group>
-                            <field name="question_ids">
-                                <list>
-                                    <field name="sequence" widget="handle"/>
-                                    <field name="name"/>
-                                    <field name="explanation"/>
-                                </list>
-                                <form>
-                                    <group>
-                                        <field name="name"/>
-                                        <field name="explanation"/>
-                                    </group>
-                                    <field name="answer_ids">
-                                        <list editable="bottom">
-                                            <field name="sequence" widget="handle"/>
-                                            <field name="name"/>
-                                            <field name="is_correct"/>
-                                        </list>
-                                    </field>
-                                </form>
-                            </field>
-                        </page>
                         <page string="Configuración" name="config" groups="rms_training_academy.group_training_manager">
-                            <group>
-                                <field name="sequence"/>
+                            <group string="Quién ve esta lección">
+                                <field name="access_summary"/>
                                 <field name="module_name"/>
+                                <field name="menu_xmlid" placeholder="p. ej. stock_cession.menu_stock_cession"/>
+                                <field name="group_xmlids" placeholder="p. ej. base.group_system, custom.comerciales"/>
+                            </group>
+                            <group string="Otros">
+                                <field name="sequence"/>
                                 <field name="keywords"/>
                                 <field name="active"/>
                             </group>
@@ -119,6 +96,9 @@
                 <field name="name" filter_domain="['|', '|', ('name', 'ilike', self), ('keywords', 'ilike', self), ('menu_path', 'ilike', self)]"/>
                 <field name="path_id"/>
                 <field name="module_name"/>
+                <filter string="Mis lecciones" name="available" domain="[('is_available', '=', True)]"
+                        help="Lecciones de las funcionalidades a las que tienes acceso"/>
+                <separator/>
                 <filter string="Pendientes" name="todo" domain="[('my_state', '=', 'not_started')]"/>
                 <filter string="En curso" name="in_progress" domain="[('my_state', '=', 'in_progress')]"/>
                 <filter string="Completadas" name="done" domain="[('my_state', '=', 'done')]"/>
@@ -127,10 +107,9 @@
                 <filter string="Intermedio" name="intermediate" domain="[('level', '=', '2_intermediate')]"/>
                 <filter string="Avanzado" name="advanced" domain="[('level', '=', '3_advanced')]"/>
                 <separator/>
-                <filter string="Con test" name="with_quiz" domain="[('question_ids', '!=', False)]"/>
                 <filter string="Archivadas" name="inactive" domain="[('active', '=', False)]"/>
                 <group>
-                    <filter string="Ruta formativa" name="group_path" context="{'group_by': 'path_id'}"/>
+                    <filter string="Aplicación" name="group_path" context="{'group_by': 'path_id'}"/>
                     <filter string="Nivel" name="group_level" context="{'group_by': 'level'}"/>
                 </group>
             </search>
@@ -138,13 +117,14 @@
     </record>
 
     <record id="action_rms_training_lesson" model="ir.actions.act_window">
-        <field name="name">Plan de formación</field>
+        <field name="name">Mi plan de formación</field>
         <field name="res_model">rms.training.lesson</field>
         <field name="view_mode">list,form</field>
-        <field name="context">{'search_default_group_path': 1}</field>
+        <field name="context">{'search_default_available': 1, 'search_default_group_path': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">No hay lecciones</p>
-            <p>Cada lección explica paso a paso cómo hacer algo en vuestro Odoo.</p>
+            <p>Cada lección explica paso a paso cómo hacer algo en vuestro Odoo.
+               Quita el filtro "Mis lecciones" para ver también las de otras áreas.</p>
         </field>
     </record>
 
@@ -152,6 +132,9 @@
         <field name="name">Mis lecciones pendientes</field>
         <field name="res_model">rms.training.lesson</field>
         <field name="view_mode">list,form</field>
-        <field name="context">{'search_default_todo': 1, 'search_default_in_progress': 1, 'search_default_group_level': 1}</field>
+        <field name="context">{'search_default_available': 1, 'search_default_todo': 1, 'search_default_in_progress': 1, 'search_default_group_level': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">¡No tienes lecciones pendientes!</p>
+        </field>
     </record>
 </odoo>

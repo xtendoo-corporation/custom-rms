@@ -38,5 +38,11 @@ class InstallationProject(models.Model):
             if project.state == 'draft':
                 project.state = 'sent'
 
+    def action_mark_accepted(self):
+        self.filtered(lambda p: p.state in ('sent', 'rejected')).write({'state': 'accepted'})
+
+    def action_mark_rejected(self):
+        self.filtered(lambda p: p.state in ('sent', 'accepted')).write({'state': 'rejected'})
+
     def action_reset_to_draft(self):
         self.write({'state': 'draft'})

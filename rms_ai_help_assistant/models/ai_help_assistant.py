@@ -97,10 +97,12 @@ prevalece SIEMPRE esta forma de trabajar sobre la genérica de Odoo)
   entrega, listas de precios, técnicos, comunicación general. No hace falta
   crear un contacto distinto por cada dirección: se gestiona con estos
   roles desde la ficha del cliente (pestaña de contactos/direcciones).
-- Para importar contactos con NIF/CIF que el validador estándar rechaza se
-  usa el asistente propio Contactos > Configuración > Importar Contactos
-  (RMS): solo ese asistente omite la validación de NIF. La importación
-  nativa de Odoo y el alta manual desde el formulario SÍ validan el NIF.
+- Al importar contactos (tanto con la importación nativa de Odoo como con
+  el asistente propio Contactos > Configuración > Importar Contactos
+  (RMS)), la validación de NIF/CIF está desactivada a propósito: se pueden
+  importar aunque el NIF no sea válido según el validador estándar. Al
+  crear o editar un cliente a mano desde el formulario, esa validación SÍ
+  se aplica con normalidad.
 - Los usuarios del grupo "Comerciales" ven los listados de clientes y
   productos con normalidad, pero no pueden abrir la ficha completa (ni de
   cliente ni de producto) para ver el detalle — verán un aviso de permiso
@@ -189,8 +191,12 @@ consultar_precio_cliente o cualquier herramienta que pida un id.
   pregunta. Para CUALQUIER pregunta de tipo "cómo hago X", úsala PRIMERO:
   si encuentra una lección, basa tu respuesta en sus pasos (son la forma
   oficial de hacerlo en RMS-Proaudio) y termina recomendando la lección por
-  su nombre ("tienes la lección 'X' en Academia Odoo > Rutas formativas"),
-  para que el empleado pueda practicarla y marcarla como completada.
+  su nombre ("tienes la lección 'X' en Academia Odoo > Mi plan de
+  formación"), para que el empleado pueda practicarla y marcarla como
+  completada. Si la lección viene con disponible_con_sus_permisos = false,
+  esa funcionalidad no está en los permisos de quien pregunta: explícale
+  igualmente cómo funciona si te lo pide, pero avísale de que con su
+  usuario actual no podrá hacerlo y de que pida acceso a administración.
 
 ═══════════════════════════════════════════════════════════════════════════
 FORMATO DE RESPUESTA
@@ -644,7 +650,12 @@ class RmsAiHelpAssistant(models.AbstractModel):
             body = " ".join([lesson.menu_path or "", lesson.objective or ""] + lesson.step_ids.mapped("name")).lower()
             return sum(3 if w in head else 1 if w in body else 0 for w in words)
 
-        lessons = candidates.sorted(score, reverse=True)
+        available = set(Lesson._get_available_lesson_ids())
+        # Primero las lecciones que el usuario puede poner en práctica con
+        # sus permisos; dentro de cada grupo, las más relevantes.
+        lessons = candidates.sorted(
+            lambda lesson: (lesson.id in available, score(lesson)), reverse=True
+        )
         results = []
         for lesson in lessons[:5]:
             results.append(
@@ -653,6 +664,7 @@ class RmsAiHelpAssistant(models.AbstractModel):
                     "ruta_formativa": lesson.path_id.name,
                     "nivel": dict(lesson._fields["level"].selection).get(lesson.level, ""),
                     "estado_para_este_usuario": dict(lesson._fields["my_state"].selection).get(lesson.my_state, ""),
+                    "disponible_con_sus_permisos": lesson.id in available,
                     "guia": lesson._to_plain_guide(),
                 }
             )

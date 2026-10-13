@@ -18,13 +18,11 @@ class RmsTrainingProgress(models.Model):
     lesson_id = fields.Many2one(
         "rms.training.lesson", string="Lección", required=True, ondelete="cascade", index=True
     )
-    path_id = fields.Many2one(related="lesson_id.path_id", store=True, string="Ruta formativa")
+    path_id = fields.Many2one(related="lesson_id.path_id", store=True, string="Aplicación")
     level = fields.Selection(related="lesson_id.level", store=True, string="Nivel")
     state = fields.Selection(PROGRESS_STATES, string="Estado", default="not_started", required=True)
     date_start = fields.Datetime(string="Empezada el")
     date_done = fields.Datetime(string="Completada el")
-    score = fields.Float(string="Nota del test (%)")
-    attempt_count = fields.Integer(string="Intentos del test")
     done_count = fields.Integer(
         string="Completadas",
         compute="_compute_done_count",
@@ -43,11 +41,11 @@ class RmsTrainingProgress(models.Model):
         for progress in self:
             progress.done_count = 1 if progress.state == "done" else 0
 
-    def _set_done(self, score=None):
-        vals = {"state": "done", "date_done": fields.Datetime.now()}
-        if score is not None:
-            vals["score"] = score
+    def _set_done(self):
+        now = fields.Datetime.now()
         for progress in self:
-            if not progress.date_start:
-                vals["date_start"] = vals["date_done"]
-            progress.write(vals)
+            progress.write({
+                "state": "done",
+                "date_done": now,
+                "date_start": progress.date_start or now,
+            })
