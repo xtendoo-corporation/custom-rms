@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Contenido inicial de la Academia. noupdate=1: el Responsable de
+         Formación puede editarlo desde Odoo sin que una actualización del
+         módulo le pise los cambios. -->
+    <data noupdate="1">
+
+        <record id="path_basics" model="rms.training.path">
+            <field name="name">Primeros pasos</field>
+            <field name="sequence">10</field>
+            <field name="audience">Todos</field>
+            <field name="description">Lo básico.</field>
+            <field name="color">1</field>
+        </record>
+        <record id="lesson_nav" model="rms.training.lesson">
+            <field name="name">Moverse por Odoo</field>
+            <field name="path_id" ref="path_basics"/>
+            <field name="sequence">10</field>
+            <field name="level">1_basic</field>
+            <field name="duration">10</field>
+            <field name="menu_path">Menú principal</field>
+            <field name="keywords">menu navegar</field>
+            <field name="objective">Navegar.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Uno&lt;/li&gt;&lt;li&gt;Dos &amp;amp; tres&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre Odoo', 'description': 'Entra con tu usuario', 'expected_result': 'Ves el menú'}), (0, 0, {'sequence': 2, 'name': 'Pulsa &quot;Ventas&quot;', 'description': '', 'expected_result': ''})]"/>
+            <field name="question_ids" eval="[(0, 0, {'sequence': 1, 'name': '¿Dónde se ve?', 'explanation': 'Porque sí', 'answer_ids': [(0, 0, {'sequence': 0, 'name': 'Aquí', 'is_correct': False}), (0, 0, {'sequence': 1, 'name': 'Allí', 'is_correct': True})]})]"/>
+        </record>
+        <record id="lesson_nav2" model="rms.training.lesson">
+            <field name="name">Otra</field>
+            <field name="path_id" ref="path_basics"/>
+            <field name="sequence">20</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">10</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_nav')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'x', 'description': '', 'expected_result': ''})]"/>
+        </record>
+    </data>
+</odoo>

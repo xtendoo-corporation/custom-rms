@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_training_path_kanban" model="ir.ui.view">
+        <field name="name">rms.training.path.kanban</field>
+        <field name="model">rms.training.path</field>
+        <field name="arch" type="xml">
+            <kanban action="action_open_lessons" type="object" class="o_kanban_small_column">
+                <field name="color"/>
+                <field name="lesson_count"/>
+                <field name="my_done_count"/>
+                <templates>
+                    <t t-name="card" class="row g-0">
+                        <field name="name" class="fw-bold fs-4"/>
+                        <field name="audience" class="text-muted"/>
+                        <field name="description" class="mt-2"/>
+                        <div class="mt-2 d-flex gap-3 text-muted small">
+                            <span><field name="lesson_count"/> lecciones</span>
+                            <span><field name="total_duration"/> min aprox.</span>
+                            <span><field name="my_done_count"/> completadas</span>
+                        </div>
+                        <field name="my_progress" widget="progressbar" class="mt-2"/>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_rms_training_path_list" model="ir.ui.view">
+        <field name="name">rms.training.path.list</field>
+        <field name="model">rms.training.path</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="audience"/>
+                <field name="lesson_count"/>
+                <field name="total_duration"/>
+                <field name="my_progress" widget="progressbar"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_training_path_form" model="ir.ui.view">
+        <field name="name">rms.training.path.form</field>
+        <field name="model">rms.training.path</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_lessons" type="object" class="oe_stat_button" icon="fa-graduation-cap">
+                            <field name="lesson_count" widget="statinfo" string="Lecciones"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archivada" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="p. ej. Ventas y presupuestos"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="audience"/>
+                            <field name="group_ids" widget="many2many_tags"/>
+                        </group>
+                        <group>
+                            <field name="sequence"/>
+                            <field name="total_duration"/>
+                            <field name="my_progress" widget="progressbar"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                    </group>
+                    <field name="description" placeholder="Descripción de la ruta..."/>
+                    <notebook>
+                        <page string="Lecciones" name="lessons">
+                            <field name="lesson_ids" context="{'default_path_id': id}">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="level" widget="badge" decoration-success="level == '1_basic'" decoration-warning="level == '2_intermediate'" decoration-danger="level == '3_advanced'"/>
+                                    <field name="name"/>
+                                    <field name="duration"/>
+                                    <field name="step_count"/>
+                                    <field name="question_count"/>
+                                    <field name="my_state" widget="badge" decoration-success="my_state == 'done'" decoration-info="my_state == 'in_progress'"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_rms_training_path_search" model="ir.ui.view">
+        <field name="name">rms.training.path.search</field>
+        <field name="model">rms.training.path</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="audience"/>
+                <filter string="Recomendadas para mí" name="recommended" domain="[('is_recommended', '=', True)]"/>
+                <separator/>
+                <filter string="Archivadas" name="inactive" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_rms_training_path" model="ir.actions.act_window">
+        <field name="name">Rutas formativas</field>
+        <field name="res_model">rms.training.path</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Todavía no hay rutas formativas</p>
+            <p>Una ruta agrupa lecciones paso a paso, ordenadas de Básico a Avanzado.</p>
+        </field>
+    </record>
+</odoo>

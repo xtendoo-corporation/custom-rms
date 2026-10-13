@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="group_training_manager" model="res.groups">
+        <field name="name">Responsable de Formación (Academia Odoo)</field>
+        <field name="privilege_id" eval="False"/>
+        <field name="comment">Puede crear y editar rutas formativas, lecciones y tests, y ve el progreso de formación de todos los empleados. Se concede automáticamente a los Administradores; además se puede añadir a personas concretas desde Ajustes &gt; Usuarios y Compañías &gt; Grupos.</field>
+    </record>
+
+    <record id="base.group_system" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('rms_training_academy.group_training_manager'))]"/>
+    </record>
+
+    <!-- Cada empleado solo ve su propio progreso -->
+    <record id="rule_training_progress_own" model="ir.rule">
+        <field name="name">Academia: cada empleado ve su propio progreso</field>
+        <field name="model_id" ref="model_rms_training_progress"/>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- El responsable de formación ve el de todos -->
+    <record id="rule_training_progress_manager" model="ir.rule">
+        <field name="name">Academia: el responsable ve todo el progreso</field>
+        <field name="model_id" ref="model_rms_training_progress"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('rms_training_academy.group_training_manager'))]"/>
+    </record>
+</odoo>

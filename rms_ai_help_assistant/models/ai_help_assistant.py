@@ -176,6 +176,13 @@ consultar_precio_cliente o cualquier herramienta que pida un id.
   o por nombre de cliente.
 - buscar_documentacion(texto): busca en la documentación interna (Knowledge)
   de la empresa, si existe algún artículo relacionado con la pregunta.
+- buscar_formacion(texto): busca en la Academia Odoo (plan de formación
+  oficial de la empresa) las lecciones paso a paso relacionadas con la
+  pregunta. Para CUALQUIER pregunta de tipo "cómo hago X", úsala PRIMERO:
+  si encuentra una lección, basa tu respuesta en sus pasos (son la forma
+  oficial de hacerlo en RMS-Proaudio) y termina recomendando la lección por
+  su nombre ("tienes la lección 'X' en Academia Odoo > Rutas formativas"),
+  para que el empleado pueda practicarla y marcarla como completada.
 
 ═══════════════════════════════════════════════════════════════════════════
 FORMATO DE RESPUESTA
@@ -254,6 +261,26 @@ TOOLS = [
                 "texto": {
                     "type": "string",
                     "description": "Referencia del pedido (p. ej. 'S00123') o nombre de cliente.",
+                }
+            },
+            "required": ["texto"],
+        },
+    },
+    {
+        "name": "buscar_formacion",
+        "description": (
+            "Busca en la Academia Odoo (plan de formación interno) lecciones "
+            "paso a paso relacionadas con la pregunta. Devuelve el texto "
+            "completo de las lecciones encontradas (ruta de menú, pasos y "
+            "consejos). Úsala primero ante cualquier duda de tipo 'cómo se "
+            "hace X'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "texto": {
+                    "type": "string",
+                    "description": "Palabras clave de la acción (p. ej. 'cesión', 'lista de precios', 'gasto ticket').",
                 }
             },
             "required": ["texto"],
@@ -395,6 +422,7 @@ class RmsAiHelpAssistant(models.AbstractModel):
             "consultar_precio_cliente": self._tool_consultar_precio_cliente,
             "buscar_pedido": self._tool_buscar_pedido,
             "buscar_documentacion": self._tool_buscar_documentacion,
+            "buscar_formacion": self._tool_buscar_formacion,
         }.get(name)
         if not handler:
             return json.dumps({"error": "Herramienta desconocida: %s" % name}, ensure_ascii=False)
@@ -569,6 +597,44 @@ class RmsAiHelpAssistant(models.AbstractModel):
                     "titulo": doc.name,
                     "carpeta": doc.knowledge_category_id.complete_name or "",
                     "extracto": extracto,
+                }
+            )
+        return {"resultados": results, "total_encontrado": len(results)}
+
+    def _tool_buscar_formacion(self, tool_input):
+        texto = (tool_input.get("texto") or "").strip()
+        if not texto:
+            return {"error": "Falta el texto a buscar."}
+        # Integración opcional: no hay dependencia de manifiesto con
+        # rms_training_academy; si no está instalado, simplemente se avisa.
+        if "rms.training.lesson" not in self.env:
+            return {"error": "La Academia Odoo (rms_training_academy) no está instalada."}
+        Lesson = self.env["rms.training.lesson"]
+        lessons = Lesson.browse()
+        # Primero la frase completa; si no hay resultados, cada palabra
+        # significativa por separado (las preguntas suelen ser frases largas).
+        terms = [texto] + [w for w in texto.split() if len(w) > 3]
+        for term in terms:
+            domain = [
+                "|", "|", "|", "|",
+                ("name", "ilike", term),
+                ("keywords", "ilike", term),
+                ("menu_path", "ilike", term),
+                ("objective", "ilike", term),
+                ("step_ids.name", "ilike", term),
+            ]
+            lessons |= Lesson.search(domain, limit=SEARCH_LIMIT)
+            if len(lessons) >= 3:
+                break
+        results = []
+        for lesson in lessons[:5]:
+            results.append(
+                {
+                    "leccion": lesson.name,
+                    "ruta_formativa": lesson.path_id.name,
+                    "nivel": dict(lesson._fields["level"].selection).get(lesson.level, ""),
+                    "estado_para_este_usuario": dict(lesson._fields["my_state"].selection).get(lesson.my_state, ""),
+                    "guia": lesson._to_plain_guide(),
                 }
             )
         return {"resultados": results, "total_encontrado": len(results)}
