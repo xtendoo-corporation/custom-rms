@@ -47,7 +47,13 @@ class SaleOrder(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        orders = super().create(vals_list)
+        # Lines created together with the order must not subscribe followers
+        # before mail.thread subscribes the creator without checking existing
+        # followers, otherwise a product manager creating/duplicating the order
+        # is inserted twice and mail.followers unique constraint fails.
+        orders = super(
+            SaleOrder, self.with_context(rms_skip_category_pm_subscribe=True)
+        ).create(vals_list).with_env(self.env)
         orders._subscribe_category_product_managers()
         return orders
 
@@ -58,6 +64,8 @@ class SaleOrder(models.Model):
         return result
 
     def _subscribe_category_product_managers(self):
+        if self.env.context.get('rms_skip_category_pm_subscribe'):
+            return
         for order in self:
             partner_ids = order.category_product_manager_ids.filtered(
                 lambda user: user.active and user.partner_id
