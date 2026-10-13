@@ -211,6 +211,7 @@ class RmsTrainingStep(models.Model):
         "rms.training.lesson", string="Lección", required=True, ondelete="cascade", index=True
     )
     sequence = fields.Integer(string="Orden", default=10)
-    name = fields.Char(string="Paso", required=True, translate=True)
+    # Text (no Char) para que los pasos largos se lean enteros en la lista.
+    name = fields.Text(string="Paso", required=True, translate=True)
     description = fields.Text(string="Detalle", translate=True)
     expected_result = fields.Char(string="Resultado esperado", translate=True)

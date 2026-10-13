@@ -2,10 +2,12 @@
 
 import json
 import logging
+import re
 
 import requests
 
 from odoo import api, models
+from odoo.fields import Domain
 
 _logger = logging.getLogger(__name__)
 
@@ -15,6 +17,12 @@ MAX_TOOL_ROUNDS = 6  # una consulta puede necesitar varias herramientas encadena
                      # (p. ej. buscar_cliente -> consultar_producto -> consultar_precio_cliente)
 LLM_TIMEOUT = 60
 SEARCH_LIMIT = 8
+# Palabras demasiado comunes para buscar lecciones de la Academia.
+TRAINING_STOPWORDS = {
+    "como", "cómo", "que", "qué", "para", "por", "con", "una", "uno", "unos", "unas",
+    "los", "las", "del", "hago", "hacer", "puedo", "quiero", "donde", "dónde", "cuando",
+    "cuándo", "odoo", "esto", "este", "esta", "hay", "mis", "sus", "nos",
+}
 
 # ---------------------------------------------------------------------------
 # IMPORTANTE — por qué este módulo es seguro de instalar tal cual:
@@ -89,11 +97,10 @@ prevalece SIEMPRE esta forma de trabajar sobre la genérica de Odoo)
   entrega, listas de precios, técnicos, comunicación general. No hace falta
   crear un contacto distinto por cada dirección: se gestiona con estos
   roles desde la ficha del cliente (pestaña de contactos/direcciones).
-- Al importar contactos desde Excel/CSV (importación nativa de Odoo), la
-  validación de NIF/CIF está desactivada a propósito: se pueden importar
-  aunque el NIF no sea válido según el validador estándar. Al crear un
-  cliente a mano desde el formulario, esa validación SÍ se aplica con
-  normalidad.
+- Para importar contactos con NIF/CIF que el validador estándar rechaza se
+  usa el asistente propio Contactos > Configuración > Importar Contactos
+  (RMS): solo ese asistente omite la validación de NIF. La importación
+  nativa de Odoo y el alta manual desde el formulario SÍ validan el NIF.
 - Los usuarios del grupo "Comerciales" ven los listados de clientes y
   productos con normalidad, pero no pueden abrir la ficha completa (ni de
   cliente ni de producto) para ver el detalle — verán un aviso de permiso
@@ -121,9 +128,10 @@ si se puede vender y a qué precio:
   este estado, el precio no sale de la tarifa general sino de un precio
   específico fijado en ese número de serie/lote ("Precio Custom").
 - 2ª Mano recibe además, automáticamente, un 10% de descuento adicional.
-- Descontinuado: precio 0 si se referencia por lote en un pedido (se
-  entiende como liquidación), y el producto se archiva automáticamente en
-  cuanto su stock llega a 0 (proceso automático nocturno).
+- Demo y Descontinuado: en una línea de presupuesto sin números de serie
+  asignados el precio sale a 0. Además, un producto Descontinuado se
+  archiva automáticamente en cuanto su stock llega a 0 (proceso
+  automático nocturno).
 
 — STOCK Y CESIONES —
 - Además de las salidas de venta normales, existe un proceso de "Cesión de
@@ -610,22 +618,33 @@ class RmsAiHelpAssistant(models.AbstractModel):
         if "rms.training.lesson" not in self.env:
             return {"error": "La Academia Odoo (rms_training_academy) no está instalada."}
         Lesson = self.env["rms.training.lesson"]
-        lessons = Lesson.browse()
-        # Primero la frase completa; si no hay resultados, cada palabra
-        # significativa por separado (las preguntas suelen ser frases largas).
-        terms = [texto] + [w for w in texto.split() if len(w) > 3]
-        for term in terms:
-            domain = [
+        # Las preguntas suelen ser frases largas ("¿cómo vendo una unidad de
+        # segunda mano?"): buscamos por cada palabra significativa y
+        # ordenamos por cuántas coinciden, pesando más título y palabras
+        # clave que el resto del texto.
+        words = [
+            w for w in re.findall(r"\w+", texto.lower())
+            if len(w) > 2 and w not in TRAINING_STOPWORDS
+        ] or [texto.lower()]
+        domain = Domain.OR(
+            [
                 "|", "|", "|", "|",
-                ("name", "ilike", term),
-                ("keywords", "ilike", term),
-                ("menu_path", "ilike", term),
-                ("objective", "ilike", term),
-                ("step_ids.name", "ilike", term),
+                ("name", "ilike", word),
+                ("keywords", "ilike", word),
+                ("menu_path", "ilike", word),
+                ("objective", "ilike", word),
+                ("step_ids.name", "ilike", word),
             ]
-            lessons |= Lesson.search(domain, limit=SEARCH_LIMIT)
-            if len(lessons) >= 3:
-                break
+            for word in words
+        )
+        candidates = Lesson.search(domain, limit=50)
+
+        def score(lesson):
+            head = " ".join([lesson.name or "", lesson.keywords or ""]).lower()
+            body = " ".join([lesson.menu_path or "", lesson.objective or ""] + lesson.step_ids.mapped("name")).lower()
+            return sum(3 if w in head else 1 if w in body else 0 for w in words)
+
+        lessons = candidates.sorted(score, reverse=True)
         results = []
         for lesson in lessons[:5]:
             results.append(

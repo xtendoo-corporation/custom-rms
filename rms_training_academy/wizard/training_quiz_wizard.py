@@ -74,7 +74,8 @@ class RmsTrainingQuizWizardLine(models.TransientModel):
     _description = "Pregunta del test de comprobación"
 
     wizard_id = fields.Many2one("rms.training.quiz.wizard", required=True, ondelete="cascade")
-    question_id = fields.Many2one("rms.training.question", string="Pregunta", required=True, readonly=True)
+    question_id = fields.Many2one("rms.training.question", string="Pregunta (registro)", required=True, readonly=True)
+    question_text = fields.Char(related="question_id.name", string="Pregunta")
     answer_id = fields.Many2one(
         "rms.training.answer",
         string="Tu respuesta",

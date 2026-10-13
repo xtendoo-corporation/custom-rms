@@ -9,11 +9,12 @@
                 <field name="passed" invisible="1"/>
                 <field name="lesson_id" invisible="1"/>
                 <div invisible="state != 'answering'">
-                    <p class="text-muted">Elige una respuesta en cada pregunta y pulsa "Corregir".</p>
+                    <p class="text-muted">Haz clic en la casilla <strong>Tu respuesta</strong> de cada pregunta, elige una opción y pulsa "Corregir".</p>
                     <field name="line_ids" nolabel="1">
                         <list editable="bottom" create="0" delete="0">
-                            <field name="question_id" readonly="1"/>
-                            <field name="answer_id" options="{'no_create': True, 'no_open': True}" required="1"/>
+                            <field name="question_id" column_invisible="1"/>
+                            <field name="question_text" widget="text" readonly="1"/>
+                            <field name="answer_id" options="{'no_create': True, 'no_open': True, 'no_search_more': True}" placeholder="Elige una respuesta..." required="1" width="380px"/>
                         </list>
                     </field>
                 </div>
