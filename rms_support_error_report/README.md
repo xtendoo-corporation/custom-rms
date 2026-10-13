@@ -23,6 +23,9 @@ soluciones (con parche propuesto cuando aplica).
    - el **código fuente** de las funciones implicadas, leído del propio
      servidor: la función completa en los módulos propios de este
      repositorio y unas líneas alrededor en el código estándar de Odoo,
+   - si el error ocurre dentro de una **acción de servidor o automatización**
+     creada desde la interfaz de Odoo, su código (que vive en la base de
+     datos, no en ningún fichero),
    - los ficheros de módulos propios que **extienden el modelo afectado**
      (p. ej. todos los que heredan `sale.order`), que es donde suelen estar
      las inconsistencias entre módulos,
@@ -72,6 +75,7 @@ Los errores repetidos no se vuelven a analizar.
   ellas: solo se leen ficheros `.py` dentro de las carpetas de addons de
   Odoo y de este repositorio.
 - Se envía a Anthropic el mensaje de error, el traceback, el comentario del
-  usuario y código fuente; **no** se envían los valores de los registros.
+  usuario y código fuente (incluido el de las acciones de servidor
+  implicadas); **no** se envían los valores de los registros.
   Ten en cuenta que el mensaje de error puede incluir nombres de documentos
   o clientes.
