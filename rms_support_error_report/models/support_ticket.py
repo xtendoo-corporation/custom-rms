@@ -42,6 +42,8 @@ MAX_RELATED_FILE_CHARS = 15000
 MAX_CODE_CONTEXT_CHARS = 120000
 
 FRAME_RE = re.compile(r'File "([^"]+)", line (\d+), in (\S+)')
+SERVER_ACTION_FRAME_RE = re.compile(r"ir\.actions\.server\((\d+),?\)")
+MAX_SERVER_ACTIONS = 3
 
 # Carpeta raíz de este repositorio (custom-rms): todo módulo que viva aquí
 # es "nuestro" y es donde más probable es que esté el fallo.
@@ -77,6 +79,10 @@ que otro módulo vuelve a hacer, campos que uno espera y otro no rellena...
 Un usuario ha pulsado "Notificar a soporte" en una ventana de error. Recibes
 el error, el traceback, el contexto (pantalla, modelo, registro), el
 comentario del usuario y el código fuente relevante leído del servidor.
+Además de los módulos, en esta base de datos hay lógica escrita desde la
+propia interfaz de Odoo (acciones de servidor y automatizaciones); si el
+error ocurre dentro de una, recibes también su código. Un fallo ahí es un
+bug de esa acción, no de un módulo: indícalo con su id y su nombre.
 
 Tu trabajo es diagnosticar, no arreglar: redacta un informe para el
 desarrollador que mantiene los módulos. Sé concreto: cita módulo, fichero,
@@ -526,6 +532,8 @@ class RmsSupportTicket(models.Model):
                 self._snippet(source, start, end, lineno),
             ))
 
+        parts += self._server_action_code_parts()
+
         # Ficheros de módulos propios que extienden el modelo afectado: es
         # donde suelen estar las inconsistencias entre módulos, aunque no
         # aparezcan en el traceback (p. ej. un create() que ya terminó).
@@ -539,6 +547,38 @@ class RmsSupportTicket(models.Model):
 
         context = "\n\n".join(parts)
         return context[:MAX_CODE_CONTEXT_CHARS]
+
+    def _server_action_code_parts(self):
+        """Código de las acciones de servidor que aparecen en el traceback.
+
+        Las acciones de servidor (y las automatizaciones, que las usan) se
+        escriben desde la interfaz de Odoo: su código está en la base de
+        datos, no en ningún fichero, así que safe_eval lo identifica en el
+        traceback como 'File "ir.actions.server(966,)", line 1'.
+        """
+        lines_by_action = {}
+        for path, line, _func in FRAME_RE.findall(self.traceback or ""):
+            match = SERVER_ACTION_FRAME_RE.fullmatch(path)
+            if match:
+                lines_by_action.setdefault(int(match.group(1)), int(line))
+        parts = []
+        actions = self.env["ir.actions.server"].sudo().browse(
+            list(lines_by_action)[:MAX_SERVER_ACTIONS]
+        ).exists()
+        for action in actions:
+            if action.state != "code" or not action.code:
+                continue
+            lineno = lines_by_action[action.id]
+            parts.append(
+                "### Acción de servidor id %s «%s» — modelo %s, línea %s [creada desde la interfaz de Odoo]\n"
+                "Identificador externo: %s · Creada por: %s el %s\n%s" % (
+                    action.id, action.name, action.model_id.model or "-", lineno,
+                    action.get_external_id().get(action.id) or "(ninguno: creada a mano)",
+                    action.create_uid.name or "-", action.create_date or "-",
+                    self._snippet(action.code, 1, len(action.code.splitlines()), lineno),
+                )
+            )
+        return parts
 
     @api.model
     def _custom_files_extending(self, model_name):
