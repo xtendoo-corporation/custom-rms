@@ -630,7 +630,7 @@ class RmsSupportTicket(models.Model):
 
     def _get_model(self):
         return self.env["ir.config_parameter"].sudo().get_param(
-            "rms_support_error_report.anthropic_model", "claude-opus-5-5"
+            "rms_support_error_report.anthropic_model", "claude-sonnet-5-5"
         )
 
     def _get_anthropic_workspace_id(self):

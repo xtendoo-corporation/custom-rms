@@ -56,11 +56,11 @@ Ajustes → Técnico → Parámetros del sistema:
 | Parámetro | Valor |
 |---|---|
 | `rms_support_error_report.anthropic_api_key` | API key de Anthropic. Si no se pone, usa la de `rms_ai_help_assistant` o `rms_ai_quote_assistant`. |
-| `rms_support_error_report.anthropic_model` | Modelo. Por defecto `claude-opus-5-5`. |
+| `rms_support_error_report.anthropic_model` | Modelo. Por defecto `claude-sonnet-5-5`. |
 | `rms_support_error_report.anthropic_workspace_id` | Solo para claves vinculadas a un workspace (igual que en los otros asistentes). |
 
 Coste orientativo: cada informe nuevo son unas decenas de miles de tokens
-de entrada (sobre todo código), del orden de 0,10–0,30 € por incidencia.
+de entrada (sobre todo código), del orden de 0,08–0,15 € por incidencia.
 Los errores repetidos no se vuelven a analizar.
 
 ## Seguridad y privacidad
