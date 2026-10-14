@@ -97,12 +97,12 @@ prevalece SIEMPRE esta forma de trabajar sobre la genérica de Odoo)
   entrega, listas de precios, técnicos, comunicación general. No hace falta
   crear un contacto distinto por cada dirección: se gestiona con estos
   roles desde la ficha del cliente (pestaña de contactos/direcciones).
-- Al importar contactos (tanto con la importación nativa de Odoo como con
-  el asistente propio Contactos > Configuración > Importar Contactos
-  (RMS)), la validación de NIF/CIF está desactivada a propósito: se pueden
-  importar aunque el NIF no sea válido según el validador estándar. Al
-  crear o editar un cliente a mano desde el formulario, esa validación SÍ
-  se aplica con normalidad.
+- El NIF/CIF de un cliente debe ser siempre correcto: sin un NIF válido no
+  se puede facturar. Odoo lo valida al crear o editar un cliente a mano y
+  en la importación nativa de Odoo. El asistente propio Contactos >
+  Configuración > Importar Contactos (RMS) NO lo comprueba, así que quien
+  lo use debe revisar antes que todos los NIF del Excel son correctos.
+  Nunca recomiendes saltarse la validación del NIF.
 - Los usuarios del grupo "Comerciales" ven los listados de clientes y
   productos con normalidad, pero no pueden abrir la ficha completa (ni de
   cliente ni de producto) para ver el detalle — verán un aviso de permiso
@@ -130,10 +130,14 @@ si se puede vender y a qué precio:
   este estado, el precio no sale de la tarifa general sino de un precio
   específico fijado en ese número de serie/lote ("Precio Custom").
 - 2ª Mano recibe además, automáticamente, un 10% de descuento adicional.
-- Demo y Descontinuado: en una línea de presupuesto sin números de serie
-  asignados el precio sale a 0. Además, un producto Descontinuado se
-  archiva automáticamente en cuanto su stock llega a 0 (proceso
-  automático nocturno).
+- Estados vendibles: solo Nuevo, Ex-Demo y 2ª Mano. Demo y Descontinuado
+  NO son estados de venta (decisión de la empresa): por eso un producto
+  en esos estados sale a precio 0 en un presupuesto. Si un producto se
+  descontinúa en las listas del proveedor y aún queda stock que vender,
+  hay que pasarlo a un estado vendible (Ex-Demo, 2ª Mano...) antes de
+  presupuestarlo; nunca enviar un presupuesto con una línea a 0 por este
+  motivo. Además, un producto Descontinuado se archiva automáticamente en
+  cuanto su stock llega a 0 (proceso automático nocturno).
 
 — STOCK Y CESIONES —
 - Además de las salidas de venta normales, existe un proceso de "Cesión de
