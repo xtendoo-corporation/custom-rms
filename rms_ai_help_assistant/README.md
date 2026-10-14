@@ -60,8 +60,8 @@ El prompt (`SYSTEM_PROMPT` en `models/ai_help_assistant.py`) incluye ya las
 reglas de negocio que se pudieron extraer de vuestros módulos personalizados
 en esta primera revisión: roles múltiples de contacto, triple descuento en
 tarifas, estados de producto (Demo/Ex-Demo/2ª Mano/Descontinuado),
-restricción de comerciales, importación de contactos sin validación de
-NIF, cesiones de stock, bloqueo de correo saliente a dominios externos, y
+restricción de comerciales, importación de contactos (y la obligación de
+que el NIF sea siempre válido), cesiones de stock, bloqueo de correo saliente a dominios externos, y
 la existencia de plantillas de impresión y wizards de importación propios.
 
 Esto es una primera versión: conviene revisarlo con quien mejor conozca

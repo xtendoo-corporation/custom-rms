@@ -1,0 +1,10 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_rms_training_path_user,rms.training.path.user,model_rms_training_path,base.group_user,1,0,0,0
+access_rms_training_path_manager,rms.training.path.manager,model_rms_training_path,group_training_manager,1,1,1,1
+access_rms_training_lesson_user,rms.training.lesson.user,model_rms_training_lesson,base.group_user,1,0,0,0
+access_rms_training_lesson_manager,rms.training.lesson.manager,model_rms_training_lesson,group_training_manager,1,1,1,1
+access_rms_training_step_user,rms.training.step.user,model_rms_training_step,base.group_user,1,0,0,0
+access_rms_training_step_manager,rms.training.step.manager,model_rms_training_step,group_training_manager,1,1,1,1
+access_rms_training_progress_user,rms.training.progress.user,model_rms_training_progress,base.group_user,1,0,0,0
+access_rms_training_progress_manager,rms.training.progress.manager,model_rms_training_progress,group_training_manager,1,1,1,1
+access_rms_training_user_summary_manager,rms.training.user.summary.manager,model_rms_training_user_summary,group_training_manager,1,1,1,1

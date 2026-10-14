@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS AI Help Assistant',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.1.0',
     'category': 'Productivity',
     'summary': 'Asistente de IA (Claude) que responde dudas de uso de Odoo y consulta datos reales, en modo solo lectura.',
     'description': """

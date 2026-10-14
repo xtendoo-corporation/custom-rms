@@ -1,0 +1,645 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Contenido inicial de la Academia. noupdate=1: el Responsable de
+         Formación puede editarlo desde Odoo sin que una actualización del
+         módulo le pise los cambios. -->
+    <data noupdate="1">
+
+        <record id="path_basics" model="rms.training.path">
+            <field name="name">Primeros pasos</field>
+            <field name="sequence">10</field>
+            <field name="description">Lo imprescindible para cualquier empleado: moverse por Odoo, buscar, notas internas, actividades y cómo pedir ayuda a la IA. Empieza por aquí.</field>
+            <field name="color">1</field>
+        </record>
+        <record id="lesson_basics_navigation" model="rms.training.lesson">
+            <field name="name">Moverse por Odoo: aplicaciones, menús y vistas</field>
+            <field name="path_id" ref="path_basics"/>
+            <field name="sequence">10</field>
+            <field name="level">1_basic</field>
+            <field name="duration">10</field>
+            <field name="menu_path">Menú de aplicaciones (icono de cuadrícula arriba a la izquierda)</field>
+            <field name="keywords">navegar menu aplicaciones vista lista kanban formulario volver migas</field>
+            <field name="objective">Abrir cualquier aplicación, cambiar entre vistas de lista, kanban y formulario y volver atrás sin perderte.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Lo que no ves en el menú de aplicaciones es porque tu usuario no tiene permiso: pídelo a administración.&lt;/li&gt;&lt;li&gt;Odoo guarda solo los cambios de una ficha al salir de ella; el icono de nube indica si hay cambios sin guardar.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Pulsa el icono de cuadrícula (arriba a la izquierda)', 'description': 'Verás todas las aplicaciones a las que tienes acceso: Ventas, Contactos, Inventario, Academia Odoo, Asistente Odoo (IA)...', 'expected_result': 'Se abre el menú de aplicaciones'}), (0, 0, {'sequence': 2, 'name': 'Entra en una aplicación, por ejemplo Contactos', 'description': 'La barra superior muestra los menús de esa aplicación.', 'expected_result': 'Ves el listado de contactos'}), (0, 0, {'sequence': 3, 'name': 'Cambia de vista con los iconos de la derecha (kanban / lista)', 'description': 'La vista kanban muestra tarjetas; la de lista, filas con columnas.', 'expected_result': 'El mismo listado aparece con otro formato'}), (0, 0, {'sequence': 4, 'name': 'Abre un registro haciendo clic sobre él', 'description': 'Se abre su ficha (vista formulario).', 'expected_result': 'Ves el detalle del registro'}), (0, 0, {'sequence': 5, 'name': 'Vuelve con las migas de pan (texto en gris arriba a la izquierda)', 'description': 'No uses el botón Atrás del navegador si estás editando: usa las migas.', 'expected_result': 'Vuelves al listado'})]"/>
+        </record>
+        <record id="lesson_basics_search" model="rms.training.lesson">
+            <field name="name">Buscar, filtrar, agrupar y guardar favoritos</field>
+            <field name="path_id" ref="path_basics"/>
+            <field name="sequence">20</field>
+            <field name="level">1_basic</field>
+            <field name="duration">10</field>
+            <field name="menu_path">Barra de búsqueda de cualquier listado</field>
+            <field name="keywords">buscar filtro agrupar favorito busqueda encontrar</field>
+            <field name="objective">Encontrar rápido lo que buscas combinando búsquedas, filtros y agrupaciones.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;En productos, si escribes varias palabras (p. ej. 'quantum 225'), Odoo busca productos que contengan TODAS las palabras, aunque no estén seguidas.&lt;/li&gt;&lt;li&gt;Para quitar un filtro pulsa la X de su etiqueta en la barra de búsqueda.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_basics_navigation')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Escribe en la barra de búsqueda', 'description': 'Odoo propone en qué campo buscar (nombre, referencia, cliente...). Pulsa Intro para el primero o elige otro.', 'expected_result': 'Aparece una etiqueta de búsqueda y el listado se filtra'}), (0, 0, {'sequence': 2, 'name': 'Abre el desplegable de la lupa (flecha junto a la barra)', 'description': 'Ahí están los Filtros, Agrupar por y Favoritos.', 'expected_result': 'Ves los filtros disponibles'}), (0, 0, {'sequence': 3, 'name': 'Marca un filtro y una agrupación', 'description': &quot;Por ejemplo, en Presupuestos: filtro 'Mis presupuestos' y agrupar por 'Cliente'.&quot;, 'expected_result': 'El listado aparece agrupado'}), (0, 0, {'sequence': 4, 'name': 'Guarda la búsqueda en Favoritos', 'description': 'Favoritos &gt; Guardar búsqueda actual. Puedes marcarla como predeterminada.', 'expected_result': 'La próxima vez la tienes a un clic'})]"/>
+        </record>
+        <record id="lesson_basics_chatter" model="rms.training.lesson">
+            <field name="name">Notas internas, seguidores y actividades (chatter)</field>
+            <field name="path_id" ref="path_basics"/>
+            <field name="sequence">30</field>
+            <field name="level">1_basic</field>
+            <field name="duration">10</field>
+            <field name="menu_path">Parte derecha/inferior de cualquier ficha (chatter)</field>
+            <field name="keywords">nota interna chatter enviar mensaje actividad seguidor mencionar @</field>
+            <field name="objective">Comunicarte con tus compañeros dentro de un registro y programar tareas pendientes.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Si necesitas escribir a un cliente, no lo hagas desde el chatter: los emails a dominios externos se bloquean (ver lección 'Por qué no le llega un email a un cliente').&lt;/li&gt;&lt;li&gt;Los seguidores de un registro reciben las notas en las que se les menciona y los cambios importantes.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_basics_navigation')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre cualquier ficha (cliente, presupuesto, oportunidad...)', 'description': 'A la derecha (o abajo) está el chatter con el historial.', 'expected_result': 'Ves el historial del registro'}), (0, 0, {'sequence': 2, 'name': &quot;Pulsa 'Registrar nota'&quot;, 'description': &quot;En vuestro Odoo el botón 'Enviar mensaje' está oculto a propósito: la comunicación interna se hace con notas.&quot;, 'expected_result': 'Se abre el cuadro de nota interna'}), (0, 0, {'sequence': 3, 'name': 'Escribe la nota y menciona a un compañero con @', 'description': 'Escribe @ y el nombre: le llegará una notificación.', 'expected_result': 'La nota queda en el historial y el compañero recibe aviso'}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Actividades' para programar una tarea&quot;, 'description': 'Elige tipo (Llamada, Por hacer...), fecha de vencimiento y responsable.', 'expected_result': 'La actividad aparece en el registro y en el reloj de la barra superior del responsable'}), (0, 0, {'sequence': 5, 'name': 'Marca la actividad como hecha cuando termines', 'description': &quot;Botón 'Marcar como hecho' en la actividad.&quot;, 'expected_result': 'La actividad desaparece y queda registrada en el historial'})]"/>
+        </record>
+        <record id="lesson_basics_ai" model="rms.training.lesson">
+            <field name="name">Pedir ayuda al Asistente Odoo (IA)</field>
+            <field name="path_id" ref="path_basics"/>
+            <field name="sequence">40</field>
+            <field name="level">1_basic</field>
+            <field name="duration">5</field>
+            <field name="module_name">rms_ai_help_assistant</field>
+            <field name="menu_xmlid">rms_ai_help_assistant.menu_ai_help_assistant</field>
+            <field name="menu_path">Asistente Odoo (IA)</field>
+            <field name="keywords">ia asistente chat duda ayuda pregunta claude</field>
+            <field name="objective">Resolver dudas de uso y consultar datos (precio para un cliente, stock, estado de un pedido) preguntando en lenguaje natural.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;El asistente es de SOLO LECTURA: nunca crea ni modifica nada; te explica cómo hacerlo tú.&lt;/li&gt;&lt;li&gt;Solo ve los datos que tú puedes ver con tu usuario. A los Comerciales no les muestra email, teléfono ni NIF de clientes.&lt;/li&gt;&lt;li&gt;Si dice 'Falta configurar la clave de la API de Anthropic', avisa a administración.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Abre la aplicación 'Asistente Odoo (IA)'&quot;, 'description': 'Está en el menú de aplicaciones de todos los empleados.', 'expected_result': 'Ves el chat con el saludo del asistente'}), (0, 0, {'sequence': 2, 'name': 'Escribe tu pregunta y pulsa Intro', 'description': &quot;Ejemplos: '¿cómo registro una cesión?', '¿qué precio tiene el producto X para el cliente Y?', '¿en qué estado está el pedido S00123?'. Mayúsculas+Intro hace salto de línea.&quot;, 'expected_result': 'El asistente responde con pasos o con el dato'}), (0, 0, {'sequence': 3, 'name': 'Sigue la conversación si necesitas más detalle', 'description': 'Recuerda todo lo hablado en la misma pantalla.', 'expected_result': 'Respuesta ajustada a tu caso'}), (0, 0, {'sequence': 4, 'name': 'Si te recomienda una lección, ábrela en Academia Odoo', 'description': 'La IA usa este plan de formación como fuente oficial.', 'expected_result': 'Puedes practicar y marcar la lección como completada'})]"/>
+        </record>
+        <record id="lesson_basics_support_error" model="rms.training.lesson">
+            <field name="name">Qué hacer cuando Odoo muestra un error: avisar a soporte</field>
+            <field name="path_id" ref="path_basics"/>
+            <field name="sequence">50</field>
+            <field name="level">1_basic</field>
+            <field name="duration">5</field>
+            <field name="module_name">rms_support_error_report</field>
+            <field name="menu_path">Ventana de error de Odoo &gt; botón 'Notificar a soporte'</field>
+            <field name="keywords">error fallo oops something went wrong error de validación aviso notificar soporte incidencia avisar problema</field>
+            <field name="objective">Avisar a soporte de un error en un par de clics, con la información que necesitan para resolverlo. Tú solo tienes que notificarlo: no hace falta que lo arregles ni que sepas por qué ha pasado.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Si te dice 'Soporte ya tenía registrado este error', no pasa nada: tu aviso se ha sumado a la incidencia que ya existía.&lt;/li&gt;&lt;li&gt;No intentes arreglar el error tú ni repetir la operación muchas veces: avisa y espera a soporte.&lt;/li&gt;&lt;li&gt;Si te dice 'Has notificado muchos errores en la última hora', avisa a soporte directamente.&lt;/li&gt;&lt;li&gt;Si el botón no aparece o la ventana se cerró, avisa a soporte contando qué estabas haciendo y, si puedes, con una captura de pantalla.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Cuando salte una ventana de error, no la cierres todavía', 'description': &quot;Puede ser un 'Oops! Something went wrong' o un aviso tipo 'Error de validación: …'.&quot;, 'expected_result': 'Ves la ventana del error'}), (0, 0, {'sequence': 2, 'name': &quot;Pulsa el botón 'Notificar a soporte'&quot;, 'description': 'Está abajo, en la ventana del error.', 'expected_result': 'Aparece un cuadro de texto'}), (0, 0, {'sequence': 3, 'name': 'Escribe qué estabas haciendo (opcional, pero ayuda mucho)', 'description': &quot;Por ejemplo: 'Estaba duplicando el presupuesto A22003 desde Acción &gt; Duplicar'. No hace falta copiar el error: se envía solo.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Enviar a soporte'&quot;, 'description': '', 'expected_result': &quot;'Gracias. Soporte ha sido avisado (INC-…)'&quot;}), (0, 0, {'sequence': 5, 'name': 'Cierra la ventana y sigue trabajando', 'description': 'Soporte se encarga a partir de aquí. Si necesitan algo más, te lo preguntarán.', 'expected_result': ''})]"/>
+        </record>
+        <record id="lesson_basics_academy" model="rms.training.lesson">
+            <field name="name">Cómo usar la Academia Odoo y seguir tu progreso</field>
+            <field name="path_id" ref="path_basics"/>
+            <field name="sequence">60</field>
+            <field name="level">1_basic</field>
+            <field name="duration">5</field>
+            <field name="menu_path">Academia Odoo &gt; Aprender</field>
+            <field name="keywords">academia formacion leccion progreso test curso</field>
+            <field name="objective">Saber cómo está organizada la formación y cómo se registra lo que has completado.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;En 'Mi plan de formación' puedes quitar el filtro 'Mis lecciones' para curiosear lecciones de otras áreas; no cuentan en tu progreso.&lt;/li&gt;&lt;li&gt;Si te dan acceso a una aplicación nueva, sus lecciones te aparecerán solas.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre Academia Odoo &gt; Aprender &gt; Mi formación por aplicación', 'description': 'Ves una tarjeta por cada aplicación que usas (Ventas, Inventario, Gastos...) con tu porcentaje de progreso. Solo aparecen las lecciones de lo que tienes permiso para usar.', 'expected_result': 'Ves tus aplicaciones y tu progreso'}), (0, 0, {'sequence': 2, 'name': 'Entra en una aplicación y abre la primera lección de nivel Básico', 'description': &quot;Las lecciones van de Básico a Intermedio y Avanzado. 'Lecciones previas recomendadas' indica qué conviene ver antes.&quot;, 'expected_result': 'Ves la ficha de la lección'}), (0, 0, {'sequence': 3, 'name': &quot;Pulsa 'Empezar lección' y sigue el Paso a paso&quot;, 'description': 'Hazlo a la vez en Odoo (mejor con datos de prueba o un presupuesto que no confirmes).', 'expected_result': &quot;La lección pasa a 'En curso'&quot;}), (0, 0, {'sequence': 4, 'name': &quot;Cuando sepas hacerlo, pulsa 'Marcar como completada'&quot;, 'description': 'Puedes volver a repasarla cuando quieras.', 'expected_result': &quot;La lección queda 'Completada' y suma a tu progreso&quot;}), (0, 0, {'sequence': 5, 'name': &quot;Consulta 'Mis lecciones pendientes' y 'Mi progreso'&quot;, 'description': 'Tu responsable de formación ve también tu avance.', 'expected_result': 'Sabes qué te queda por hacer'})]"/>
+        </record>
+
+        <record id="path_contacts" model="rms.training.path">
+            <field name="name">Contactos</field>
+            <field name="sequence">20</field>
+            <field name="description">Clientes y contactos: alta, contactos hijos con varios roles, importaciones y por qué un email no llega.</field>
+            <field name="color">2</field>
+        </record>
+        <record id="lesson_contacts_create" model="rms.training.lesson">
+            <field name="name">Crear un cliente (empresa) y sus datos básicos</field>
+            <field name="path_id" ref="path_contacts"/>
+            <field name="sequence">10</field>
+            <field name="level">1_basic</field>
+            <field name="duration">10</field>
+            <field name="menu_xmlid">contacts.menu_contacts</field>
+            <field name="menu_path">Contactos &gt; Nuevo</field>
+            <field name="keywords">crear cliente empresa contacto nuevo nif cif</field>
+            <field name="objective">Dar de alta un cliente empresa con NIF, dirección, comercial y lista de precios.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Los Comerciales no pueden abrir la ficha completa de un cliente: el alta y los cambios los hace administración o el responsable de ventas.&lt;/li&gt;&lt;li&gt;Los contactos individuales se muestran como 'Nombre, Empresa'.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_basics_navigation')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Ve a Contactos y pulsa 'Nuevo'&quot;, 'description': '', 'expected_result': 'Se abre una ficha vacía'}), (0, 0, {'sequence': 2, 'name': &quot;Marca 'Empresa' y escribe la razón social&quot;, 'description': '', 'expected_result': 'La ficha queda como empresa'}), (0, 0, {'sequence': 3, 'name': 'Rellena NIF/CIF, dirección completa, email y teléfono', 'description': 'El NIF se valida al guardar desde el formulario. Escribe la calle sin piso ni puerta para que el mapa de clientes la encuentre.', 'expected_result': 'Datos completos'}), (0, 0, {'sequence': 4, 'name': &quot;En la pestaña 'Ventas y Compras', elige el Comercial y la Lista de precios&quot;, 'description': 'La lista de precios del cliente es la que se aplicará automáticamente a sus presupuestos.', 'expected_result': 'Cliente listo para presupuestar'}), (0, 0, {'sequence': 5, 'name': 'Guarda', 'description': '', 'expected_result': 'El cliente aparece en el listado y, en unos minutos, en el Mapa de Clientes'})]"/>
+        </record>
+        <record id="lesson_contacts_roles" model="rms.training.lesson">
+            <field name="name">Contactos hijos con varios roles (facturación, envío, precios, técnicos)</field>
+            <field name="path_id" ref="path_contacts"/>
+            <field name="sequence">20</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_partner_multi_role</field>
+            <field name="menu_xmlid">contacts.menu_contacts</field>
+            <field name="menu_path">Contactos &gt; (cliente) &gt; pestaña Contactos y direcciones &gt; Añadir</field>
+            <field name="keywords">rol roles contacto hijo facturacion envio entrega direccion precios tecnicos</field>
+            <field name="objective">Añadir a un cliente personas o direcciones con uno o varios roles a la vez, sin duplicar contactos.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Odoo usa el primer contacto con rol Facturación como dirección de factura, y el primero con rol Envío como dirección de entrega.&lt;/li&gt;&lt;li&gt;Un mismo contacto puede ser de Facturación y Envío a la vez: no crees dos contactos iguales.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_contacts_create')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Abre la ficha del cliente y ve a la pestaña 'Contactos y direcciones'&quot;, 'description': '', 'expected_result': 'Ves los contactos hijos existentes'}), (0, 0, {'sequence': 2, 'name': &quot;Pulsa 'Añadir' para crear un contacto hijo&quot;, 'description': 'En vuestro Odoo no aparece el tipo estándar (factura/entrega...): se sustituye por roles.', 'expected_result': 'Se abre la ventana del contacto'}), (0, 0, {'sequence': 3, 'name': &quot;En 'Roles del Contacto' añade uno o varios roles&quot;, 'description': 'Disponibles: Facturación, Envío, Precios, Técnicos, General. No se pueden crear roles nuevos desde aquí.', 'expected_result': 'Aparecen pestañas según los roles elegidos'}), (0, 0, {'sequence': 4, 'name': 'Rellena las pestañas que aparecen', 'description': &quot;Facturación / Envío muestran la dirección; Precios: 'Notas de Tarifas / Precios'; Técnicos: 'Notas Técnicas'; General: 'Notas de Comunicación General'.&quot;, 'expected_result': 'Contacto completo'}), (0, 0, {'sequence': 5, 'name': 'Guarda y fíjate en los iconos de la tarjeta', 'description': 'Cada rol tiene su icono (factura, entrega, precios, técnicos, general).', 'expected_result': 'Los roles se ven de un vistazo'})]"/>
+        </record>
+        <record id="lesson_contacts_email_blocked" model="rms.training.lesson">
+            <field name="name">Por qué no le llega un email a un cliente</field>
+            <field name="path_id" ref="path_contacts"/>
+            <field name="sequence">30</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">5</field>
+            <field name="module_name">rms_mail_server</field>
+            <field name="menu_path">(comportamiento general del servidor de correo)</field>
+            <field name="keywords">email correo no llega bloqueado cliente externo enviar presupuesto invitacion</field>
+            <field name="objective">Entender que Odoo solo entrega correos a direcciones @rmsproaudio.com y qué hacer en su lugar.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Recuerda la regla', 'description': 'Si un correo de Odoo lleva CUALQUIER destinatario (Para, CC o CCO) fuera de @rmsproaudio.com, se descarta entero.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;No te fíes de que aparezca como 'enviado'&quot;, 'description': 'Odoo lo muestra como enviado aunque se haya bloqueado; solo queda constancia en el registro del servidor.', 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': 'Para enviar un presupuesto, descarga el PDF (Imprimir) y envíalo desde tu correo', 'description': '', 'expected_result': 'El cliente recibe el documento'}), (0, 0, {'sequence': 4, 'name': &quot;Para dar acceso al portal, usa el botón 'Enlace portal' del cliente&quot;, 'description': 'Lo genera un administrador y el enlace se copia y se envía a mano (ver ruta Portal de clientes).', 'expected_result': 'El cliente puede entrar al portal'})]"/>
+        </record>
+        <record id="lesson_contacts_import" model="rms.training.lesson">
+            <field name="name">Importar contactos desde Excel</field>
+            <field name="path_id" ref="path_contacts"/>
+            <field name="sequence">40</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">15</field>
+            <field name="module_name">rms_partner_import</field>
+            <field name="menu_xmlid">rms_partner_import.menu_rms_partner_import</field>
+            <field name="menu_path">Contactos &gt; Configuración &gt; Importar Contactos (RMS)</field>
+            <field name="keywords">importar contactos clientes excel nif vat validacion</field>
+            <field name="objective">Dar de alta o actualizar empresas en bloque desde un Excel, con los NIF correctos para poder facturar.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Un NIF debe ser siempre válido: sin él no se puede emitir la factura. Nunca importes NIF que sabes que están mal para 'arreglarlos luego'.&lt;/li&gt;&lt;li&gt;La importación estándar de Odoo (Favoritos &amp;gt; Importar registros) y el alta manual sí validan el NIF.&lt;/li&gt;&lt;li&gt;Si ves 'Formato de archivo no soportado', guarda el Excel como .xlsx.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_contacts_create')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Prepara el Excel (.xlsx) con una fila de cabeceras', 'description': 'Columnas reconocidas: NIF/CIF, Nombre comercial, Nombre, Calle, CP/Código postal, Ciudad, Provincia, País, Email, Vendedor/Comercial (se busca el usuario por nombre).', 'expected_result': 'Archivo listo'}), (0, 0, {'sequence': 2, 'name': 'Revisa que TODOS los NIF/CIF del Excel son correctos', 'description': 'Este asistente no comprueba el NIF, y un NIF incorrecto impide facturar al cliente.', 'expected_result': 'NIF revisados'}), (0, 0, {'sequence': 3, 'name': 'Abre Contactos &gt; Configuración &gt; Importar Contactos (RMS)', 'description': '', 'expected_result': &quot;Se abre 'Importar Contactos (Excel)'&quot;}), (0, 0, {'sequence': 4, 'name': &quot;Sube el archivo y pulsa 'Importar'&quot;, 'description': 'Cada fila se crea como empresa. Si ya existe una con el mismo NIF, nombre y nombre comercial, se actualiza.', 'expected_result': &quot;Mensaje 'Se han creado X empresas y actualizado Y empresas'&quot;}), (0, 0, {'sequence': 5, 'name': 'Revisa algunas empresas importadas', 'description': 'Comprueba NIF, dirección y comercial.', 'expected_result': 'Datos correctos'})]"/>
+        </record>
+
+        <record id="path_sales" model="rms.training.path">
+            <field name="name">Ventas</field>
+            <field name="sequence">30</field>
+            <field name="description">Del primer presupuesto a vender unidades de 2ª Mano por número de serie: catálogo, descuentos encadenados, plantilla RMS, IA e importaciones.</field>
+            <field name="color">3</field>
+        </record>
+        <record id="lesson_sales_quote" model="rms.training.lesson">
+            <field name="name">Crear un presupuesto paso a paso</field>
+            <field name="path_id" ref="path_sales"/>
+            <field name="sequence">10</field>
+            <field name="level">1_basic</field>
+            <field name="duration">15</field>
+            <field name="menu_xmlid">sale.menu_sale_quotations</field>
+            <field name="menu_path">Ventas &gt; Pedidos &gt; Presupuestos &gt; Nuevo</field>
+            <field name="keywords">crear presupuesto oferta pedido venta nuevo linea producto confirmar</field>
+            <field name="objective">Crear un presupuesto con varias líneas, revisarlo y confirmarlo como pedido.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Un producto en estado Demo no se puede añadir: Odoo mostrará 'El producto X está en estado Demo y no puede ser presupuestado ni vendido'.&lt;/li&gt;&lt;li&gt;Los responsables de la categoría de cada producto se añaden solos como seguidores del presupuesto.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_basics_navigation')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Ve a Ventas &gt; Pedidos &gt; Presupuestos y pulsa 'Nuevo'&quot;, 'description': '', 'expected_result': 'Se abre un presupuesto en borrador'}), (0, 0, {'sequence': 2, 'name': 'Elige el Cliente', 'description': 'La lista de precios se rellena sola con la del cliente. Los Comerciales no pueden cambiarla (avisa a un responsable si hace falta).', 'expected_result': 'Cliente y lista de precios asignados'}), (0, 0, {'sequence': 3, 'name': &quot;Añade productos con 'Agregar un producto' o con el botón 'Catálogo'&quot;, 'description': 'En las líneas verás el precio de tarifa y los descuentos Dto1/Dto2/Dto3 de la lista de precios.', 'expected_result': 'Líneas con precio y descuentos'}), (0, 0, {'sequence': 4, 'name': 'Revisa cantidades, descuentos y total', 'description': '', 'expected_result': 'Total correcto'}), (0, 0, {'sequence': 5, 'name': 'Guarda e imprime o descarga el PDF para enviarlo', 'description': 'Envíalo desde tu correo: Odoo no entrega emails a clientes externos.', 'expected_result': 'PDF listo para el cliente'}), (0, 0, {'sequence': 6, 'name': &quot;Cuando el cliente acepte, pulsa 'Confirmar'&quot;, 'description': '', 'expected_result': 'El presupuesto pasa a Pedido de venta'})]"/>
+        </record>
+        <record id="lesson_sales_catalog" model="rms.training.lesson">
+            <field name="name">Buscar productos: Catálogo de Productos y botón Catálogo del presupuesto</field>
+            <field name="path_id" ref="path_sales"/>
+            <field name="sequence">20</field>
+            <field name="level">1_basic</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_sale_catalog_no_variant_color</field>
+            <field name="menu_xmlid">rms_sale_catalog_no_variant_color.menu_product_general_catalog</field>
+            <field name="menu_path">Ventas &gt; Productos &gt; Catálogo de Productos</field>
+            <field name="keywords">catalogo productos buscar referencia precio variante color nuevo 2 mano demo</field>
+            <field name="objective">Encontrar productos y añadirlos rápido a un presupuesto, distinguiendo las variantes por color.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Los productos de categorías marcadas como 'Ocultar a comerciales' no aparecen para los Comerciales.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_sales_quote')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre Ventas &gt; Productos &gt; Catálogo de Productos', 'description': &quot;Muestra los productos vendibles con 'Ref:' y 'Precio:'. Puedes filtrar por categoría en el panel lateral.&quot;, 'expected_result': 'Ves el catálogo'}), (0, 0, {'sequence': 2, 'name': 'Fíjate en el color de las etiquetas de variante', 'description': 'Verde = Nuevo, amarillo = 2 Mano, naranja = Demo, gris = otras.', 'expected_result': 'Distingues las variantes'}), (0, 0, {'sequence': 3, 'name': &quot;En un presupuesto, pulsa el botón 'Catálogo'&quot;, 'description': 'Además del kanban, tienes una vista de lista con controles Añadir / − N +.', 'expected_result': 'Selector de productos abierto'}), (0, 0, {'sequence': 4, 'name': &quot;Añade cantidades y pulsa 'Volver al presupuesto'&quot;, 'description': '', 'expected_result': 'Las líneas se han añadido al presupuesto'})]"/>
+        </record>
+        <record id="lesson_sales_pricelist_discounts" model="rms.training.lesson">
+            <field name="name">Listas de precios con triple descuento encadenado</field>
+            <field name="path_id" ref="path_sales"/>
+            <field name="sequence">30</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">15</field>
+            <field name="module_name">product_pricelist_triple_discount</field>
+            <field name="menu_xmlid">sale.menu_product_pricelist_main</field>
+            <field name="menu_path">Ventas &gt; Productos &gt; Listas de precios</field>
+            <field name="keywords">lista de precios tarifa descuento triple dto1 dto2 dto3 encadenado cascada</field>
+            <field name="objective">Configurar reglas de tarifa con hasta 3 descuentos y entender cómo se calculan.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Los descuentos se aplican en cascada, no se suman: 10% + 10% = 19% total (0,9 × 0,9 = 0,81).&lt;/li&gt;&lt;li&gt;Si en una línea escribes a mano un descuento total distinto al de la regla, va a Dto1 y Dto2/Dto3 pasan a 0.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_sales_quote')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre Ventas &gt; Productos &gt; Listas de precios y entra en una', 'description': '', 'expected_result': 'Ves la pestaña de reglas'}), (0, 0, {'sequence': 2, 'name': 'Añade o abre una regla', 'description': &quot;Elige producto/categoría y en el cálculo del precio elige 'Triple Descuento'.&quot;, 'expected_result': &quot;Aparece el grupo 'Descuentos'&quot;}), (0, 0, {'sequence': 3, 'name': &quot;Rellena 'Descuento 1 (%)', 'Descuento 2 (%)' y 'Descuento 3 (%)'&quot;, 'description': &quot;'Desc. Activo' se marca solo si alguno es mayor que 0.&quot;, 'expected_result': 'Regla guardada con sus descuentos'}), (0, 0, {'sequence': 4, 'name': 'Comprueba en un presupuesto de un cliente con esa lista', 'description': 'La línea muestra el precio antes de descuentos y Dto1/Dto2/Dto3 copiados de la regla.', 'expected_result': 'Descuentos aplicados en cascada'}), (0, 0, {'sequence': 5, 'name': &quot;Si cambias la tarifa de un presupuesto ya hecho, pulsa 'Actualizar precios'&quot;, 'description': '', 'expected_result': 'Las líneas recalculan el desglose'})]"/>
+        </record>
+        <record id="lesson_sales_print" model="rms.training.lesson">
+            <field name="name">Imprimir el presupuesto con la plantilla RMS y ocultar descuentos</field>
+            <field name="path_id" ref="path_sales"/>
+            <field name="sequence">40</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_document_format</field>
+            <field name="menu_xmlid">sale.menu_sale_quotations</field>
+            <field name="menu_path">Presupuesto &gt; Imprimir  ·  Ajustes &gt; Ventas &gt; RMS Document Format</field>
+            <field name="keywords">imprimir pdf plantilla formato presupuesto ocultar descuentos logo</field>
+            <field name="objective">Sacar el PDF de presupuesto con el formato propio de RMS-Proaudio, con o sin desglose de descuentos.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Las líneas vendidas por número de serie muestran el estado entre corchetes, p. ej. [2ª Mano].&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_sales_quote')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;(Solo administración, una vez) Ajustes &gt; Ventas &gt; bloque 'RMS Document Format'&quot;, 'description': &quot;En 'Selected Template' elige 'RMS Custom Template' y sube 'Header Logo (Right)' y 'Footer Brands Ribbon'.&quot;, 'expected_result': 'La empresa usa la plantilla RMS'}), (0, 0, {'sequence': 2, 'name': &quot;En el presupuesto, decide si marcar 'Ocultar descuentos en presupuesto'&quot;, 'description': 'Si lo marcas, el PDF no muestra PVP ni Dto1/Dto2/Dto3: solo precio unitario y total ya descontados.', 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': 'Pulsa Imprimir &gt; Presupuesto / Pedido', 'description': 'Columnas normales: Código | Cant. | Descripción | PVP sin IVA | Dto1 | Dto2 | Dto3 | Total Neto.', 'expected_result': 'Se descarga el PDF'}), (0, 0, {'sequence': 4, 'name': 'Revisa el pie', 'description': 'Forma de pago, totales con descuento especial e IVA, y la validez de 30 días.', 'expected_result': 'PDF listo para enviar'})]"/>
+        </record>
+        <record id="lesson_sales_product_states" model="rms.training.lesson">
+            <field name="name">Estados de producto y qué implican al vender</field>
+            <field name="path_id" ref="path_sales"/>
+            <field name="sequence">50</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_product_state</field>
+            <field name="menu_xmlid">sale.menu_sale_quotations</field>
+            <field name="menu_path">Ficha de producto &gt; Estado de Producto  ·  Número de serie &gt; Estado</field>
+            <field name="keywords">estado producto nuevo demo ex-demo exdemo segunda mano 2ª mano descontinuado precio custom</field>
+            <field name="objective">Conocer los estados Nuevo, Demo, Ex-Demo, 2ª Mano y Descontinuado y cómo afectan al precio y a la venta.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Si una línea sale a 0 € sin motivo, revisa el estado del producto: probablemente está en Demo o Descontinuado.&lt;/li&gt;&lt;li&gt;Escribir el precio a mano en una línea Descontinuado no sirve: se vuelve a poner a 0 € al cambiar la cantidad.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_sales_quote')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Mira el 'Estado de Producto' en la ficha del producto&quot;, 'description': 'Por defecto Nuevo.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Mira el 'Estado' de cada número de serie/lote&quot;, 'description': &quot;Cada unidad física tiene su propio estado y, si es Ex-Demo o 2ª Mano, su 'Precio Custom (Ex-Demo/2ª Mano)'.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': 'Recuerda qué estados se pueden vender', 'description': 'Solo Nuevo, Ex-Demo y 2ª Mano. Demo y Descontinuado NO son estados de venta: Odoo pone su precio a 0 € (y Demo ni siquiera deja añadirlo a un presupuesto).', 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': 'Aplica las reglas de precio al presupuestar', 'description': 'Ex-Demo / 2ª Mano: se venden por número de serie con su precio custom; 2ª Mano añade un Dto1 automático del 10%.', 'expected_result': ''}), (0, 0, {'sequence': 5, 'name': 'Si un producto se descontinúa y queda stock que vender, cambia antes su estado', 'description': 'Pásalo a un estado vendible (Ex-Demo, 2ª Mano...). Nunca envíes un presupuesto con una línea a 0 € por estar en Descontinuado.', 'expected_result': 'El producto vuelve a tener precio'}), (0, 0, {'sequence': 6, 'name': 'Recuerda la limpieza automática', 'description': 'Cada noche se archivan los productos Descontinuado sin stock, con una nota en su chatter.', 'expected_result': ''})]"/>
+        </record>
+        <record id="lesson_sales_serials" model="rms.training.lesson">
+            <field name="name">Vender unidades de 2ª Mano / Ex-Demo por número de serie</field>
+            <field name="path_id" ref="path_sales"/>
+            <field name="sequence">60</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">15</field>
+            <field name="module_name">rms_product_state</field>
+            <field name="menu_xmlid">sale.menu_sale_quotations</field>
+            <field name="menu_path">Presupuesto &gt; línea &gt; botón de la columna Estado</field>
+            <field name="keywords">vender segunda mano 2ª mano ex-demo numero de serie reservar serie linea</field>
+            <field name="objective">Elegir unidades concretas (números de serie) de 2ª Mano o Ex-Demo en una línea de presupuesto.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Al entregar, el albarán reserva automáticamente esas mismas series.&lt;/li&gt;&lt;li&gt;Error 'El número de serie X ya está asignado en otro presupuesto/pedido activo': otro comercial la tiene; habla con él.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_sales_product_states')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Añade el producto a una línea del presupuesto', 'description': '', 'expected_result': &quot;La columna Estado muestra 'Nuevo'&quot;}), (0, 0, {'sequence': 2, 'name': &quot;Pulsa el botón de la columna 'Estado' (icono de código de barras)&quot;, 'description': 'Si el presupuesto no está guardado, se guarda: vuelve a pulsar el botón.', 'expected_result': &quot;Se abre 'Vender como 2ª Mano / Ex-Demo'&quot;}), (0, 0, {'sequence': 3, 'name': 'Elige el Estado (2ª Mano o Ex-Demo) y marca los números de serie', 'description': &quot;Las series reservadas en otro presupuesto aparecen deshabilitadas con 'Reservado por &lt;comercial&gt;'.&quot;, 'expected_result': 'Series seleccionadas'}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Confirmar'&quot;, 'description': 'La cantidad pasa a ser el nº de series y el precio la media de sus precios custom (+10% Dto1 si es 2ª Mano).', 'expected_result': 'Línea con series, estado y precio'}), (0, 0, {'sequence': 5, 'name': &quot;Para deshacerlo, abre el botón otra vez y usa 'Quitar todas las series'&quot;, 'description': 'Vuelven el precio y los descuentos de tarifa.', 'expected_result': ''})]"/>
+        </record>
+        <record id="lesson_sales_ai_quote" model="rms.training.lesson">
+            <field name="name">Crear presupuestos con IA (Presupuesto con IA)</field>
+            <field name="path_id" ref="path_sales"/>
+            <field name="sequence">70</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_ai_quote_assistant</field>
+            <field name="menu_xmlid">rms_ai_quote_assistant.menu_ai_quote_assistant</field>
+            <field name="menu_path">Presupuesto con IA  ·  CRM &gt; oportunidad &gt; botón 'Presupuesto con IA'</field>
+            <field name="keywords">presupuesto ia inteligencia artificial chat lenguaje natural oportunidad</field>
+            <field name="objective">Pedir un presupuesto escribiendo, p. ej., 'hazle un presupuesto a fulanito con 3 X40 y una Quantum 3'.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Si dice 'Solo hay N unidad(es) disponible(s) en estado ...', no hay suficientes series libres de ese estado.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_sales_quote')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Abre 'Presupuesto con IA' (o el botón en una oportunidad del CRM)&quot;, 'description': 'Desde la oportunidad el presupuesto queda vinculado a ella y a su cliente.', 'expected_result': 'Ves el chat'}), (0, 0, {'sequence': 2, 'name': 'Escribe cliente y productos', 'description': 'Puedes pedir unidades de 2ª Mano o Ex-Demo y un almacén concreto.', 'expected_result': 'La IA muestra una propuesta: Cliente y líneas'}), (0, 0, {'sequence': 3, 'name': &quot;Revisa la propuesta y, si vienes del menú, elige 'Vincular a oportunidad'&quot;, 'description': &quot;Sin oportunidad, una abierta del cliente o '+ Crear nueva oportunidad…'.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Confirmar' (o 'Cancelar')&quot;, 'description': '', 'expected_result': &quot;'Presupuesto creado: S0xxxx - Total: …'&quot;}), (0, 0, {'sequence': 5, 'name': 'Abre el presupuesto y revísalo antes de enviarlo', 'description': 'La lista de precios siempre es la del cliente.', 'expected_result': 'Presupuesto listo'})]"/>
+        </record>
+        <record id="lesson_sales_category_managers" model="rms.training.lesson">
+            <field name="name">Responsables de categoría que siguen los presupuestos</field>
+            <field name="path_id" ref="path_sales"/>
+            <field name="sequence">80</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">5</field>
+            <field name="module_name">rms_sale_category_product_manager</field>
+            <field name="menu_xmlid">stock.menu_product_category_config_stock</field>
+            <field name="menu_path">Inventario &gt; Configuración &gt; Categorías de productos &gt; Product Managers</field>
+            <field name="keywords">responsable categoria product manager seguidor presupuesto notificacion</field>
+            <field name="objective">Configurar quién se entera automáticamente de los presupuestos que incluyen productos de su categoría.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre la categoría de producto', 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;En el grupo 'Product Management' añade usuarios a 'Product Managers'&quot;, 'description': 'Se aplica también a las subcategorías.', 'expected_result': 'Categoría con responsables'}), (0, 0, {'sequence': 3, 'name': 'Comprueba en un presupuesto con productos de esa categoría', 'description': &quot;El campo 'Product Managers' del presupuesto y sus seguidores incluyen a esos usuarios.&quot;, 'expected_result': 'Los responsables siguen el presupuesto'})]"/>
+        </record>
+        <record id="lesson_sales_import" model="rms.training.lesson">
+            <field name="name">Importar presupuestos desde Excel y agrupar en oportunidades</field>
+            <field name="path_id" ref="path_sales"/>
+            <field name="sequence">90</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">20</field>
+            <field name="module_name">rms_quotation_import</field>
+            <field name="menu_xmlid">rms_quotation_import.menu_rms_quotation_import</field>
+            <field name="menu_path">Ventas &gt; Pedidos &gt; Importar Presupuestos (RMS)</field>
+            <field name="keywords">importar presupuestos excel oportunidades agrupar comercial actualizar</field>
+            <field name="objective">Cargar presupuestos completos desde Excel y organizarlos después en oportunidades.</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_sales_quote'), ref('lesson_sales_pricelist_discounts')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Prepara el Excel', 'description': 'Columnas: Pedido/Referencia, Cliente/NIF/CIF, Producto/Referencia (admite prefijos 2M- y D-), Cantidad, Precio/Unitario, Dto1, Dto2, Total de Documento. Las celdas vacías de referencia, cliente, fecha, comercial y total heredan el valor de la fila de arriba.', 'expected_result': 'Archivo listo'}), (0, 0, {'sequence': 2, 'name': &quot;Abre 'Importar Presupuestos (RMS)', sube el archivo y pulsa 'Importar'&quot;, 'description': 'Si falta algún cliente o referencia de producto, NO se importa nada y se listan los que faltan.', 'expected_result': &quot;'Se han creado N presupuestos exitosamente'&quot;}), (0, 0, {'sequence': 3, 'name': 'Revisa los totales', 'description': &quot;Si el total del Excel es menor que la suma de las líneas, se añade una línea negativa 'Descuento comercial para cuadrar presupuesto'.&quot;, 'expected_result': 'Totales cuadrados'}), (0, 0, {'sequence': 4, 'name': &quot;En el listado de presupuestos, selecciona y usa Acción &gt; 'Agrupar en Oportunidades'&quot;, 'description': &quot;Agrupa por cliente y mes en oportunidades '&lt;Cliente&gt; - Oportunidad MM/YYYY'.&quot;, 'expected_result': 'Presupuestos vinculados a oportunidades'}), (0, 0, {'sequence': 5, 'name': &quot;Opcional: Acción &gt; 'Actualizar Comercial desde Cliente'&quot;, 'description': 'Copia el comercial del cliente a los presupuestos seleccionados.', 'expected_result': ''})]"/>
+        </record>
+
+        <record id="path_stock" model="rms.training.path">
+            <field name="name">Inventario</field>
+            <field name="sequence">40</field>
+            <field name="description">Números de serie con estado, escaneo con cámara o PDA, etiquetas, cesiones e importación de productos.</field>
+            <field name="color">4</field>
+        </record>
+        <record id="lesson_stock_receipt_states" model="rms.training.lesson">
+            <field name="name">Recibir mercancía indicando el estado de cada número de serie</field>
+            <field name="path_id" ref="path_stock"/>
+            <field name="sequence">10</field>
+            <field name="level">1_basic</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_product_state</field>
+            <field name="menu_xmlid">stock.menu_stock_root</field>
+            <field name="menu_path">Inventario &gt; Operaciones &gt; Recepciones</field>
+            <field name="keywords">recepcion recibir entrada albaran numero de serie estado lote</field>
+            <field name="objective">Validar una recepción registrando el estado (Nuevo, Ex-Demo, 2ª Mano...) de cada serie.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;El estado de una serie también se puede cambiar después desde Inventario físico (columna Estado).&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre la recepción en Inventario &gt; Operaciones &gt; Recepciones', 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Abre las 'Operaciones detalladas' de la línea&quot;, 'description': 'Introduce (o escanea) los números de serie.', 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': &quot;Rellena la columna 'Estado' de cada serie&quot;, 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': 'Valida la recepción', 'description': 'El estado se copia a la ficha del número de serie.', 'expected_result': 'Stock dado de alta con su estado'})]"/>
+        </record>
+        <record id="lesson_stock_scan" model="rms.training.lesson">
+            <field name="name">Escanear números de serie con la cámara del móvil o una PDA</field>
+            <field name="path_id" ref="path_stock"/>
+            <field name="sequence">20</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">15</field>
+            <field name="module_name">rms_stock_barcode_scan</field>
+            <field name="menu_xmlid">rms_stock_barcode_scan.menu_stock_barcode_scan</field>
+            <field name="menu_path">Inventario &gt; Escanear código de barras  ·  botón 'Escanear' en las líneas de un albarán</field>
+            <field name="keywords">escanear codigo de barras camara movil pda lector numero de serie inventario fisico recuento</field>
+            <field name="objective">Contar stock o rellenar recepciones/entregas leyendo series con la cámara o con un lector PDA.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;La cámara necesita permiso del navegador y conexión HTTPS.&lt;/li&gt;&lt;li&gt;En entregas, la serie debe existir y tener stock libre en la ubicación de origen.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_stock_receipt_states')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre Inventario &gt; Escanear código de barras', 'description': &quot;Para un albarán concreto, usa el botón 'Escanear' de su línea.&quot;, 'expected_result': 'Paso 1: elegir producto y ubicación'}), (0, 0, {'sequence': 2, 'name': &quot;Elige 'Ubicación' y 'Producto'&quot;, 'description': 'Busca por nombre, referencia o código de barras.', 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': &quot;Pulsa 'Iniciar escaneo con la cámara' o 'con el lector PDA'&quot;, 'description': 'Cámara: encuadra el código en el marco blanco (puedes moverlo, redimensionarlo y usar Zoom). PDA: no toques la pantalla, cada lectura entra con el Intro del lector.', 'expected_result': &quot;Lista 'Escaneados: N'&quot;}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Terminar (N)' y revisa la lista&quot;, 'description': 'En recepciones puedes elegir el estado de cada serie.', 'expected_result': &quot;Pantalla 'Confirmar escaneo'&quot;}), (0, 0, {'sequence': 5, 'name': &quot;Pulsa 'Confirmar y añadir al Inventario físico' (o a la recepción)&quot;, 'description': '', 'expected_result': &quot;'X de Y números de serie añadidos'&quot;}), (0, 0, {'sequence': 6, 'name': &quot;En recuentos, aplica el ajuste en Inventario físico con 'Aplicar todo'&quot;, 'description': 'El escaneo NO aplica el ajuste automáticamente.', 'expected_result': 'Stock actualizado'})]"/>
+        </record>
+        <record id="lesson_stock_labels" model="rms.training.lesson">
+            <field name="name">Imprimir etiquetas de código de barras de un número de serie</field>
+            <field name="path_id" ref="path_stock"/>
+            <field name="sequence">30</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_stock_lot_label_print</field>
+            <field name="menu_xmlid">stock.menu_action_production_lot_form</field>
+            <field name="menu_path">Inventario &gt; Trazabilidad &gt; Números de serie/Lotes &gt; Imprimir</field>
+            <field name="keywords">etiqueta imprimir codigo de barras numero de serie 10x5 zebra brother</field>
+            <field name="objective">Etiquetar equipos sin código de barras de fábrica para poder escanearlos después.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Comprueba que el producto tenga Trazabilidad 'Por números de serie únicos'&quot;, 'description': 'Ficha de producto &gt; pestaña Inventario.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': 'Crea o abre el número de serie y guarda', 'description': &quot;Desde el botón 'Números de serie/Lotes' del producto o desde Inventario &gt; Trazabilidad.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': &quot;Pulsa Imprimir &gt; 'Etiqueta código de barras (10x5cm)'&quot;, 'description': 'Desde la lista puedes seleccionar varias series: una etiqueta por página.', 'expected_result': &quot;Se abre el PDF 'Etiqueta - &lt;serie&gt;'&quot;}), (0, 0, {'sequence': 4, 'name': 'Imprime el PDF desde el navegador en la impresora de etiquetas', 'description': 'Formato 10x5 cm.', 'expected_result': 'Etiqueta lista para pegar'})]"/>
+        </record>
+        <record id="lesson_stock_cession" model="rms.training.lesson">
+            <field name="name">Registrar una cesión de mercancía (depósito o préstamo)</field>
+            <field name="path_id" ref="path_stock"/>
+            <field name="sequence">40</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">stock_cession</field>
+            <field name="menu_xmlid">stock_cession.menu_stock_cession</field>
+            <field name="menu_path">Inventario &gt; Operaciones &gt; Cesiones Virtuales</field>
+            <field name="keywords">cesion ceder prestamo deposito mercancia cliente ubicacion externa</field>
+            <field name="objective">Sacar material del almacén hacia un cliente o ubicación externa sin venta, con trazabilidad.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Una vez cedida no se puede cancelar desde la cesión: para recuperar la mercancía, haz la devolución del movimiento generado.&lt;/li&gt;&lt;li&gt;'La cantidad a ceder debe ser mayor que cero' aparece si dejas la cantidad a 0.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Abre Inventario &gt; Operaciones &gt; Cesiones Virtuales y pulsa 'Nuevo'&quot;, 'description': '', 'expected_result': &quot;Cesión en Borrador con referencia 'Nuevo'&quot;}), (0, 0, {'sequence': 2, 'name': &quot;Rellena 'Cliente Destino', 'Ubicacion Origen (Inventario)' y 'Ubicacion Destino (Cliente/Externa)'&quot;, 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': &quot;En 'Producto a Ceder', indica Producto y Cantidad&quot;, 'description': &quot;En 'Notas', el motivo y condiciones.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Confirmar y Ceder'&quot;, 'description': 'Se crea y valida automáticamente el movimiento de stock.', 'expected_result': &quot;Estado 'Cedido', referencia CES/000X y 'Movimiento Generado'&quot;})]"/>
+        </record>
+        <record id="lesson_stock_product_import" model="rms.training.lesson">
+            <field name="name">Importar productos desde Excel (categorías y variantes de estado)</field>
+            <field name="path_id" ref="path_stock"/>
+            <field name="sequence">50</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">20</field>
+            <field name="module_name">rms_product_import</field>
+            <field name="menu_xmlid">rms_product_import.menu_product_import_wizard</field>
+            <field name="menu_path">Inventario &gt; Productos &gt; RMS Product Import</field>
+            <field name="keywords">importar productos excel categorias marca familia subfamilia variantes 2m d- proveedor</field>
+            <field name="objective">Cargar o actualizar el catálogo de productos con su jerarquía de categorías y variantes.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;La variante 'Estado' (Nuevo/2 Mano/Demo) del importador es un concepto distinto del 'Estado de Producto' de cada número de serie.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Prepara el Excel', 'description': 'Obligatorias: marca, referencia, articulo, descripcion, familia, subfamilia, vendible. Opcionales: proveedor, precio de compra/coste, precio de venta/pvp.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': 'Usa los prefijos de referencia para las variantes', 'description': &quot;'2M-' = variante 2 Mano, 'D-' = Demo, sin prefijo = Nuevo. Las filas con la misma referencia limpia son variantes del mismo producto.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': &quot;Abre Inventario &gt; Productos &gt; RMS Product Import, sube el archivo y pulsa 'Import'&quot;, 'description': '', 'expected_result': &quot;'N product templates processed'&quot;}), (0, 0, {'sequence': 4, 'name': 'Revisa categorías (Marca &gt; Familia &gt; Subfamilia), variantes y precios', 'description': 'El precio extra de cada variante = su PVP − PVP de la variante Nuevo. Las tarifas de proveedor solo se crean para proveedores existentes.', 'expected_result': 'Catálogo actualizado'})]"/>
+        </record>
+
+        <record id="path_expenses" model="rms.training.path">
+            <field name="name">Gastos</field>
+            <field name="sequence">50</field>
+            <field name="description">Registrar tickets con una foto o por email y dejar que la IA rellene los datos.</field>
+            <field name="color">5</field>
+        </record>
+        <record id="lesson_expenses_photo" model="rms.training.lesson">
+            <field name="name">Registrar un gasto haciendo una foto del ticket</field>
+            <field name="path_id" ref="path_expenses"/>
+            <field name="sequence">10</field>
+            <field name="level">1_basic</field>
+            <field name="duration">5</field>
+            <field name="module_name">rms_hr_expense_quick_capture</field>
+            <field name="menu_xmlid">rms_hr_expense_quick_capture.menu_hr_expense_quick_capture</field>
+            <field name="menu_path">Foto de Gasto</field>
+            <field name="keywords">gasto ticket foto movil camara dieta comida recibo</field>
+            <field name="objective">Subir un ticket desde el móvil en segundos.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Error 'Tu usuario no tiene ningún empleado vinculado': pide a RRHH que te vincule en tu ficha de Empleado.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;En el móvil, abre la aplicación 'Foto de Gasto'&quot;, 'description': 'Consejo: guárdala como acceso directo en la pantalla de inicio.', 'expected_result': &quot;Botón 'Hacer foto del ticket'&quot;}), (0, 0, {'sequence': 2, 'name': &quot;Pulsa 'Hacer foto del ticket' y fotografía el ticket&quot;, 'description': '', 'expected_result': &quot;'Subiendo la foto…' y luego '¡Foto subida!'&quot;}), (0, 0, {'sequence': 3, 'name': &quot;Pulsa 'Ver gasto' o 'Hacer otro ticket'&quot;, 'description': 'El gasto queda en borrador; la IA rellena fecha, importe, proveedor y categoría en los minutos siguientes (cada 15 min).', 'expected_result': 'Gasto en borrador'}), (0, 0, {'sequence': 4, 'name': 'Revisa el gasto más tarde y envíalo para aprobación', 'description': '', 'expected_result': ''})]"/>
+        </record>
+        <record id="lesson_expenses_email" model="rms.training.lesson">
+            <field name="name">Enviar tickets por email a expense@rmsproaudio.com</field>
+            <field name="path_id" ref="path_expenses"/>
+            <field name="sequence">20</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">5</field>
+            <field name="module_name">rms_hr_expense_ai_email</field>
+            <field name="menu_xmlid">hr_expense.menu_hr_expense_root</field>
+            <field name="menu_path">Correo a expense@rmsproaudio.com  ·  Gastos &gt; Mis gastos</field>
+            <field name="keywords">gasto email correo ticket expense varios tickets ia escanear</field>
+            <field name="objective">Enviar uno o varios tickets en un correo y saber qué hace Odoo con ellos.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Envía un correo a expense@rmsproaudio.com con los tickets adjuntos', 'description': 'Fotos o PDF; cada adjunto de 15 KB o más se trata como un ticket.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': 'Odoo crea un gasto en borrador por cada ticket', 'description': &quot;El original indica 'Se han detectado N tickets en este correo...'.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': 'Espera a que la IA lo procese (cada 15 minutos)', 'description': &quot;Si lo consigue, verás 'IA: datos corregidos automáticamente'.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Si ves 'NO ES POSIBLE ESCANEARLO', revísalo a mano&quot;, 'description': 'Se reintenta hasta 3 veces; después debes completar importe, proveedor y categoría tú.', 'expected_result': 'Gasto completo'})]"/>
+        </record>
+        <record id="lesson_expenses_ai_import" model="rms.training.lesson">
+            <field name="name">Importar gastos con IA siendo Comercial</field>
+            <field name="path_id" ref="path_expenses"/>
+            <field name="sequence">30</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">5</field>
+            <field name="module_name">rms_hr_expense_ai_access</field>
+            <field name="menu_xmlid">hr_expense.menu_hr_expense_root</field>
+            <field name="group_xmlids">custom.comerciales</field>
+            <field name="menu_path">Gastos &gt; botón 'Importar con IA'</field>
+            <field name="keywords">importar con ia gastos comercial error de acceso</field>
+            <field name="objective">Usar el botón 'Importar con IA' de Gastos sin ser aprobador.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Abre Gastos y pulsa 'Importar con IA'&quot;, 'description': 'Los Comerciales tienen permiso para usar este asistente; siguen viendo solo sus propios gastos.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': 'Sube el ticket y sigue el asistente', 'description': '', 'expected_result': 'Gasto creado con los datos detectados'})]"/>
+        </record>
+
+        <record id="path_maps" model="rms.training.path">
+            <field name="name">Mapas de clientes y equipos</field>
+            <field name="sequence">60</field>
+            <field name="description">Dónde están los clientes y qué equipos tienen; importación de equipos y geolocalización.</field>
+            <field name="color">6</field>
+        </record>
+        <record id="lesson_maps_customer" model="rms.training.lesson">
+            <field name="name">Usar el Mapa de Clientes y sus equipos instalados</field>
+            <field name="path_id" ref="path_maps"/>
+            <field name="sequence">10</field>
+            <field name="level">1_basic</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_customer_equipment_map</field>
+            <field name="menu_xmlid">rms_customer_equipment_map.menu_customer_equipment_map</field>
+            <field name="menu_path">Mapa de Clientes</field>
+            <field name="keywords">mapa clientes equipos instalados numero de serie geolocalizacion ubicacion</field>
+            <field name="objective">Localizar clientes y sus equipos (de Mantenimiento) en el mapa.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Los equipos se asignan al cliente desde Mantenimiento, campo 'Cliente / Ubicación'.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Abre la aplicación 'Mapa de Clientes'&quot;, 'description': '', 'expected_result': 'Mapa con marcadores agrupados'}), (0, 0, {'sequence': 2, 'name': &quot;Busca en 'Buscar cliente, equipo o número de serie...'&quot;, 'description': '', 'expected_result': 'Mapa y lista lateral filtrados'}), (0, 0, {'sequence': 3, 'name': 'Pulsa un marcador', 'description': &quot;Muestra 'Equipos instalados: N' y la lista de equipos.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Abrir cliente'&quot;, 'description': &quot;En la ficha, el botón 'Equipos' lista sus equipos.&quot;, 'expected_result': 'Ficha del cliente'})]"/>
+        </record>
+        <record id="lesson_maps_global" model="rms.training.lesson">
+            <field name="name">Mapa Global de Equipos: filtrar por modelo y exportar a Excel</field>
+            <field name="path_id" ref="path_maps"/>
+            <field name="sequence">20</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_global_equipment_map</field>
+            <field name="menu_xmlid">rms_global_equipment_map.menu_global_equipment_map</field>
+            <field name="menu_path">Mapa Global de Equipos</field>
+            <field name="keywords">mapa global equipos del cliente modelo filtrar exportar excel</field>
+            <field name="objective">Encontrar qué clientes tienen determinados modelos de equipo y sacar el listado a Excel.</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_maps_customer')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Abre 'Mapa Global de Equipos'&quot;, 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Abre 'Filtros' y elige modelos&quot;, 'description': &quot;'Tiene alguno de estos' o 'Tiene todos estos'.&quot;, 'expected_result': 'Solo aparecen los clientes que cumplen el filtro'}), (0, 0, {'sequence': 3, 'name': 'Mueve o amplía el mapa', 'description': 'La lista lateral muestra los clientes de la zona visible.', 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Exportar Excel'&quot;, 'description': &quot;Descarga 'mapa_global_equipos.xlsx' solo con los clientes filtrados.&quot;, 'expected_result': 'Excel descargado'})]"/>
+        </record>
+        <record id="lesson_maps_geolocation" model="rms.training.lesson">
+            <field name="name">Mantener la geolocalización de clientes</field>
+            <field name="path_id" ref="path_maps"/>
+            <field name="sequence">30</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_customer_equipment_map</field>
+            <field name="menu_xmlid">rms_customer_equipment_map.menu_customer_equipment_map</field>
+            <field name="group_xmlids">base.group_system, rms_customer_equipment_map.group_customer_equipment_map_geolocation</field>
+            <field name="menu_path">Mapa de Clientes &gt; botón 'Geolocalización'</field>
+            <field name="keywords">geolocalizar geolocalizacion direccion error pendiente sin direccion mapa</field>
+            <field name="objective">Revisar clientes pendientes, con error o sin dirección y corregirlos.</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_maps_customer')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Pulsa 'Geolocalización' en el Mapa de Clientes&quot;, 'description': &quot;Panel 'Estado de la geolocalización': Geolocalizados, Pendientes, Con error, Sin dirección.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Pulsa 'Con error' o 'Sin dirección'&quot;, 'description': 'Se abre la lista editable de esos clientes, con el motivo del error.', 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': 'Corrige la dirección (calle sin piso ni puerta, CP y ciudad)', 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Reintentar geolocalización' o 'Geolocalizar N ahora'&quot;, 'description': 'También se hace solo: cada noche a las 02:00 y un minuto después de cambiar una dirección.', 'expected_result': 'Cliente geolocalizado'})]"/>
+        </record>
+        <record id="lesson_maps_import" model="rms.training.lesson">
+            <field name="name">Importar Equipos del Cliente desde Excel</field>
+            <field name="path_id" ref="path_maps"/>
+            <field name="sequence">40</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">15</field>
+            <field name="module_name">rms_partner_equipment_model_import</field>
+            <field name="menu_xmlid">rms_partner_equipment_model_import.menu_equipment_model_import_wizard</field>
+            <field name="menu_path">Contactos &gt; Configuración &gt; Importar Equipos del Cliente</field>
+            <field name="keywords">importar equipos del cliente modelo excel account name model name</field>
+            <field name="objective">Asociar modelos de equipo a las empresas en bloque.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Prepara el .xlsx con las columnas 'Account Lookup: Account Name' y 'Model: Model Name'&quot;, 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Abre el asistente, sube el archivo y pulsa 'Comprobar'&quot;, 'description': &quot;Es una prueba sin cambios: genera la 'COMPROBACIÓN PREVIA'.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': &quot;Resuelve 'Empresas con varias candidatas'&quot;, 'description': &quot;Elige la 'Empresa correcta' o marca 'No importar'.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Confirmar importación'&quot;, 'description': 'No se crean empresas; los modelos que falten sí.', 'expected_result': &quot;Se abre el 'Resultado de la importación'&quot;}), (0, 0, {'sequence': 5, 'name': 'Consulta el histórico y descarga el log si hace falta', 'description': 'Contactos &gt; Configuración &gt; Histórico de Equipos del Cliente importados.', 'expected_result': ''})]"/>
+        </record>
+
+        <record id="path_portal" model="rms.training.path">
+            <field name="name">Portal de clientes</field>
+            <field name="sequence">70</field>
+            <field name="description">Acceso al portal, catálogo B2B, proyectos de instalación y seguimiento del interés de cada cliente.</field>
+            <field name="color">7</field>
+        </record>
+        <record id="lesson_portal_access" model="rms.training.lesson">
+            <field name="name">Dar acceso al portal a un cliente (Enlace portal y perfiles)</field>
+            <field name="path_id" ref="path_portal"/>
+            <field name="sequence">10</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_portal_profiles</field>
+            <field name="menu_xmlid">contacts.menu_contacts</field>
+            <field name="group_xmlids">base.group_erp_manager</field>
+            <field name="menu_path">Contactos &gt; (contacto) &gt; botón 'Enlace portal'</field>
+            <field name="keywords">portal acceso invitacion enlace cliente perfil marketing proyectos contraseña</field>
+            <field name="objective">Dar acceso al portal con el perfil adecuado y enviar el enlace a mano.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre el contacto (debe tener email)', 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;En la pestaña 'Ventas y Compras', elige el 'Perfil de portal'&quot;, 'description': 'Cliente: pedidos, presupuestos, facturas, catálogo y proyectos. Colaborador de Marketing: proyectos y tareas compartidos. Proyectos: solo proyectos de instalación.', 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': &quot;Pulsa el botón 'Enlace portal'&quot;, 'description': 'Da acceso si hace falta y genera el enlace.', 'expected_result': &quot;Ventana 'Enlace de invitación al portal'&quot;}), (0, 0, {'sequence': 4, 'name': &quot;Copia el 'Enlace' y envíaselo tú por correo o WhatsApp&quot;, 'description': 'La invitación automática no llega porque Odoo bloquea los correos externos. Registro: válido 144 h; restablecer contraseña: 4 h.', 'expected_result': 'El cliente entra al portal'})]"/>
+        </record>
+        <record id="lesson_portal_catalog" model="rms.training.lesson">
+            <field name="name">Catálogo B2B: asignar productos a las fichas</field>
+            <field name="path_id" ref="path_portal"/>
+            <field name="sequence">20</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_portal_catalog</field>
+            <field name="menu_xmlid">rms_portal_catalog.menu_rms_catalog_card_root</field>
+            <field name="menu_path">Ventas &gt; Catálogo B2B  ·  Ventas &gt; Configuración &gt; Fichas del catálogo B2B</field>
+            <field name="keywords">catalogo b2b portal ficha marca ver precios mi presupuesto destacado</field>
+            <field name="objective">Conseguir que en cada ficha del catálogo el cliente vea los productos y precios correctos.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre Ventas &gt; Catálogo B2B', 'description': 'Es lo mismo que ve el cliente en /my/catalog.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;En una ficha, pulsa 'Editar productos' (solo internos)&quot;, 'description': &quot;Añade productos con 'Añadir producto' y marca con la estrella los destacados.&quot;, 'expected_result': 'Productos asignados'}), (0, 0, {'sequence': 3, 'name': 'Revisa las fichas sin productos', 'description': &quot;Ventas &gt; Configuración &gt; Fichas del catálogo B2B, filtro 'Sin productos asignados'.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Explica al cliente 'Ver precios' y 'Mi presupuesto'&quot;, 'description': &quot;El cliente añade productos y descarga su presupuesto en PDF; en Odoo queda como presupuesto en borrador marcado 'Presupuesto del portal'.&quot;, 'expected_result': ''})]"/>
+        </record>
+        <record id="lesson_portal_projects" model="rms.training.lesson">
+            <field name="name">Entregar un proyecto de instalación por el portal</field>
+            <field name="path_id" ref="path_portal"/>
+            <field name="sequence">30</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_portal_projects</field>
+            <field name="menu_xmlid">rms_portal_projects.menu_installation_project</field>
+            <field name="menu_path">Entregar Proyecto &gt; Proyectos</field>
+            <field name="keywords">proyecto instalacion entregar portal html documento cliente</field>
+            <field name="objective">Compartir el documento de un proyecto de instalación con un contacto concreto.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Los estados Aceptado y Rechazado aparecen en la barra de estado, pero de momento no hay botones para ponerlos: el proyecto se queda en Enviado. Para registrar la respuesta del cliente, déjala en una nota interna del proyecto.&lt;/li&gt;&lt;li&gt;El cliente solo lo ve si tiene acceso al portal; el proyecto no se le envía por email.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_portal_access')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Abre Entregar Proyecto &gt; Proyectos y pulsa 'Nuevo'&quot;, 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Rellena 'Referencia', 'Cliente' y sube el 'Documento (HTML)'&quot;, 'description': &quot;'Cliente' es el ÚNICO contacto que lo verá (no toda su empresa).&quot;, 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': &quot;Pulsa 'Enviar al cliente'&quot;, 'description': 'No se envía email: pasa a Enviado y aparece en su portal.', 'expected_result': 'Estado Enviado'}), (0, 0, {'sequence': 4, 'name': 'Avisa al cliente para que entre en el portal &gt; Proyectos', 'description': 'Debe tener acceso al portal con perfil Cliente o Proyectos.', 'expected_result': ''})]"/>
+        </record>
+        <record id="lesson_portal_log" model="rms.training.lesson">
+            <field name="name">Ver qué consultan los clientes en el portal (intereses y accesos)</field>
+            <field name="path_id" ref="path_portal"/>
+            <field name="sequence">40</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_portal_access_log</field>
+            <field name="menu_xmlid">rms_portal_access_log.menu_portal_interest</field>
+            <field name="menu_path">Accesos al Portal &gt; Intereses por cliente</field>
+            <field name="keywords">accesos portal actividad intereses caliente templado frio informe semanal</field>
+            <field name="objective">Detectar oportunidades viendo qué fichas y precios miran tus clientes.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre Accesos al Portal &gt; Intereses por cliente', 'description': &quot;Ordenado por 'Interés (%)' con nivel Caliente / Templado / Frío.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Filtra 'Caliente (70 % o más)' o 'Lo ha añadido al presupuesto'&quot;, 'description': '', 'expected_result': 'Lista de clientes con más interés'}), (0, 0, {'sequence': 3, 'name': &quot;Pulsa 'Ver detalle' en una fila&quot;, 'description': '', 'expected_result': 'Actividad concreta del cliente'}), (0, 0, {'sequence': 4, 'name': &quot;Consulta 'Accesos' y 'Actividad' para más detalle&quot;, 'description': &quot;Desde la ficha del cliente también tienes el botón 'Actividad portal'.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 5, 'name': &quot;Pulsa 'Enviarme el informe semanal' para recibir el resumen ahora&quot;, 'description': 'Los lunes se envía solo a quienes estén en el grupo del informe.', 'expected_result': 'Informe en tu correo'})]"/>
+        </record>
+
+        <record id="path_employees" model="rms.training.path">
+            <field name="name">Empleados</field>
+            <field name="sequence">80</field>
+            <field name="description">Certificaciones y formaciones obligatorias (PRL, RGPD...).</field>
+            <field name="color">8</field>
+        </record>
+        <record id="lesson_people_certifications" model="rms.training.lesson">
+            <field name="name">Consultar y registrar certificaciones de empleado (PRL, RGPD...)</field>
+            <field name="path_id" ref="path_employees"/>
+            <field name="sequence">10</field>
+            <field name="level">2_intermediate</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_hr_employee_certification</field>
+            <field name="menu_xmlid">rms_hr_employee_certification.menu_hr_employee_certification</field>
+            <field name="menu_path">Empleados &gt; Certificaciones &gt; Certificaciones de Empleados</field>
+            <field name="keywords">certificacion prl rgpd whatsapp consentimiento formacion caducidad renovar</field>
+            <field name="objective">Registrar certificaciones con su documento y controlar las caducidades.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Abre Empleados &gt; Certificaciones &gt; Certificaciones de Empleados', 'description': 'Cada empleado ve solo las suyas; RRHH ve todas.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Pulsa 'Nuevo' (solo Gestor de Certificaciones)&quot;, 'description': &quot;Elige 'Certificación' y 'Empleado'; la 'Fecha de Obtención' es hoy por defecto.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': &quot;Adjunta el 'Documento Adjunto' (PDF)&quot;, 'description': 'Es obligatorio en los tipos que lo requieren.', 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': 'Guarda y mira el Estado', 'description': 'Vigente / Próxima a Caducar / Caducada / Registrada; la caducidad se calcula sola.', 'expected_result': ''}), (0, 0, {'sequence': 5, 'name': &quot;Usa los filtros 'Próximas a Caducar' y 'Caducadas'&quot;, 'description': &quot;Además se crea una actividad 'Renovar certificación' para el responsable.&quot;, 'expected_result': ''})]"/>
+        </record>
+
+        <record id="path_knowledge" model="rms.training.path">
+            <field name="name">Conocimiento</field>
+            <field name="sequence">90</field>
+            <field name="description">La biblioteca de documentación interna.</field>
+            <field name="color">9</field>
+        </record>
+        <record id="lesson_people_knowledge" model="rms.training.lesson">
+            <field name="name">Buscar y subir documentación interna (Conocimiento)</field>
+            <field name="path_id" ref="path_knowledge"/>
+            <field name="sequence">10</field>
+            <field name="level">1_basic</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_custom_knowledge</field>
+            <field name="menu_xmlid">document_knowledge.menu_document_root</field>
+            <field name="menu_path">Conocimiento</field>
+            <field name="keywords">conocimiento documentacion documento carpeta pdf subir archivo enlace onlyoffice</field>
+            <field name="objective">Encontrar documentos internos y subir los tuyos a la carpeta correcta.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;El Asistente Odoo (IA) también busca en esta documentación.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Abre la aplicación 'Conocimiento'&quot;, 'description': 'Ves las carpetas a las que tienes acceso.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': 'Entra en una carpeta', 'description': &quot;Secciones 'Carpetas' y 'Archivos y enlaces'.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': 'Abre un documento para verlo', 'description': 'Vista previa de PDF, imágenes, Excel, Word, Markdown y texto.', 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Para subir, pulsa 'Añadir archivo o enlace'&quot;, 'description': 'Solo si tienes permiso de escritura en la carpeta.', 'expected_result': 'Documento subido'}), (0, 0, {'sequence': 5, 'name': &quot;Para descargar varios, selecciónalos y usa Acción &gt; 'Descargar'&quot;, 'description': 'Varios archivos se descargan en un zip.', 'expected_result': ''})]"/>
+        </record>
+
+        <record id="path_admin" model="rms.training.path">
+            <field name="name">Administración</field>
+            <field name="sequence">100</field>
+            <field name="description">Configuración que solo hacen los administradores y el responsable de formación.</field>
+            <field name="color">10</field>
+        </record>
+        <record id="lesson_admin_comerciales" model="rms.training.lesson">
+            <field name="name">Restricciones del grupo Comerciales y ocultar categorías</field>
+            <field name="path_id" ref="path_admin"/>
+            <field name="sequence">10</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_ventas_restriccion_comerciales</field>
+            <field name="group_xmlids">base.group_system</field>
+            <field name="menu_path">Ajustes &gt; Usuarios y Compañías &gt; Grupos  ·  Categoría de producto &gt; 'Ocultar a comerciales'</field>
+            <field name="keywords">comerciales restriccion grupo permiso ficha ocultar categoria</field>
+            <field name="objective">Saber qué ven y qué no los Comerciales y cómo ocultarles categorías de producto.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;La restricción de fichas es de vista; por eso el Asistente IA oculta por su cuenta email, teléfono y NIF a los Comerciales.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Añade al usuario al grupo 'Ventas: COMERCIALES'&quot;, 'description': 'No pueden abrir la ficha completa de clientes y productos ni cambiar la lista de precios de un presupuesto.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Para ocultar productos, abre la categoría y marca 'Ocultar a comerciales'&quot;, 'description': 'Se aplica también a las subcategorías: los Comerciales no podrán buscarlos ni añadirlos.', 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': 'Comprueba con un usuario comercial', 'description': '', 'expected_result': &quot;Ve el aviso 'No tienes permiso para ver el detalle de esta ficha'&quot;})]"/>
+        </record>
+        <record id="lesson_admin_ai_config" model="rms.training.lesson">
+            <field name="name">Configurar los asistentes de IA (API key y modelo)</field>
+            <field name="path_id" ref="path_admin"/>
+            <field name="sequence">20</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">10</field>
+            <field name="module_name">rms_ai_help_assistant</field>
+            <field name="group_xmlids">base.group_system</field>
+            <field name="menu_path">Ajustes &gt; Técnico &gt; Parámetros del sistema</field>
+            <field name="keywords">api key anthropic claude modelo parametro configurar ia</field>
+            <field name="objective">Dejar funcionando el Asistente Odoo (IA) y el Presupuesto con IA.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Activa el modo desarrollador y abre Ajustes &gt; Técnico &gt; Parámetros del sistema', 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Crea 'rms_ai_help_assistant.anthropic_api_key' con la clave de Anthropic&quot;, 'description': &quot;Si ya existe 'rms_ai_quote_assistant.anthropic_api_key', el asistente de ayuda la reutiliza.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': &quot;Revisa 'rms_ai_help_assistant.anthropic_model'&quot;, 'description': '', 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': 'Prueba con una pregunta en Asistente Odoo (IA)', 'description': '', 'expected_result': 'Respuesta correcta'})]"/>
+        </record>
+        <record id="lesson_admin_academy" model="rms.training.lesson">
+            <field name="name">Mantener la Academia: lecciones, permisos y control del avance</field>
+            <field name="path_id" ref="path_admin"/>
+            <field name="sequence">30</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">15</field>
+            <field name="group_xmlids">rms_training_academy.group_training_manager</field>
+            <field name="menu_path">Academia Odoo &gt; Control de formación</field>
+            <field name="keywords">academia crear leccion editar test control formacion progreso empleados</field>
+            <field name="objective">Ampliar el plan de formación y seguir el avance de cada empleado.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Para saber el ID externo de un menú: activa el modo desarrollador, Ajustes &amp;gt; Técnico &amp;gt; Menús, abre el menú y mira 'ID externo'.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="prerequisite_ids" eval="[(6, 0, [ref('lesson_basics_academy')])]"/>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Pide estar en el grupo 'Responsable de Formación (Academia Odoo)'&quot;, 'description': 'Los administradores ya lo tienen.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;Crea o edita una lección desde la aplicación &gt; pestaña 'Todas las lecciones'&quot;, 'description': &quot;Rellena nivel, 'Dónde se hace', 'Qué aprenderás' y los pasos con su resultado esperado.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 3, 'name': 'En la pestaña Configuración, indica quién la ve', 'description': &quot;'Módulo necesario', 'Menú necesario' (ID externo del menú) y/o 'Grupos necesarios'. Vacío = todos los empleados. El campo 'Quién la ve' lo resume.&quot;, 'expected_result': 'Cada empleado ve solo lo que puede usar'}), (0, 0, {'sequence': 4, 'name': &quot;Pon buenas 'Palabras clave'&quot;, 'description': 'Son las palabras con las que la IA encontrará la lección.', 'expected_result': ''}), (0, 0, {'sequence': 5, 'name': 'Sigue el avance en Academia Odoo &gt; Control de formación &gt; Avance por empleado', 'description': 'Para cada empleado: lecciones que le corresponden según sus permisos, completadas, pendientes y % de avance. Agrupa por departamento si RRHH está instalado.', 'expected_result': 'Sabes quién va al día'})]"/>
+        </record>
+        <record id="lesson_admin_shortcuts" model="rms.training.lesson">
+            <field name="name">Accesos directos: Sala IN, CLUB y Mis pedidos de venta</field>
+            <field name="path_id" ref="path_admin"/>
+            <field name="sequence">40</field>
+            <field name="level">3_advanced</field>
+            <field name="duration">5</field>
+            <field name="module_name">rms_web_redirect</field>
+            <field name="group_xmlids">base.group_system</field>
+            <field name="menu_path">Menú de aplicaciones</field>
+            <field name="keywords">sala in club acceso directo mis pedidos de venta tareas</field>
+            <field name="objective">Conocer los accesos directos del menú principal.</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;'Sala IN' y 'CLUB' (solo administradores)&quot;, 'description': 'Abren en una pestaña nueva la web de demos de la Sala IN y la administración del CLUB.', 'expected_result': ''}), (0, 0, {'sequence': 2, 'name': &quot;'Mis pedidos de venta'&quot;, 'description': &quot;Abre 'Mis tareas' de la aplicación Proyecto.&quot;, 'expected_result': ''})]"/>
+        </record>
+    </data>
+</odoo>

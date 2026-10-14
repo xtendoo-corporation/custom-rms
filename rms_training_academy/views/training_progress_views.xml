@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_training_progress_list" model="ir.ui.view">
+        <field name="name">rms.training.progress.list</field>
+        <field name="model">rms.training.progress</field>
+        <field name="arch" type="xml">
+            <list decoration-success="state == 'done'" decoration-info="state == 'in_progress'">
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="path_id"/>
+                <field name="level" widget="badge"/>
+                <field name="lesson_id"/>
+                <field name="state" widget="badge" decoration-success="state == 'done'" decoration-info="state == 'in_progress'"/>
+                <field name="date_start" optional="hide"/>
+                <field name="date_done"/>
+                <field name="done_count" optional="hide" sum="Total"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_training_progress_form" model="ir.ui.view">
+        <field name="name">rms.training.progress.form</field>
+        <field name="model">rms.training.progress</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="user_id"/>
+                            <field name="lesson_id"/>
+                            <field name="path_id"/>
+                            <field name="level"/>
+                        </group>
+                        <group>
+                            <field name="state"/>
+                            <field name="date_start"/>
+                            <field name="date_done"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_rms_training_progress_pivot" model="ir.ui.view">
+        <field name="name">rms.training.progress.pivot</field>
+        <field name="model">rms.training.progress</field>
+        <field name="arch" type="xml">
+            <pivot string="Progreso de formación">
+                <field name="user_id" type="row"/>
+                <field name="path_id" type="col"/>
+                <field name="done_count" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_rms_training_progress_graph" model="ir.ui.view">
+        <field name="name">rms.training.progress.graph</field>
+        <field name="model">rms.training.progress</field>
+        <field name="arch" type="xml">
+            <graph string="Progreso de formación" type="bar" stacked="1">
+                <field name="user_id"/>
+                <field name="level"/>
+                <field name="done_count" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_rms_training_progress_search" model="ir.ui.view">
+        <field name="name">rms.training.progress.search</field>
+        <field name="model">rms.training.progress</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="user_id"/>
+                <field name="lesson_id"/>
+                <field name="path_id"/>
+                <filter string="Completadas" name="done" domain="[('state', '=', 'done')]"/>
+                <filter string="En curso" name="in_progress" domain="[('state', '=', 'in_progress')]"/>
+                <separator/>
+                <filter string="Completadas este mes" name="done_this_month" domain="[('date_done', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <group>
+                    <filter string="Empleado" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Aplicación" name="group_path" context="{'group_by': 'path_id'}"/>
+                    <filter string="Nivel" name="group_level" context="{'group_by': 'level'}"/>
+                    <filter string="Estado" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_rms_training_progress_mine" model="ir.actions.act_window">
+        <field name="name">Mi progreso</field>
+        <field name="res_model">rms.training.progress</field>
+        <field name="view_mode">list,graph,form</field>
+        <field name="domain">[('user_id', '=', uid)]</field>
+        <field name="context">{'search_default_group_path': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Aún no has empezado ninguna lección</p>
+            <p>Ve a Academia Odoo &gt; Aprender &gt; Mi formación por aplicación y empieza por "Primeros pasos".</p>
+        </field>
+    </record>
+
+    <record id="action_rms_training_progress_all" model="ir.actions.act_window">
+        <field name="name">Detalle de lecciones completadas</field>
+        <field name="res_model">rms.training.progress</field>
+        <field name="view_mode">pivot,graph,list,form</field>
+        <field name="context">{'search_default_done': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Ningún empleado ha empezado aún la formación</p>
+        </field>
+    </record>
+</odoo>

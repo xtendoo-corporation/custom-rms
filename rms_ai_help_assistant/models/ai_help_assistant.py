@@ -2,10 +2,12 @@
 
 import json
 import logging
+import re
 
 import requests
 
 from odoo import api, models
+from odoo.fields import Domain
 
 _logger = logging.getLogger(__name__)
 
@@ -15,6 +17,12 @@ MAX_TOOL_ROUNDS = 6  # una consulta puede necesitar varias herramientas encadena
                      # (p. ej. buscar_cliente -> consultar_producto -> consultar_precio_cliente)
 LLM_TIMEOUT = 60
 SEARCH_LIMIT = 8
+# Palabras demasiado comunes para buscar lecciones de la Academia.
+TRAINING_STOPWORDS = {
+    "como", "cómo", "que", "qué", "para", "por", "con", "una", "uno", "unos", "unas",
+    "los", "las", "del", "hago", "hacer", "puedo", "quiero", "donde", "dónde", "cuando",
+    "cuándo", "odoo", "esto", "este", "esta", "hay", "mis", "sus", "nos",
+}
 
 # ---------------------------------------------------------------------------
 # IMPORTANTE — por qué este módulo es seguro de instalar tal cual:
@@ -89,11 +97,12 @@ prevalece SIEMPRE esta forma de trabajar sobre la genérica de Odoo)
   entrega, listas de precios, técnicos, comunicación general. No hace falta
   crear un contacto distinto por cada dirección: se gestiona con estos
   roles desde la ficha del cliente (pestaña de contactos/direcciones).
-- Al importar contactos desde Excel/CSV (importación nativa de Odoo), la
-  validación de NIF/CIF está desactivada a propósito: se pueden importar
-  aunque el NIF no sea válido según el validador estándar. Al crear un
-  cliente a mano desde el formulario, esa validación SÍ se aplica con
-  normalidad.
+- El NIF/CIF de un cliente debe ser siempre correcto: sin un NIF válido no
+  se puede facturar. Odoo lo valida al crear o editar un cliente a mano y
+  en la importación nativa de Odoo. El asistente propio Contactos >
+  Configuración > Importar Contactos (RMS) NO lo comprueba, así que quien
+  lo use debe revisar antes que todos los NIF del Excel son correctos.
+  Nunca recomiendes saltarse la validación del NIF.
 - Los usuarios del grupo "Comerciales" ven los listados de clientes y
   productos con normalidad, pero no pueden abrir la ficha completa (ni de
   cliente ni de producto) para ver el detalle — verán un aviso de permiso
@@ -121,8 +130,13 @@ si se puede vender y a qué precio:
   este estado, el precio no sale de la tarifa general sino de un precio
   específico fijado en ese número de serie/lote ("Precio Custom").
 - 2ª Mano recibe además, automáticamente, un 10% de descuento adicional.
-- Descontinuado: precio 0 si se referencia por lote en un pedido (se
-  entiende como liquidación), y el producto se archiva automáticamente en
+- Estados vendibles: solo Nuevo, Ex-Demo y 2ª Mano. Demo y Descontinuado
+  NO son estados de venta (decisión de la empresa): por eso un producto
+  en esos estados sale a precio 0 en un presupuesto. Si un producto se
+  descontinúa en las listas del proveedor y aún queda stock que vender,
+  hay que pasarlo a un estado vendible (Ex-Demo, 2ª Mano...) antes de
+  presupuestarlo; nunca enviar un presupuesto con una línea a 0 por este
+  motivo. Además, un producto Descontinuado se archiva automáticamente en
   cuanto su stock llega a 0 (proceso automático nocturno).
 
 — STOCK Y CESIONES —
@@ -153,6 +167,13 @@ si se puede vender y a qué precio:
   cliente no ha llegado: revisa primero si el envío se hizo desde Odoo con
   un destinatario externo, porque eso se bloquea a propósito.
 
+— ERRORES DE ODOO —
+- Si un empleado cuenta que le ha salido una ventana de error ("Oops!
+  Something went wrong", "Error de validación"...), lo que debe hacer es
+  pulsar "Notificar a soporte" en esa misma ventana, escribir qué estaba
+  haciendo y "Enviar a soporte". No le expliques cómo arreglar el error ni
+  le propongas cambios técnicos: soporte se encarga.
+
 — EQUIPOS DE CLIENTE —
 - Cada cliente puede tener equipos/maquinaria instalados vinculados a su
   ficha, con geolocalización, para poder ver en un mapa dónde está cada
@@ -176,6 +197,17 @@ consultar_precio_cliente o cualquier herramienta que pida un id.
   o por nombre de cliente.
 - buscar_documentacion(texto): busca en la documentación interna (Knowledge)
   de la empresa, si existe algún artículo relacionado con la pregunta.
+- buscar_formacion(texto): busca en la Academia Odoo (plan de formación
+  oficial de la empresa) las lecciones paso a paso relacionadas con la
+  pregunta. Para CUALQUIER pregunta de tipo "cómo hago X", úsala PRIMERO:
+  si encuentra una lección, basa tu respuesta en sus pasos (son la forma
+  oficial de hacerlo en RMS-Proaudio) y termina recomendando la lección por
+  su nombre ("tienes la lección 'X' en Academia Odoo > Mi plan de
+  formación"), para que el empleado pueda practicarla y marcarla como
+  completada. Si la lección viene con disponible_con_sus_permisos = false,
+  esa funcionalidad no está en los permisos de quien pregunta: explícale
+  igualmente cómo funciona si te lo pide, pero avísale de que con su
+  usuario actual no podrá hacerlo y de que pida acceso a administración.
 
 ═══════════════════════════════════════════════════════════════════════════
 FORMATO DE RESPUESTA
@@ -254,6 +286,26 @@ TOOLS = [
                 "texto": {
                     "type": "string",
                     "description": "Referencia del pedido (p. ej. 'S00123') o nombre de cliente.",
+                }
+            },
+            "required": ["texto"],
+        },
+    },
+    {
+        "name": "buscar_formacion",
+        "description": (
+            "Busca en la Academia Odoo (plan de formación interno) lecciones "
+            "paso a paso relacionadas con la pregunta. Devuelve el texto "
+            "completo de las lecciones encontradas (ruta de menú, pasos y "
+            "consejos). Úsala primero ante cualquier duda de tipo 'cómo se "
+            "hace X'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "texto": {
+                    "type": "string",
+                    "description": "Palabras clave de la acción (p. ej. 'cesión', 'lista de precios', 'gasto ticket').",
                 }
             },
             "required": ["texto"],
@@ -395,6 +447,7 @@ class RmsAiHelpAssistant(models.AbstractModel):
             "consultar_precio_cliente": self._tool_consultar_precio_cliente,
             "buscar_pedido": self._tool_buscar_pedido,
             "buscar_documentacion": self._tool_buscar_documentacion,
+            "buscar_formacion": self._tool_buscar_formacion,
         }.get(name)
         if not handler:
             return json.dumps({"error": "Herramienta desconocida: %s" % name}, ensure_ascii=False)
@@ -569,6 +622,61 @@ class RmsAiHelpAssistant(models.AbstractModel):
                     "titulo": doc.name,
                     "carpeta": doc.knowledge_category_id.complete_name or "",
                     "extracto": extracto,
+                }
+            )
+        return {"resultados": results, "total_encontrado": len(results)}
+
+    def _tool_buscar_formacion(self, tool_input):
+        texto = (tool_input.get("texto") or "").strip()
+        if not texto:
+            return {"error": "Falta el texto a buscar."}
+        # Integración opcional: no hay dependencia de manifiesto con
+        # rms_training_academy; si no está instalado, simplemente se avisa.
+        if "rms.training.lesson" not in self.env:
+            return {"error": "La Academia Odoo (rms_training_academy) no está instalada."}
+        Lesson = self.env["rms.training.lesson"]
+        # Las preguntas suelen ser frases largas ("¿cómo vendo una unidad de
+        # segunda mano?"): buscamos por cada palabra significativa y
+        # ordenamos por cuántas coinciden, pesando más título y palabras
+        # clave que el resto del texto.
+        words = [
+            w for w in re.findall(r"\w+", texto.lower())
+            if len(w) > 2 and w not in TRAINING_STOPWORDS
+        ] or [texto.lower()]
+        domain = Domain.OR(
+            [
+                "|", "|", "|", "|",
+                ("name", "ilike", word),
+                ("keywords", "ilike", word),
+                ("menu_path", "ilike", word),
+                ("objective", "ilike", word),
+                ("step_ids.name", "ilike", word),
+            ]
+            for word in words
+        )
+        candidates = Lesson.search(domain, limit=50)
+
+        def score(lesson):
+            head = " ".join([lesson.name or "", lesson.keywords or ""]).lower()
+            body = " ".join([lesson.menu_path or "", lesson.objective or ""] + lesson.step_ids.mapped("name")).lower()
+            return sum(3 if w in head else 1 if w in body else 0 for w in words)
+
+        available = set(Lesson._get_available_lesson_ids())
+        # Primero las lecciones que el usuario puede poner en práctica con
+        # sus permisos; dentro de cada grupo, las más relevantes.
+        lessons = candidates.sorted(
+            lambda lesson: (lesson.id in available, score(lesson)), reverse=True
+        )
+        results = []
+        for lesson in lessons[:5]:
+            results.append(
+                {
+                    "leccion": lesson.name,
+                    "ruta_formativa": lesson.path_id.name,
+                    "nivel": dict(lesson._fields["level"].selection).get(lesson.level, ""),
+                    "estado_para_este_usuario": dict(lesson._fields["my_state"].selection).get(lesson.my_state, ""),
+                    "disponible_con_sus_permisos": lesson.id in available,
+                    "guia": lesson._to_plain_guide(),
                 }
             )
         return {"resultados": results, "total_encontrado": len(results)}
