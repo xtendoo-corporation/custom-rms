@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_support_ticket_list" model="ir.ui.view">
+        <field name="name">rms.support.ticket.list</field>
+        <field name="model">rms.support.ticket</field>
+        <field name="arch" type="xml">
+            <list string="Incidencias de soporte" create="false"
+                  decoration-danger="ai_severity == 'critical'"
+                  decoration-warning="ai_severity == 'high'"
+                  decoration-muted="state in ('done', 'discarded')">
+                <field name="name"/>
+                <field name="last_occurrence"/>
+                <field name="user_id"/>
+                <field name="ai_summary"/>
+                <field name="error_type" optional="hide"/>
+                <field name="ai_classification"/>
+                <field name="ai_severity"/>
+                <field name="ai_module" optional="show"/>
+                <field name="occurrence_count"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'pending'"
+                       decoration-success="state == 'done'"
+                       decoration-warning="state == 'analyzed'"
+                       decoration-danger="state == 'ai_failed'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_support_ticket_form" model="ir.ui.view">
+        <field name="name">rms.support.ticket.form</field>
+        <field name="model">rms.support.ticket</field>
+        <field name="arch" type="xml">
+            <form string="Incidencia de soporte" create="false">
+                <header>
+                    <button name="action_reanalyze" type="object" string="Reanalizar con IA"
+                            invisible="state in ('done', 'discarded')"/>
+                    <button name="action_mark_done" type="object" string="Marcar como resuelta" class="btn-primary"
+                            invisible="state in ('done', 'discarded')"/>
+                    <button name="action_discard" type="object" string="Descartar"
+                            invisible="state in ('done', 'discarded')"/>
+                    <button name="action_reopen" type="object" string="Reabrir"
+                            invisible="state not in ('done', 'discarded')"/>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,analyzed,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                        <h3><field name="ai_summary" placeholder="La IA todavía no ha analizado este error"/></h3>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="user_id"/>
+                            <field name="last_occurrence"/>
+                            <field name="occurrence_count"/>
+                            <field name="reporter_ids" widget="many2many_tags"/>
+                        </group>
+                        <group>
+                            <field name="ai_classification"/>
+                            <field name="ai_severity"/>
+                            <field name="ai_module"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Informe de la IA" name="ai_report">
+                            <div class="alert alert-danger" role="alert" invisible="not ai_error">
+                                <field name="ai_error"/>
+                            </div>
+                            <field name="ai_report" nolabel="1"/>
+                        </page>
+                        <page string="Error" name="error">
+                            <group>
+                                <field name="error_type"/>
+                                <field name="error_message"/>
+                                <field name="user_comment"/>
+                            </group>
+                            <label for="traceback"/>
+                            <field name="traceback" nolabel="1" widget="text" class="font-monospace small"/>
+                        </page>
+                        <page string="Contexto" name="context">
+                            <group>
+                                <field name="url" widget="url"/>
+                                <field name="res_model"/>
+                                <field name="res_id"/>
+                                <field name="fingerprint"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_rms_support_ticket_search" model="ir.ui.view">
+        <field name="name">rms.support.ticket.search</field>
+        <field name="model">rms.support.ticket</field>
+        <field name="arch" type="xml">
+            <search string="Incidencias de soporte">
+                <field name="name"/>
+                <field name="ai_summary"/>
+                <field name="error_message"/>
+                <field name="ai_module"/>
+                <field name="user_id"/>
+                <filter string="Abiertas" name="filter_open"
+                        domain="[('state', 'in', ('pending', 'analyzed', 'ai_failed'))]"/>
+                <filter string="Resueltas" name="filter_done" domain="[('state', '=', 'done')]"/>
+                <separator/>
+                <filter string="Gravedad alta o crítica" name="filter_severe"
+                        domain="[('ai_severity', 'in', ('high', 'critical'))]"/>
+                <filter string="Fallos de código / inconsistencias" name="filter_bugs"
+                        domain="[('ai_classification', 'in', ('bug', 'inconsistency'))]"/>
+                <group>
+                    <filter string="Módulo implicado" name="group_module" context="{'group_by': 'ai_module'}"/>
+                    <filter string="Tipo de problema" name="group_classification" context="{'group_by': 'ai_classification'}"/>
+                    <filter string="Estado" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_rms_support_ticket" model="ir.actions.act_window">
+        <field name="name">Incidencias de soporte</field>
+        <field name="res_model">rms.support.ticket</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_rms_support_ticket_search"/>
+        <field name="context">{'search_default_filter_open': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Ningún error notificado</p>
+            <p>
+                Cuando un usuario pulse "Notificar a soporte" en una ventana de
+                error de Odoo, la incidencia aparecerá aquí con el informe de la IA.
+            </p>
+        </field>
+    </record>
+
+    <menuitem
+        id="menu_rms_support_ticket"
+        name="Incidencias de soporte"
+        action="action_rms_support_ticket"
+        sequence="90"
+        groups="group_support_error_report"
+        web_icon="rms_support_error_report,static/description/icon.png"
+    />
+</odoo>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Se lanza al instante cada vez que entra una incidencia nueva
+             (ver _trigger() en report_error); la periodicidad horaria es
+             solo una red de seguridad por si alguna quedó pendiente. -->
+        <record id="ir_cron_analyze_support_tickets" model="ir.cron">
+            <field name="name">Soporte: analizar incidencias con IA</field>
+            <field name="model_id" ref="model_rms_support_ticket"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_analyze_pending()</field>
+            <field name="user_id" ref="base.user_root"/>
+            <field name="interval_number">1</field>
+            <field name="interval_type">hours</field>
+            <field name="active" eval="True"/>
+        </record>
+    </data>
+</odoo>

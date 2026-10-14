@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Canal de Conversaciones donde llegan los avisos. Solo lo ven los
+             usuarios del grupo "Recibe incidencias de soporte", y todos ellos
+             quedan suscritos automáticamente (group_ids): para que alguien
+             reciba los avisos basta con darle ese permiso en su usuario. -->
+        <record id="channel_support_error_report" model="discuss.channel">
+            <field name="name">Soporte Odoo</field>
+            <field name="channel_type">channel</field>
+            <field name="description">Errores notificados por los usuarios desde Odoo, con el diagnóstico de la IA.</field>
+            <field name="group_public_id" ref="group_support_error_report"/>
+            <field name="group_ids" eval="[(4, ref('group_support_error_report'))]"/>
+        </record>
+    </data>
+</odoo>
