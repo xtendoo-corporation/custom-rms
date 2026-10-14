@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Comerciales Tasks Shortcut',
-    'version': '19.0.1.0.1',
+    'version': '19.0.1.0.0',
     'category': 'Project',
     'summary': 'Add a root menu item shortcut to My Tasks for the Comerciales group.',
     'description': """

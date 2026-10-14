@@ -21,8 +21,6 @@
             <form string="Proyecto">
                 <header>
                     <button name="action_send" type="object" string="Enviar al cliente" class="oe_highlight" invisible="state != 'draft'"/>
-                    <button name="action_mark_accepted" type="object" string="Aceptado por el cliente" class="btn-success" invisible="state not in ('sent', 'rejected')"/>
-                    <button name="action_mark_rejected" type="object" string="Rechazado por el cliente" invisible="state not in ('sent', 'accepted')"/>
                     <button name="action_reset_to_draft" type="object" string="Volver a borrador" invisible="state == 'draft'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,sent,accepted,rejected"/>
                 </header>

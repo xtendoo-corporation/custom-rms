@@ -22,7 +22,7 @@
                         <li><strong>Cantidad / Cant</strong>: Unidades a presupuestar.</li>
                         <li><strong>Precio / Unitario</strong>: Precio de venta unitario.</li>
                         <li><strong>Dto1 / Dto2</strong>: Descuentos de primer y segundo nivel.</li>
-                        <li><strong>Total de Documento / Total</strong>: Importe final deseado para el presupuesto. Si es menor que la suma de las líneas, el importador añade una línea negativa &quot;Descuento comercial para cuadrar presupuesto&quot; por la diferencia (si el total supera en más de un 5% a las líneas, se entiende que incluye el 21% de IVA).</li>
+                        <li><strong>Total de Documento / Total</strong>: Importe final deseado para el presupuesto (el importador calculará y aplicará el tercer descuento necesario automáticamente).</li>
                     </ul>
                 </div>
                 <footer>

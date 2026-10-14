@@ -1,7 +1,7 @@
 # RMS Portal Projects
 
 Añade el modelo `rms.installation.project` (Proyecto de instalación) y una
-nueva sección **"Proyectos"** en el portal de clientes (`/my/installation-projects`).
+nueva sección **"Proyectos"** en el portal de clientes (`/my/projects`).
 
 Este modelo es **independiente de la app Proyecto nativa de Odoo**
 (`project.project`, usada internamente por el equipo p. ej. para el
@@ -16,7 +16,7 @@ tienen ni tendrán acceso a ningún proyecto interno de Odoo.
   cliente (`partner_id`) y adjunta el documento HTML (`file_data`/`file_name`).
 - Mientras el estado es **Borrador**, el cliente no lo ve en su portal.
 - Al pulsar **Enviar al cliente**, pasa a **Enviado** y aparece
-  automáticamente en `/my/installation-projects` para ese contacto exacto (no para toda su
+  automáticamente en `/my/projects` para ese contacto exacto (no para toda su
   empresa).
 - El cliente abre el documento a pantalla completa en una pestaña nueva
   (se sirve como página web real, no como PDF), pero no puede editar ni
@@ -26,7 +26,7 @@ tienen ni tendrán acceso a ningún proyecto interno de Odoo.
 
 - `ir.rule` restringe la lectura en portal a `partner_id == usuario.partner_id`
   y excluye los borradores.
-- El documento se sirve mediante una ruta propia (`/my/installation-projects/<id>/file`,
+- El documento se sirve mediante una ruta propia (`/my/projects/<id>/file`,
   con `Content-Type: text/html`) que repite la misma comprobación de acceso,
   en vez de depender de la URL directa del adjunto (`/web/content/...`).
 

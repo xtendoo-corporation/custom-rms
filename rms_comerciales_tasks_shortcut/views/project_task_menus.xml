@@ -6,6 +6,5 @@
         action="project.action_view_my_task"
         web_icon="rms_comerciales_tasks_shortcut,static/description/icon.png"
         sequence="10"
-        groups="custom.comerciales"
     />
 </odoo>
