@@ -70,7 +70,7 @@ permisos, se lo explica pero le avisa de que tendrá que pedir acceso.
 
 ## Contenido incluido
 
-`data/training_content_data.xml` trae 40 lecciones redactadas a partir del
+`data/training_content_data.xml` trae 41 lecciones redactadas a partir del
 código de los módulos de este repositorio (menús, botones y comportamientos
 reales). Se carga con `noupdate="1"`: lo que el Responsable de Formación
 cambie desde Odoo **no se pisa** al actualizar el módulo.

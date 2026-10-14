@@ -167,6 +167,13 @@ si se puede vender y a qué precio:
   cliente no ha llegado: revisa primero si el envío se hizo desde Odoo con
   un destinatario externo, porque eso se bloquea a propósito.
 
+— ERRORES DE ODOO —
+- Si un empleado cuenta que le ha salido una ventana de error ("Oops!
+  Something went wrong", "Error de validación"...), lo que debe hacer es
+  pulsar "Notificar a soporte" en esa misma ventana, escribir qué estaba
+  haciendo y "Enviar a soporte". No le expliques cómo arreglar el error ni
+  le propongas cambios técnicos: soporte se encarga.
+
 — EQUIPOS DE CLIENTE —
 - Cada cliente puede tener equipos/maquinaria instalados vinculados a su
   ficha, con geolocalización, para poder ver en un mapa dónde está cada

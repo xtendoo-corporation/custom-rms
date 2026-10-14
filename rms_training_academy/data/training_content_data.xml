@@ -63,10 +63,23 @@
             <field name="tips">&lt;ul&gt;&lt;li&gt;El asistente es de SOLO LECTURA: nunca crea ni modifica nada; te explica cómo hacerlo tú.&lt;/li&gt;&lt;li&gt;Solo ve los datos que tú puedes ver con tu usuario. A los Comerciales no les muestra email, teléfono ni NIF de clientes.&lt;/li&gt;&lt;li&gt;Si dice 'Falta configurar la clave de la API de Anthropic', avisa a administración.&lt;/li&gt;&lt;/ul&gt;</field>
             <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': &quot;Abre la aplicación 'Asistente Odoo (IA)'&quot;, 'description': 'Está en el menú de aplicaciones de todos los empleados.', 'expected_result': 'Ves el chat con el saludo del asistente'}), (0, 0, {'sequence': 2, 'name': 'Escribe tu pregunta y pulsa Intro', 'description': &quot;Ejemplos: '¿cómo registro una cesión?', '¿qué precio tiene el producto X para el cliente Y?', '¿en qué estado está el pedido S00123?'. Mayúsculas+Intro hace salto de línea.&quot;, 'expected_result': 'El asistente responde con pasos o con el dato'}), (0, 0, {'sequence': 3, 'name': 'Sigue la conversación si necesitas más detalle', 'description': 'Recuerda todo lo hablado en la misma pantalla.', 'expected_result': 'Respuesta ajustada a tu caso'}), (0, 0, {'sequence': 4, 'name': 'Si te recomienda una lección, ábrela en Academia Odoo', 'description': 'La IA usa este plan de formación como fuente oficial.', 'expected_result': 'Puedes practicar y marcar la lección como completada'})]"/>
         </record>
+        <record id="lesson_basics_support_error" model="rms.training.lesson">
+            <field name="name">Qué hacer cuando Odoo muestra un error: avisar a soporte</field>
+            <field name="path_id" ref="path_basics"/>
+            <field name="sequence">50</field>
+            <field name="level">1_basic</field>
+            <field name="duration">5</field>
+            <field name="module_name">rms_support_error_report</field>
+            <field name="menu_path">Ventana de error de Odoo &gt; botón 'Notificar a soporte'</field>
+            <field name="keywords">error fallo oops something went wrong error de validación aviso notificar soporte incidencia avisar problema</field>
+            <field name="objective">Avisar a soporte de un error en un par de clics, con la información que necesitan para resolverlo. Tú solo tienes que notificarlo: no hace falta que lo arregles ni que sepas por qué ha pasado.</field>
+            <field name="tips">&lt;ul&gt;&lt;li&gt;Si te dice 'Soporte ya tenía registrado este error', no pasa nada: tu aviso se ha sumado a la incidencia que ya existía.&lt;/li&gt;&lt;li&gt;No intentes arreglar el error tú ni repetir la operación muchas veces: avisa y espera a soporte.&lt;/li&gt;&lt;li&gt;Si te dice 'Has notificado muchos errores en la última hora', avisa a soporte directamente.&lt;/li&gt;&lt;li&gt;Si el botón no aparece o la ventana se cerró, avisa a soporte contando qué estabas haciendo y, si puedes, con una captura de pantalla.&lt;/li&gt;&lt;/ul&gt;</field>
+            <field name="step_ids" eval="[(0, 0, {'sequence': 1, 'name': 'Cuando salte una ventana de error, no la cierres todavía', 'description': &quot;Puede ser un 'Oops! Something went wrong' o un aviso tipo 'Error de validación: …'.&quot;, 'expected_result': 'Ves la ventana del error'}), (0, 0, {'sequence': 2, 'name': &quot;Pulsa el botón 'Notificar a soporte'&quot;, 'description': 'Está abajo, en la ventana del error.', 'expected_result': 'Aparece un cuadro de texto'}), (0, 0, {'sequence': 3, 'name': 'Escribe qué estabas haciendo (opcional, pero ayuda mucho)', 'description': &quot;Por ejemplo: 'Estaba duplicando el presupuesto A22003 desde Acción &gt; Duplicar'. No hace falta copiar el error: se envía solo.&quot;, 'expected_result': ''}), (0, 0, {'sequence': 4, 'name': &quot;Pulsa 'Enviar a soporte'&quot;, 'description': '', 'expected_result': &quot;'Gracias. Soporte ha sido avisado (INC-…)'&quot;}), (0, 0, {'sequence': 5, 'name': 'Cierra la ventana y sigue trabajando', 'description': 'Soporte se encarga a partir de aquí. Si necesitan algo más, te lo preguntarán.', 'expected_result': ''})]"/>
+        </record>
         <record id="lesson_basics_academy" model="rms.training.lesson">
             <field name="name">Cómo usar la Academia Odoo y seguir tu progreso</field>
             <field name="path_id" ref="path_basics"/>
-            <field name="sequence">50</field>
+            <field name="sequence">60</field>
             <field name="level">1_basic</field>
             <field name="duration">5</field>
             <field name="menu_path">Academia Odoo &gt; Aprender</field>
