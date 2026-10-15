@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Academia Odoo',
-    'version': '19.0.2.0.0',
+    'version': '19.0.2.0.1',
     'category': 'Productivity',
     'summary': 'Formación interna paso a paso (de básico a avanzado) sobre el Odoo de RMS-Proaudio: catálogo global por aplicación, filtrado según los permisos de cada empleado, con control de progreso.',
     'description': """
