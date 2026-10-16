@@ -588,6 +588,32 @@ class ResPartner(models.Model):
                 IrCron._commit_progress(remaining=0)
                 break
 
+    def _get_customer_map_contact_info(self):
+        """Phone and email to show in the map.
+
+        The contact's own phone and email come first. When one of them is
+        missing, it is taken from the first contact person of the company that
+        has it, preferring a person who has everything missing, and that
+        person's name is returned too.
+        """
+        self.ensure_one()
+        phone, email = self.phone or "", self.email or ""
+        contact_name = ""
+        if not (phone and email):
+            # The company is visible to the user, so are its contact persons.
+            persons = self.sudo().child_ids.filtered(
+                lambda child: child.type == "contact"
+                and ((not phone and child.phone) or (not email and child.email))
+            )
+            person = persons.filtered(
+                lambda child: (phone or child.phone) and (email or child.email)
+            )[:1] or persons[:1]
+            if person:
+                phone = phone or person.phone or ""
+                email = email or person.email or ""
+                contact_name = person.name or ""
+        return {"phone": phone, "email": email, "contact_name": contact_name}
+
     @api.model
     def get_customer_equipment_map_data(self):
         """Return geolocated contacts allowed in the customer map."""
@@ -616,6 +642,8 @@ class ResPartner(models.Model):
                 }
             )
 
+        contact_info = {partner.id: partner._get_customer_map_contact_info() for partner in partners}
+
         return {
             "partners": [
                 {
@@ -628,8 +656,7 @@ class ResPartner(models.Model):
                         for line in partner._display_address(without_company=True).splitlines()
                         if line.strip()
                     ),
-                    "phone": partner.phone or "",
-                    "email": partner.email or "",
+                    **contact_info[partner.id],
                     "salesperson": {
                         "id": partner.user_id.id,
                         "name": partner.user_id.display_name,
