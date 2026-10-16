@@ -143,7 +143,7 @@
                     <input
                         type="search"
                         class="form-control"
-                        placeholder="Buscar cliente, equipo o número de serie..."
+                        placeholder="Buscar cliente, dirección, teléfono o email..."
                         t-on-input="onSearchInput"
                     />
                 </div>

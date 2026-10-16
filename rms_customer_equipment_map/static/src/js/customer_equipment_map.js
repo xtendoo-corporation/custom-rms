@@ -117,6 +117,7 @@ export class CustomerEquipmentMap extends Component {
                     partner.address,
                     partner.phone,
                     partner.email,
+                    partner.contact_name,
                     partner.salesperson?.name || "",
                     partner.country?.name || "",
                     partner.industry?.name || "",
@@ -177,6 +178,7 @@ export class CustomerEquipmentMap extends Component {
         }).addTo(this.map);
         this.markerLayer = window.L.markerClusterGroup({
             chunkedLoading: true,
+            iconCreateFunction: (cluster) => this.createClusterIcon(cluster),
             showCoverageOnHover: false,
             maxClusterRadius: 50,
         }).addTo(this.map);
@@ -457,14 +459,25 @@ export class CustomerEquipmentMap extends Component {
         this.applySearch();
     }
 
+    /** Maroon cluster bubbles, darker as the group grows. */
+    createClusterIcon(cluster) {
+        const count = cluster.getChildCount();
+        const size = count < 10 ? "small" : count < 100 ? "medium" : "large";
+        const diameter = { small: 36, medium: 42, large: 50 }[size];
+        return window.L.divIcon({
+            html: `<div><span>${count}</span></div>`,
+            className: `o_customer_equipment_map_cluster o_customer_equipment_map_cluster_${size}`,
+            iconSize: window.L.point(diameter, diameter),
+        });
+    }
+
     getMarker(partner) {
         let marker = this.markers.get(partner.id);
         if (!marker) {
-            const equipmentCount = partner.equipment.length;
             marker = window.L.marker([partner.latitude, partner.longitude], {
                 icon: window.L.divIcon({
                     className: "o_customer_equipment_map_marker",
-                    html: equipmentCount ? `<span>${equipmentCount}</span>` : "",
+                    html: "",
                     iconSize: [34, 42],
                     iconAnchor: [17, 42],
                     popupAnchor: [0, -40],
@@ -505,28 +518,28 @@ export class CustomerEquipmentMap extends Component {
         const title = document.createElement("h5");
         title.textContent = partner.name;
         container.appendChild(title);
-        for (const value of [partner.address, partner.phone, partner.email]) {
-            if (value) {
-                const line = document.createElement("div");
-                line.className = "mb-1";
-                line.textContent = value;
-                container.appendChild(line);
+        const lines = [
+            { icon: "fa-map-marker", value: partner.address },
+            { icon: "fa-user", value: partner.contact_name },
+            { icon: "fa-phone", value: partner.phone, href: partner.phone && `tel:${partner.phone.replace(/[^\d+]/g, "")}` },
+            { icon: "fa-envelope", value: partner.email, href: partner.email && `mailto:${partner.email}` },
+        ];
+        for (const { icon, value, href } of lines) {
+            if (!value) {
+                continue;
             }
-        }
-        const equipmentTitle = document.createElement("strong");
-        equipmentTitle.textContent = `Equipos instalados: ${partner.equipment.length}`;
-        container.appendChild(equipmentTitle);
-        if (partner.equipment.length) {
-            const list = document.createElement("ul");
-            list.className = "mt-1 mb-2 ps-3";
-            for (const equipment of partner.equipment) {
-                const item = document.createElement("li");
-                item.textContent = [equipment.name, equipment.category, equipment.serial_no]
-                    .filter(Boolean)
-                    .join(" · ");
-                list.appendChild(item);
+            const line = document.createElement("div");
+            line.className = "o_customer_equipment_map_popup_line d-flex align-items-baseline gap-2 mb-1";
+            const iconElement = document.createElement("i");
+            iconElement.className = `fa fa-fw ${icon} text-muted`;
+            line.appendChild(iconElement);
+            const text = document.createElement(href ? "a" : "span");
+            text.textContent = value;
+            if (href) {
+                text.href = href;
             }
-            container.appendChild(list);
+            line.appendChild(text);
+            container.appendChild(line);
         }
         const buttons = document.createElement("div");
         buttons.className = "d-flex gap-2 mt-2";
