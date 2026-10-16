@@ -159,3 +159,59 @@ class TestCustomerEquipmentMap(TransactionCase):
         candidate.geo_localize_state = "failed"
         candidate.with_user(geolocation_user).action_geo_localize_retry()
         self.assertEqual(candidate.geo_localize_state, "pending")
+
+    def test_map_data_uses_contact_person_phone_and_email(self):
+        company = self.env["res.partner"].create(
+            {
+                "name": "Teatro sin teléfono",
+                "is_company": True,
+                "partner_latitude": 40.4168,
+                "partner_longitude": -3.7038,
+            }
+        )
+        self.env["res.partner"].create(
+            [
+                {"name": "Sin datos", "parent_id": company.id, "type": "contact"},
+                {
+                    "name": "Facturación",
+                    "parent_id": company.id,
+                    "type": "invoice",
+                    "phone": "+34 900 000 001",
+                },
+                {
+                    "name": "Ana Técnica",
+                    "parent_id": company.id,
+                    "type": "contact",
+                    "phone": "+34 600 111 222",
+                    "email": "ana@teatro.es",
+                },
+            ]
+        )
+        own = self.env["res.partner"].create(
+            {
+                "name": "Teatro con datos",
+                "is_company": True,
+                "phone": "+34 954 000 000",
+                "email": "info@teatro2.es",
+                "partner_latitude": 37.38,
+                "partner_longitude": -5.98,
+            }
+        )
+        self.env["res.partner"].create(
+            {
+                "name": "Otra persona",
+                "parent_id": own.id,
+                "type": "contact",
+                "phone": "+34 600 999 999",
+            }
+        )
+        data = {
+            item["id"]: item
+            for item in self.env["res.partner"].get_customer_equipment_map_data()["partners"]
+        }
+        self.assertEqual(data[company.id]["phone"], "+34 600 111 222")
+        self.assertEqual(data[company.id]["email"], "ana@teatro.es")
+        self.assertEqual(data[company.id]["contact_name"], "Ana Técnica")
+        self.assertEqual(data[own.id]["phone"], "+34 954 000 000")
+        self.assertEqual(data[own.id]["email"], "info@teatro2.es")
+        self.assertEqual(data[own.id]["contact_name"], "")

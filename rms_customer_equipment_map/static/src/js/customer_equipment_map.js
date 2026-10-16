@@ -117,6 +117,7 @@ export class CustomerEquipmentMap extends Component {
                     partner.address,
                     partner.phone,
                     partner.email,
+                    partner.contact_name,
                     partner.salesperson?.name || "",
                     partner.country?.name || "",
                     partner.industry?.name || "",
@@ -519,6 +520,7 @@ export class CustomerEquipmentMap extends Component {
         container.appendChild(title);
         const lines = [
             { icon: "fa-map-marker", value: partner.address },
+            { icon: "fa-user", value: partner.contact_name },
             { icon: "fa-phone", value: partner.phone, href: partner.phone && `tel:${partner.phone.replace(/[^\d+]/g, "")}` },
             { icon: "fa-envelope", value: partner.email, href: partner.email && `mailto:${partner.email}` },
         ];
