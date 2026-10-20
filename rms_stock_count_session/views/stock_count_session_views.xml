@@ -70,7 +70,7 @@
         <field name="model">rms.stock.count.scan</field>
         <field name="arch" type="xml">
             <list create="false" editable="bottom"
-                  decoration-muted="ignored or scan_type in ('location', 'product_ref')"
+                  decoration-muted="ignored or scan_type in ('location', 'product_ref', 'ignored')"
                   decoration-danger="scan_type == 'unknown' and not ignored">
                 <field name="scanned_at" readonly="1"/>
                 <field name="operator_id" readonly="1"/>
@@ -83,8 +83,12 @@
                 <field name="message" readonly="1" optional="show"/>
                 <field name="raw_code" readonly="1" optional="hide"/>
                 <field name="ignored"/>
-                <button name="action_assign_product" type="object" string="Asignar"
-                        icon="fa-check" invisible="scan_type != 'unknown' or not product_id"/>
+                <button name="action_assign_product" type="object" string="Es su nº de serie"
+                        icon="fa-check" invisible="scan_type != 'unknown' or not product_id"
+                        title="El código es el número de serie (o una unidad) de este producto"/>
+                <button name="action_learn_product_code" type="object" string="Es el código del producto"
+                        icon="fa-tag" invisible="scan_type != 'unknown' or not product_id"
+                        title="Guardar el código como código alternativo del producto para reconocerlo en adelante"/>
             </list>
         </field>
     </record>
@@ -218,8 +222,9 @@
                     </group>
                     <div class="alert alert-warning" role="alert" invisible="state != 'review' or not unknown_count">
                         Hay códigos sin identificar. En la pestaña "Sin identificar", indica el
-                        producto de cada uno y pulsa "Asignar", o marca "Ignorar" si no es de
-                        producto (MAC, modelo, etiqueta de transporte...). El cruce se regenera solo.
+                        producto de cada uno y pulsa "Es su nº de serie" o "Es el código del
+                        producto" (se recordará para la próxima vez), o marca "Ignorar" si no es de
+                        producto (MAC, etiqueta de transporte...). El cruce se regenera solo.
                     </div>
                     <notebook>
                         <page string="Cruce" name="cross" invisible="state not in ('review', 'done')">

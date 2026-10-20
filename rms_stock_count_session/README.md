@@ -35,6 +35,36 @@ el otro.
 5. Cada operario pulsa **He terminado mi recorrido**. El responsable pulsa
    **Terminar recuento y cruzar**.
 
+## Reglas de lectura y códigos alternativos
+
+- **Inventario > Configuración > Reglas de lectura de etiquetas**: códigos que se
+  ignoran (transporte, cantidades, URLs...) y cómo extraer el número de serie
+  cuando el fabricante lo codifica con prefijos o en otro formato. Se aplican
+  antes de buscar en Odoo y se pueden editar sin tocar código.
+- **Códigos alternativos de producto** (pestaña Inventario del producto, o
+  Inventario > Configuración > Productos): referencias del fabricante que
+  identifican el producto al escanearlas. Se comparan sin espacios, guiones ni
+  puntos, igual que la referencia interna. En la revisión de un recuento, el
+  botón **"Es el código del producto"** las da de alta solas.
+- Los EAN/UPC se buscan en sus dos formas (12 y 13 cifras), y un ITF-14 de caja
+  (p. ej. caja de 2 Atlas FC-4T) se reconoce como el producto sin contar unidad.
+- Los números de serie solo numéricos se comparan sin ceros a la izquierda.
+
+### Etiquetas revisadas (fotos del almacén, octubre 2026)
+
+| Marca | Producto (caja) | Nº de serie | Producto | A tener en cuenta |
+|---|---|---|---|---|
+| Meyer Sound | 8 cifras en Code39 (`26375439`) | Ref. `09.336.001.02` solo impresa | Kits con hoja de 10 pegatinas de nº de serie (MTC-X40); en algunos el nº de serie va en pegatina **sin código de barras** (MUB-X40) o grabado en el equipo (Leopard) |
+| DiGiCo / KLANG | Code39 (`KNA15797`, `164-W-L-100136`, `215466 2301`) | Part number en Code39 (`X-A-164-W-L`) + EAN | Cantidad en código de barras (`01`), pegatina `A41…C…` que no es el nº de serie, QR de reciclaje |
+| Sony | Code39 `S01-NNNNNNN-X` | `P-NNNNNNNN-X` + EAN "POS" | Cajas de kit UWP-D con `S01-0000000` (sin nº de serie) y lista de nº de serie de cada transmisor/receptor; etiqueta SSCC de transporte |
+| Auvitran | Impreso (`S/N: 001255`), sin código de barras | EAN-13 | El QR lleva el S/N en hexadecimal (`FF01140004E7` = 001255) |
+| Luminex | Code128 / QR `LUM…` | Model no. en Code128 con espacios (`LU 01 00072`) | Dos códigos en la misma etiqueta (modelo y nº de serie) |
+| AtlasIED | Code128 `SN` + 2 letras + 15 cifras | UPC; ITF-14 en cajas de varias unidades | Caja de 2 FC-4T con 2 nº de serie |
+| Neutrik | 10 cifras (`1097451011`) | EAN + referencia Code39 | Caja de 10 con 10 nº de serie; "PCS 10" en código de barras |
+| Sound Devices | Code128 12 caracteres (`AA0625052008`) | EAN-13 | Etiqueta limpia: un código de cada |
+| Williams AV | Code128 `BS01…` (nº de serie del sistema) | UPC | Kit (1 TX + 2 RX) con un nº de serie de caja |
+| Optocore | Impreso (`SN: X94-2353`), sin código de barras | Impreso | Hay que escribirlo a mano |
+
 ## Informe de cruce
 
 | Resultado | Significado | ¿Se vuelca por defecto? |

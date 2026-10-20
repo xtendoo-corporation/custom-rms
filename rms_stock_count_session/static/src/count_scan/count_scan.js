@@ -375,6 +375,7 @@ export class StockCountScan extends Component {
             product_ref: { vibrate: 60, tones: [[700, 0.12]] },
             duplicate: { vibrate: [80, 60, 80], tones: [[400, 0.1], [400, 0.1]] },
             unknown: { vibrate: [200, 80, 200], tones: [[250, 0.35]] },
+            ignored: { vibrate: 30, tones: [[500, 0.05]] },
             error: { vibrate: [200, 80, 200], tones: [[250, 0.35]] },
         };
         const pattern = patterns[status] || patterns.ok;
@@ -604,6 +605,7 @@ export class StockCountScan extends Component {
             product_ref: "text-bg-info",
             duplicate: "text-bg-warning",
             unknown: "text-bg-danger",
+            ignored: "text-bg-secondary",
             error: "text-bg-danger",
             empty: "text-bg-secondary",
         }[status] || "text-bg-secondary";
@@ -615,6 +617,7 @@ export class StockCountScan extends Component {
             serial: "Nº serie",
             product_ref: "Producto",
             unknown: "Desconocido",
+            ignored: "Ignorado",
         }[type] || type;
     }
 
@@ -624,6 +627,7 @@ export class StockCountScan extends Component {
             serial: "text-bg-success",
             product_ref: "text-bg-info",
             unknown: "text-bg-danger",
+            ignored: "text-bg-light border",
         }[type] || "text-bg-secondary";
     }
 }

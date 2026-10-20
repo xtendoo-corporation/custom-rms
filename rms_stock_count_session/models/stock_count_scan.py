@@ -4,6 +4,9 @@ import re
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import SQL
+
+from .scan_rule import normalize_code
 
 # Prefijos que algunos fabricantes imprimen dentro del propio código de
 # barras del número de serie ("S/N: 12345", "SN 12345", "SERIAL NO. 12345").
@@ -51,6 +54,7 @@ class RmsStockCountScan(models.Model):
             ("product", "Unidad de producto"),
             ("serial", "Número de serie / lote"),
             ("unknown", "Sin identificar"),
+            ("ignored", "Ignorado (no es de producto)"),
         ],
         string="Tipo", required=True,
     )
@@ -81,22 +85,50 @@ class RmsStockCountScan(models.Model):
     # ------------------------------------------------------------------
 
     @api.model
+    def _find_lots(self, candidates, company_ids):
+        """Lotes/números de serie que coinciden con alguno de los candidatos.
+        Los números de serie solo numéricos se comparan sin ceros a la
+        izquierda: Auvitran imprime '001255' y su QR da 1255; un nº de serie
+        dado de alta a mano como '1255' tiene que encontrarse igual."""
+        Lot = self.env["stock.lot"]
+        lots = Lot.search([("name", "in", candidates), ("company_id", "in", company_ids)])
+        if lots:
+            return lots
+        numeric = [c.lstrip("0") for c in candidates if c.isdigit() and c.lstrip("0")]
+        if not numeric:
+            return lots
+        self.env.cr.execute(
+            SQL(
+                "SELECT id FROM stock_lot WHERE ltrim(name, '0') IN %s AND name ~ '^[0-9]+$'",
+                tuple(numeric),
+            )
+        )
+        ids = [row[0] for row in self.env.cr.fetchall()]
+        return Lot.search([("id", "in", ids), ("company_id", "in", company_ids)])
+
+    @api.model
     def _classify(self, operator, code):
         """Decide qué es el código leído, en este orden:
 
-        1. Etiqueta de una ubicación del recuento -> cambia la ubicación.
-        2. Código de barras o referencia interna de un producto:
-           - sin seguimiento: cuenta 1 unidad;
+        1. Etiqueta de una ubicación del recuento -> cambia la ubicación
+           (antes que las reglas, para que una estantería "A1" no se tome
+           por una cantidad).
+        2. Reglas de 'Ignorar' (transporte, cantidades, URLs...).
+        3. Producto: código de barras (EAN/UPC/ITF-14), referencia interna o
+           código alternativo:
+           - sin seguimiento: cuenta 1 unidad (salvo código de caja ITF-14);
            - con nº de serie/lote: solo fija el "producto actual" (la
              unidad se cuenta al leer su número de serie).
-        3. Número de serie/lote que ya existe en Odoo.
-        4. Si hay "producto actual" con seguimiento: número de serie NUEVO
-           de ese producto.
-        5. Si no, queda "sin identificar" para asignarlo en la revisión.
+        4. Número de serie: se extrae con las reglas de marca (si alguna
+           encaja) y se busca en Odoo.
+        5. Si no existe y hay "producto actual" con seguimiento: número de
+           serie NUEVO de ese producto.
+        6. Si no, queda "sin identificar" para asignarlo en la revisión.
         """
         session = operator.session_id
         company_ids = [session.company_id.id, False]
         location = operator.current_location_id or session.location_id
+        base = {"location_id": location.id}
 
         loc = self.env["stock.location"].search([
             ("barcode", "=", code),
@@ -105,82 +137,88 @@ class RmsStockCountScan(models.Model):
         ], limit=1)
         if loc:
             if not loc._child_of(session.location_id):
-                return {
-                    "scan_type": "unknown",
-                    "location_id": location.id,
-                    "message": "La ubicación %s no forma parte de este recuento." % loc.display_name,
-                }
+                return dict(
+                    base, scan_type="unknown",
+                    message="La ubicación %s no forma parte de este recuento." % loc.display_name,
+                )
             return {
                 "scan_type": "location",
                 "location_id": loc.id,
                 "message": "Ubicación: %s" % loc.display_name,
             }
 
-        Product = self.env["product.product"]
-        product = Product.search([("barcode", "=", code)], limit=1) or Product.search(
-            [("default_code", "=", code)], limit=1
-        )
-        if product:
-            if product.tracking == "none":
-                return {
-                    "scan_type": "product",
-                    "product_id": product.id,
-                    "location_id": location.id,
-                    "quantity": 1.0,
-                    "message": "+1 %s" % product.display_name,
-                }
-            return {
-                "scan_type": "product_ref",
-                "product_id": product.id,
-                "location_id": location.id,
-                "quantity": 0.0,
-                "message": "Producto: %s. Escanea ahora su número de serie." % product.display_name,
-            }
+        rule_match = self.env["rms.scan.rule"]._match(code)
+        if rule_match and rule_match["action"] == "ignore":
+            return dict(
+                base, scan_type="ignored", ignored=True,
+                message="Ignorado: %s" % rule_match["rule"].name,
+            )
 
-        lots = self.env["stock.lot"].search([
-            ("name", "=", code),
-            ("company_id", "in", company_ids),
-        ])
+        if not rule_match:
+            products, is_case = self.env["product.product"]._rms_find_by_code(code)
+            if len(products) > 1:
+                return dict(
+                    base, scan_type="unknown",
+                    message="El código %s corresponde a varios productos (%s): elige el "
+                            "producto a mano." % (code, ", ".join(products.mapped("display_name"))),
+                )
+            if products:
+                product = products
+                if product.tracking == "none" and not is_case:
+                    return dict(
+                        base, scan_type="product", product_id=product.id, quantity=1.0,
+                        message="+1 %s" % product.display_name,
+                    )
+                if product.tracking == "none":
+                    message = ("Caja de varias unidades de %s: escanea cada unidad."
+                               % product.display_name)
+                elif is_case:
+                    message = ("Caja de varias unidades de %s: escanea ahora todos sus "
+                               "números de serie." % product.display_name)
+                else:
+                    message = "Producto: %s. Escanea ahora su número de serie." % product.display_name
+                return dict(
+                    base, scan_type="product_ref", product_id=product.id, quantity=0.0,
+                    message=message,
+                )
+
+        serial = rule_match["serial"] if rule_match else code
+        brand_note = (" (%s)" % rule_match["rule"].name) if rule_match else ""
+        candidates = list(dict.fromkeys([serial, code]))
+        lots = self._find_lots(candidates, company_ids)
         if len(lots) > 1 and operator.current_product_id:
             lots = lots.filtered(lambda l: l.product_id == operator.current_product_id) or lots
         if len(lots) == 1:
-            return {
-                "scan_type": "serial",
-                "product_id": lots.product_id.id,
-                "lot_id": lots.id,
-                "lot_name": lots.name,
-                "location_id": location.id,
-                "quantity": 1.0,
-                "message": "%s · %s" % (lots.product_id.display_name, lots.name),
-            }
+            return dict(
+                base, scan_type="serial", product_id=lots.product_id.id, lot_id=lots.id,
+                lot_name=lots.name, quantity=1.0,
+                message="%s · %s%s" % (lots.product_id.display_name, lots.name, brand_note),
+            )
         if len(lots) > 1:
-            return {
-                "scan_type": "unknown",
-                "location_id": location.id,
-                "message": "El número de serie %s existe en varios productos (%s): "
-                           "escanea antes el código del producto." % (
-                               code, ", ".join(lots.mapped("product_id.display_name"))
-                           ),
-            }
+            return dict(
+                base, scan_type="unknown", lot_name=serial,
+                message="El número de serie %s existe en varios productos (%s): "
+                        "escanea antes el código del producto." % (
+                            serial, ", ".join(lots.mapped("product_id.display_name"))
+                        ),
+            )
 
         current = operator.current_product_id
         if current and current.tracking != "none":
-            return {
-                "scan_type": "serial",
-                "product_id": current.id,
-                "lot_name": code,
-                "is_new_lot": True,
-                "location_id": location.id,
-                "quantity": 1.0,
-                "message": "Nº de serie NUEVO para %s: %s" % (current.display_name, code),
-            }
+            return dict(
+                base, scan_type="serial", product_id=current.id, lot_name=serial,
+                is_new_lot=True, quantity=1.0,
+                message="Nº de serie NUEVO para %s: %s%s" % (current.display_name, serial, brand_note),
+            )
 
-        return {
-            "scan_type": "unknown",
-            "location_id": location.id,
-            "message": "Código desconocido. Elige el producto y vuelve a escanear, "
-                       "o se asignará en la revisión.",
-        }
+        return dict(
+            base, scan_type="unknown", lot_name=serial if rule_match else False,
+            message=("Nº de serie %s%s sin producto: elige el producto y vuelve a "
+                     "escanear, o se asignará en la revisión." % (serial, brand_note))
+            if rule_match else
+            "Código desconocido. Elige el producto y vuelve a escanear, o se "
+            "asignará en la revisión.",
+        )
 
     @api.model
     def scanner_register(self, operator_id, raw_code, client_uid=False):
@@ -248,6 +286,7 @@ class RmsStockCountScan(models.Model):
             "location": "location",
             "product_ref": "product_ref",
             "unknown": "unknown",
+            "ignored": "ignored",
         }.get(scan.scan_type, "ok")
         return {
             "status": status,
@@ -285,31 +324,74 @@ class RmsStockCountScan(models.Model):
 
     def action_assign_product(self):
         """Con el producto ya rellenado a mano en la revisión, convierte la
-        lectura desconocida en una lectura válida."""
+        lectura desconocida en una unidad de ese producto (su número de
+        serie, si lo lleva)."""
         for scan in self:
-            if scan.scan_type != "unknown":
-                continue
-            if scan.session_id.state not in ("counting", "review"):
-                raise UserError("El recuento ya está cerrado.")
+            scan._check_reviewable()
             product = scan.product_id
-            if not product:
-                raise UserError("Indica primero el producto del código %s." % scan.code)
             vals = {"quantity": 1.0, "message": "Asignado a mano a %s" % product.display_name}
             if product.tracking == "none":
                 vals["scan_type"] = "product"
             else:
+                serial = scan.lot_name or scan.code
                 lot = self.env["stock.lot"].search([
                     ("product_id", "=", product.id),
-                    ("name", "=", scan.code),
+                    ("name", "=", serial),
                     ("company_id", "in", [scan.session_id.company_id.id, False]),
                 ], limit=1)
                 vals.update({
                     "scan_type": "serial",
                     "lot_id": lot.id,
-                    "lot_name": scan.code,
+                    "lot_name": serial,
                     "is_new_lot": not lot,
                 })
             scan.write(vals)
-        sessions = self.session_id.filtered(lambda s: s.state == "review")
-        sessions._build_reconciliation()
+        self.session_id.filtered(lambda s: s.state == "review")._build_reconciliation()
         return True
+
+    def action_learn_product_code(self):
+        """El código desconocido era una referencia del producto (part number
+        de la caja, código del ERP anterior...): se guarda como código
+        alternativo del producto para que la próxima vez se reconozca solo, y
+        todas las lecturas de este recuento con ese mismo código pasan a ser
+        de ese producto."""
+        Alias = self.env["rms.product.scan.alias"]
+        for scan in self:
+            scan._check_reviewable()
+            product = scan.product_id
+            normalized = normalize_code(scan.code)
+            if not Alias.search_count([
+                ("product_tmpl_id", "=", product.product_tmpl_id.id),
+                ("code_normalized", "=", normalized),
+            ]):
+                Alias.create({
+                    "product_tmpl_id": product.product_tmpl_id.id,
+                    "code": scan.code,
+                    "note": "Aprendido en el recuento %s" % scan.session_id.name,
+                })
+            same = self.search([
+                ("session_id", "=", scan.session_id.id),
+                ("scan_type", "=", "unknown"),
+                ("code", "=", scan.code),
+            ])
+            if product.tracking == "none":
+                same.write({
+                    "scan_type": "product", "product_id": product.id, "quantity": 1.0,
+                    "message": "Código de %s (aprendido)" % product.display_name,
+                })
+            else:
+                same.write({
+                    "scan_type": "product_ref", "product_id": product.id, "quantity": 0.0,
+                    "message": "Código de %s (aprendido)" % product.display_name,
+                })
+        self.session_id.filtered(lambda s: s.state == "review")._build_reconciliation()
+        return True
+
+    def _check_reviewable(self):
+        self.ensure_one()
+        if self.scan_type != "unknown":
+            raise UserError("La lectura %s ya está identificada." % self.code)
+        if self.session_id.state not in ("counting", "review"):
+            raise UserError("El recuento ya está cerrado.")
+        if not self.product_id:
+            raise UserError("Indica primero el producto del código %s." % self.code)

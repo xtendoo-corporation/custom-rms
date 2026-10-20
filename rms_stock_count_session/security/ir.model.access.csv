@@ -5,3 +5,6 @@ access_rms_stock_count_operator_user,rms.stock.count.operator.user,model_rms_sto
 access_rms_stock_count_operator_manager,rms.stock.count.operator.manager,model_rms_stock_count_operator,stock.group_stock_manager,1,1,1,1
 access_rms_stock_count_scan_user,rms.stock.count.scan.user,model_rms_stock_count_scan,stock.group_stock_user,1,1,1,1
 access_rms_stock_count_line_user,rms.stock.count.line.user,model_rms_stock_count_line,stock.group_stock_user,1,1,1,1
+access_rms_scan_rule_user,rms.scan.rule.user,model_rms_scan_rule,stock.group_stock_user,1,0,0,0
+access_rms_scan_rule_manager,rms.scan.rule.manager,model_rms_scan_rule,stock.group_stock_manager,1,1,1,1
+access_rms_product_scan_alias_user,rms.product.scan.alias.user,model_rms_product_scan_alias,stock.group_stock_user,1,1,1,1
