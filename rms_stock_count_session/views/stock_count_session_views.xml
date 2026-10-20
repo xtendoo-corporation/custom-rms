@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Escáner (pantalla completa, pensado para PDA o móvil) -->
+    <record id="action_stock_count_scan" model="ir.actions.client">
+        <field name="name">Escáner de recuento</field>
+        <field name="tag">rms_stock_count_session.scan</field>
+    </record>
+
+    <!-- ============================ Cruce ============================ -->
+    <record id="view_stock_count_line_list" model="ir.ui.view">
+        <field name="name">rms.stock.count.line.list</field>
+        <field name="model">rms.stock.count.line</field>
+        <field name="arch" type="xml">
+            <list editable="bottom" create="false"
+                  decoration-danger="status == 'missing'"
+                  decoration-warning="status in ('partial', 'qty_diff')"
+                  decoration-info="status == 'unexpected'"
+                  decoration-success="status == 'match'">
+                <field name="session_state" column_invisible="True"/>
+                <field name="status" widget="badge"
+                       decoration-danger="status == 'missing'"
+                       decoration-warning="status in ('partial', 'qty_diff')"
+                       decoration-info="status == 'unexpected'"
+                       decoration-success="status == 'match'"/>
+                <field name="product_id" readonly="1"/>
+                <field name="lot_name" readonly="1"/>
+                <field name="location_id" readonly="session_state != 'review'"
+                       options="{'no_create': True}"/>
+                <field name="expected_qty" readonly="1" sum="Total"/>
+                <field name="counted_qty" readonly="session_state != 'review'" sum="Total"/>
+                <field name="seen_by" readonly="1"/>
+                <field name="qty_by_operator" readonly="1" optional="show"/>
+                <field name="location_mismatch" readonly="1" optional="show"/>
+                <field name="to_apply" readonly="session_state != 'review'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_stock_count_line_search" model="ir.ui.view">
+        <field name="name">rms.stock.count.line.search</field>
+        <field name="model">rms.stock.count.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="product_id"/>
+                <field name="lot_name"/>
+                <field name="location_id"/>
+                <field name="seen_by"/>
+                <filter name="to_review" string="A revisar"
+                        domain="[('status', 'in', ('missing', 'partial', 'qty_diff', 'unexpected'))]"/>
+                <separator/>
+                <filter name="missing" string="Nadie lo escaneó" domain="[('status', '=', 'missing')]"/>
+                <filter name="partial" string="Solo una parte" domain="[('status', '=', 'partial')]"/>
+                <filter name="qty_diff" string="Cantidades distintas" domain="[('status', '=', 'qty_diff')]"/>
+                <filter name="unexpected" string="Nuevo (no estaba en Odoo)" domain="[('status', '=', 'unexpected')]"/>
+                <filter name="match" string="Coincide" domain="[('status', '=', 'match')]"/>
+                <separator/>
+                <filter name="location_mismatch" string="Ubicaciones distintas" domain="[('location_mismatch', '=', True)]"/>
+                <group>
+                    <filter name="group_status" string="Resultado" context="{'group_by': 'status'}"/>
+                    <filter name="group_location" string="Ubicación" context="{'group_by': 'location_id'}"/>
+                    <filter name="group_product" string="Producto" context="{'group_by': 'product_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- =========================== Lecturas ========================== -->
+    <record id="view_stock_count_scan_list" model="ir.ui.view">
+        <field name="name">rms.stock.count.scan.list</field>
+        <field name="model">rms.stock.count.scan</field>
+        <field name="arch" type="xml">
+            <list create="false" editable="bottom"
+                  decoration-muted="ignored or scan_type in ('location', 'product_ref')"
+                  decoration-danger="scan_type == 'unknown' and not ignored">
+                <field name="scanned_at" readonly="1"/>
+                <field name="operator_id" readonly="1"/>
+                <field name="scan_type" readonly="1"/>
+                <field name="code" readonly="1"/>
+                <field name="product_id" readonly="scan_type != 'unknown'" options="{'no_create': True}"/>
+                <field name="lot_name" readonly="1"/>
+                <field name="is_new_lot" readonly="1" optional="show"/>
+                <field name="location_id" readonly="1"/>
+                <field name="message" readonly="1" optional="show"/>
+                <field name="raw_code" readonly="1" optional="hide"/>
+                <field name="ignored"/>
+                <button name="action_assign_product" type="object" string="Asignar"
+                        icon="fa-check" invisible="scan_type != 'unknown' or not product_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_stock_count_scan_search" model="ir.ui.view">
+        <field name="name">rms.stock.count.scan.search</field>
+        <field name="model">rms.stock.count.scan</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="code"/>
+                <field name="product_id"/>
+                <field name="operator_id"/>
+                <filter name="unknown" string="Sin identificar"
+                        domain="[('scan_type', '=', 'unknown'), ('ignored', '=', False)]"/>
+                <filter name="counted" string="Contadas" domain="[('scan_type', 'in', ('product', 'serial'))]"/>
+                <filter name="new_lot" string="Nº de serie nuevo" domain="[('is_new_lot', '=', True)]"/>
+                <group>
+                    <filter name="group_operator" string="Operario" context="{'group_by': 'operator_id'}"/>
+                    <filter name="group_type" string="Tipo" context="{'group_by': 'scan_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================ Sesión =========================== -->
+    <record id="view_stock_count_session_list" model="ir.ui.view">
+        <field name="name">rms.stock.count.session.list</field>
+        <field name="model">rms.stock.count.session</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="location_id"/>
+                <field name="date_start"/>
+                <field name="operator_count"/>
+                <field name="scan_count"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'counting'"
+                       decoration-warning="state == 'review'"
+                       decoration-success="state == 'done'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_stock_count_session_search" model="ir.ui.view">
+        <field name="name">rms.stock.count.session.search</field>
+        <field name="model">rms.stock.count.session</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="location_id"/>
+                <filter name="open" string="Abiertos" domain="[('state', 'in', ('draft', 'counting', 'review'))]"/>
+                <filter name="done" string="Volcados" domain="[('state', '=', 'done')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_stock_count_session_form" model="ir.ui.view">
+        <field name="name">rms.stock.count.session.form</field>
+        <field name="model">rms.stock.count.session</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_open_scanner" type="object" string="Abrir escáner"
+                            class="btn-primary" icon="fa-barcode"
+                            invisible="state not in ('draft', 'counting')"/>
+                    <button name="action_close_counting" type="object" string="Terminar recuento y cruzar"
+                            class="btn-primary" invisible="state != 'counting'"
+                            confirm="Se cierra el escaneo para todos los operarios y se genera el cruce. ¿Continuar?"/>
+                    <button name="action_apply_to_inventory" type="object" string="Volcar a Inventario físico"
+                            class="btn-primary" invisible="state != 'review'"
+                            confirm="Las líneas marcadas como 'Volcar' pasarán a Inventario físico como cantidad contada (sin aplicar el ajuste). ¿Continuar?"/>
+                    <button name="action_rebuild" type="object" string="Regenerar cruce"
+                            invisible="state != 'review'"/>
+                    <button name="action_reopen" type="object" string="Reabrir escaneo"
+                            invisible="state != 'review'"/>
+                    <button name="%(action_report_stock_count_cross)d" type="action" string="Imprimir cruce"
+                            icon="fa-print" invisible="state not in ('review', 'done')"/>
+                    <button name="action_cancel" type="object" string="Cancelar"
+                            invisible="state in ('done', 'cancel')"/>
+                    <button name="action_reset_draft" type="object" string="Volver a preparar"
+                            invisible="state != 'cancel'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,counting,review,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_lines" type="object" class="oe_stat_button"
+                                icon="fa-exclamation-triangle" context="{'count_line_status': 'missing'}"
+                                invisible="state not in ('review', 'done')">
+                            <field name="line_missing_count" widget="statinfo" string="Nadie lo escaneó"/>
+                        </button>
+                        <button name="action_view_lines" type="object" class="oe_stat_button"
+                                icon="fa-adjust" context="{'count_line_status': 'partial'}"
+                                invisible="state not in ('review', 'done')">
+                            <field name="line_partial_count" widget="statinfo" string="Solo una parte"/>
+                        </button>
+                        <button name="action_view_lines" type="object" class="oe_stat_button"
+                                icon="fa-balance-scale" context="{'count_line_status': 'qty_diff'}"
+                                invisible="state not in ('review', 'done')">
+                            <field name="line_qty_diff_count" widget="statinfo" string="Cant. distintas"/>
+                        </button>
+                        <button name="action_view_lines" type="object" class="oe_stat_button"
+                                icon="fa-plus-circle" context="{'count_line_status': 'unexpected'}"
+                                invisible="state not in ('review', 'done')">
+                            <field name="line_unexpected_count" widget="statinfo" string="Nuevos"/>
+                        </button>
+                        <button name="action_view_lines" type="object" class="oe_stat_button"
+                                icon="fa-check" context="{'count_line_status': 'match'}"
+                                invisible="state not in ('review', 'done')">
+                            <field name="line_match_count" widget="statinfo" string="Coinciden"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="location_id" readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="company_id" groups="base.group_multi_company"
+                                   readonly="state != 'draft'"/>
+                        </group>
+                        <group>
+                            <field name="date_start"/>
+                            <field name="date_review"/>
+                            <field name="date_done" invisible="not date_done"/>
+                            <field name="scan_count"/>
+                            <field name="unknown_count" invisible="not unknown_count"
+                                   decoration-danger="unknown_count > 0"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-warning" role="alert" invisible="state != 'review' or not unknown_count">
+                        Hay códigos sin identificar. En la pestaña "Sin identificar", indica el
+                        producto de cada uno y pulsa "Asignar", o marca "Ignorar" si no es de
+                        producto (MAC, modelo, etiqueta de transporte...). El cruce se regenera solo.
+                    </div>
+                    <notebook>
+                        <page string="Cruce" name="cross" invisible="state not in ('review', 'done')">
+                            <field name="line_ids" context="{'search_default_to_review': 1}"
+                                   readonly="state != 'review'"/>
+                        </page>
+                        <page string="Operarios" name="operators">
+                            <field name="operator_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="user_id"/>
+                                    <field name="current_location_id"/>
+                                    <field name="current_product_id"/>
+                                    <field name="scan_count"/>
+                                    <field name="done"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Sin identificar" name="unknown"
+                              invisible="not unknown_count">
+                            <field name="unknown_scan_ids" readonly="state not in ('counting', 'review')"/>
+                        </page>
+                        <page string="Lecturas" name="scans">
+                            <field name="scan_ids" readonly="1"/>
+                        </page>
+                        <page string="Notas" name="notes">
+                            <field name="note" placeholder="Zonas excluidas, incidencias..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_stock_count_session" model="ir.actions.act_window">
+        <field name="name">Recuento cruzado</field>
+        <field name="res_model">rms.stock.count.session</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_open': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crea un recuento cruzado</p>
+            <p>
+                Elige la ubicación a recontar y pulsa "Abrir escáner" en cada PDA o móvil.
+                Cada operario entra con su nombre y recorre el almacén escaneando todo lo que
+                ve. Al terminar, "Terminar recuento y cruzar" compara las lecturas de todos
+                con lo que Odoo tiene en stock.
+            </p>
+        </field>
+    </record>
+
+    <menuitem
+        id="menu_stock_count_session"
+        name="Recuento cruzado"
+        action="action_stock_count_session"
+        parent="stock.menu_stock_warehouse_mgmt"
+        sequence="4"
+        groups="stock.group_stock_user"
+    />
+</odoo>

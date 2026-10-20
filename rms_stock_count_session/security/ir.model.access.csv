@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_rms_stock_count_session_user,rms.stock.count.session.user,model_rms_stock_count_session,stock.group_stock_user,1,1,1,0
+access_rms_stock_count_session_manager,rms.stock.count.session.manager,model_rms_stock_count_session,stock.group_stock_manager,1,1,1,1
+access_rms_stock_count_operator_user,rms.stock.count.operator.user,model_rms_stock_count_operator,stock.group_stock_user,1,1,1,0
+access_rms_stock_count_operator_manager,rms.stock.count.operator.manager,model_rms_stock_count_operator,stock.group_stock_manager,1,1,1,1
+access_rms_stock_count_scan_user,rms.stock.count.scan.user,model_rms_stock_count_scan,stock.group_stock_user,1,1,1,1
+access_rms_stock_count_line_user,rms.stock.count.line.user,model_rms_stock_count_line,stock.group_stock_user,1,1,1,1
