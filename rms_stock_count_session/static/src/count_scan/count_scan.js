@@ -464,6 +464,21 @@ export class StockCountScan extends Component {
         this._applyState(operatorState);
     }
 
+    async openReplacementLabel() {
+        const op = this.state.operatorState.operator;
+        const action = await this.orm.call(
+            "rms.stock.count.operator", "scanner_replacement_label", [[op.id]]
+        );
+        await this.action.doAction(action, {
+            onClose: async () => {
+                const operatorState = await this.orm.call(
+                    "rms.stock.count.operator", "scanner_state", [[op.id]]
+                );
+                this._applyState(operatorState);
+            },
+        });
+    }
+
     async finish() {
         if (this.state.pending.length) {
             this.notification.add(

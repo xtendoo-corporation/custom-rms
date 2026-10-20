@@ -163,6 +163,26 @@ class RmsStockCountOperator(models.Model):
         self.current_product_id = self.env["product.product"].browse(product_id).exists() or False
         return self._scanner_state()
 
+    def scanner_replacement_label(self):
+        """Asistente de etiqueta sustituta (nº de serie grabado en el
+        equipo, etiqueta dañada, caja con varios equipos), con el producto
+        actual ya puesto si lleva seguimiento."""
+        self.ensure_one()
+        self._check_counting()
+        product = self.current_product_id
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Etiqueta sustituta",
+            "res_model": "rms.lot.label.wizard",
+            "view_mode": "form",
+            "views": [[False, "form"]],
+            "target": "new",
+            "context": {
+                "default_count_operator_id": self.id,
+                "default_product_id": product.id if product and product.tracking != "none" else False,
+            },
+        }
+
     def scanner_finish(self):
         self.ensure_one()
         self.done = True

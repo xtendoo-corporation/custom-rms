@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Etiqueta Código de Barras (Número de Serie)',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.1.0',
     'category': 'Inventory/Inventory',
     'summary': (
         'Genera e imprime una etiqueta de 10x5cm con el código de barras '
@@ -37,6 +37,14 @@ Flujo:
    escaneo con cámara (rms_stock_barcode_scan) ya lee ese código de
    barras como el número de serie sin ningún cambio adicional.
 
+Etiqueta sustituta (Inventario > Operaciones > Etiqueta sustituta):
+para equipos con el número de serie grabado en la placa, con la etiqueta
+del fabricante dañada o en cajas con varios equipos. Se elige el
+producto, se escriben los números de serie (uno por línea; si es uno solo
+se pide repetirlo para evitar erratas), el estado (Nuevo, Demo...) y el
+motivo; se dan de alta los que no existan y se imprimen todas las
+etiquetas de una vez, con la referencia del producto en grande.
+
 Notas:
 - El código de barras impreso es el propio número de serie codificado en
   Code128 (admite letras y números), no un EAN. Si el producto ya tiene
@@ -52,11 +60,13 @@ Notas:
     'author': 'Custom RMS',
     'website': 'https://xtendoo.es',
     'license': 'LGPL-3',
-    'depends': ['base', 'web', 'stock'],
+    'depends': ['base', 'web', 'stock', 'rms_product_state'],
     'data': [
+        'security/ir.model.access.csv',
         'report/label_paperformat.xml',
         'report/stock_lot_label_templates.xml',
         'report/stock_lot_label_report.xml',
+        'views/replacement_label_views.xml',
     ],
     'installable': True,
     'application': False,

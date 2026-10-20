@@ -164,3 +164,55 @@ class TestScanRules(TransactionCase):
         scan.action_assign_product()
         self.assertEqual(scan.scan_type, "serial")
         self.assertEqual(scan.lot_name, "0040580")
+
+    def test_estado_variants_share_reference(self):
+        attribute = self.env["product.attribute"].create({
+            "name": "RMSTEST Estado", "create_variant": "always",
+            "value_ids": [(0, 0, {"name": "Nuevo"}), (0, 0, {"name": "Demo"})],
+        })
+        template = self.env["product.template"].create({
+            "name": "RMSTEST MUB-X40", "is_storable": True, "tracking": "serial",
+            "attribute_line_ids": [(0, 0, {
+                "attribute_id": attribute.id, "value_ids": [(6, 0, attribute.value_ids.ids)],
+            })],
+        })
+        variants = template.product_variant_ids
+        self.assertEqual(len(variants), 2)
+        variants.write({"default_code": "MUB-X40"})
+        nuevo = variants.filtered(
+            lambda v: v.product_template_attribute_value_ids.name == "Nuevo"
+        )
+        res = self.scan("MUB-X40")
+        self.assertEqual(res["status"], "product_ref")
+        self.assertEqual(self.op.current_product_id, nuevo)
+        # Si ya estaba con la variante Demo, se mantiene.
+        self.op.current_product_id = variants - nuevo
+        self.scan("MUB-X40")
+        self.assertEqual(self.op.current_product_id, variants - nuevo)
+
+    def test_replacement_label_from_scanner(self):
+        leopard = self.env["product.product"].create({
+            "name": "RMSTEST Leopard", "default_code": "LEOPARD",
+            "is_storable": True, "tracking": "serial",
+        })
+        self.op.current_product_id = leopard
+        action = self.op.scanner_replacement_label()
+        wizard = self.env["rms.lot.label.wizard"].with_context(action["context"]).create({
+            "serial_text": "18175801", "serial_confirm": "18175801",
+        })
+        self.assertEqual(wizard.product_id, leopard)
+        wizard.action_create_and_print()
+        scan = self.session.scan_ids.filtered(lambda s: s.lot_name == "18175801")
+        self.assertEqual(scan.scan_type, "serial")
+        self.assertEqual(scan.operator_id, self.op)
+        self.assertTrue(scan.lot_id.rms_replacement_label)
+        # Escanear después la etiqueta impresa no cuenta doble.
+        self.assertEqual(self.scan("18175801")["status"], "duplicate")
+
+    def test_digico_serial_with_space(self):
+        self.env["stock.lot"].create({"name": "215466 2301", "product_id": self.s21.id})
+        for code in ("2154662301", "215466 2301"):
+            res = self.scan(code)
+            self.assertIn(res["status"], ("ok", "duplicate"))
+            self.assertEqual(res["scan"]["lot_name"], "215466 2301")
+

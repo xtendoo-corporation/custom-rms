@@ -89,6 +89,10 @@
                                 t-on-click="clearProduct">
                             <i class="fa fa-times"/>
                         </button>
+                        <button class="btn btn-sm btn-outline-dark ms-auto" title="Nº de serie grabado en el equipo, etiqueta dañada o caja con varios equipos"
+                                t-on-click="openReplacementLabel">
+                            <i class="fa fa-tag me-1"/>Sin etiqueta
+                        </button>
                     </div>
                 </div>
 

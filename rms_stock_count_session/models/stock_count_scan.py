@@ -87,24 +87,41 @@ class RmsStockCountScan(models.Model):
     @api.model
     def _find_lots(self, candidates, company_ids):
         """Lotes/números de serie que coinciden con alguno de los candidatos.
-        Los números de serie solo numéricos se comparan sin ceros a la
-        izquierda: Auvitran imprime '001255' y su QR da 1255; un nº de serie
-        dado de alta a mano como '1255' tiene que encontrarse igual."""
+        Si no hay coincidencia exacta se compara sin espacios (DiGiCo
+        imprime "215466 2301") y, si son solo cifras, sin ceros a la
+        izquierda (Auvitran imprime '001255' y su QR da 1255)."""
         Lot = self.env["stock.lot"]
         lots = Lot.search([("name", "in", candidates), ("company_id", "in", company_ids)])
         if lots:
             return lots
-        numeric = [c.lstrip("0") for c in candidates if c.isdigit() and c.lstrip("0")]
-        if not numeric:
-            return lots
-        self.env.cr.execute(
-            SQL(
-                "SELECT id FROM stock_lot WHERE ltrim(name, '0') IN %s AND name ~ '^[0-9]+$'",
-                tuple(numeric),
-            )
+        compact = list({c.replace(" ", "") for c in candidates if c.replace(" ", "")})
+        numeric = list({c.lstrip("0") for c in compact if c.isdigit() and c.lstrip("0")})
+        query = SQL(
+            "SELECT id FROM stock_lot WHERE replace(name, ' ', '') IN %s",
+            tuple(compact),
         )
+        if numeric:
+            query = SQL(
+                "%s OR (name ~ '^[0-9 ]+$' AND ltrim(replace(name, ' ', ''), '0') IN %s)",
+                query, tuple(numeric),
+            )
+        self.env.cr.execute(query)
         ids = [row[0] for row in self.env.cr.fetchall()]
         return Lot.search([("id", "in", ids), ("company_id", "in", company_ids)])
+
+    @api.model
+    def _pick_variant(self, variants, current):
+        """rms_product_import crea una variante por "Estado" (Nuevo, Demo,
+        2ª Mano...) con la misma referencia. Al escanear esa referencia se
+        toma la variante que ya estuviera usando el operario o, si no, la de
+        "Nuevo". El estado real de cada unidad va en su número de serie."""
+        if current in variants:
+            return current
+        for variant in variants:
+            names = variant.product_template_attribute_value_ids.mapped("name")
+            if any(name.strip().lower() == "nuevo" for name in names):
+                return variant
+        return variants[:1]
 
     @api.model
     def _classify(self, operator, code):
@@ -156,6 +173,8 @@ class RmsStockCountScan(models.Model):
 
         if not rule_match:
             products, is_case = self.env["product.product"]._rms_find_by_code(code)
+            if len(products) > 1 and len(products.product_tmpl_id) == 1:
+                products = self._pick_variant(products, operator.current_product_id)
             if len(products) > 1:
                 return dict(
                     base, scan_type="unknown",

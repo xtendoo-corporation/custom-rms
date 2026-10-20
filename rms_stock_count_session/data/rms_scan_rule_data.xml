@@ -36,7 +36,7 @@
         <field name="pattern">A41\d{10}C\d{4}</field>
         <field name="action">ignore</field>
         <field name="example">A410001587102C0087</field>
-        <field name="note">Pegatina suelta junto a la etiqueta de la caja (S21, A-164). No es el número de serie, que va en su propia casilla "Serial number". Pendiente de confirmar con DiGiCo qué identifica.</field>
+        <field name="note">Pegatina suelta junto a la etiqueta de la caja (S21, A-164). No es el número de serie, que va en su propia casilla "Serial number". No hay documentación pública de qué identifica (parece un nº de pedido/bulto); los nº de serie de DiGiCo tienen otro formato (6 cifras + año/mes, p. ej. 215466 2301).</field>
     </record>
     <record id="scan_rule_ignore_sony_no_serial" model="rms.scan.rule">
         <field name="sequence">5</field>
@@ -56,7 +56,7 @@
         <field name="pattern">S\d{2}-?(?P&lt;serial&gt;\d{7})-?[0-9A-Z\-]</field>
         <field name="action">serial</field>
         <field name="example">S010040579B</field>
-        <field name="note">Etiqueta "CE7" de Sony: P-xxxxxxxx-x es la referencia del producto y S01-xxxxxxx-x el número de serie (7 cifras). En los kits UWP-D la caja trae una lista con el número de serie de cada transmisor y receptor. A confirmar con una unidad: que el número de serie del propio equipo sean esas 7 cifras.</field>
+        <field name="note">Etiqueta "CE7" de Sony: P-xxxxxxxx-x es la referencia del producto y S01-xxxxxxx-x el número de serie (7 cifras). En los kits UWP-D la caja trae una lista con el número de serie de cada transmisor y receptor. Sony no publica el formato; si en Odoo el nº de serie se dio de alta con el código completo (S010040579B), también se encuentra.</field>
     </record>
     <record id="scan_rule_auvitran_qr" model="rms.scan.rule">
         <field name="sequence">21</field>

@@ -32,7 +32,12 @@ el otro.
 4. Cada lectura se **guarda en el servidor al momento**. Si se cae la Wi-Fi,
    las lecturas esperan en la PDA y se reenvían solas al volver la conexión,
    sin duplicarse. Arriba se ve cuántas lecturas lleva cada compañero.
-5. Cada operario pulsa **He terminado mi recorrido**. El responsable pulsa
+5. **Sin etiqueta**: para un equipo con el nº de serie grabado en la placa (sin
+   caja original), con la etiqueta dañada o en una caja con varios equipos. Abre
+   la etiqueta sustituta (`rms_stock_lot_label_print`) con el producto actual: se
+   escribe el nº de serie (dos veces si es uno), se da de alta, se imprime la
+   etiqueta y queda contado en el recuento para ese operario.
+6. Cada operario pulsa **He terminado mi recorrido**. El responsable pulsa
    **Terminar recuento y cruzar**.
 
 ## Reglas de lectura y códigos alternativos
@@ -48,14 +53,18 @@ el otro.
   botón **"Es el código del producto"** las da de alta solas.
 - Los EAN/UPC se buscan en sus dos formas (12 y 13 cifras), y un ITF-14 de caja
   (p. ej. caja de 2 Atlas FC-4T) se reconoce como el producto sin contar unidad.
-- Los números de serie solo numéricos se comparan sin ceros a la izquierda.
+- Los números de serie se comparan también sin espacios y, si son solo cifras,
+  sin ceros a la izquierda.
+- Si una referencia corresponde a varias variantes "Estado" del mismo producto
+  (las que crea `rms_product_import`), se usa la que ya estuviera usando el
+  operario o la de "Nuevo".
 
 ### Etiquetas revisadas (fotos del almacén, octubre 2026)
 
 | Marca | Nº de serie | Producto | A tener en cuenta |
 |---|---|---|---|
-| Meyer Sound | 8 cifras en Code39 (`26375439`) | Ref. `09.336.001.02` solo impresa | Kits con hoja de 10 pegatinas de nº de serie (MTC-X40); en algunos el nº de serie va en pegatina **sin código de barras** (MUB-X40) o grabado en el equipo (Leopard) |
-| DiGiCo / KLANG | Code39 (`KNA15797`, `164-W-L-100136`, `215466 2301`) | Part number en Code39 (`X-A-164-W-L`) + EAN | Cantidad en código de barras (`01`), pegatina `A41…C…` que no es el nº de serie, QR de reciclaje |
+| Meyer Sound | 8 cifras en Code39 (`26375439`) | Ref. `09.336.001.02` solo impresa | Kits con hoja de 10 pegatinas de nº de serie (MTC-X40); en algunos el nº de serie va en pegatina **sin código de barras** (MUB-X40). En equipos antiguos sin caja, el nº de serie solo está grabado en la placa del equipo (Leopard): **etiqueta sustituta** |
+| DiGiCo / KLANG | Code39 (`KNA15797`, `164-W-L-100136`, `215466 2301` = 6 cifras + año/mes; se busca con o sin espacio) | Part number en Code39 (`X-A-164-W-L`) + EAN | Cantidad en código de barras (`01`), pegatina `A41…C…` que no es el nº de serie, QR de reciclaje |
 | Sony | Code39 `S01-NNNNNNN-X` | `P-NNNNNNNN-X` + EAN "POS" | Cajas de kit UWP-D con `S01-0000000` (sin nº de serie) y lista de nº de serie de cada transmisor/receptor; etiqueta SSCC de transporte |
 | Auvitran | Impreso (`S/N: 001255`), sin código de barras | EAN-13 | El QR lleva el S/N en hexadecimal (`FF01140004E7` = 001255) |
 | Luminex | Code128 / QR `LUM…` | Model no. en Code128 con espacios (`LU 01 00072`) | Dos códigos en la misma etiqueta (modelo y nº de serie) |
