@@ -52,8 +52,8 @@ el otro.
 
 ### Etiquetas revisadas (fotos del almacén, octubre 2026)
 
-| Marca | Producto (caja) | Nº de serie | Producto | A tener en cuenta |
-|---|---|---|---|---|
+| Marca | Nº de serie | Producto | A tener en cuenta |
+|---|---|---|---|
 | Meyer Sound | 8 cifras en Code39 (`26375439`) | Ref. `09.336.001.02` solo impresa | Kits con hoja de 10 pegatinas de nº de serie (MTC-X40); en algunos el nº de serie va en pegatina **sin código de barras** (MUB-X40) o grabado en el equipo (Leopard) |
 | DiGiCo / KLANG | Code39 (`KNA15797`, `164-W-L-100136`, `215466 2301`) | Part number en Code39 (`X-A-164-W-L`) + EAN | Cantidad en código de barras (`01`), pegatina `A41…C…` que no es el nº de serie, QR de reciclaje |
 | Sony | Code39 `S01-NNNNNNN-X` | `P-NNNNNNNN-X` + EAN "POS" | Cajas de kit UWP-D con `S01-0000000` (sin nº de serie) y lista de nº de serie de cada transmisor/receptor; etiqueta SSCC de transporte |
