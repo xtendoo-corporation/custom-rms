@@ -12,7 +12,7 @@
                 <attribute name="groups">!custom.comerciales</attribute>
             </xpath>
             <xpath expr="/form/sheet" position="before">
-                <div class="alert alert-warning" role="alert" groups="custom.comerciales">
+                <div class="alert alert-warning o_rms_comerciales_notice" role="alert" groups="custom.comerciales">
                     No tienes permiso para ver el detalle de esta ficha.
                 </div>
             </xpath>
@@ -31,7 +31,7 @@
                 <attribute name="groups">!custom.comerciales</attribute>
             </xpath>
             <xpath expr="/form/sheet" position="before">
-                <div class="alert alert-warning" role="alert" groups="custom.comerciales">
+                <div class="alert alert-warning o_rms_comerciales_notice" role="alert" groups="custom.comerciales">
                     No tienes permiso para ver el detalle de esta ficha.
                 </div>
             </xpath>
