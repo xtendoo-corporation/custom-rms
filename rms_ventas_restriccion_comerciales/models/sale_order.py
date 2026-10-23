@@ -31,14 +31,19 @@ class SaleOrder(models.Model):
         if lock_prices_and_taxes(self.env):
             # force_save: el valor que calcula Odoo al elegir producto o cliente
             # tiene que guardarse aunque el usuario no pueda editarlo.
+            # discount1/2/3 son los del descuento triple (sale_triple_discount).
             for node in arch.xpath(
-                "//field[@name='order_line']//field[@name='price_unit' or @name='tax_ids']"
+                "//field[@name='order_line']//field[@name='price_unit' or @name='tax_ids'"
+                " or @name='discount' or @name='discount1' or @name='discount2' or @name='discount3']"
                 " | //field[@name='fiscal_position_id']"
             ):
                 node.set('readonly', '1')
                 node.set('force_save', '1')
-            # Cambiar la posición fiscal y recalcular impuestos es otra forma
-            # de cambiar el IVA de las líneas.
-            for node in arch.xpath("//button[@name='action_update_taxes']"):
+            # Recalcular impuestos tras cambiar la posición fiscal es otra forma
+            # de cambiar el IVA de las líneas, y el asistente de descuento
+            # aplica un descuento a todo el presupuesto.
+            for node in arch.xpath(
+                "//button[@name='action_update_taxes' or @name='action_open_discount_wizard']"
+            ):
                 node.set('invisible', '1')
         return arch, view

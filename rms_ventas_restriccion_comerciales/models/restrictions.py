@@ -16,5 +16,5 @@ def hide_pricelists(env):
 
 
 def lock_prices_and_taxes(env):
-    """El usuario es comercial y no puede cambiar precios ni impuestos."""
+    """El usuario es comercial y no puede cambiar precios, descuentos ni impuestos."""
     return _is_restricted(env, GROUP_QUOTATION_FULL_EDIT)

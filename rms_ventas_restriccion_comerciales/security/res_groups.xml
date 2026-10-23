@@ -2,7 +2,7 @@
 <odoo>
     <!-- Permisos extra para usuarios del grupo Comerciales. Sin ninguno de
          estos grupos, un comercial no ve las listas de precios y no puede
-         cambiar precios ni impuestos de los presupuestos. Forman una cadena
+         cambiar precios, descuentos ni impuestos de los presupuestos. Forman una cadena
          (el segundo incluye al primero), así que en la ficha de usuario se
          eligen con un único desplegable. -->
     <record id="res_groups_privilege_comerciales_presupuestos" model="res.groups.privilege">
@@ -28,8 +28,8 @@
         <field name="implied_ids" eval="[(4, ref('group_comerciales_pricelist'))]"/>
         <field name="comment">
             Además de las listas de precios, un comercial de este grupo puede
-            cambiar el precio unitario, los impuestos y la posición fiscal de
-            los presupuestos.
+            cambiar el precio unitario, los descuentos, los impuestos y la
+            posición fiscal de los presupuestos.
         </field>
     </record>
 </odoo>
