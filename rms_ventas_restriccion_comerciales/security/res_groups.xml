@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Permisos extra para usuarios del grupo Comerciales. Sin ninguno de
+         estos grupos, un comercial no ve las listas de precios y no puede
+         cambiar precios ni impuestos de los presupuestos. Forman una cadena
+         (el segundo incluye al primero), así que en la ficha de usuario se
+         eligen con un único desplegable. -->
+    <record id="res_groups_privilege_comerciales_presupuestos" model="res.groups.privilege">
+        <field name="name">Presupuestos (comerciales)</field>
+        <field name="category_id" ref="base.module_category_sales"/>
+    </record>
+
+    <record id="group_comerciales_pricelist" model="res.groups">
+        <field name="name">Ver y editar listas de precios</field>
+        <field name="sequence">10</field>
+        <field name="privilege_id" ref="res_groups_privilege_comerciales_presupuestos"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="comment">
+            Un comercial de este grupo ve el menú de listas de precios y puede
+            ver y cambiar la lista de precios de sus presupuestos.
+        </field>
+    </record>
+
+    <record id="group_comerciales_quotation_full_edit" model="res.groups">
+        <field name="name">Editar todo el presupuesto</field>
+        <field name="sequence">20</field>
+        <field name="privilege_id" ref="res_groups_privilege_comerciales_presupuestos"/>
+        <field name="implied_ids" eval="[(4, ref('group_comerciales_pricelist'))]"/>
+        <field name="comment">
+            Además de las listas de precios, un comercial de este grupo puede
+            cambiar el precio unitario, los impuestos y la posición fiscal de
+            los presupuestos.
+        </field>
+    </record>
+</odoo>
