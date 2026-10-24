@@ -502,10 +502,15 @@ class IrAttachment(models.Model):
         raw = '%s-%s-%s' % (self.id, self.checksum, self.write_date)
         return hashlib.sha1(raw.encode()).hexdigest()
 
+    @api.model
+    def _onlyoffice_can_save(self):
+        return bool(pyjwt is not None and self.env['ir.config_parameter'].sudo().get_param(
+            'rms_custom_knowledge.onlyoffice_jwt_secret'))
+
     def _sign_onlyoffice_url_token(self, purpose, expires_in):
         self.ensure_one()
         if pyjwt is None:
-            raise UserError(_('El módulo Python "PyJWT" no está instalado en el servidor.'))
+            raise UserError(_('La biblioteca PyJWT es necesaria para generar tokens de OnlyOffice.'))
         secret = self.env['ir.config_parameter'].sudo().get_param('database.secret')
         payload = {
             'attachment_id': self.id,
@@ -518,7 +523,7 @@ class IrAttachment(models.Model):
     @api.model
     def _verify_onlyoffice_url_token(self, token, attachment_id, purpose):
         if pyjwt is None:
-            raise UserError(_('El módulo Python "PyJWT" no está instalado en el servidor.'))
+            raise AccessError(_('La biblioteca PyJWT es necesaria para verificar tokens de OnlyOffice.'))
         secret = self.env['ir.config_parameter'].sudo().get_param('database.secret')
         payload = pyjwt.decode(token, secret, algorithms=['HS256'])
         if payload.get('attachment_id') != attachment_id or payload.get('purpose') != purpose:
@@ -536,7 +541,8 @@ class IrAttachment(models.Model):
         if not server_url:
             raise UserError(_('El administrador debe configurar la URL del servidor OnlyOffice en Ajustes.'))
 
-        can_edit = True
+        can_save = self._onlyoffice_can_save()
+        can_edit = can_save
         try:
             self.check_access('write')
         except AccessError:
@@ -552,6 +558,7 @@ class IrAttachment(models.Model):
                 'fileType': extension,
                 'key': self._get_onlyoffice_document_key(),
                 'title': filename,
+                'permissions': {'edit': can_edit},
                 'url': '%s/rms_custom_knowledge/onlyoffice/content/%s?token=%s&db=%s' % (
                     base_url, self.id, content_token, self.env.cr.dbname,
                 ),
@@ -573,12 +580,14 @@ class IrAttachment(models.Model):
             )
 
         jwt_secret = icp.get_param('rms_custom_knowledge.onlyoffice_jwt_secret')
-        if jwt_secret and pyjwt is not None:
+        if can_save:
             config['token'] = pyjwt.encode(config, jwt_secret, algorithm='HS256')
 
         return {
             'server_url': server_url.rstrip('/'),
             'config': config,
+            'notice': '' if can_save else _(
+                'La edición está desactivada: falta configurar la clave JWT de OnlyOffice en Ajustes'),
         }
 
     def action_open_onlyoffice_editor(self):

@@ -414,20 +414,28 @@ class B2BCatalogPortal(http.Controller):
             headers=[('Content-Type', 'application/json')],
         )
 
+    def _portal_cart_product_lines(self, order, template_id):
+        """Resolve only lines in the partner-scoped cart, even if no longer sold."""
+        try:
+            template_id = int(template_id)
+        except (TypeError, ValueError):
+            return order.order_line.browse([])
+        return order.order_line.filtered(
+            lambda line: line.product_id.product_tmpl_id.id == template_id
+        )
+
     @http.route('/my/catalog/quote/decrease', type='http', auth='user', methods=['POST'])
     def portal_catalog_quote_decrease(self, product_id, **kw):
         """Quita una unidad; si era la última, quita la línea."""
-        products = self._allowed_catalog_products(template_id=product_id)
-        if not products:
+        order = self._get_portal_cart(create=False)
+        lines = self._portal_cart_product_lines(order, product_id)
+        if not lines:
             return request.not_found()
-        order = self._get_portal_cart()
-        if order:
-            variant_ids = products.ids
-            for line in order.order_line.filtered(lambda l: l.product_id.id in variant_ids):
-                if line.product_uom_qty > 1:
-                    line.product_uom_qty -= 1
-                else:
-                    line.unlink()
+        for line in lines:
+            if line.product_uom_qty > 1:
+                line.product_uom_qty -= 1
+            else:
+                line.unlink()
         return request.make_response(
             json.dumps(self._portal_cart_payload(order)),
             headers=[('Content-Type', 'application/json')],
@@ -435,13 +443,11 @@ class B2BCatalogPortal(http.Controller):
 
     @http.route('/my/catalog/quote/remove', type='http', auth='user', methods=['POST'])
     def portal_catalog_quote_remove(self, product_id, **kw):
-        products = self._allowed_catalog_products(template_id=product_id)
-        if not products:
+        order = self._get_portal_cart(create=False)
+        lines = self._portal_cart_product_lines(order, product_id)
+        if not lines:
             return request.not_found()
-        order = self._get_portal_cart()
-        if order:
-            variant_ids = products.ids
-            order.order_line.filtered(lambda l: l.product_id.id in variant_ids).unlink()
+        lines.unlink()
         return request.make_response(
             json.dumps(self._portal_cart_payload(order)),
             headers=[('Content-Type', 'application/json')],

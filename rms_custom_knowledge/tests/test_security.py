@@ -3,12 +3,13 @@ import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.http import Response
 from odoo.tests import HttpCase, TransactionCase, tagged
 from odoo.tests.common import new_test_user
 
 from odoo.addons.rms_custom_knowledge.controllers import onlyoffice
+from odoo.addons.rms_custom_knowledge.models import ir_attachment
 
 
 def setup_documents(case):
@@ -43,10 +44,49 @@ class TestKnowledgeSecurity(TransactionCase):
             'rms_custom_knowledge.onlyoffice_editor_page', {
                 'title': name,
                 'server_url': 'https://office.example.test',
+                'notice': '',
                 'config_json': json.dumps({'document': {'title': name}}),
             })
         self.assertNotIn('</script><script>alert', str(rendered))
         self.assertIn('data-config=', str(rendered))
+
+    def test_editor_save_configuration(self):
+        params = self.env['ir.config_parameter'].sudo()
+        params.set_param('rms_custom_knowledge.onlyoffice_server_url', 'https://office.example.test')
+        self.attachment.write({'name': 'security.xlsx',
+                               'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})
+        params.set_param('rms_custom_knowledge.onlyoffice_jwt_secret', '')
+        data = self.attachment.get_onlyoffice_editor_config()
+        self.assertEqual(data['config']['editorConfig']['mode'], 'view')
+        self.assertFalse(data['config']['document']['permissions']['edit'])
+        self.assertNotIn('callbackUrl', data['config']['editorConfig'])
+        self.assertEqual(data['notice'],
+                         'La edición está desactivada: falta configurar la clave JWT de OnlyOffice en Ajustes')
+        params.set_param('rms_custom_knowledge.onlyoffice_jwt_secret', 'test-secret')
+        config = self.attachment.get_onlyoffice_editor_config()['config']
+        self.assertEqual(config['editorConfig']['mode'], 'edit')
+        self.assertTrue(config['document']['permissions']['edit'])
+        self.assertIn('callbackUrl', config['editorConfig'])
+        original_check = type(self.attachment).check_access
+
+        def read_only(records, operation):
+            if operation == 'write':
+                raise AccessError('Read only')
+            return original_check(records, operation)
+
+        with patch.object(type(self.attachment), 'check_access', read_only):
+            config = self.attachment.get_onlyoffice_editor_config()['config']
+        self.assertEqual(config['editorConfig']['mode'], 'view')
+        self.assertFalse(config['document']['permissions']['edit'])
+        self.assertNotIn('callbackUrl', config['editorConfig'])
+
+    def test_onlyoffice_url_tokens_require_pyjwt(self):
+        with patch.object(ir_attachment, 'pyjwt', None):
+            with self.assertRaisesRegex(UserError, 'PyJWT'):
+                self.attachment._sign_onlyoffice_url_token('content', 60)
+            with self.assertRaises(AccessError):
+                self.attachment._verify_onlyoffice_url_token(
+                    'hmac.data.signature', self.attachment.id, 'content')
 
     def test_callback_jwt_and_destination(self):
         controller = onlyoffice.OnlyOfficeController()
@@ -61,7 +101,7 @@ class TestKnowledgeSecurity(TransactionCase):
             self.assertEqual(json.loads(controller.onlyoffice_callback(self.attachment.id, token='signed').get_data())['error'], 1)
             get.assert_not_called()
             params.set_param('rms_custom_knowledge.onlyoffice_jwt_secret', 'test-secret')
-            with patch.object(onlyoffice, 'pyjwt', None):
+            with patch.object(ir_attachment, 'pyjwt', None):
                 with self.assertRaises(AccessError):
                     controller._verify_onlyoffice_server_jwt()
             params.set_param('rms_custom_knowledge.onlyoffice_server_url', 'https://office.example.test')

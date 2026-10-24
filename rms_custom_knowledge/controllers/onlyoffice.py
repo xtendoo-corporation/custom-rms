@@ -9,12 +9,9 @@ from odoo import http
 from odoo.exceptions import AccessError, UserError
 from odoo.http import content_disposition, request
 
-_logger = logging.getLogger(__name__)
+from ..models import ir_attachment
 
-try:
-    import jwt as pyjwt
-except ImportError:
-    pyjwt = None
+_logger = logging.getLogger(__name__)
 
 
 class OnlyOfficeController(http.Controller):
@@ -36,6 +33,7 @@ class OnlyOfficeController(http.Controller):
             'server_url': editor_data['server_url'],
             'config_json': json.dumps(editor_data['config']),
             'title': attachment.name,
+            'notice': editor_data['notice'],
         })
 
     @http.route('/rms_custom_knowledge/onlyoffice/content/<int:attachment_id>', type='http', auth='public')
@@ -103,14 +101,14 @@ class OnlyOfficeController(http.Controller):
 
     def _verify_onlyoffice_server_jwt(self):
         jwt_secret = request.env['ir.config_parameter'].sudo().get_param('rms_custom_knowledge.onlyoffice_jwt_secret')
-        if not jwt_secret or pyjwt is None:
+        if not request.env['ir.attachment']._onlyoffice_can_save():
             raise AccessError('OnlyOffice JWT secret and PyJWT are required')
         auth_header = request.httprequest.headers.get('Authorization', '')
         server_token = auth_header[7:] if auth_header.startswith('Bearer ') else auth_header
         if not server_token:
             raise AccessError('Missing OnlyOffice JWT token')
         try:
-            pyjwt.decode(server_token, jwt_secret, algorithms=['HS256'])
+            ir_attachment.pyjwt.decode(server_token, jwt_secret, algorithms=['HS256'])
         except Exception as exc:
             raise AccessError('Invalid OnlyOffice JWT token') from exc
 
