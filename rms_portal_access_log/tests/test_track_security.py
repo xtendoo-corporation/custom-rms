@@ -24,8 +24,16 @@ class TestTrackSecurity(HttpCase):
         )
         cls.projects.partner_id.portal_profile = 'projects'
         cls.internal = new_test_user(cls.env, login='track_internal', groups='base.group_user')
+        cls.pages, cls.brands = portal.catalog_metadata()
+        if not cls.pages or not cls.brands:
+            raise AssertionError('The real catalog metadata must parse successfully')
+        cls.page_key, cls.page = next(iter(cls.pages.items()))
+        cls.brand_name = cls.brands[cls.page['brand']]['name']
+        cls.env['rms.catalog.card'].with_context(active_test=False).search([
+            ('page_key', '=', cls.page_key),
+        ]).unlink()
         cls.card = cls.env['rms.catalog.card'].create({
-            'page_key': 'track-test', 'title': 'Server title', 'brand': 'Server brand',
+            'page_key': cls.page_key, 'title': 'Server title', 'brand': 'DB brand ignored',
         })
 
     def _login(self, user):
@@ -45,7 +53,7 @@ class TestTrackSecurity(HttpCase):
         ])
 
     def _post(self, token=None, **values):
-        data = {'kind': 'card', 'key': self.card.page_key,
+        data = {'kind': 'card', 'key': self.page_key,
                 'title': 'Forged title', 'brand': 'Forged brand', **values}
         if token is not None:
             data['csrf_token'] = token
@@ -58,8 +66,49 @@ class TestTrackSecurity(HttpCase):
         events = self._events()
         self.assertEqual(len(events), 1)
         self.assertEqual(events.page_title, self.card.title)
-        self.assertEqual(events.brand, self.card.brand)
+        self.assertEqual(events.brand, self.brand_name)
         self.assertEqual(events.card_id, self.card)
+
+    def test_page_without_database_card(self):
+        self.card.unlink()
+        token = self._login(self.customer)
+        for kind in ('card', 'prices'):
+            with self.subTest(kind=kind):
+                self.assertEqual(self._post(token, kind=kind, key=self.page_key).status_code, 204)
+                events = self._events().filtered(lambda event: event.activity_type == kind)
+                self.assertEqual(len(events), 1)
+                self.assertEqual(events.page_title, self.page['title'])
+                self.assertEqual(events.name, self.page['title'])
+                self.assertEqual(events.brand, self.brand_name)
+                self.assertFalse(events.card_id)
+
+    def test_canonical_brand(self):
+        token = self._login(self.customer)
+        for brand in (self.page['brand'], self.brand_name):
+            self.assertEqual(self._post(token, kind='brand', brand=brand).status_code, 204)
+        events = self._events()
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events.brand, self.brand_name)
+        self.assertEqual(events.name, self.brand_name)
+        self.assertFalse(events.card_id)
+
+    def test_database_only_key_is_rejected(self):
+        self.card.page_key = 'track-db-only'
+        token = self._login(self.customer)
+        self.assertEqual(self._post(token, key=self.card.page_key).status_code, 204)
+        self.assertFalse(self._events())
+
+    def test_database_fallback(self):
+        token = self._login(self.customer)
+        with patch.object(portal, 'catalog_metadata', return_value=({}, {})):
+            self.assertEqual(self._post(token).status_code, 204)
+            self.assertEqual(self._post(token, kind='brand', brand=self.card.brand).status_code, 204)
+            self.assertEqual(self._post(token, kind='brand', brand='Unknown brand').status_code, 204)
+            self.assertEqual(self._post(token, key='missing-card').status_code, 204)
+        events = self._events()
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events.filtered(lambda event: event.activity_type == 'card').card_id, self.card)
+        self.assertEqual(set(events.mapped('brand')), {self.card.brand})
 
     def test_missing_csrf(self):
         self._login(self.customer)

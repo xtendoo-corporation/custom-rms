@@ -1,9 +1,11 @@
 import base64
 import io
 import json
+import logging
 import mimetypes
 import os
 import re
+from functools import lru_cache
 
 from PIL import Image
 
@@ -15,6 +17,72 @@ from odoo.tools.misc import file_open, file_path
 BASE_TAG = b'<base href="/my/catalog/">\n'
 MAX_PDF_PAGES = 200
 A4_WIDTH_PT = 595.28
+
+_logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def catalog_metadata():
+    """Read deployment-static JS metadata without executing JavaScript.
+
+    The objects use JSON strings, unquoted keys, trailing commas and LOGO
+    references. Tokenizing strings first preserves braces/commas inside text.
+    Any unsupported syntax or incomplete metadata disables the whole result.
+    """
+    try:
+        with file_open('rms_portal_catalog/catalog_private/index.html', 'r') as source:
+            content = source.read()
+        objects = {}
+        token_re = re.compile(
+            r'"(?:[^"\\]|\\.)*"|//[^\n]*|/\*.*?\*/|'
+            r'LOGO\.[A-Za-z_$][\w$]*|[A-Za-z_$][\w$]*|'
+            r'-?\d+(?:\.\d+)?|[{}\[\]:,]|\s+', re.DOTALL,
+        )
+        for name in ('PAGES', 'BRANDS'):
+            declaration = re.search(r'\bconst\s+' + name + r'\s*=\s*(?={)', content)
+            if not declaration:
+                raise ValueError('Missing %s declaration' % name)
+            position = declaration.end()
+            depth = 0
+            tokens = []
+            while position < len(content):
+                match = token_re.match(content, position)
+                if not match:
+                    raise ValueError('Unsupported syntax in %s' % name)
+                token = match.group()
+                position = match.end()
+                if token.isspace() or token.startswith(('//', '/*')):
+                    continue
+                if token in ('{', '['):
+                    depth += 1
+                elif token in ('}', ']'):
+                    depth -= 1
+                if token.startswith('LOGO.'):
+                    token = 'null'
+                elif token[0] != '"' and re.fullmatch(r'[\w$]+', token):
+                    # Numeric page keys and JS identifiers become JSON keys.
+                    if re.match(r'\s*:', content[position:]):
+                        token = json.dumps(token)
+                    elif token not in ('true', 'false', 'null') and not token.isdigit():
+                        raise ValueError('Unsupported value in %s' % name)
+                if token in ('}', ']') and tokens[-1:] == [',']:
+                    tokens.pop()
+                tokens.append(token)
+                if depth == 0:
+                    break
+            objects[name] = json.loads(''.join(tokens))
+        brands = {key: {'name': value['name']} for key, value in objects['BRANDS'].items()}
+        pages = {key: {'title': value['title'], 'brand': value['brand']}
+                 for key, value in objects['PAGES'].items()}
+        if (not pages or not brands
+                or any(not isinstance(b['name'], str) or not b['name'] for b in brands.values())
+                or any(not isinstance(p['title'], str) or not p['title']
+                       or p['brand'] not in brands for p in pages.values())):
+            raise ValueError('Invalid catalog metadata')
+        return pages, brands
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        _logger.warning('Unable to parse catalog PAGES/BRANDS metadata', exc_info=True)
+        return {}, {}
 
 
 def _jpegs_to_pdf(jpegs, title=''):

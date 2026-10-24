@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from odoo import fields, http
 from odoo.http import request
+from odoo.addons.rms_portal_catalog.controllers.portal import catalog_metadata
 
 from odoo.addons.rms_portal_profiles.controllers.portal_guards import (
     AddressesProfileGuard,
@@ -67,27 +68,38 @@ class PortalActivityTrack(http.Controller):
                 return done()
             vals.update(name=query, result_count=count, url='/my/catalog')
         else:
+            pages, brands = catalog_metadata()
             Card = request.env['rms.catalog.card'].sudo()
             if activity_type in ('card', 'prices'):
                 key = kw.get('key') or ''
                 if not PAGE_KEY_RE.fullmatch(key):
                     return done()
                 card = Card.search([('page_key', '=', key)], limit=1)
-                if not card:
-                    return done()
-                title = card.title or (kw.get('title') or '').strip()
-                brand = card.brand or (kw.get('brand') or '').strip()
-                vals.update(page_key=key, card_id=card.id, page_title=title,
+                if pages and brands:
+                    if key not in pages:
+                        return done()
+                    title = card.title or pages[key]['title']
+                    brand = brands[pages[key]['brand']]['name']
+                else:
+                    if not card:
+                        return done()
+                    title = card.title or ''
+                    brand = card.brand or ''
+                vals.update(page_key=key, card_id=card.id or False, page_title=title,
                             name=title, url='/my/catalog#view/' + key)
             else:
                 title = ''
                 brand = (kw.get('brand') or '').strip()
+                if pages and brands:
+                    brand = next((data['name'] for key, data in brands.items()
+                                  if brand in (key, data['name'])), '')
                 vals.update(name=brand, url='/my/catalog')
             if len(title) > 120 or len(brand) > 64:
                 return done()
-            known_brands = Card.search([('brand', '!=', False)]).mapped('brand')
-            if brand and known_brands and brand not in known_brands:
-                return done()
+            if not (pages and brands):
+                known_brands = Card.search([('brand', '!=', False)]).mapped('brand')
+                if brand and brand not in known_brands:
+                    return done()
             if activity_type == 'brand' and not brand:
                 return done()
             vals['brand'] = brand or False
