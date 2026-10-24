@@ -116,9 +116,12 @@ prevalece SIEMPRE esta forma de trabajar sobre la genérica de Odoo)
   19% (0,9 × 0,9 = 0,81 → 19% de descuento acumulado).
 - La lista de precios de un presupuesto se calcula automáticamente a partir
   del cliente (su lista de precios asignada en su ficha). Los comerciales
-  pueden VER la lista de precios aplicada en un presupuesto pero no pueden
-  cambiarla desde ahí: si un presupuesto necesita otra lista de precios,
-  tiene que cambiarla alguien que no sea del grupo Comerciales.
+  NO ven las listas de precios (ni en el presupuesto ni en el menú) salvo
+  que tengan el permiso "Ver y editar listas de precios". Tampoco pueden
+  cambiar el precio unitario, los descuentos (Dto1/Dto2/Dto3), los
+  impuestos (IVA) ni la posición fiscal de un presupuesto salvo que tengan el permiso "Editar todo el presupuesto".
+  Si un presupuesto necesita alguno de esos cambios, tiene que hacerlo
+  alguien con ese permiso o que no sea del grupo Comerciales.
 
 — ESTADOS DE PRODUCTO —
 Cada producto (y cada número de serie/lote concreto) tiene un estado:
