@@ -6,6 +6,7 @@ import logging
 import requests
 
 from odoo import api, models
+from odoo.exceptions import AccessError
 
 _logger = logging.getLogger(__name__)
 
@@ -215,6 +216,10 @@ class RmsAiQuoteAssistant(models.AbstractModel):
            'opportunities': [...] or None if pinned}
           {'type': 'error', 'text': ...}
         """
+        if not self.env.su and (
+            self.env.user.share or not self.env.user.has_group("base.group_user")
+        ):
+            raise AccessError("Acceso restringido a usuarios internos con permisos para esta función.")
         static_prompt, dynamic_hint = self._build_system_prompt(pinned_opportunity_id)
 
         if self._get_provider() == "gemini":
@@ -544,6 +549,10 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         for the resolved partner, then link the quote to it. At most one of
         opportunity_id/new_opportunity_name is expected to be set.
         """
+        if not self.env.su and (
+            self.env.user.share or not self.env.user.has_group("base.group_user")
+        ):
+            raise AccessError("Acceso restringido a usuarios internos con permisos para esta función.")
         try:
             preview = self._build_quote_preview(partner_id, lines)
         except ValueError as exc:

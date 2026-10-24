@@ -2,7 +2,7 @@ import base64
 import io
 
 from odoo import http
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.http import request
 
 try:
@@ -62,6 +62,10 @@ class GlobalEquipmentMapController(http.Controller):
         methods=["POST"],
     )
     def get_global_equipment_map_partners(self):
+        if not request.env.su and (
+            request.env.user.share or not request.env.user.has_group("base.group_user")
+        ):
+            raise AccessError("Acceso restringido a usuarios internos con permisos para esta función.")
         return self._read_partners()
 
     @http.route(
@@ -71,6 +75,10 @@ class GlobalEquipmentMapController(http.Controller):
         methods=["POST"],
     )
     def export_global_equipment_map_xlsx(self, partner_ids=None):
+        if not request.env.su and (
+            request.env.user.share or not request.env.user.has_group("base.group_user")
+        ):
+            raise AccessError("Acceso restringido a usuarios internos con permisos para esta función.")
         if openpyxl is None:
             raise UserError(
                 "No se puede generar el Excel: falta instalar la librería "

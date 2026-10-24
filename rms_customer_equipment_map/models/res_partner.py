@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 from . import nominatim
 
@@ -104,8 +104,11 @@ class ResPartner(models.Model):
         without granting full Settings administrator access.
         """
         user = self.env.user
-        return user.has_group("base.group_system") or user.has_group(
-            "rms_customer_equipment_map.group_customer_equipment_map_geolocation"
+        return self.env.su or (
+            not user.share and user.has_group("base.group_user")
+            and (user.has_group("base.group_system") or user.has_group(
+                "rms_customer_equipment_map.group_customer_equipment_map_geolocation"
+            ))
         )
 
     @api.model
@@ -118,7 +121,7 @@ class ResPartner(models.Model):
     def get_geo_localize_summary(self):
         """Counts per geolocation state and next automatic run, for the map."""
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("You don't have permission to perform bulk geolocation."))
+            raise AccessError("Solo los usuarios internos con permisos de geolocalización pueden realizar esta operación.")
         Partner = self._customer_equipment_map_partner_model()
         counts = dict.fromkeys(("done", "pending", "failed", "no_address"), 0)
         for state, count in Partner._read_group(
@@ -140,7 +143,7 @@ class ResPartner(models.Model):
     def action_view_geo_localize_partners(self, state):
         """Open the geolocation list filtered on one state."""
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("You don't have permission to perform bulk geolocation."))
+            raise AccessError("Solo los usuarios internos con permisos de geolocalización pueden realizar esta operación.")
         titles = {
             "done": _("Clientes geolocalizados"),
             "pending": _("Clientes pendientes de geolocalizar"),
@@ -171,7 +174,7 @@ class ResPartner(models.Model):
     def action_geo_localize_retry(self):
         """Put the selected contacts back in the geolocation queue now."""
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("You don't have permission to perform bulk geolocation."))
+            raise AccessError("Solo los usuarios internos con permisos de geolocalización pueden realizar esta operación.")
         partners = self._customer_equipment_map_partner_model().browse(self.ids)
         partners = partners.filtered(
             lambda partner: partner.geo_localize_state in ("pending", "failed")
@@ -206,7 +209,7 @@ class ResPartner(models.Model):
         cron is not woken up to avoid querying the service twice in parallel.
         """
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("You don't have permission to perform bulk geolocation."))
+            raise AccessError("Solo los usuarios internos con permisos de geolocalización pueden realizar esta operación.")
         Partner = self._customer_equipment_map_partner_model()
         failed = Partner.search([("geo_localize_state", "=", "failed")])
         failed.with_context(skip_geo_localize_trigger=True).write(
@@ -229,7 +232,7 @@ class ResPartner(models.Model):
             before calling again (after a "too many requests").
         """
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("You don't have permission to perform bulk geolocation."))
+            raise AccessError("Solo los usuarios internos con permisos de geolocalización pueden realizar esta operación.")
         Partner = self.sudo()
         result = {
             "located": 0,
@@ -626,6 +629,10 @@ class ResPartner(models.Model):
     @api.model
     def get_customer_equipment_map_data(self):
         """Return geolocated contacts allowed in the customer map."""
+        if not self.env.su and (
+            self.env.user.share or not self.env.user.has_group("base.group_user")
+        ):
+            raise AccessError("Acceso restringido a usuarios internos con permisos para esta función.")
         self.check_access("read")
         domain = [
             ("partner_latitude", "!=", 0.0),

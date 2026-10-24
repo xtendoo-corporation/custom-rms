@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import mimetypes
+import os
 import re
 
 from PIL import Image
@@ -9,7 +10,7 @@ from PIL import Image
 from odoo import http
 from odoo.http import content_disposition, request
 from odoo.tools.mail import html2plaintext
-from odoo.tools.misc import file_open
+from odoo.tools.misc import file_open, file_path
 
 BASE_TAG = b'<base href="/my/catalog/">\n'
 MAX_PDF_PAGES = 200
@@ -95,7 +96,7 @@ class B2BCatalogPortal(http.Controller):
     @http.route('/my/catalog', type='http', auth='user')
     def portal_catalog_home(self, **kw):
         try:
-            with file_open('rms_portal_catalog/static/catalog/index.html', 'rb') as f:
+            with file_open('rms_portal_catalog/catalog_private/index.html', 'rb') as f:
                 content = f.read()
         except FileNotFoundError:
             return request.not_found()
@@ -111,7 +112,8 @@ class B2BCatalogPortal(http.Controller):
         ).encode('utf-8')
         return request.make_response(
             injection + content,
-            headers=[('Content-Type', 'text/html; charset=utf-8')],
+            headers=[('Content-Type', 'text/html; charset=utf-8'),
+                     ('Cache-Control', 'private, no-store')],
         )
 
     @http.route('/my/catalog/admin/card/<string:page_key>', type='http', auth='user')
@@ -251,7 +253,7 @@ class B2BCatalogPortal(http.Controller):
         images = []
         for number in numbers[:MAX_PDF_PAGES]:
             try:
-                with file_open('rms_portal_catalog/static/catalog/images/full/p%03d.jpg' % number, 'rb') as f:
+                with file_open('rms_portal_catalog/catalog_private/images/full/p%03d.jpg' % number, 'rb') as f:
                     images.append(f.read())
             except FileNotFoundError:
                 continue
@@ -270,13 +272,17 @@ class B2BCatalogPortal(http.Controller):
         salesperson = request.env.user.partner_id.sudo().user_id
         if salesperson and salesperson.partner_id.image_128:
             content = base64.b64decode(salesperson.partner_id.image_128)
-            return request.make_response(content, headers=[('Content-Type', 'image/png')])
+            return request.make_response(content, headers=[('Content-Type', 'image/png'),
+                ('Cache-Control', 'private, max-age=86400'),
+                ('X-Content-Type-Options', 'nosniff')])
         try:
-            with file_open('rms_portal_catalog/static/catalog/images/reps/salvador-escobar.jpg', 'rb') as f:
+            with file_open('rms_portal_catalog/catalog_private/images/reps/salvador-escobar.jpg', 'rb') as f:
                 content = f.read()
         except FileNotFoundError:
             return request.not_found()
-        return request.make_response(content, headers=[('Content-Type', 'image/jpeg')])
+        return request.make_response(content, headers=[('Content-Type', 'image/jpeg'),
+                ('Cache-Control', 'private, max-age=86400'),
+                ('X-Content-Type-Options', 'nosniff')])
 
     @http.route('/my/catalog/prices/<string:page_key>', type='http', auth='user')
     def portal_catalog_prices(self, page_key, **kw):
@@ -422,17 +428,30 @@ class B2BCatalogPortal(http.Controller):
         if not product or not image:
             return request.not_found()
         content = base64.b64decode(image)
-        return request.make_response(content, headers=[('Content-Type', 'image/png')])
+        return request.make_response(content, headers=[('Content-Type', 'image/png'),
+                ('Cache-Control', 'private, max-age=86400'),
+                ('X-Content-Type-Options', 'nosniff')])
 
     @http.route('/my/catalog/images/<path:subpath>', type='http', auth='user')
     def portal_catalog_asset(self, subpath, **kw):
+        if (subpath.startswith('/') or '..' in subpath.split('/')
+                or os.path.splitext(subpath)[1].lower() not in {
+                    '.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.pdf',
+                }):
+            return request.not_found()
         try:
-            with file_open('rms_portal_catalog/static/catalog/images/%s' % subpath, 'rb') as f:
+            base = os.path.realpath(file_path('rms_portal_catalog/catalog_private/images'))
+            path = os.path.realpath(os.path.join(base, subpath))
+            if os.path.commonpath([base, path]) != base:
+                return request.not_found()
+            with open(path, 'rb') as f:
                 content = f.read()
-        except (FileNotFoundError, ValueError):
+        except (OSError, ValueError):
             return request.not_found()
         mimetype, _ = mimetypes.guess_type(subpath)
         return request.make_response(
             content,
-            headers=[('Content-Type', mimetype or 'application/octet-stream')],
+            headers=[('Content-Type', mimetype or 'application/octet-stream'),
+                     ('Cache-Control', 'private, max-age=86400'),
+                     ('X-Content-Type-Options', 'nosniff')],
         )
