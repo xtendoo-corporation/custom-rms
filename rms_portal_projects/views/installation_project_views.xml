@@ -22,6 +22,7 @@
             <form string="Proyecto">
                 <header>
                     <button name="action_send" type="object" string="Enviar al cliente" class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_open_send_message" type="object" string="Ver mensaje para el cliente" invisible="state == 'draft'"/>
                     <button name="action_mark_accepted" type="object" string="Marcar aceptado" invisible="state != 'sent'"/>
                     <button name="action_mark_rejected" type="object" string="Marcar rechazado" invisible="state != 'sent'"/>
                     <button name="action_reset_to_draft" type="object" string="Volver a borrador" invisible="state == 'draft'"/>
@@ -35,7 +36,14 @@
                     </div>
                     <group>
                         <group>
-                            <field name="partner_id"/>
+                            <field name="partner_id" domain="[('is_company', '=', False), ('email', '!=', False)]"
+                                   context="{'default_is_company': False, 'default_company_type': 'person'}"/>
+                            <field name="portal_access_state" widget="badge" readonly="1" invisible="not partner_id"
+                                   decoration-success="portal_access_state == 'active'"
+                                   decoration-warning="portal_access_state == 'invited'"
+                                   decoration-danger="portal_access_state == 'none'"
+                                   decoration-muted="portal_access_state == 'internal'"/>
+                            <field name="portal_last_login" readonly="1" invisible="not partner_id or not portal_last_login"/>
                             <field name="user_id" groups="base.group_erp_manager"/>
                             <field name="user_id" groups="!base.group_erp_manager" readonly="1"/>
                             <field name="date"/>

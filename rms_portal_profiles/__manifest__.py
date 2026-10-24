@@ -1,6 +1,6 @@
 {
     'name': 'RMS Portal Profiles',
-    'version': '19.0.1.4.2',
+    'version': '19.0.1.4.4',
     'category': 'Sales',
     'summary': 'Segmenta el portal de clientes en perfiles (Cliente, Marketing, Proyectos) con acceso restringido por perfil.',
     'description': """
@@ -20,6 +20,7 @@
         'security/ir.model.access.csv',
         'views/portal_invite_link_views.xml',
         'views/res_partner_views.xml',
+        'views/installation_project_views.xml',
         'views/portal_templates.xml',
         'views/project_sharing_calendar_views.xml',
         'views/catalog_portal_templates.xml',

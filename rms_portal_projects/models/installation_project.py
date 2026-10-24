@@ -5,7 +5,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 
-MAX_FILE_SIZE = 20 * 1024 * 1024
+MAX_FILE_SIZE = 40 * 1024 * 1024
 
 
 class InstallationProject(models.Model):
@@ -18,6 +18,18 @@ class InstallationProject(models.Model):
     partner_id = fields.Many2one(
         'res.partner', string='Cliente', required=True, tracking=True,
         help='Único contacto que podrá ver este proyecto en su portal.',
+    )
+    portal_access_state = fields.Selection(
+        [
+            ('none', 'Sin acceso'),
+            ('invited', 'Invitado, nunca ha entrado'),
+            ('active', 'Activo'),
+            ('internal', 'Usuario interno'),
+        ],
+        string='Acceso al portal', compute='_compute_portal_access',
+    )
+    portal_last_login = fields.Datetime(
+        string='Último acceso al portal', compute='_compute_portal_access',
     )
     user_id = fields.Many2one(
         'res.users', string='Responsable', default=lambda self: self.env.user, tracking=True,
@@ -40,6 +52,23 @@ class InstallationProject(models.Model):
         'res.company', string='Compañía', default=lambda self: self.env.company,
     )
 
+    @api.depends('partner_id')
+    def _compute_portal_access(self):
+        for project in self:
+            users = project.partner_id.sudo().with_context(active_test=False).user_ids
+            portal_user = users.filtered(
+                lambda user: user.share and user.active and user._is_portal()
+            )[:1]
+            last_login = portal_user.login_date if portal_user else False
+            if any(user._is_internal() for user in users):
+                state = 'internal'
+            elif not portal_user:
+                state = 'none'
+            else:
+                state = 'active' if last_login else 'invited'
+            project.portal_access_state = state
+            project.portal_last_login = last_login
+
     @api.constrains('file_data', 'file_name')
     def _check_document(self):
         for project in self:
@@ -52,7 +81,7 @@ class InstallationProject(models.Model):
             except (ValueError, binascii.Error):
                 raise ValidationError('El documento no contiene datos válidos en base64.') from None
             if size > MAX_FILE_SIZE:
-                raise ValidationError('El documento no puede superar los 20 MB.')
+                raise ValidationError('El documento no puede superar los 40 MB.')
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -80,12 +109,53 @@ class InstallationProject(models.Model):
                 )
         return super().write(vals)
 
+    def _get_send_message_parts(self):
+        self.ensure_one()
+        return {
+            'greeting_name': self.partner_id.name,
+            'project_name': self.name,
+            'project_url': self.get_base_url() + '/my/installation-projects/%s' % self.id,
+            'access_text': '',
+            'signature': self.env.user.name,
+        }
+
+    def _build_send_message(self):
+        self.ensure_one()
+        return (
+            'Hola {greeting_name},\n\n'
+            'Ya tienes disponible el proyecto «{project_name}» en nuestro portal:\n'
+            '{project_url}\n{access_text}\nUn saludo,\n{signature}'
+        ).format(**self._get_send_message_parts())
+
+    def _open_send_message(self, message):
+        self.ensure_one()
+        wizard = self.env['rms.installation.project.send.message'].create({'message': message})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Mensaje para el cliente',
+            'res_model': wizard._name,
+            'res_id': wizard.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
     def action_send(self):
-        if any(not project.file_data for project in self):
+        self.ensure_one()
+        if not self.file_data:
             raise UserError('Añade un documento antes de enviar el proyecto al cliente.')
-        for project in self:
-            if project.state == 'draft':
-                project.state = 'sent'
+        if self.state != 'draft':
+            raise UserError('Solo se puede enviar un proyecto en borrador.')
+        message = self._build_send_message()
+        self.state = 'sent'
+        self.message_post(
+            body='Enviado al cliente por %s' % self.env.user.name,
+            subtype_xmlid='mail.mt_note',
+        )
+        return self._open_send_message(message)
+
+    def action_open_send_message(self):
+        self.ensure_one()
+        return self._open_send_message(self._build_send_message())
 
     def action_mark_accepted(self):
         if any(project.state != 'sent' for project in self):
