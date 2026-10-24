@@ -104,8 +104,12 @@ El módulo necesita `PyJWT` en el contenedor de Odoo. En un despliegue Doodba, a
 
 **Ajustes** ➡️ **General Settings** ➡️ bloque **Knowledge - OnlyOffice** (solo visible para Administradores):
 * **URL del servidor OnlyOffice**: `https://office.tudominio.com`
-* **Secreto JWT**: el mismo valor que `JWT_SECRET` del contenedor. Puedes dejarlo vacío mientras pruebas en local sin JWT, pero en producción con dominio público **es obligatorio** para que nadie pueda suplantar al servidor de documentos.
+* **Secreto JWT**: el mismo valor que `JWT_SECRET` del contenedor. **Es obligatorio en todos los entornos**: configura el parámetro de sistema `rms_custom_knowledge.onlyoffice_jwt_secret` con el mismo valor que `JWT_SECRET` del contenedor `onlyoffice/documentserver` (con `JWT_ENABLED=true`). Si falta el secreto o la librería PyJWT, el callback rechaza el guardado (fail-closed). **Al desplegar esta actualización, el guardado dejará de funcionar si el secreto no está configurado.**
 
 ### Uso
 
 En cualquier documento de hoja de cálculo dentro de Knowledge aparecerá el botón **"Editar con OnlyOffice"** (en la ficha del documento y en la tarjeta Kanban). Se abre en una pestaña nueva; los cambios se guardan automáticamente sobre el mismo adjunto. Si el usuario solo tiene permiso de lectura en esa carpeta, el editor se abre en modo solo lectura.
+
+La URL se guarda en `rms_custom_knowledge.onlyoffice_server_url`. Las URLs de descarga del callback deben usar HTTP/HTTPS y el mismo host y puerto efectivo que ese servidor. No se siguen redirecciones; el límite de descarga es 100 MiB, con timeout de conexión de 10 s y de lectura de 30 s. Configura Document Server para que anuncie ese destino.
+
+Los permisos de categorías solo amplían el acceso de usuarios internos; portal y público conservan las comprobaciones del núcleo. La descarga ZIP requiere usuario interno.

@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+from urllib.parse import urlsplit
 
 import requests
 
@@ -8,12 +9,9 @@ from odoo import http
 from odoo.exceptions import AccessError, UserError
 from odoo.http import content_disposition, request
 
-_logger = logging.getLogger(__name__)
+from ..models import ir_attachment
 
-try:
-    import jwt as pyjwt
-except ImportError:
-    pyjwt = None
+_logger = logging.getLogger(__name__)
 
 
 class OnlyOfficeController(http.Controller):
@@ -35,6 +33,7 @@ class OnlyOfficeController(http.Controller):
             'server_url': editor_data['server_url'],
             'config_json': json.dumps(editor_data['config']),
             'title': attachment.name,
+            'notice': editor_data['notice'],
         })
 
     @http.route('/rms_custom_knowledge/onlyoffice/content/<int:attachment_id>', type='http', auth='public')
@@ -81,15 +80,18 @@ class OnlyOfficeController(http.Controller):
         except ValueError:
             return request.make_response(json.dumps({'error': 1, 'message': 'Invalid payload'}), headers=[('Content-Type', 'application/json')])
 
+        if not isinstance(payload, dict):
+            return request.make_json_response({'error': 1})
+
         status = payload.get('status')
         if status in (2, 6) and payload.get('url'):
             attachment = IrAttachment.browse(attachment_id).exists()
             if attachment:
                 try:
-                    file_response = requests.get(payload['url'], timeout=30)
-                    file_response.raise_for_status()
+                    attachment.with_user(uid).check_access('write')
+                    content = self._download_onlyoffice_file(payload['url'])
                     attachment.with_user(uid).write({
-                        'datas': base64.b64encode(file_response.content).decode(),
+                        'datas': base64.b64encode(content).decode(),
                     })
                 except Exception:
                     _logger.exception('No se pudo guardar el documento OnlyOffice para el adjunto %s', attachment_id)
@@ -99,10 +101,46 @@ class OnlyOfficeController(http.Controller):
 
     def _verify_onlyoffice_server_jwt(self):
         jwt_secret = request.env['ir.config_parameter'].sudo().get_param('rms_custom_knowledge.onlyoffice_jwt_secret')
-        if not jwt_secret or pyjwt is None:
-            return
+        if not request.env['ir.attachment']._onlyoffice_can_save():
+            raise AccessError('OnlyOffice JWT secret and PyJWT are required')
         auth_header = request.httprequest.headers.get('Authorization', '')
         server_token = auth_header[7:] if auth_header.startswith('Bearer ') else auth_header
         if not server_token:
             raise AccessError('Missing OnlyOffice JWT token')
-        pyjwt.decode(server_token, jwt_secret, algorithms=['HS256'])
+        try:
+            ir_attachment.pyjwt.decode(server_token, jwt_secret, algorithms=['HS256'])
+        except Exception as exc:
+            raise AccessError('Invalid OnlyOffice JWT token') from exc
+
+    def _download_onlyoffice_file(self, url):
+        server_url = request.env['ir.config_parameter'].sudo().get_param(
+            'rms_custom_knowledge.onlyoffice_server_url'
+        )
+
+        def destination(value):
+            if not isinstance(value, str) or any(char.isspace() for char in value):
+                raise AccessError('Invalid OnlyOffice URL')
+            parsed = urlsplit(value)
+            if (parsed.scheme not in ('http', 'https') or not parsed.hostname
+                    or parsed.username is not None or parsed.password is not None):
+                raise AccessError('Invalid OnlyOffice URL')
+            return parsed.hostname.lower(), parsed.port or (443 if parsed.scheme == 'https' else 80)
+
+        try:
+            if destination(url) != destination(server_url):
+                raise AccessError('Unexpected OnlyOffice download destination')
+        except (ValueError, TypeError) as exc:
+            raise AccessError('Invalid OnlyOffice URL') from exc
+
+        max_size = 100 * 1024 * 1024
+        with requests.get(url, timeout=(10, 30), stream=True, allow_redirects=False) as response:
+            if response.status_code != 200:
+                raise AccessError('OnlyOffice download requires HTTP 200')
+            if int(response.headers.get('Content-Length', 0)) > max_size:
+                raise AccessError('OnlyOffice document exceeds 100 MiB')
+            content = bytearray()
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                if len(content) + len(chunk) > max_size:
+                    raise AccessError('OnlyOffice document exceeds 100 MiB')
+                content.extend(chunk)
+            return bytes(content)

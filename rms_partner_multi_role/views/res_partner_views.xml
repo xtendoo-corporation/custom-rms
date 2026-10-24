@@ -12,17 +12,23 @@
             
             <!-- Insertamos nuestros checkboxes donde estaba el campo type -->
             <xpath expr="//field[@name='child_ids']/form//field[@name='type']" position="after">
+                <field name="is_role_invoice" invisible="1" groups="base.group_user"/>
+                <field name="is_role_delivery" invisible="1" groups="base.group_user"/>
+                <field name="is_role_pricelist" invisible="1" groups="base.group_user"/>
+                <field name="is_role_technical" invisible="1" groups="base.group_user"/>
+                <field name="is_role_general" invisible="1" groups="base.group_user"/>
                 <field name="rms_role_ids" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}" placeholder="Añadir roles (Ej. Facturación, Envío...)" class="mb-3 w-100"/>
             </xpath>
 
             <!-- Aseguramos que el grupo de dirección nativo se muestre cuando corresponda -->
             <xpath expr="//field[@name='child_ids']/form//group[@name='other_info']" position="attributes">
+                <attribute name="groups">base.group_user</attribute>
                 <attribute name="invisible">not is_role_invoice and not is_role_delivery</attribute>
             </xpath>
 
             <!-- Usamos un Notebook (Pestañas) al final de la ficha para acomodar todos los campos sin generar scroll -->
             <xpath expr="//field[@name='child_ids']/form//sheet" position="inside">
-                <notebook invisible="not is_role_invoice and not is_role_delivery and not is_role_pricelist and not is_role_technical and not is_role_general">
+                <notebook groups="base.group_user" invisible="not is_role_invoice and not is_role_delivery and not is_role_pricelist and not is_role_technical and not is_role_general">
                     <page name="role_invoice" string="Facturación" invisible="not is_role_invoice">
                         <group>
                             <field name="custom_invoice_address" placeholder="Dirección de facturación adicional (multilínea)..."/>
@@ -62,7 +68,7 @@
 
             <!-- Inyectar los iconos de las categorías en la tarjeta Kanban debajo del nombre -->
             <xpath expr="//field[@name='child_ids']/kanban//field[@name='name']" position="after">
-                <div class="mt-2 mb-1">
+                <div class="mt-2 mb-1" groups="base.group_user">
                     <i t-if="record.is_role_invoice.raw_value" class="fa fa-lg fa-file-text-o me-2 text-primary" title="Contacto de facturación"/>
                     <i t-if="record.is_role_delivery.raw_value" class="fa fa-lg fa-truck me-2 text-success" title="Dirección de entrega"/>
                     <i t-if="record.is_role_pricelist.raw_value" class="fa fa-lg fa-tag me-2 text-info" title="Listas de precios"/>

@@ -18,7 +18,19 @@ def _is_internal_user():
     return request.env.user.has_group('base.group_user')
 
 
+def _portal_profile_denied(*group_xmlids):
+    """Anonymous token links and internal users retain standard Odoo access."""
+    user = request.env.user
+    return user.share and not user._is_public() and not _has_any_group(*group_xmlids)
+
+
 class SaleOrdersProfileGuard(SaleCustomerPortal):
+
+    @http.route()
+    def portal_order_page(self, order_id, **kw):
+        if _portal_profile_denied('rms_portal_profiles.group_portal_customer'):
+            return request.redirect('/my')
+        return super().portal_order_page(order_id, **kw)
 
     @http.route()
     def portal_my_quotes(self, **kwargs):
@@ -34,6 +46,12 @@ class SaleOrdersProfileGuard(SaleCustomerPortal):
 
 
 class InvoicesProfileGuard(PortalAccount):
+
+    @http.route()
+    def portal_my_invoice_detail(self, invoice_id, **kw):
+        if _portal_profile_denied('rms_portal_profiles.group_portal_customer'):
+            return request.redirect('/my')
+        return super().portal_my_invoice_detail(invoice_id, **kw)
 
     @http.route()
     def portal_my_invoices(self, page=1, date_begin=None, date_end=None, sortby=None, filterby=None, **kw):
@@ -73,6 +91,24 @@ class ProjectProfileGuard(ProjectCustomerPortal):
 
 
 class InstallationProjectsProfileGuard(InstallationProjectPortal):
+
+    @http.route()
+    def portal_installation_project_detail(self, project_id, **kw):
+        if _portal_profile_denied(
+            'rms_portal_profiles.group_portal_customer',
+            'rms_portal_profiles.group_portal_projects',
+        ):
+            return request.redirect('/my')
+        return super().portal_installation_project_detail(project_id, **kw)
+
+    @http.route()
+    def portal_installation_project_file(self, project_id, **kw):
+        if _portal_profile_denied(
+            'rms_portal_profiles.group_portal_customer',
+            'rms_portal_profiles.group_portal_projects',
+        ):
+            return request.redirect('/my')
+        return super().portal_installation_project_file(project_id, **kw)
 
     @http.route()
     def portal_my_installation_projects(self, page=1, sortby=None, **kw):

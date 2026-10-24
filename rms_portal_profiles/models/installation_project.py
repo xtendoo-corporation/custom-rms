@@ -6,7 +6,7 @@ class InstallationProject(models.Model):
     _inherit = 'rms.installation.project'
 
     partner_portal_profile = fields.Selection(
-        related='partner_id.portal_profile', string='Perfil de portal', readonly=True,
+        related='partner_id.portal_profile', string='Perfil de portal', readonly=True, groups='base.group_user',
     )
 
     def action_open_portal_invite_link(self):

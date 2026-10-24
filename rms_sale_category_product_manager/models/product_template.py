@@ -10,6 +10,7 @@ class ProductTemplate(models.Model):
         comodel_name='res.users',
         related='categ_id.product_manager_ids',
         string='Product Managers',
+        groups='base.group_user',
         readonly=True,
         help='Product managers assigned on this product category.',
     )

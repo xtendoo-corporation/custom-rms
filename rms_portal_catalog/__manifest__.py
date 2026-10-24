@@ -1,6 +1,6 @@
 {
     'name': 'RMS Portal Catalog',
-    'version': '19.0.1.11.1',
+    'version': '19.0.1.11.3',
     'category': 'Sales',
     'summary': 'Publica el catálogo B2B (HTML estático) en el portal de clientes.',
     'description': """

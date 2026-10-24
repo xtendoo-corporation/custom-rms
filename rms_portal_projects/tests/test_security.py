@@ -1,9 +1,11 @@
 import base64
 
 from odoo.exceptions import AccessError
+from odoo.tests import tagged
 from odoo.tests.common import TransactionCase, new_test_user
 
 
+@tagged('post_install', '-at_install')
 class TestInstallationProjectSecurity(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -18,7 +20,9 @@ class TestInstallationProjectSecurity(TransactionCase):
             cls.env, login='project_responsibility_admin',
             groups='base.group_erp_manager,rms_portal_projects.group_installation_project_manager',
         )
-        cls.partner = cls.env['res.partner'].create({'name': 'Security test customer'})
+        cls.partner = cls.env['res.partner'].create({
+            'name': 'Security test customer', 'email': 'security.customer@example.com',
+        })
         cls.values = {
             'name': 'Security test project', 'partner_id': cls.partner.id,
             'file_name': 'project.html',
@@ -142,3 +146,95 @@ class TestInstallationProjectSecurity(TransactionCase):
             self.admin,
         ).with_context(allowed_company_ids=(company_a | company_b).ids).search(domain)
         self.assertEqual(set(admin_projects.ids), {project_a.id, project_b.id})
+
+    def test_portal_cannot_read_internal_project_fields(self):
+        portal = new_test_user(
+            self.env, login='project_field_portal', groups='base.group_portal',
+        )
+        project = self.env['rms.installation.project'].create({
+            **self.values, 'partner_id': portal.partner_id.id,
+            'state': 'sent', 'description': 'Private installation notes',
+        })
+        public_fields = ['name', 'state', 'date', 'file_name']
+        self.assertEqual(
+            project.with_user(portal).read(public_fields)[0],
+            project.read(public_fields)[0],
+        )
+        for field in (
+            'description', 'user_id', 'portal_access_state',
+            'portal_last_login', 'file_data', 'company_id',
+        ):
+            with self.subTest(field=field):
+                with self.assertRaises(AccessError):
+                    project.with_user(portal).read([field])
+                project.with_user(self.manager).read([field])
+
+    def test_partner_multi_role_internal_fields(self):
+        if 'technical_notes' not in self.env['res.partner']._fields:
+            self.skipTest('Install rms_partner_multi_role to test partner field security')
+        portal = new_test_user(
+            self.env, login='partner_notes_portal', groups='base.group_portal',
+        )
+        partner = portal.partner_id
+        partner.technical_notes = 'Private technical notes'
+        fields = [
+            'technical_notes', 'general_notes', 'role_pricelist_notes',
+            'custom_invoice_address', 'custom_delivery_address', 'rms_role_ids',
+            'is_role_invoice', 'is_role_delivery', 'is_role_pricelist',
+            'is_role_technical', 'is_role_general',
+        ]
+        self.assertEqual(partner.with_user(portal).read(['name'])[0]['name'], partner.name)
+        for field in fields:
+            with self.subTest(field=field):
+                with self.assertRaises(AccessError):
+                    partner.with_user(portal).read([field])
+                partner.with_user(self.employee).read([field])
+        self.assertEqual(
+            partner.with_user(self.employee).read(['technical_notes'])[0]['technical_notes'],
+            'Private technical notes',
+        )
+
+    def test_partner_address_resolution_with_internal_roles(self):
+        if 'rms_role_ids' not in self.env['res.partner']._fields:
+            self.skipTest('Install rms_partner_multi_role to test address resolution')
+        portal = new_test_user(
+            self.env, login='partner_address_portal', groups='base.group_portal',
+        )
+        role = self.env['rms.partner.role'].create({'name': 'Invoice test', 'code': 'invoice'})
+        child = self.env['res.partner'].create({
+            'name': 'Invoice contact', 'parent_id': portal.partner_id.id,
+            'rms_role_ids': [(6, 0, role.ids)],
+        })
+        self.assertEqual(
+            portal.partner_id.with_user(portal).address_get(['invoice'])['invoice'], child.id,
+        )
+
+    def test_portal_chatter_access_characterization(self):
+        portal = new_test_user(
+            self.env, login='project_chatter_portal', groups='base.group_portal',
+        )
+        project = self.env['rms.installation.project'].create({
+            **self.values, 'partner_id': portal.partner_id.id, 'state': 'sent',
+        })
+        project.message_subscribe(partner_ids=portal.partner_id.ids)
+        note = project.message_post(body='Internal note', message_type='comment', subtype_xmlid='mail.mt_note')
+        comment = project.message_post(body='Customer message', subtype_xmlid='mail.mt_comment')
+        with self.assertRaises(AccessError):
+            note.with_user(portal).read(['body'])
+        self.assertIn('Customer message', comment.with_user(portal).read(['body'])[0]['body'])
+        with self.assertRaises(AccessError):
+            project.with_user(portal).read(['message_follower_ids'])
+
+    def test_product_manager_fields_are_internal(self):
+        if (
+            'product.template' not in self.env.registry.models
+            or 'category_product_manager_ids' not in self.env['product.template']._fields
+        ):
+            self.skipTest('Install rms_sale_category_product_manager for this check')
+        portal = new_test_user(
+            self.env, login='product_manager_field_portal', groups='base.group_portal',
+        )
+        product = self.env['product.template'].create({'name': 'Internal manager test'})
+        with self.assertRaises(AccessError):
+            product.with_user(portal).read(['category_product_manager_ids'])
+        product.with_user(self.employee).read(['category_product_manager_ids'])

@@ -1041,7 +1041,7 @@ async function toggleFeatured(productId, btn, pageKey){
   if(!key) return;
   btn.disabled = true;
   try{
-    const res = await fetch(`/my/catalog/admin/card/${key}/products/${productId}/featured`, {method: "POST"});
+    const res = await fetch(`/my/catalog/admin/card/${key}/products/${productId}/featured`, {method: "POST", body: new URLSearchParams({csrf_token: window.RMS_CSRF})});
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
     btn.classList.toggle("on", data.featured);
@@ -1088,7 +1088,7 @@ async function changeQty(productId, delta){
     const res = await fetch(delta > 0 ? "/my/catalog/quote/add" : "/my/catalog/quote/decrease", {
       method: "POST",
       headers: {"Content-Type": "application/x-www-form-urlencoded"},
-      body: `product_id=${encodeURIComponent(productId)}`,
+      body: new URLSearchParams({product_id: productId, csrf_token: window.RMS_CSRF}),
     });
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
@@ -1183,7 +1183,7 @@ async function removeFromCart(productId){
     const res = await fetch(`/my/catalog/quote/remove`, {
       method: "POST",
       headers: {"Content-Type": "application/x-www-form-urlencoded"},
-      body: `product_id=${encodeURIComponent(productId)}`,
+      body: new URLSearchParams({product_id: productId, csrf_token: window.RMS_CSRF}),
     });
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
@@ -1274,14 +1274,14 @@ async function adminDoSearch(q){
 }
 
 async function adminAddProduct(productId){
-  await fetch(`/my/catalog/admin/card/${adminPageKey}/products/${productId}/add`, {method: "POST"});
+  await fetch(`/my/catalog/admin/card/${adminPageKey}/products/${productId}/add`, {method: "POST", body: new URLSearchParams({csrf_token: window.RMS_CSRF})});
   document.getElementById("adminSearchInput").value = "";
   document.getElementById("adminSearchResults").innerHTML = "";
   await loadAdminAssigned();
 }
 
 async function adminRemoveProduct(productId){
-  await fetch(`/my/catalog/admin/card/${adminPageKey}/products/${productId}/remove`, {method: "POST"});
+  await fetch(`/my/catalog/admin/card/${adminPageKey}/products/${productId}/remove`, {method: "POST", body: new URLSearchParams({csrf_token: window.RMS_CSRF})});
   await loadAdminAssigned();
 }
 

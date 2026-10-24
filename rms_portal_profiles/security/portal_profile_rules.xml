@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- No groups: global domains intersect the standard commercial-partner rules.
+         All operations are restricted; these flags never grant model ACLs.
+         Public ORM access is denied too; validated email tokens use superuser. -->
+    <record id="sale_order_portal_customer_profile_rule" model="ir.rule">
+        <field name="name">RMS customer profile: sale.order</field>
+        <field name="model_id" ref="sale.model_sale_order"/>
+        <field name="domain_force">[(1, '=', 1)] if (not user.share or user.has_group('rms_portal_profiles.group_portal_customer')) else [(0, '=', 1)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+    <record id="sale_order_line_portal_customer_profile_rule" model="ir.rule">
+        <field name="name">RMS customer profile: sale.order.line</field>
+        <field name="model_id" ref="sale.model_sale_order_line"/>
+        <field name="domain_force">[(1, '=', 1)] if (not user.share or user.has_group('rms_portal_profiles.group_portal_customer')) else [(0, '=', 1)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+    <record id="account_move_portal_customer_profile_rule" model="ir.rule">
+        <field name="name">RMS customer profile: account.move</field>
+        <field name="model_id" ref="account.model_account_move"/>
+        <field name="domain_force">[(1, '=', 1)] if (not user.share or user.has_group('rms_portal_profiles.group_portal_customer')) else [(0, '=', 1)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+    <record id="account_move_line_portal_customer_profile_rule" model="ir.rule">
+        <field name="name">RMS customer profile: account.move.line</field>
+        <field name="model_id" ref="account.model_account_move_line"/>
+        <field name="domain_force">[(1, '=', 1)] if (not user.share or user.has_group('rms_portal_profiles.group_portal_customer')) else [(0, '=', 1)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+    <record id="account_payment_portal_customer_profile_rule" model="ir.rule">
+        <field name="name">RMS customer profile: account.payment</field>
+        <field name="model_id" ref="account.model_account_payment"/>
+        <field name="domain_force">[(1, '=', 1)] if (not user.share or user.has_group('rms_portal_profiles.group_portal_customer')) else [(0, '=', 1)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+</odoo>

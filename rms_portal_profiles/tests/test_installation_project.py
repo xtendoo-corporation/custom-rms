@@ -1,9 +1,15 @@
 import base64
+import json
+from urllib.parse import urlparse
 from unittest.mock import patch
 
-from odoo.exceptions import UserError
+from odoo import Command
+from odoo.exceptions import AccessError, UserError
 from odoo.tests import tagged
-from odoo.tests.common import TransactionCase, new_test_user
+from odoo.tests.common import HttpCase, TransactionCase, new_test_user
+from odoo.tools import mute_logger
+from odoo.tools.safe_eval import safe_eval
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged('post_install', '-at_install')
@@ -103,3 +109,143 @@ class TestInstallationProjectSendMessage(TransactionCase):
         with self.assertRaisesRegex(UserError, 'no tiene correo electrónico'):
             project.action_send()
         self.assertEqual(project.state, 'draft')
+
+
+@tagged('post_install', '-at_install')
+class TestPortalProfileSecurity(AccountTestInvoicingCommon, HttpCase):
+    """Kept in an already discovered test module: no __init__ test imports added."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.customer_company = cls.env['res.partner'].create({
+            'name': 'S4 customer company', 'is_company': True,
+            'property_account_receivable_id': cls.company_data['default_account_receivable'].id,
+            'property_account_payable_id': cls.company_data['default_account_payable'].id,
+        })
+        cls.profile_users = {}
+        for profile in ('customer', 'projects', 'marketing'):
+            user = new_test_user(
+                cls.env, login='s4_' + profile, password='s4_password',
+                groups='base.group_portal', company_id=cls.env.company.id,
+            )
+            user.partner_id.write({
+                'parent_id': cls.customer_company.id, 'portal_profile': profile,
+            })
+            cls.profile_users[profile] = user
+        cls.sales_user = new_test_user(
+            cls.env, login='s4_sales', groups='sales_team.group_sale_salesman',
+            company_id=cls.env.company.id,
+        )
+        cls.order = cls.env['sale.order'].sudo().create({
+            'partner_id': cls.customer_company.id, 'user_id': cls.sales_user.id,
+            'order_line': [Command.create({
+                'product_id': cls.product_a.id, 'product_uom_qty': 1, 'price_unit': 100,
+            })],
+        })
+        cls.order.action_confirm()
+        cls.invoice = cls.env['account.move'].sudo().create({
+            'move_type': 'out_invoice', 'partner_id': cls.customer_company.id,
+            'journal_id': cls.company_data['default_journal_sale'].id,
+            'invoice_line_ids': [Command.create({
+                'product_id': cls.product_a.id, 'quantity': 1, 'price_unit': 100,
+                'account_id': cls.company_data['default_account_revenue'].id,
+            })],
+        })
+        cls.invoice.action_post()
+        cls.order_token = cls.order._portal_ensure_token()
+        cls.invoice_token = cls.invoice._portal_ensure_token()
+        cls.installation = cls.env['rms.installation.project'].sudo().create({
+            'name': 'S4 installation', 'partner_id': cls.profile_users['marketing'].partner_id.id,
+            'state': 'sent', 'file_name': 's4.html',
+            'file_data': base64.b64encode(b'<html><body>S4 installation</body></html>'),
+        })
+
+    def _assert_redirect_my(self, url):
+        response = self.url_open(url, allow_redirects=False)
+        self.assertIn(response.status_code, (302, 303))
+        self.assertEqual(urlparse(response.headers['Location']).path, '/my')
+
+    def test_customer_orm_and_order_detail(self):
+        user = self.profile_users['customer']
+        for record in (self.order, self.invoice):
+            self.assertEqual(record.with_user(user).read(['name'])[0]['name'], record.name)
+        self.authenticate(user.login, 's4_password')
+        self.assertEqual(self.url_open('/my/orders/%s' % self.order.id).status_code, 200)
+        self.assertEqual(self.url_open('/my/invoices/%s' % self.invoice.id).status_code, 200)
+
+    def test_non_customer_orm_and_rules(self):
+        records = (self.order, self.order.order_line, self.invoice, self.invoice.line_ids)
+        for profile in ('projects', 'marketing'):
+            user = self.profile_users[profile]
+            for record in records:
+                model = self.env[record._name].with_user(user)
+                domain = [('id', 'in', record.ids)]
+                if model.has_access('read'):
+                    self.assertFalse(model.search(domain))
+                    self.assertEqual(model.search_count(domain), 0)
+                else:
+                    with self.assertRaises(AccessError):
+                        model.search(domain)
+                with self.assertRaises(AccessError):
+                    record.with_user(user).read(['name'])
+        # Actual Odoo safe_eval, not Python eval: exercise every branch and mode.
+        for model in ('sale_order', 'sale_order_line', 'account_move', 'account_move_line', 'account_payment'):
+            rule = self.env.ref('rms_portal_profiles.%s_portal_customer_profile_rule' % model)
+            self.assertTrue(rule['global'])
+            self.assertTrue(all(rule['perm_' + mode] for mode in ('read', 'write', 'create', 'unlink')))
+            for user, allowed in (
+                (self.profile_users['customer'], True), (self.profile_users['projects'], False),
+                (self.profile_users['marketing'], False), (self.sales_user, True),
+                (self.env.ref('base.public_user'),
+                 self.env.ref('base.public_user').has_group('rms_portal_profiles.group_portal_customer')),
+            ):
+                self.assertEqual(safe_eval(rule.domain_force, {'user': user.sudo()}),
+                                 [(1, '=', 1)] if allowed else [(0, '=', 1)])
+        self.assertEqual(self.order.with_user(self.sales_user).read(['name'])[0]['name'], self.order.name)
+        self.assertEqual(self.order.with_user(self.profile_users['projects']).sudo().name, self.order.name)
+
+    @mute_logger('odoo.http')
+    def test_projects_http_and_counters(self):
+        user = self.profile_users['projects']
+        self.authenticate(user.login, 's4_password')
+        for url, token in (
+            ('/my/orders/%s' % self.order.id, self.order_token),
+            ('/my/invoices/%s' % self.invoice.id, self.invoice_token),
+        ):
+            self._assert_redirect_my(url)
+            self._assert_redirect_my(url + '?access_token=' + token)
+            self._assert_redirect_my(url + '?report_type=pdf&access_token=' + token)
+        response = self.url_open('/report/pdf/sale.report_saleorder/%s' % self.order.id)
+        self.assertNotEqual(response.headers.get('Content-Type', '').split(';')[0], 'application/pdf')
+        self.assertFalse(response.content.startswith(b'%PDF'))
+        self.assertEqual(self.url_open('/my/home').status_code, 200)
+        counters = ['order_count', 'quotation_count', 'invoice_count', 'overdue_invoice_count']
+        response = self.url_open('/my/counters', data=json.dumps({
+            'jsonrpc': '2.0', 'method': 'call', 'params': {'counters': counters}, 'id': 1,
+        }), headers={'Content-Type': 'application/json'})
+        values = response.json()
+        self.assertNotIn('error', values)
+        for counter in counters:
+            self.assertEqual(values['result'][counter], 0)
+
+    def test_anonymous_token_links(self):
+        self.authenticate(None, None)
+        for url, token in (
+            ('/my/orders/%s' % self.order.id, self.order_token),
+            ('/my/invoices/%s' % self.invoice.id, self.invoice_token),
+        ):
+            self._assert_redirect_my(url)
+            response = self.url_open(url + '?access_token=' + token, allow_redirects=False)
+            self.assertEqual(response.status_code, 200)
+
+    def test_marketing_installation_detail_and_file(self):
+        self.authenticate(self.profile_users['marketing'].login, 's4_password')
+        url = '/my/installation-projects/%s' % self.installation.id
+        self._assert_redirect_my(url)
+        self._assert_redirect_my(url + '/file')
+
+    def test_installation_profile_field_internal_only(self):
+        self.assertEqual(self.installation._fields['partner_portal_profile'].groups, 'base.group_user')
+        with self.assertRaises(AccessError):
+            self.installation.with_user(self.profile_users['marketing']).read(['partner_portal_profile'])
