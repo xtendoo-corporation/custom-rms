@@ -5,6 +5,11 @@
         <field name="model">rms.installation.project</field>
         <field name="inherit_id" ref="rms_portal_projects.view_installation_project_form"/>
         <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_open_portal_invite_link" type="object" string="Enlace portal" icon="fa-link"
+                        groups="base.group_erp_manager,rms_portal_projects.group_installation_project_manager"
+                        invisible="not partner_id"/>
+            </xpath>
             <field name="portal_access_state" position="after">
                 <field name="partner_portal_profile" readonly="1" invisible="not partner_id"/>
             </field>

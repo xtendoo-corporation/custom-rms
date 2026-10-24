@@ -87,7 +87,8 @@ class TestInstallationProject(TransactionCase):
         self.assertEqual(project.state, 'sent')
         for state in ('sent', 'accepted', 'rejected'):
             project.write({'state': state})
-            project.action_send()
+            with self.assertRaises(UserError):
+                project.action_send()
             self.assertEqual(project.state, state)
 
     def test_accept_reject_only_from_sent(self):
@@ -105,3 +106,23 @@ class TestInstallationProject(TransactionCase):
             project.write({'state': 'sent'})
             getattr(project, action)()
             self.assertEqual(project.state, target)
+
+    def test_send_returns_message_wizard(self):
+        project = self._project()
+        action = project.action_send()
+        self.assertEqual(action['res_model'], 'rms.installation.project.send.message')
+        self.assertEqual(action['target'], 'new')
+        wizard = self.env[action['res_model']].browse(action['res_id'])
+        self.assertIn(project.get_base_url() + '/my/installation-projects/%s' % project.id, wizard.message)
+        self.assertEqual(project.state, 'sent')
+        self.assertTrue(project.message_ids.filtered(
+            lambda message: 'Enviado al cliente por %s' % self.env.user.name in str(message.body)
+        ))
+
+    def test_open_send_message_preserves_state(self):
+        project = self._project()
+        for state in ('sent', 'accepted', 'rejected'):
+            project.state = state
+            action = project.action_open_send_message()
+            self.assertTrue(self.env[action['res_model']].browse(action['res_id']).message)
+            self.assertEqual(project.state, state)

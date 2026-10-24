@@ -1,3 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_installation_project_user,rms.installation.project.user,model_rms_installation_project,group_installation_project_manager,1,1,1,1
 access_installation_project_portal,rms.installation.project.portal,model_rms_installation_project,base.group_portal,1,0,0,0
+access_installation_project_send_message_manager,rms.installation.project.send.message.manager,model_rms_installation_project_send_message,group_installation_project_manager,1,1,1,1

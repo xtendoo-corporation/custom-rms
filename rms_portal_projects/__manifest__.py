@@ -1,6 +1,6 @@
 {
     'name': 'RMS Portal Projects',
-    'version': '19.0.1.7.3',
+    'version': '19.0.1.7.4',
     'category': 'Sales',
     'summary': 'Comparte PDFs de proyectos de instalación con el cliente a través del portal.',
     'description': """
@@ -15,6 +15,7 @@
         'security/security_groups.xml',
         'security/security.xml',
         'security/ir.model.access.csv',
+        'wizard/installation_project_send_message_views.xml',
         'views/installation_project_views.xml',
         'views/portal_templates.xml',
     ],

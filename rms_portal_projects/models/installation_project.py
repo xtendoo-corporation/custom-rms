@@ -109,12 +109,53 @@ class InstallationProject(models.Model):
                 )
         return super().write(vals)
 
+    def _get_send_message_parts(self):
+        self.ensure_one()
+        return {
+            'greeting_name': self.partner_id.name,
+            'project_name': self.name,
+            'project_url': self.get_base_url() + '/my/installation-projects/%s' % self.id,
+            'access_text': '',
+            'signature': self.env.user.name,
+        }
+
+    def _build_send_message(self):
+        self.ensure_one()
+        return (
+            'Hola {greeting_name},\n\n'
+            'Ya tienes disponible el proyecto «{project_name}» en nuestro portal:\n'
+            '{project_url}\n{access_text}\nUn saludo,\n{signature}'
+        ).format(**self._get_send_message_parts())
+
+    def _open_send_message(self, message):
+        self.ensure_one()
+        wizard = self.env['rms.installation.project.send.message'].create({'message': message})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Mensaje para el cliente',
+            'res_model': wizard._name,
+            'res_id': wizard.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
     def action_send(self):
-        if any(not project.file_data for project in self):
+        self.ensure_one()
+        if not self.file_data:
             raise UserError('Añade un documento antes de enviar el proyecto al cliente.')
-        for project in self:
-            if project.state == 'draft':
-                project.state = 'sent'
+        if self.state != 'draft':
+            raise UserError('Solo se puede enviar un proyecto en borrador.')
+        message = self._build_send_message()
+        self.state = 'sent'
+        self.message_post(
+            body='Enviado al cliente por %s' % self.env.user.name,
+            subtype_xmlid='mail.mt_note',
+        )
+        return self._open_send_message(message)
+
+    def action_open_send_message(self):
+        self.ensure_one()
+        return self._open_send_message(self._build_send_message())
 
     def action_mark_accepted(self):
         if any(project.state != 'sent' for project in self):

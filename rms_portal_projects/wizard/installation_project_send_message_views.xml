@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_installation_project_send_message_form" model="ir.ui.view">
+        <field name="name">rms.installation.project.send.message.form</field>
+        <field name="model">rms.installation.project.send.message</field>
+        <field name="arch" type="xml">
+            <form string="Mensaje para el cliente" create="0" edit="0">
+                <field name="message" readonly="1" nolabel="1"/>
+                <field name="message" widget="CopyClipboardButton" string="Copiar mensaje" readonly="1" nolabel="1"/>
+                <footer>
+                    <button string="Cerrar" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>
