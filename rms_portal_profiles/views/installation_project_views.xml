@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_installation_project_form_portal_profile" model="ir.ui.view">
+        <field name="name">rms.installation.project.form.portal.profile</field>
+        <field name="model">rms.installation.project</field>
+        <field name="inherit_id" ref="rms_portal_projects.view_installation_project_form"/>
+        <field name="arch" type="xml">
+            <field name="portal_access_state" position="after">
+                <field name="partner_portal_profile" readonly="1" invisible="not partner_id"/>
+            </field>
+        </field>
+    </record>
+</odoo>

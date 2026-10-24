@@ -19,6 +19,18 @@ class InstallationProject(models.Model):
         'res.partner', string='Cliente', required=True, tracking=True,
         help='Único contacto que podrá ver este proyecto en su portal.',
     )
+    portal_access_state = fields.Selection(
+        [
+            ('none', 'Sin acceso'),
+            ('invited', 'Invitado, nunca ha entrado'),
+            ('active', 'Activo'),
+            ('internal', 'Usuario interno'),
+        ],
+        string='Acceso al portal', compute='_compute_portal_access',
+    )
+    portal_last_login = fields.Datetime(
+        string='Último acceso al portal', compute='_compute_portal_access',
+    )
     user_id = fields.Many2one(
         'res.users', string='Responsable', default=lambda self: self.env.user, tracking=True,
     )
@@ -39,6 +51,23 @@ class InstallationProject(models.Model):
     company_id = fields.Many2one(
         'res.company', string='Compañía', default=lambda self: self.env.company,
     )
+
+    @api.depends('partner_id')
+    def _compute_portal_access(self):
+        for project in self:
+            users = project.partner_id.sudo().with_context(active_test=False).user_ids
+            portal_user = users.filtered(
+                lambda user: user.share and user.active and user._is_portal()
+            )[:1]
+            last_login = portal_user.login_date if portal_user else False
+            if any(user._is_internal() for user in users):
+                state = 'internal'
+            elif not portal_user:
+                state = 'none'
+            else:
+                state = 'active' if last_login else 'invited'
+            project.portal_access_state = state
+            project.portal_last_login = last_login
 
     @api.constrains('file_data', 'file_name')
     def _check_document(self):
