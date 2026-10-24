@@ -5,7 +5,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 
-MAX_FILE_SIZE = 20 * 1024 * 1024
+MAX_FILE_SIZE = 40 * 1024 * 1024
 
 
 class InstallationProject(models.Model):
@@ -81,7 +81,7 @@ class InstallationProject(models.Model):
             except (ValueError, binascii.Error):
                 raise ValidationError('El documento no contiene datos válidos en base64.') from None
             if size > MAX_FILE_SIZE:
-                raise ValidationError('El documento no puede superar los 20 MB.')
+                raise ValidationError('El documento no puede superar los 40 MB.')
 
     @api.model_create_multi
     def create(self, vals_list):
