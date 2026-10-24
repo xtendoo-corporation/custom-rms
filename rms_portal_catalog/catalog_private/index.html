@@ -1382,12 +1382,12 @@ document.addEventListener("keydown", e => {
 ========================================================= */
 let lastTracked = "";
 function track(kind, data){
-  if(window.RMS_CATALOG_IS_INTERNAL) return;
+  if(window.RMS_CATALOG_IS_INTERNAL || !window.RMS_CSRF) return;
   const sig = kind + "|" + JSON.stringify(data);
   if(sig === lastTracked) return;
   lastTracked = sig;
   try{
-    const body = new URLSearchParams({kind, hash: location.hash.replace(/^#/, ""), ...data});
+    const body = new URLSearchParams({kind, hash: location.hash.replace(/^#/, ""), ...data, csrf_token: window.RMS_CSRF});
     fetch("/my/portal/track", {method:"POST", body, keepalive:true, credentials:"same-origin"}).catch(() => {});
   }catch(e){}
 }
