@@ -26,13 +26,13 @@ class InstallationProject(models.Model):
             ('active', 'Activo'),
             ('internal', 'Usuario interno'),
         ],
-        string='Acceso al portal', compute='_compute_portal_access',
+        groups='base.group_user', string='Acceso al portal', compute='_compute_portal_access',
     )
     portal_last_login = fields.Datetime(
-        string='Último acceso al portal', compute='_compute_portal_access',
+        groups='base.group_user', string='Último acceso al portal', compute='_compute_portal_access',
     )
     user_id = fields.Many2one(
-        'res.users', string='Responsable', default=lambda self: self.env.user, tracking=True,
+        'res.users', groups='base.group_user', string='Responsable', default=lambda self: self.env.user, tracking=True,
     )
     date = fields.Date(string='Fecha', default=fields.Date.context_today, tracking=True)
     state = fields.Selection(
@@ -45,11 +45,11 @@ class InstallationProject(models.Model):
         string='Estado', default='draft', required=True, tracking=True,
         help='Solo los proyectos en estado distinto de Borrador son visibles para el cliente en el portal.',
     )
-    description = fields.Text(string='Notas internas')
-    file_data = fields.Binary(string='Documento (HTML)', attachment=True)
+    description = fields.Text(string='Notas internas', groups='base.group_user')
+    file_data = fields.Binary(string='Documento (HTML)', attachment=True, groups='base.group_user')
     file_name = fields.Char(string='Nombre del archivo')
     company_id = fields.Many2one(
-        'res.company', string='Compañía', default=lambda self: self.env.company,
+        'res.company', groups='base.group_user', string='Compañía', default=lambda self: self.env.company,
     )
 
     @api.depends('partner_id')
@@ -149,6 +149,7 @@ class InstallationProject(models.Model):
         self.state = 'sent'
         self.message_post(
             body='Enviado al cliente por %s' % self.env.user.name,
+            message_type='comment',
             subtype_xmlid='mail.mt_note',
         )
         return self._open_send_message(message)

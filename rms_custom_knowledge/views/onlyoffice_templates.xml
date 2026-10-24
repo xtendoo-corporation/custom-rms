@@ -12,8 +12,11 @@
                 </style>
             </head>
             <body>
-                <div id="onlyoffice-editor"/>
-                <script t-raw="'var docEditor = new DocsAPI.DocEditor(\'onlyoffice-editor\', ' + config_json + ');'"/>
+                <div id="onlyoffice-editor" t-att-data-config="config_json"/>
+                <script>
+                    const el = document.getElementById('onlyoffice-editor');
+                    var docEditor = new DocsAPI.DocEditor(el.id, JSON.parse(el.dataset.config));
+                </script>
             </body>
         </html>
     </template>

@@ -90,3 +90,20 @@ class TestPortalProjectFile(HttpCase):
         response = self._open_file()
         self.assertEqual(response.status_code, 303)
         self.assertURLEqual(response.headers['Location'], '/my')
+
+    def test_owner_listing_and_detail(self):
+        self.authenticate(self.owner.login, self.owner.login)
+        response = self.url_open('/my/installation-projects')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.project.name, response.text)
+        response = self.url_open('/my/installation-projects/%s' % self.project.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(BACK_TO_PORTAL_BUTTON, response.content)
+
+    def test_owner_detail_without_document(self):
+        self.project.action_reset_to_draft()
+        self.project.write({'file_data': False, 'state': 'sent'})
+        self.authenticate(self.owner.login, self.owner.login)
+        response = self.url_open('/my/installation-projects/%s' % self.project.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.project.name, response.text)

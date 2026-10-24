@@ -1,6 +1,6 @@
 {
     'name': 'Partner Multi Role',
-    'version': '1.0',
+    'version': '1.1',
     'category': 'Sales/CRM',
     'summary': 'Permite múltiples roles dinámicos para los contactos hijos',
     'description': """

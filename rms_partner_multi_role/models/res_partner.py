@@ -11,13 +11,13 @@ class RmsPartnerRole(models.Model):
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
-    rms_role_ids = fields.Many2many('rms.partner.role', string="Roles del Contacto")
+    rms_role_ids = fields.Many2many('rms.partner.role', string="Roles del Contacto", groups='base.group_user')
 
-    is_role_invoice = fields.Boolean(string="Contacto de facturación", compute="_compute_rms_roles", store=True)
-    is_role_delivery = fields.Boolean(string="Dirección de entrega", compute="_compute_rms_roles", store=True)
-    is_role_pricelist = fields.Boolean(string="Listas de precios", compute="_compute_rms_roles", store=True)
-    is_role_technical = fields.Boolean(string="Técnicos", compute="_compute_rms_roles", store=True)
-    is_role_general = fields.Boolean(string="Comunicación general", compute="_compute_rms_roles", store=True)
+    is_role_invoice = fields.Boolean(string="Contacto de facturación", compute="_compute_rms_roles", store=True, groups='base.group_user')
+    is_role_delivery = fields.Boolean(string="Dirección de entrega", compute="_compute_rms_roles", store=True, groups='base.group_user')
+    is_role_pricelist = fields.Boolean(string="Listas de precios", compute="_compute_rms_roles", store=True, groups='base.group_user')
+    is_role_technical = fields.Boolean(string="Técnicos", compute="_compute_rms_roles", store=True, groups='base.group_user')
+    is_role_general = fields.Boolean(string="Comunicación general", compute="_compute_rms_roles", store=True, groups='base.group_user')
 
     @api.depends('rms_role_ids')
     def _compute_rms_roles(self):
@@ -30,11 +30,11 @@ class ResPartner(models.Model):
             partner.is_role_general = 'general' in codes
 
     # Campos específicos por categoría
-    custom_invoice_address = fields.Text(string="Dirección de Facturación")
-    custom_delivery_address = fields.Text(string="Dirección de Envío")
-    role_pricelist_notes = fields.Char(string="Notas de Tarifas / Precios")
-    technical_notes = fields.Text(string="Notas Técnicas")
-    general_notes = fields.Text(string="Notas de Comunicación General")
+    custom_invoice_address = fields.Text(string="Dirección de Facturación", groups='base.group_user')
+    custom_delivery_address = fields.Text(string="Dirección de Envío", groups='base.group_user')
+    role_pricelist_notes = fields.Char(string="Notas de Tarifas / Precios", groups='base.group_user')
+    technical_notes = fields.Text(string="Notas Técnicas", groups='base.group_user')
+    general_notes = fields.Text(string="Notas de Comunicación General", groups='base.group_user')
 
     @api.onchange('rms_role_ids')
     def _onchange_multi_role(self):
@@ -56,7 +56,9 @@ class ResPartner(models.Model):
         res = super(ResPartner, self).address_get(adr_pref)
 
         for pref in adr_pref:
-            for child in self.child_ids:
+            # Resolve addresses using only the already accessible children.
+            # Role flags are internal, even when address_get is called by portal.
+            for child in self.child_ids.sudo():
                 if pref == 'invoice' and child.is_role_invoice:
                     res[pref] = child.id
                     break

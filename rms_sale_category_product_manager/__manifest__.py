@@ -2,7 +2,7 @@
 
 {
     'name': 'RMS Sale Category Product Managers',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'category': 'Sales/Sales',
     'summary': 'Subscribe product category product managers to quotations automatically.',
     'description': """

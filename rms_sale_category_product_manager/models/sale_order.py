@@ -12,6 +12,7 @@ class SaleOrder(models.Model):
         column1='order_id',
         column2='user_id',
         string='Product Managers',
+        groups='base.group_user',
         compute='_compute_category_product_manager_ids',
         store=True,
         readonly=True,
@@ -67,7 +68,7 @@ class SaleOrder(models.Model):
         if self.env.context.get('rms_skip_category_pm_subscribe'):
             return
         for order in self:
-            partner_ids = order.category_product_manager_ids.filtered(
+            partner_ids = order.sudo().category_product_manager_ids.filtered(
                 lambda user: user.active and user.partner_id
             ).mapped('partner_id').ids
             if partner_ids:

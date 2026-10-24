@@ -108,7 +108,9 @@ class B2BCatalogPortal(http.Controller):
             '<script>\n'
             'window.RMS_CATALOG_REP = %s;\n'
             'window.RMS_CATALOG_IS_INTERNAL = %s;\n'
-            '</script>\n' % (rep_json, 'true' if is_internal else 'false')
+            'window.RMS_CSRF = %s;\n'
+            '</script>\n' % (rep_json, 'true' if is_internal else 'false',
+                               json.dumps(request.csrf_token()))
         ).encode('utf-8')
         return request.make_response(
             injection + content,
@@ -183,7 +185,7 @@ class B2BCatalogPortal(http.Controller):
 
     @http.route(
         '/my/catalog/admin/card/<string:page_key>/products/<int:template_id>/add',
-        type='http', auth='user', methods=['POST'], csrf=False,
+        type='http', auth='user', methods=['POST'],
     )
     def portal_catalog_admin_card_add(self, page_key, template_id, **kw):
         if not request.env.user.has_group('base.group_user'):
@@ -204,7 +206,7 @@ class B2BCatalogPortal(http.Controller):
 
     @http.route(
         '/my/catalog/admin/card/<string:page_key>/products/<int:template_id>/remove',
-        type='http', auth='user', methods=['POST'], csrf=False,
+        type='http', auth='user', methods=['POST'],
     )
     def portal_catalog_admin_card_remove(self, page_key, template_id, **kw):
         if not request.env.user.has_group('base.group_user'):
@@ -221,7 +223,7 @@ class B2BCatalogPortal(http.Controller):
 
     @http.route(
         '/my/catalog/admin/card/<string:page_key>/products/<int:template_id>/featured',
-        type='http', auth='user', methods=['POST'], csrf=False,
+        type='http', auth='user', methods=['POST'],
     )
     def portal_catalog_admin_card_featured(self, page_key, template_id, **kw):
         """Marca o desmarca un producto de la ficha como destacado (solo internos)."""
@@ -284,13 +286,32 @@ class B2BCatalogPortal(http.Controller):
                 ('Cache-Control', 'private, max-age=86400'),
                 ('X-Content-Type-Options', 'nosniff')])
 
+    def _allowed_catalog_products(self, template_id=None, page_key=None):
+        """Only linked, sellable active variants in the user's company scope."""
+        cards = request.env['rms.catalog.card'].sudo().search(
+            [('active', '=', True)] + ([('page_key', '=', page_key)] if page_key is not None else [])
+        )
+        domain = [
+            ('id', 'in', cards.line_ids.product_id.ids),
+            ('sale_ok', '=', True), ('active', '=', True),
+            ('product_tmpl_id.active', '=', True),
+            ('company_id', 'in', [False, request.env.user.company_id.id]),
+        ]
+        if template_id is not None:
+            try:
+                template_id = int(template_id)
+            except (TypeError, ValueError):
+                return request.env['product.product'].sudo().browse([])
+            domain.append(('product_tmpl_id', '=', template_id))
+        return request.env['product.product'].sudo().search(domain)
+
     @http.route('/my/catalog/prices/<string:page_key>', type='http', auth='user')
     def portal_catalog_prices(self, page_key, **kw):
         card = request.env['rms.catalog.card'].sudo().search([('page_key', '=', page_key)], limit=1)
         featured_ids = set(card.line_ids.filtered('featured').product_id.product_tmpl_id.ids)
-        products = card.line_ids.product_id.product_tmpl_id.filtered(
-            lambda tmpl: tmpl.sale_ok and tmpl.active
-        ).sorted(lambda tmpl: (tmpl.id in featured_ids, tmpl.list_price), reverse=True)
+        products = self._allowed_catalog_products(page_key=page_key).product_tmpl_id.sorted(
+            lambda tmpl: (tmpl.id in featured_ids, tmpl.list_price), reverse=True,
+        )
         payload = {
             'page_key': page_key,
             'products': [
@@ -319,12 +340,15 @@ class B2BCatalogPortal(http.Controller):
             ('state', '=', 'draft'),
         ], order='create_date desc', limit=1)
         if not order and create:
-            order = Order.create({
+            vals = {
                 'partner_id': partner.id,
                 'pricelist_id': partner.property_product_pricelist.id,
                 'rms_portal_cart': True,
-                'rms_hide_price_detail': True,
-            })
+            }
+            # Defined in rms_document_format (optional dependency).
+            if 'rms_hide_price_detail' in Order._fields:
+                vals['rms_hide_price_detail'] = True
+            order = Order.create(vals)
         return order
 
     def _portal_cart_payload(self, order):
@@ -369,15 +393,13 @@ class B2BCatalogPortal(http.Controller):
             ],
         )
 
-    @http.route('/my/catalog/quote/add', type='http', auth='user', methods=['POST'], csrf=False)
+    @http.route('/my/catalog/quote/add', type='http', auth='user', methods=['POST'])
     def portal_catalog_quote_add(self, product_id, **kw):
-        template = request.env['product.template'].sudo().browse(int(product_id)).exists()
-        if not template or not template.product_variant_id:
-            return request.make_response(
-                json.dumps({'ok': False}), headers=[('Content-Type', 'application/json')],
-            )
+        products = self._allowed_catalog_products(template_id=product_id)
+        if not products:
+            return request.not_found()
         order = self._get_portal_cart(create=True)
-        variant = template.product_variant_id
+        variant = products[:1]
         line = order.order_line.filtered(lambda l: l.product_id.id == variant.id)
         if line:
             line.product_uom_qty += 1
@@ -392,13 +414,15 @@ class B2BCatalogPortal(http.Controller):
             headers=[('Content-Type', 'application/json')],
         )
 
-    @http.route('/my/catalog/quote/decrease', type='http', auth='user', methods=['POST'], csrf=False)
+    @http.route('/my/catalog/quote/decrease', type='http', auth='user', methods=['POST'])
     def portal_catalog_quote_decrease(self, product_id, **kw):
         """Quita una unidad; si era la última, quita la línea."""
+        products = self._allowed_catalog_products(template_id=product_id)
+        if not products:
+            return request.not_found()
         order = self._get_portal_cart()
         if order:
-            template = request.env['product.template'].sudo().browse(int(product_id)).exists()
-            variant_ids = template.product_variant_ids.ids if template else []
+            variant_ids = products.ids
             for line in order.order_line.filtered(lambda l: l.product_id.id in variant_ids):
                 if line.product_uom_qty > 1:
                     line.product_uom_qty -= 1
@@ -409,12 +433,14 @@ class B2BCatalogPortal(http.Controller):
             headers=[('Content-Type', 'application/json')],
         )
 
-    @http.route('/my/catalog/quote/remove', type='http', auth='user', methods=['POST'], csrf=False)
+    @http.route('/my/catalog/quote/remove', type='http', auth='user', methods=['POST'])
     def portal_catalog_quote_remove(self, product_id, **kw):
+        products = self._allowed_catalog_products(template_id=product_id)
+        if not products:
+            return request.not_found()
         order = self._get_portal_cart()
         if order:
-            template = request.env['product.template'].sudo().browse(int(product_id)).exists()
-            variant_ids = template.product_variant_ids.ids if template else []
+            variant_ids = products.ids
             order.order_line.filtered(lambda l: l.product_id.id in variant_ids).unlink()
         return request.make_response(
             json.dumps(self._portal_cart_payload(order)),
@@ -423,7 +449,10 @@ class B2BCatalogPortal(http.Controller):
 
     @http.route('/my/catalog/product-image/<int:product_id>', type='http', auth='user')
     def portal_catalog_product_image(self, product_id, size=None, **kw):
-        product = request.env['product.template'].sudo().browse(product_id).exists()
+        products = self._allowed_catalog_products(template_id=product_id)
+        if not products:
+            return request.not_found()
+        product = products.product_tmpl_id
         image = product.image_1024 if size == 'full' else product.image_128
         if not product or not image:
             return request.not_found()

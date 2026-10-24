@@ -12,5 +12,5 @@ class ResConfigSettings(models.TransientModel):
     onlyoffice_jwt_secret = fields.Char(
         string='Secreto JWT de OnlyOffice',
         config_parameter='rms_custom_knowledge.onlyoffice_jwt_secret',
-        help='Debe coincidir con la variable JWT_SECRET del Document Server. Déjalo vacío si el servidor no usa JWT.',
+        help='Debe coincidir con la variable JWT_SECRET del Document Server. Obligatorio para guardar documentos; requiere PyJWT.',
     )

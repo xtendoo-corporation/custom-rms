@@ -15,6 +15,7 @@ class RmsCatalogCard(models.Model):
         help="Clave de la ficha tal y como aparece en el catálogo estático "
              "(objeto PAGES de catalog_private/index.html).",
     )
+    active = fields.Boolean(default=True)
     brand = fields.Char(string='Marca')
     title = fields.Char(string='Título')
     line_ids = fields.One2many(
