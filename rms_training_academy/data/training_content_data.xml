@@ -492,7 +492,7 @@
             <field name="duration">10</field>
             <field name="module_name">rms_portal_profiles</field>
             <field name="menu_xmlid">contacts.menu_contacts</field>
-            <field name="group_xmlids">base.group_erp_manager</field>
+            <field name="group_xmlids">base.group_erp_manager,rms_portal_projects.group_installation_project_manager</field>
             <field name="menu_path">Contactos &gt; (contacto) &gt; botón 'Enlace portal'</field>
             <field name="keywords">portal acceso invitacion enlace cliente perfil marketing proyectos contraseña</field>
             <field name="objective">Dar acceso al portal con el perfil adecuado y enviar el enlace a mano.</field>
