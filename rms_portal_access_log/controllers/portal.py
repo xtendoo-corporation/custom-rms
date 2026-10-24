@@ -1,6 +1,8 @@
 import json
+import re
+from datetime import timedelta
 
-from odoo import http
+from odoo import fields, http
 from odoo.http import request
 
 from odoo.addons.rms_portal_profiles.controllers.portal_guards import (
@@ -14,6 +16,8 @@ from odoo.addons.rms_portal_profiles.controllers.portal_guards import (
 
 # Eventos que el catálogo estático (navegación en el navegador) puede enviar.
 CLIENT_EVENT_TYPES = ('brand', 'card', 'prices', 'search')
+CLIENT_EVENTS_PER_HOUR = 120
+PAGE_KEY_RE = re.compile(r'[0-9A-Za-z_-]{1,32}')
 
 
 def _ok(response):
@@ -32,32 +36,63 @@ def _clean(value, size=200):
 
 class PortalActivityTrack(http.Controller):
 
-    @http.route('/my/portal/track', type='http', auth='user', methods=['POST'], csrf=False)
+    @http.route('/my/portal/track', type='http', auth='user', methods=['POST'])
     def portal_activity_track(self, **kw):
+        def done():
+            return request.make_response('', status=204)
+
+        user = request.env.user
         activity_type = kw.get('kind')
-        if activity_type in CLIENT_EVENT_TYPES:
-            vals = {
-                'page_key': _clean(kw.get('key'), 64),
-                'page_title': _clean(kw.get('title')),
-                'brand': _clean(kw.get('brand'), 64),
-                'url': '/my/catalog#' + (_clean(kw.get('hash'), 200) or ''),
-            }
-            if activity_type == 'search':
-                vals['page_key'] = False
-                vals['name'] = _clean(kw.get('query'), 100)
-                try:
-                    vals['result_count'] = int(kw.get('results') or 0)
-                except ValueError:
-                    vals['result_count'] = 0
-                if not vals['name']:
-                    return request.make_response('', status=204)
-            elif activity_type == 'brand':
-                vals['name'] = vals['brand']
-                vals['page_key'] = False
+        if (not user.share or user._is_public() or user.has_group('base.group_user')
+                or not user.has_group('rms_portal_profiles.group_portal_customer')
+                or activity_type not in CLIENT_EVENT_TYPES):
+            return done()
+
+        Activity = request.env['rms.portal.activity']
+        if Activity.sudo().search_count([
+            '|', ('user_id', '=', user.id), ('partner_id', '=', user.partner_id.id),
+            ('create_date', '>', fields.Datetime.now() - timedelta(hours=1)),
+        ], limit=CLIENT_EVENTS_PER_HOUR) >= CLIENT_EVENTS_PER_HOUR:
+            return done()
+
+        # Ignore unrelated client fields so they cannot alter deduplication.
+        vals = {}
+        if activity_type == 'search':
+            query = (kw.get('query') or '').strip()
+            results = kw.get('results', '')
+            if not query or len(query) > 100 or not re.fullmatch(r'[0-9]{1,5}', results):
+                return done()
+            count = int(results)
+            if count > 10000:
+                return done()
+            vals.update(name=query, result_count=count, url='/my/catalog')
+        else:
+            Card = request.env['rms.catalog.card'].sudo()
+            if activity_type in ('card', 'prices'):
+                key = kw.get('key') or ''
+                if not PAGE_KEY_RE.fullmatch(key):
+                    return done()
+                card = Card.search([('page_key', '=', key)], limit=1)
+                if not card:
+                    return done()
+                title = card.title or (kw.get('title') or '').strip()
+                brand = card.brand or (kw.get('brand') or '').strip()
+                vals.update(page_key=key, card_id=card.id, page_title=title,
+                            name=title, url='/my/catalog#view/' + key)
             else:
-                vals['name'] = vals['page_title']
-            request.env['rms.portal.activity']._log(activity_type, **vals)
-        return request.make_response('', status=204)
+                title = ''
+                brand = (kw.get('brand') or '').strip()
+                vals.update(name=brand, url='/my/catalog')
+            if len(title) > 120 or len(brand) > 64:
+                return done()
+            known_brands = Card.search([('brand', '!=', False)]).mapped('brand')
+            if brand and known_brands and brand not in known_brands:
+                return done()
+            if activity_type == 'brand' and not brand:
+                return done()
+            vals['brand'] = brand or False
+        Activity._log(activity_type, **vals)
+        return done()
 
 
 class SaleOrdersActivity(SaleOrdersProfileGuard):
