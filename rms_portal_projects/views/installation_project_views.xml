@@ -35,7 +35,8 @@
                     </div>
                     <group>
                         <group>
-                            <field name="partner_id"/>
+                            <field name="partner_id" domain="[('is_company', '=', False), ('email', '!=', False)]"
+                                   context="{'default_is_company': False, 'default_company_type': 'person'}"/>
                             <field name="user_id" groups="base.group_erp_manager"/>
                             <field name="user_id" groups="!base.group_erp_manager" readonly="1"/>
                             <field name="date"/>

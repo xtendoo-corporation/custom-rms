@@ -12,19 +12,15 @@
     </record>
 
     <record id="rule_installation_project_internal" model="ir.rule">
-        <field name="name">Proyecto de instalación: acceso interno completo</field>
+        <field name="name">Proyecto de instalación: compañías permitidas para gestores</field>
         <field name="model_id" ref="model_rms_installation_project"/>
-        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
         <field name="groups" eval="[(6, 0, [ref('group_installation_project_manager')])]"/>
         <field name="perm_read">1</field>
         <field name="perm_write">1</field>
         <field name="perm_create">1</field>
         <field name="perm_unlink">1</field>
     </record>
-    <!-- Global rules intersect with group rules, preserving portal ownership checks. -->
-    <record id="rule_installation_project_company" model="ir.rule">
-        <field name="name">Proyecto de instalación: compañías permitidas</field>
-        <field name="model_id" ref="model_rms_installation_project"/>
-        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
-    </record>
+    <!-- Explicitly remove the former global rule when upgrading existing databases. -->
+    <delete id="rule_installation_project_company" model="ir.rule"/>
 </odoo>
