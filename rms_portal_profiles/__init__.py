@@ -1,6 +1,7 @@
 from . import models
 from . import controllers
 from . import wizard
+from . import tests
 
 
 def sync_existing_portal_profiles(env):

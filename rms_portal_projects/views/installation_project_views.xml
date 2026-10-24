@@ -21,6 +21,8 @@
             <form string="Proyecto">
                 <header>
                     <button name="action_send" type="object" string="Enviar al cliente" class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_mark_accepted" type="object" string="Marcar aceptado" invisible="state != 'sent'"/>
+                    <button name="action_mark_rejected" type="object" string="Marcar rechazado" invisible="state != 'sent'"/>
                     <button name="action_reset_to_draft" type="object" string="Volver a borrador" invisible="state == 'draft'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,sent,accepted,rejected"/>
                 </header>
@@ -59,6 +61,7 @@
     </record>
 
     <menuitem id="menu_installation_project_root" name="Entregar Proyecto" sequence="60"
+              groups="group_installation_project_manager"
               web_icon="rms_portal_projects,static/description/icon.png"/>
-    <menuitem id="menu_installation_project" name="Proyectos" parent="menu_installation_project_root" action="action_installation_project" sequence="10"/>
+    <menuitem id="menu_installation_project" name="Proyectos" groups="group_installation_project_manager" parent="menu_installation_project_root" action="action_installation_project" sequence="10"/>
 </odoo>

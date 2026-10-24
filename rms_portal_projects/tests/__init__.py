@@ -1,0 +1,3 @@
+from . import test_portal_file
+from . import test_installation_project
+from . import test_security
