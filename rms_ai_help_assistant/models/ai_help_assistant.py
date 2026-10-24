@@ -7,6 +7,7 @@ import re
 import requests
 
 from odoo import api, models
+from odoo.exceptions import AccessError
 from odoo.fields import Domain
 
 _logger = logging.getLogger(__name__)
@@ -356,6 +357,10 @@ class RmsAiHelpAssistant(models.AbstractModel):
         'proposal', ...}: este asistente nunca propone ni crea nada, solo
         informa.)
         """
+        if not self.env.su and (
+            self.env.user.share or not self.env.user.has_group("base.group_user")
+        ):
+            raise AccessError("Acceso restringido a usuarios internos con permisos para esta función.")
         api_key = self._get_api_key()
         if not api_key:
             return {

@@ -2,7 +2,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from odoo import fields, sql_db
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import TransactionCase, new_test_user
 
 from odoo.addons.rms_customer_equipment_map.models import nominatim
@@ -148,7 +148,7 @@ class TestGeoLocalize(TransactionCase):
         user = new_test_user(
             self.env, login="customer_map_geo_user", groups="base.group_user"
         )
-        with self.assertRaises(UserError):
+        with self.assertRaises(AccessError):
             self.Partner.with_user(user).action_enqueue_geo_localize()
 
     def test_failed_error_explains_address_and_missing_parts(self):
@@ -223,7 +223,7 @@ class TestGeoLocalize(TransactionCase):
         user = new_test_user(
             self.env, login="customer_map_geo_summary_user", groups="base.group_user"
         )
-        with self.assertRaises(UserError):
+        with self.assertRaises(AccessError):
             self.Partner.with_user(user).get_geo_localize_summary()
 
     def _admin(self, login):
@@ -266,7 +266,7 @@ class TestGeoLocalize(TransactionCase):
         user = new_test_user(
             self.env, login="customer_map_geo_batch_user", groups="base.group_user"
         )
-        with self.assertRaises(UserError):
+        with self.assertRaises(AccessError):
             self.Partner.with_user(user).action_geo_localize_batch()
 
     def test_manual_batch_waits_while_another_process_geolocates(self):

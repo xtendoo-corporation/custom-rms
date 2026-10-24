@@ -2,6 +2,7 @@ from collections import Counter, defaultdict
 from datetime import timedelta
 
 from odoo import api, fields, models
+from odoo.exceptions import AccessError
 from odoo.tools import format_datetime
 
 REPORT_DAYS = 7
@@ -35,6 +36,10 @@ class PortalWeeklyReport(models.AbstractModel):
     @api.model
     def action_send_now(self):
         """Envía el informe ahora solo al usuario que lo pide (para probarlo)."""
+        if not self.env.su and (
+            self.env.user.share or not self.env.user.has_group("base.group_user")
+        ):
+            raise AccessError("Acceso restringido a usuarios internos con permisos para esta función.")
         self._send_report(self.env.user)
         return {
             'type': 'ir.actions.client',

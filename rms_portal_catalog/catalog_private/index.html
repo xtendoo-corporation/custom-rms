@@ -409,34 +409,34 @@ function toggleTheme(){
 }
 
 /* =========================================================
-   IMÁGENES — rutas relativas (images/full, images/thumb, images/logos)
+   IMÁGENES — rutas autenticadas bajo /my/catalog/images/
 ========================================================= */
 function imgOf(p){ const d = PAGES[p]; return (d && d.img) || p; }
-function fullImg(p){ return "images/full/p" + String(imgOf(p)).padStart(3,"0") + ".jpg"; }
-function thumbImg(p){ return "images/thumb/p" + String(imgOf(p)).padStart(3,"0") + ".jpg"; }
+function fullImg(p){ return "/my/catalog/images/full/p" + String(imgOf(p)).padStart(3,"0") + ".jpg"; }
+function thumbImg(p){ return "/my/catalog/images/thumb/p" + String(imgOf(p)).padStart(3,"0") + ".jpg"; }
 
 const LOGO = {
-  rms: "images/logos/logo-rms.png",
-  meyer: "images/logos/logo-meyer.png",
-  digico: "images/logos/logo-digico.png",
-  hollyland: "images/logos/logo-hollyland.png",
-  fourier: "images/logos/logo-fourier.png",
-  atb: "images/logos/logo-atb.png",
-  blacktrax: "images/logos/logo-blacktrax.png",
-  fiberfox: "images/logos/logo-fiberfox.png",
-  joyned: "images/logos/logo-joyned.png",
-  luminex: "images/logos/logo-luminex.png",
-  pointsource: "images/logos/logo-pointsource.png",
-  remic: "images/logos/logo-remic.png",
-  sounddevices: "images/logos/logo-sounddevices.png",
-  optocore: "images/logos/logo-optocore.png",
-  auvitran: "images/logos/logo-auvitran.png",
-  atlasied: "images/logos/logo-atlasied.png",
-  furman: "images/logos/logo-furman.png",
-  harvey: "images/logos/logo-harvey.png",
-  klang: "images/logos/logo-klang.png",
-  teqsas: "images/logos/logo-teqsas.png",
-  sony: "images/logos/logo-sony.png"
+  rms: "/my/catalog/images/logos/logo-rms.png",
+  meyer: "/my/catalog/images/logos/logo-meyer.png",
+  digico: "/my/catalog/images/logos/logo-digico.png",
+  hollyland: "/my/catalog/images/logos/logo-hollyland.png",
+  fourier: "/my/catalog/images/logos/logo-fourier.png",
+  atb: "/my/catalog/images/logos/logo-atb.png",
+  blacktrax: "/my/catalog/images/logos/logo-blacktrax.png",
+  fiberfox: "/my/catalog/images/logos/logo-fiberfox.png",
+  joyned: "/my/catalog/images/logos/logo-joyned.png",
+  luminex: "/my/catalog/images/logos/logo-luminex.png",
+  pointsource: "/my/catalog/images/logos/logo-pointsource.png",
+  remic: "/my/catalog/images/logos/logo-remic.png",
+  sounddevices: "/my/catalog/images/logos/logo-sounddevices.png",
+  optocore: "/my/catalog/images/logos/logo-optocore.png",
+  auvitran: "/my/catalog/images/logos/logo-auvitran.png",
+  atlasied: "/my/catalog/images/logos/logo-atlasied.png",
+  furman: "/my/catalog/images/logos/logo-furman.png",
+  harvey: "/my/catalog/images/logos/logo-harvey.png",
+  klang: "/my/catalog/images/logos/logo-klang.png",
+  teqsas: "/my/catalog/images/logos/logo-teqsas.png",
+  sony: "/my/catalog/images/logos/logo-sony.png"
 };
 
 /* =========================================================
@@ -456,7 +456,7 @@ const GROUPS = [
    COMERCIALES — equipo de contacto RMS Proaudio.
 ========================================================= */
 const REPS = window.RMS_CATALOG_REP ? [window.RMS_CATALOG_REP] : [
-  {name:"Salvador Escobar", email:"salva@rmsproaudio.com", phone:"607 709 777", photo:"images/reps/salvador-escobar.jpg"},
+  {name:"Salvador Escobar", email:"salva@rmsproaudio.com", phone:"607 709 777", photo:"/my/catalog/images/reps/salvador-escobar.jpg"},
 ];
 
 /* =========================================================

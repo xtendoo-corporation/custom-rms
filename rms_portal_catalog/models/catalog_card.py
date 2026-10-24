@@ -13,7 +13,7 @@ class RmsCatalogCard(models.Model):
     page_key = fields.Char(
         required=True, index=True, copy=False,
         help="Clave de la ficha tal y como aparece en el catálogo estático "
-             "(objeto PAGES de static/catalog/index.html).",
+             "(objeto PAGES de catalog_private/index.html).",
     )
     brand = fields.Char(string='Marca')
     title = fields.Char(string='Título')
