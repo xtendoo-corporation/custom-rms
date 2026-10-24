@@ -2,7 +2,7 @@ import base64
 import binascii
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 
 MAX_FILE_SIZE = 20 * 1024 * 1024
@@ -54,7 +54,21 @@ class InstallationProject(models.Model):
             if size > MAX_FILE_SIZE:
                 raise ValidationError('El documento no puede superar los 20 MB.')
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        if not self.env.su and not self.env.user.has_group('base.group_erp_manager'):
+            for vals in vals_list:
+                vals['user_id'] = self.env.uid
+        return super().create(vals_list)
+
     def write(self, vals):
+        if (
+            'user_id' in vals
+            and not self.env.su
+            and not self.env.user.has_group('base.group_erp_manager')
+            and any(vals['user_id'] != project.user_id.id for project in self)
+        ):
+            raise AccessError('Solo un administrador puede cambiar el responsable del proyecto.')
         protected_fields = {'partner_id', 'file_data', 'file_name'} & vals.keys()
         for project in self:
             if project.state != 'draft' and any(

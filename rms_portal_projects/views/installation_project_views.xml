@@ -8,7 +8,8 @@
                 <field name="name"/>
                 <field name="partner_id"/>
                 <field name="date"/>
-                <field name="user_id"/>
+                <field name="user_id" groups="base.group_erp_manager"/>
+                <field name="user_id" groups="!base.group_erp_manager" readonly="1"/>
                 <field name="state" widget="badge" decoration-success="state == 'accepted'" decoration-danger="state == 'rejected'" decoration-info="state == 'sent'"/>
             </list>
         </field>
@@ -35,7 +36,8 @@
                     <group>
                         <group>
                             <field name="partner_id"/>
-                            <field name="user_id"/>
+                            <field name="user_id" groups="base.group_erp_manager"/>
+                            <field name="user_id" groups="!base.group_erp_manager" readonly="1"/>
                             <field name="date"/>
                         </group>
                         <group>
