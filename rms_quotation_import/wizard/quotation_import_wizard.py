@@ -4,6 +4,9 @@ import base64
 import io
 import logging
 import datetime
+import math
+import re
+from itertools import islice
 
 try:
     import openpyxl
@@ -32,22 +35,32 @@ class QuotationImportWizard(models.TransientModel):
         if not self.file:
             raise UserError(_("Por favor, sube un archivo Excel."))
 
+        if len(self.file) > ((20 * 1024 * 1024 + 2) // 3) * 4:
+            raise UserError(_("El archivo supera el límite de 20 MB."))
         file_data = base64.b64decode(self.file)
+        if len(file_data) > 20 * 1024 * 1024:
+            raise UserError(_("El archivo supera el límite de 20 MB."))
         
         # 1. Parse Excel file
         if openpyxl and self.filename and self.filename.endswith('.xlsx'):
-            wb = openpyxl.load_workbook(filename=io.BytesIO(file_data), data_only=True)
+            wb = openpyxl.load_workbook(filename=io.BytesIO(file_data), data_only=True, read_only=True)
             sheet = wb.active
             rows = sheet.iter_rows(values_only=True)
-            header = next(rows)
-            data_rows = list(rows)
+            header = next(rows, None)
+            data_rows = list(islice(rows, 50001))
+            wb.close()
         elif xlrd and self.filename and self.filename.endswith('.xls'):
             wb = xlrd.open_workbook(file_contents=file_data)
             sheet = wb.sheet_by_index(0)
-            header = sheet.row_values(0)
+            if sheet.nrows > 50001:
+                raise UserError(_("El archivo supera el límite de 50.000 filas."))
+            header = sheet.row_values(0) if sheet.nrows else None
             data_rows = [sheet.row_values(rx) for rx in range(1, sheet.nrows)]
         else:
             raise UserError(_("Formato de archivo no soportado o falta la librería openpyxl/xlrd. Sube un archivo .xlsx o .xls"))
+
+        if len(data_rows) > 50000:
+            raise UserError(_("El archivo supera el límite de 50.000 filas."))
 
         if not header:
             raise UserError(_("El archivo Excel está vacío o no contiene cabeceras."))
@@ -55,32 +68,44 @@ class QuotationImportWizard(models.TransientModel):
         # 2. Map headers using lowercased fuzzy search
         header_map = {str(k).strip().lower(): v for v, k in enumerate(header) if k}
 
-        def get_row_val(row, *keywords, exclude=None):
-            for kw in keywords:
-                # 1. Try exact matches first to prevent collisions (e.g. 'cliente' matching 'cif cliente')
-                for h_name, idx in header_map.items():
-                    if exclude and any(ex in h_name for ex in exclude):
-                        continue
-                    if kw == h_name:
-                        return row[idx]
-                # 2. Try partial substring matches
-                for h_name, idx in header_map.items():
-                    if exclude and any(ex in h_name for ex in exclude):
-                        continue
-                    if kw in h_name:
-                        return row[idx]
-            return None
+        normalized_headers = [str(h).strip().lower() for h in header if h]
+        if len(normalized_headers) != len(set(normalized_headers)):
+            raise UserError(_("Cabeceras duplicadas: renombre las columnas para que sean inequívocas."))
 
-        # Check if there is a dedicated code/reference column in the headers
-        has_dedicated_ref_column = False
-        ref_keywords = ['referencia_producto', 'código producto', 'código', 'referencia', 'ref']
-        for kw in ref_keywords:
-            for h_name in header_map:
-                if kw in h_name:
-                    has_dedicated_ref_column = True
-                    break
-            if has_dedicated_ref_column:
-                break
+        def get_row_val(row, *keywords, exclude=None):
+            eligible = {name: idx for name, idx in header_map.items()
+                        if not exclude or not any(ex in name for ex in exclude)}
+            matches = {idx for name, idx in eligible.items() if name in keywords}
+            if not matches:
+                matches = {idx for name, idx in eligible.items()
+                           if any(kw in name for kw in keywords)}
+            if len(matches) > 1:
+                raise UserError(_("Cabeceras ambiguas para %s: renombre las columnas.") % keywords[0])
+            return row[next(iter(matches))] if matches else None
+
+        # Las referencias de pedido y producto deben tener columnas distintas.
+        def reference_column(names):
+            matches = [i for i, h in enumerate(header)
+                       if h and str(h).strip().lower() in names]
+            if len(matches) > 1:
+                raise UserError(_("Cabeceras ambiguas: renombre las columnas de pedido y producto."))
+            return matches[0] if matches else None
+
+        order_column = reference_column({'pedido', 'referencia_pedido', 'referencia pedido',
+                                         'presupuesto', 'referencia presupuesto'})
+        product_column = reference_column({'referencia_producto', 'referencia producto',
+                                           'código producto', 'codigo producto', 'código', 'codigo', 'ref'})
+        generic_column = reference_column({'referencia'})
+        if generic_column is not None:
+            if order_column is None and product_column is not None:
+                order_column = generic_column
+            elif product_column is None and order_column is not None:
+                product_column = generic_column
+            else:
+                raise UserError(_("Referencia es ambigua: renombre las columnas como Pedido y Referencia producto."))
+        if order_column is None:
+            raise UserError(_("Falta una columna inequívoca de Pedido o Referencia pedido."))
+        has_dedicated_ref_column = product_column is not None
 
         # Group data into orders
         orders_dict = {}
@@ -92,12 +117,12 @@ class QuotationImportWizard(models.TransientModel):
         last_comercial = ''
         last_total = 0.0
 
-        for row in data_rows:
+        for row_number, row in enumerate(data_rows, start=2):
             if not row or not any(row):
                 continue
 
             # Extract fields
-            order_ref_raw = get_row_val(row, 'referencia', 'pedido', 'referencia_pedido', 'presupuesto')
+            order_ref_raw = row[order_column]
             order_ref = str(order_ref_raw).strip() if order_ref_raw is not None else ''
 
             # Try to get CIF/NIF first, then fall back to Cliente/Partner name (excluding columns with CIF/NIF), and finally use the original unified keywords list
@@ -113,16 +138,20 @@ class QuotationImportWizard(models.TransientModel):
             comercial_val = str(comercial_raw).strip() if comercial_raw is not None else ''
 
             total_raw = get_row_val(row, 'total presupuesto', 'total de documento', 'total_documento', 'total_doc', 'total')
-            try:
-                total_val = float(total_raw) if total_raw is not None else 0.0
-            except ValueError:
-                total_val = 0.0
+            total_val = self._parse_number(total_raw, row_number, 'Total', default=None)
 
-            # Carry over values if blank BEFORE skipping any check on product/description!
             if not order_ref:
+                if not last_order_ref:
+                    raise UserError(_("Fila %s: falta la referencia de pedido inicial.") % row_number)
                 order_ref = last_order_ref
-            else:
+            elif order_ref != last_order_ref:
+                last_partner = ''
+                last_date = None
+                last_comercial = ''
+                last_total = 0.0
                 last_order_ref = order_ref
+                if not partner_val:
+                    raise UserError(_("Fila %s: el nuevo pedido no tiene cliente.") % row_number)
 
             if not partner_val:
                 partner_val = last_partner
@@ -140,14 +169,14 @@ class QuotationImportWizard(models.TransientModel):
             else:
                 last_comercial = comercial_val
 
-            if total_val == 0.0:
+            if total_val is None:
                 total_val = last_total
             else:
                 last_total = total_val
 
             # Line level values
             if has_dedicated_ref_column:
-                product_ref_raw = get_row_val(row, 'referencia_producto', 'código producto', 'código', 'referencia', 'ref')
+                product_ref_raw = row[product_column]
             else:
                 product_ref_raw = get_row_val(row, 'producto', 'product')
             product_ref = str(product_ref_raw).strip() if product_ref_raw is not None else ''
@@ -165,42 +194,26 @@ class QuotationImportWizard(models.TransientModel):
                 continue
 
             qty_raw = get_row_val(row, 'cantidad', 'cant', 'qty', 'uom_qty')
-            try:
-                qty = float(qty_raw) if qty_raw is not None else (1.0 if product_ref else 0.0)
-            except ValueError:
-                qty = 1.0 if product_ref else 0.0
-
+            qty = self._parse_number(qty_raw, row_number, 'Cantidad', default=1.0 if product_ref else 0.0)
+            if product_ref and qty <= 0:
+                raise UserError(_("Fila %s, columna Cantidad: debe ser mayor que cero.") % row_number)
             price_raw = get_row_val(row, 'precio unitario', 'precio', 'price_unit', 'unitario', 'price')
-            has_price = False
-            price = 0.0
-            if price_raw is not None and str(price_raw).strip() != '':
-                try:
-                    price = float(price_raw)
-                    has_price = True
-                except ValueError:
-                    price = 0.0
-
-            d1_raw = get_row_val(row, 'dto1', 'dto 1', 'descuento1', 'discount1')
-            try:
-                d1 = float(d1_raw) if d1_raw is not None else 0.0
-            except ValueError:
-                d1 = 0.0
-
-            d2_raw = get_row_val(row, 'dto2', 'dto 2', 'descuento2', 'discount2')
-            try:
-                d2 = float(d2_raw) if d2_raw is not None else 0.0
-            except ValueError:
-                d2 = 0.0
-
-            d3_raw = get_row_val(row, 'dto3', 'dto 3', 'descuento3', 'discount3')
-            try:
-                d3 = float(d3_raw) if d3_raw is not None else 0.0
-            except ValueError:
-                d3 = 0.0
+            has_price = price_raw is not None and str(price_raw).strip() != ''
+            price = self._parse_number(price_raw, row_number, 'Precio', default=0.0)
+            discounts = []
+            for number in (1, 2, 3):
+                raw = get_row_val(row, 'dto%s' % number, 'dto %s' % number,
+                                  'descuento%s' % number, 'discount%s' % number)
+                value = self._parse_number(raw, row_number, 'Dto%s' % number, default=0.0)
+                if not 0 <= value <= 100:
+                    raise UserError(_("Fila %s, columna Dto%s: debe estar entre 0 y 100.") % (row_number, number))
+                discounts.append(value)
+            d1, d2, d3 = discounts
 
             # Initialize order in dict
             if order_ref not in orders_dict:
                 orders_dict[order_ref] = {
+                    'row': row_number,
                     'partner_val': partner_val,
                     'date': date_val,
                     'comercial_val': comercial_val,
@@ -211,6 +224,7 @@ class QuotationImportWizard(models.TransientModel):
                 orders_dict[order_ref]['total_documento'] = total_val
 
             orders_dict[order_ref]['lines'].append({
+                'row': row_number,
                 'product_ref': product_ref,
                 'qty': qty,
                 'price': price,
@@ -223,6 +237,11 @@ class QuotationImportWizard(models.TransientModel):
 
         if not orders_dict:
             raise UserError(_("No se encontraron líneas de pedido válidas para importar en el archivo."))
+
+        existing = self.env['sale.order'].search([
+            ('company_id', '=', self.env.company.id), ('name', 'in', list(orders_dict))])
+        if existing:
+            raise UserError(_("Referencias de pedido ya existentes: %s") % ', '.join(sorted(set(existing.mapped('name')))))
 
         # Process each order
         DiscountProduct = self.env['product.product']
@@ -252,16 +271,6 @@ class QuotationImportWizard(models.TransientModel):
 
         # Bulk pre-fetch Partners
         partner_cache = {}
-        if unique_partners:
-            partners = self.env['res.partner'].search([
-                '|', ('vat', 'in', list(unique_partners)), ('name', 'in', list(unique_partners))
-            ])
-            for p in partners:
-                if p.vat:
-                    partner_cache[p.vat.strip()] = p
-                if p.name:
-                    partner_cache[p.name.strip()] = p
-
         # Bulk pre-fetch Comerciales
         salesperson_cache = {}
         if unique_comerciales:
@@ -308,9 +317,9 @@ class QuotationImportWizard(models.TransientModel):
 
         for ref, o_data in orders_dict.items():
             # 1. Resolve Customer
-            partner = self._find_partner(o_data['partner_val'], partner_cache=partner_cache)
+            partner = self._find_partner(o_data['partner_val'], partner_cache=partner_cache, row_number=o_data['row'])
             if not partner:
-                missing_partners.add(o_data['partner_val'])
+                missing_partners.add('%s (fila %s)' % (o_data['partner_val'], o_data['row']))
                 continue
 
             # 2. Resolve Salesperson
@@ -321,9 +330,9 @@ class QuotationImportWizard(models.TransientModel):
             has_missing = False
             for l in o_data['lines']:
                 if l['product_ref']:
-                    product = self._find_product_variant(l['product_ref'], product_cache=product_cache, pre_fetched_products=pre_fetched_products)
+                    product = self._find_product_variant(l['product_ref'], product_cache=product_cache, pre_fetched_products=pre_fetched_products, row_number=l['row'])
                     if not product:
-                        missing_products.add(l['product_ref'])
+                        missing_products.add('%s (fila %s)' % (l['product_ref'], l['row']))
                         has_missing = True
                         continue
                     resolved_lines.append((product, l))
@@ -481,6 +490,25 @@ class QuotationImportWizard(models.TransientModel):
             }
         }
 
+    def _parse_number(self, value, row_number, column, default=None):
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return default
+        try:
+            if isinstance(value, bool):
+                raise ValueError()
+            if isinstance(value, str):
+                value = value.strip()
+                if not re.fullmatch(r'[+-]?(?:[0-9]+(?:[.,][0-9]+)?|[0-9]{1,3}(?:\.[0-9]{3})+,[0-9]+)', value):
+                    raise ValueError()
+                if ',' in value:
+                    value = value.replace('.', '').replace(',', '.')
+            number = float(value)
+            if not math.isfinite(number):
+                raise ValueError()
+            return number
+        except (ValueError, TypeError, OverflowError):
+            raise UserError(_("Fila %s, columna %s: número inválido (%s).") % (row_number, column, value))
+
     def _parse_date(self, date_val):
         if not date_val:
             return False
@@ -499,7 +527,7 @@ class QuotationImportWizard(models.TransientModel):
                     continue
         return False
 
-    def _find_partner(self, partner_val, partner_cache=None):
+    def _find_partner(self, partner_val, partner_cache=None, row_number=None):
         if not partner_val:
             return False
         partner_val = partner_val.strip()
@@ -512,7 +540,7 @@ class QuotationImportWizard(models.TransientModel):
         partner = False
         
         # 1. Match by VAT/NIF
-        partner_res = Partner.search([('vat', '=', partner_val)], limit=1)
+        partner_res = Partner.search([('vat', '=', partner_val)])
         if partner_res:
             partner = partner_res
         else:
@@ -533,16 +561,18 @@ class QuotationImportWizard(models.TransientModel):
                 if not term:
                     continue
                 # 2. Match by exact name (case-insensitive)
-                partner_res = Partner.search([('name', '=ilike', term)], limit=1)
+                partner_res = Partner.search([('name', '=ilike', term)])
                 if partner_res:
                     partner = partner_res
                     break
                 # 3. Match by partial name (ilike)
-                partner_res = Partner.search([('name', 'ilike', term)], limit=1)
+                partner_res = Partner.search([('name', 'ilike', term)])
                 if partner_res:
                     partner = partner_res
                     break
                     
+        if partner and len(partner) > 1:
+            raise UserError(_("Fila %s: cliente ambiguo: %s.") % (row_number, partner_val))
         if partner_cache is not None:
             partner_cache[partner_val] = partner
         return partner
@@ -573,7 +603,7 @@ class QuotationImportWizard(models.TransientModel):
             salesperson_cache[comercial_val] = user_id
         return user_id
 
-    def _find_product_variant(self, original_ref, product_cache=None, pre_fetched_products=None):
+    def _find_product_variant(self, original_ref, product_cache=None, pre_fetched_products=None, row_number=None):
         if not original_ref:
             return False
         original_ref = original_ref.strip()
@@ -606,34 +636,21 @@ class QuotationImportWizard(models.TransientModel):
             if not variants:
                 variants = Product.search([('default_code', '=', original_ref)])
                 
-        variant_res = False
-        if variants:
-            if len(variants) == 1:
-                variant_res = variants[0]
-            else:
-                # 3. If multiple variants, filter by 'Estado' attribute
-                for variant in variants:
-                    for ptav in variant.product_template_attribute_value_ids:
-                        if ptav.attribute_id.name == 'Estado' and ptav.product_attribute_value_id.name == estado_val:
-                            variant_res = variant
-                            break
-                    if variant_res:
-                        break
-                        
-                # 4. Fallback to 'Nuevo' variant
-                if not variant_res and estado_val != 'Nuevo':
-                    for variant in variants:
-                        for ptav in variant.product_template_attribute_value_ids:
-                            if ptav.attribute_id.name == 'Estado' and ptav.product_attribute_value_id.name == 'Nuevo':
-                                variant_res = variant
-                                break
-                        if variant_res:
-                            break
-                            
-                # 5. Last resort fallback
-                if not variant_res:
-                    variant_res = variants[0]
-                    
+        # Un prefijo exige el estado solicitado incluso con una única variante.
+        candidates = {variant.id: variant for variant in variants}
+        matching = []
+        for variant in candidates.values():
+            states = variant.product_template_attribute_value_ids.filtered(
+                lambda value: value.attribute_id.name == 'Estado')
+            if any(value.product_attribute_value_id.name == estado_val for value in states):
+                matching.append(variant)
+            elif not states and estado_val == 'Nuevo':
+                matching.append(variant)
+        if candidates and len(matching) != 1:
+            raise UserError(_("Fila %s: referencia %s ambigua o sin variante de estado %s.") %
+                            (row_number, original_ref, estado_val))
+        variant_res = matching[0] if matching else False
+
         if product_cache is not None:
             product_cache[original_ref] = variant_res
         return variant_res

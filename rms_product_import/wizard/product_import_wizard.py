@@ -1,6 +1,7 @@
 import base64
 import io
 import logging
+import math
 import re
 import openpyxl
 from odoo import models, fields, _
@@ -20,23 +21,44 @@ class ProductImportWizard(models.TransientModel):
         if not self.excel_file:
             raise UserError(_("Please upload an Excel file."))
 
+        # El savepoint conserva la atomicidad incluso si el llamador captura el error.
+        with self.env.cr.savepoint():
+            return self._import_file()
+
+    def _import_file(self):
+        max_size = 20 * 1024 * 1024
+        if len(self.excel_file) > 4 * ((max_size + 2) // 3):
+            raise UserError(_("El fichero supera el límite de 20 MB decodificados."))
         try:
             file_data = base64.b64decode(self.excel_file)
-            wb = openpyxl.load_workbook(io.BytesIO(file_data), data_only=True)
+        except Exception as e:
+            raise UserError(_("Invalid file. Error: %s") % str(e))
+        if len(file_data) > max_size:
+            raise UserError(_("El fichero supera el límite de 20 MB decodificados."))
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(file_data), data_only=True, read_only=True)
             sheet = wb.active
         except Exception as e:
             raise UserError(_("Invalid file. Error: %s") % str(e))
 
+        try:
+            return self._import_sheet(sheet)
+        finally:
+            wb.close()
+
+    def _import_sheet(self, sheet):
+        if sheet.max_row > 50001:
+            raise UserError(_("El fichero supera el límite de 50.000 filas de datos."))
         # Map headers
         header_raw = [cell.value for cell in sheet[1]]
         header = [str(v).strip().lower() if v else '' for v in header_raw]
 
-        def get_column_idx(primary_name, fallback_keywords, required=False):
+        def get_column_idx(primary_name, fallback_keywords, required=False, excluded_idx=-1):
             if primary_name in header:
                 return header.index(primary_name)
             for kw in fallback_keywords:
                 for idx, h_name in enumerate(header):
-                    if kw in h_name:
+                    if idx != excluded_idx and kw in h_name:
                         return idx
             if required:
                 raise UserError(_("Missing required column in Excel: %s") % primary_name)
@@ -52,17 +74,24 @@ class ProductImportWizard(models.TransientModel):
 
         provider_idx = get_column_idx('proveedor', ['proveedor', 'proveedores', 'provider'])
         purchase_price_idx = get_column_idx('precio de compra', ['precio de compra', 'precio compra', 'p. compra', 'coste', 'costo', 'precio coste', 'precio de coste', 'purchase price'])
-        sale_price_idx = get_column_idx('precio de venta', ['precio de venta', 'precio venta', 'p. venta', 'pvp', 'precio tarifa', 'precio de tarifa', 'precio', 'sale price'])
+        sale_price_idx = get_column_idx('precio de venta', ['precio de venta', 'precio venta', 'p. venta', 'pvp', 'precio tarifa', 'precio de tarifa', 'precio', 'sale price'], excluded_idx=purchase_price_idx)
 
         # Group rows by Clean Reference
         product_groups = {}
         supplier_names = set()
 
-        for row in sheet.iter_rows(min_row=2, values_only=True):
-            if not any(row):
+        for row_number, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            if row_number > 50001:
+                raise UserError(_("El fichero supera el límite de 50.000 filas de datos."))
+            if all(value is None or value == '' for value in row):
                 continue
             
-            original_ref = str(row[ref_idx] or '').strip()
+            if row[ref_idx] is None:
+                raise UserError(_("Fila %s, columna %s: referencia sin valor.") % (row_number, header_raw[ref_idx]))
+            for price_idx in (sale_price_idx, purchase_price_idx):
+                if price_idx >= 0:
+                    self._parse_price(row[price_idx], row_number, header_raw[price_idx])
+            original_ref = str(row[ref_idx] or '').strip().upper()
             if not original_ref:
                 continue
 
@@ -81,11 +110,12 @@ class ProductImportWizard(models.TransientModel):
             product_groups[clean_ref].append({
                 'original_ref': original_ref,
                 'estado_val': estado_val,
-                'data': row
+                'data': row,
+                'row_number': row_number
             })
 
             if provider_idx >= 0:
-                p_name = str(row[provider_idx] or '').strip()
+                p_name = str(row[provider_idx] or '').strip().upper()
                 if p_name:
                     supplier_names.add(p_name)
 
@@ -104,30 +134,33 @@ class ProductImportWizard(models.TransientModel):
         # Prefetch templates and variants to find templates by code.
         # Since templates with multiple variants may have default_code = False in Odoo, we search for variants first.
         all_codes = list(product_groups.keys())
-        existing_variants = self.env['product.product'].search([('default_code', 'in', all_codes)])
         tmpl_by_code = {}
-        for variant in existing_variants:
-            if variant.default_code and variant.product_tmpl_id:
-                tmpl_by_code[variant.default_code] = variant.product_tmpl_id
-        
-        # Fallback to search templates directly, just in case
-        existing_tmpls = self.env['product.template'].search([('default_code', 'in', all_codes)])
-        for tmpl in existing_tmpls:
-            if tmpl.default_code and tmpl.default_code not in tmpl_by_code:
-                tmpl_by_code[tmpl.default_code] = tmpl
+        for model_name in ('product.product', 'product.template'):
+            for record in self._find_normalized(model_name, 'default_code', all_codes):
+                code = record.default_code.strip().upper()
+                tmpl = record.product_tmpl_id if model_name == 'product.product' else record
+                if code in tmpl_by_code and tmpl_by_code[code] != tmpl:
+                    raise UserError(_("Referencia ambigua: %s") % code)
+                tmpl_by_code[code] = tmpl
 
-
-        # Prefetch partners
-        existing_partners = self.env['res.partner'].search([('name', 'in', list(supplier_names))])
-        partner_by_name_lower = {p.name.strip().lower(): p for p in existing_partners if p.name}
+        partner_by_name_lower = {}
+        for partner in self._find_normalized('res.partner', 'name', list(supplier_names)):
+            name = partner.name.strip().upper()
+            if name in partner_by_name_lower:
+                references = ', '.join(
+                    code for code, rows in product_groups.items()
+                    if any(str(row['data'][provider_idx] or '').strip().upper() == name for row in rows)
+                )
+                raise UserError(_("Proveedor ambiguo: %s (referencias: %s)") % (name, references))
+            partner_by_name_lower[name] = partner
 
         for clean_ref, rows in product_groups.items():
             # 1. Identify "Base Row" (preferably 'Nuevo')
             base_row_data = next((r for r in rows if r['estado_val'] == 'Nuevo'), rows[0])
             base_row = base_row_data['data']
 
-            base_sale_price = self._parse_price(base_row[sale_price_idx]) if sale_price_idx >= 0 else 0.0
-            base_purchase_price = self._parse_price(base_row[purchase_price_idx]) if purchase_price_idx >= 0 else 0.0
+            base_sale_price = self._parse_price(base_row[sale_price_idx]) if sale_price_idx >= 0 else None
+            base_purchase_price = self._parse_price(base_row[purchase_price_idx]) if purchase_price_idx >= 0 else None
 
             # 2. Categories (from Base Row)
             brand_name = str(base_row[brand_idx] or '').strip()
@@ -150,8 +183,8 @@ class ProductImportWizard(models.TransientModel):
                 if product_tmpl.name != base_name: tmpl_vals['name'] = base_name
                 if product_tmpl.default_code != clean_ref: tmpl_vals['default_code'] = clean_ref
                 if product_tmpl.description != str(base_row[desc_idx] or '').strip(): tmpl_vals['description'] = str(base_row[desc_idx] or '').strip()
-                if product_tmpl.list_price != base_sale_price: tmpl_vals['list_price'] = base_sale_price
-                if product_tmpl.standard_price != base_purchase_price: tmpl_vals['standard_price'] = base_purchase_price
+                if sale_price_idx >= 0 and product_tmpl.list_price != base_sale_price: tmpl_vals['list_price'] = base_sale_price
+                if purchase_price_idx >= 0 and product_tmpl.standard_price != base_purchase_price: tmpl_vals['standard_price'] = base_purchase_price
                 if product_tmpl.categ_id.id != target_categ.id: tmpl_vals['categ_id'] = target_categ.id
                 if not product_tmpl.purchase_ok: tmpl_vals['purchase_ok'] = True
                 if not product_tmpl.sale_ok: tmpl_vals['sale_ok'] = True
@@ -164,8 +197,8 @@ class ProductImportWizard(models.TransientModel):
                     'name': base_name,
                     'default_code': clean_ref,
                     'description': str(base_row[desc_idx] or '').strip(),
-                    'list_price': base_sale_price,
-                    'standard_price': base_purchase_price,
+                    **({'list_price': base_sale_price} if sale_price_idx >= 0 else {}),
+                    **({'standard_price': base_purchase_price} if purchase_price_idx >= 0 else {}),
                     'categ_id': target_categ.id,
                     'purchase_ok': True,
                     'sale_ok': True,
@@ -199,46 +232,45 @@ class ProductImportWizard(models.TransientModel):
                 if not variant:
                     continue
 
-                variant_sale_price = self._parse_price(row[sale_price_idx]) if sale_price_idx >= 0 else 0.0
-                variant_purchase_price = self._parse_price(row[purchase_price_idx]) if purchase_price_idx >= 0 else 0.0
+                variant_sale_price = self._parse_price(row[sale_price_idx]) if sale_price_idx >= 0 else None
+                variant_purchase_price = self._parse_price(row[purchase_price_idx]) if purchase_price_idx >= 0 else None
 
                 # Update Variant individual reference and cost
                 variant_vals = {}
                 if variant.default_code != clean_ref:
                     variant_vals['default_code'] = clean_ref
-                if variant.standard_price != variant_purchase_price:
+                if purchase_price_idx >= 0 and variant.standard_price != variant_purchase_price:
                     variant_vals['standard_price'] = variant_purchase_price
                 
                 if variant_vals:
                     variant.with_context(create_product_product=False).write(variant_vals)
 
                 # Set Price Extra for the variant
-                price_extra = variant_sale_price - base_sale_price
-                self._update_attribute_price_extra(product_tmpl, estado_attr_val, price_extra)
+                if sale_price_idx >= 0:
+                    price_extra = variant_sale_price - base_sale_price
+                    self._update_attribute_price_extra(product_tmpl, estado_attr_val, price_extra)
 
                 # Update Supplier Info
                 if provider_idx >= 0:
-                    provider_name = str(row[provider_idx] or '').strip()
+                    provider_name = str(row[provider_idx] or '').strip().upper()
                     if provider_name:
-                        partner = partner_by_name_lower.get(provider_name.lower())
+                        partner = partner_by_name_lower.get(provider_name.upper())
                         if partner:
                             supplier_info = variant.seller_ids.filtered(lambda s: s.partner_id.id == partner.id)
                             if supplier_info:
-                                if supplier_info[0].price != variant_purchase_price:
+                                if purchase_price_idx >= 0 and supplier_info[0].price != variant_purchase_price:
                                     supplier_info[0].write({'price': variant_purchase_price})
                             else:
                                 self.env['product.supplierinfo'].create({
                                     'partner_id': partner.id,
                                     'product_id': variant.id,
                                     'product_tmpl_id': product_tmpl.id,
-                                    'price': variant_purchase_price,
+                                    **({'price': variant_purchase_price} if purchase_price_idx >= 0 else {}),
                                 })
 
             processed_count += 1
             if processed_count % 100 == 0:
                 _logger.info("RMS Import: Processed %d / %d templates...", processed_count, total_groups)
-                # Commit explicitly so we don't hold the lock forever
-                self.env.cr.commit()
 
         _logger.info("RMS Import: Finished! Created %d, Updated %d templates.", created_count, updated_count)
 
@@ -265,28 +297,34 @@ class ProductImportWizard(models.TransientModel):
             name = re.sub(pattern, '', name, flags=re.IGNORECASE)
         return name.strip()
 
-    def _parse_price(self, val):
-        if val is None:
-            return 0.0
-        if isinstance(val, (int, float)):
-            return float(val)
-        val_str = str(val).strip()
-        if not val_str or val_str == '-':
-            return 0.0
-        # Clean currency symbols, spaces, etc.
-        val_str = val_str.replace('€', '').replace(' ', '')
-        # Handle Spanish formatting:
-        # If there's a dot and a comma (e.g. 1.250,50), remove dot and replace comma with dot
-        if '.' in val_str and ',' in val_str:
-            val_str = val_str.replace('.', '').replace(',', '.')
-        elif ',' in val_str:
-            val_str = val_str.replace(',', '.')
-        
+    def _find_normalized(self, model_name, field_name, values):
+        # Buscar candidatos sin distinguir mayúsculas; comprobar espacios en Python.
+        records = self.env[model_name].browse()
+        wanted = set(values)
+        for offset in range(0, len(values), 500):
+            chunk = values[offset:offset + 500]
+            domain = ['|'] * (len(chunk) - 1) + [(field_name, 'ilike', value) for value in chunk]
+            records |= self.env[model_name].with_context(active_test=False).search(domain).filtered(
+                lambda record: (record[field_name] or '').strip().upper() in wanted
+            )
+        return records
+
+    def _parse_price(self, val, row_number=None, column=None):
         try:
-            return float(val_str)
-        except ValueError:
-            _logger.warning("Could not parse price value: %s, defaulting to 0.0", val)
-            return 0.0
+            if val is None or isinstance(val, bool):
+                raise ValueError()
+            val_str = str(val).strip().replace('€', '').replace(' ', '')
+            if '.' in val_str and ',' in val_str:
+                if not re.fullmatch(r'\d{1,3}(?:\.\d{3})+,\d+', val_str):
+                    raise ValueError()
+                val_str = val_str.replace('.', '')
+            price = float(val_str.replace(',', '.'))
+            if not math.isfinite(price) or price < 0:
+                raise ValueError()
+            return price
+        except (ValueError, TypeError, OverflowError):
+            raise UserError(_("Fila %s, columna %s: precio ilegible o negativo (%s).") % (
+                row_number, column, val))
 
     def _get_or_create_categories(self, brand, family, subfamily, categ_cache):
         cache_key = (brand, family, subfamily)

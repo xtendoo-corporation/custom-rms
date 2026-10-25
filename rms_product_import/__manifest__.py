@@ -1,6 +1,6 @@
 {
     'name': 'RMS Product Import',
-    'version': '1.0',
+    'version': '19.0.1.0.1',
     'category': 'Inventory/Inventory',
     'summary': 'Smart Wizard to import products from Excel with hierarchical categories and state handling.',
     'description': """
