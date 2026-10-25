@@ -123,7 +123,25 @@ Las rutas de import de Odoo 19 son correctas. No hay XSS: los mapas usan `textCo
 | Baja ✔ | Higiene del repo: 3 `.DS_Store`, `.claude/` y `.serena/` versionados; `.gitignore` mínimo; `Claude outputs/` (sin trackear) contiene un CSV con datos de RR. HH.; sin pre-commit ni CI | `.gitignore`, `git rm --cached`, pre-commit de OCA |
 | Baja | `docker-compose.yml` con `odoo/odoo` y el puerto 8069 abierto en 0.0.0.0 | Solo vale para desarrollo: `127.0.0.1:8069` y `.env` |
 
-## 8. Pendiente
+## 8. Revisión independiente de Codex
+
+Codex repitió las revisiones 1, 2, 3, 5 y 6 sin ver este informe. Confirma A1, A2, A3, A4, A11, A12, A13, A14, A16 y A17, y casi todos los medios. Aporta además estos hallazgos:
+
+| Gravedad | Hallazgo | Dónde | Arreglo |
+|---|---|---|---|
+| Alta ✔ | XSS almacenado en el catálogo del portal: nombre, email y teléfono del comercial van a `innerHTML` sin escapar. Cualquier usuario interno edita sus propios datos y el JS se ejecuta en la sesión de portal de sus clientes | `rms_portal_catalog/catalog_private/index.html:715-731` (datos de `controllers/portal.py:85-93`) | Construir con `textContent` y validar `mailto:`/`tel:` |
+| Media | El carrito del portal no filtra por compañía | `rms_portal_catalog/controllers/portal.py:334-346` | Filtrar por la compañía y usar `with_company()` |
+| Media (Codex: alta) | Soporte: un traceback inventado hace leer con `sudo` el código de cualquier acción de servidor y lo envía a Anthropic | `rms_support_error_report/models/support_ticket.py:202,498,565` | No elegir código privilegiado a partir de datos del cliente |
+| Media | Soporte: la URL completa (con `access_token`) y el diagnóstico se guardan y se envían a Anthropic sin redactar | `rms_support_error_report/static/src/support_report/support_report.js:40`, `support_ticket.py:375` | Quitar tokens y parámetros sensibles |
+| Media / a verificar | `rms_mail_server` descarta los correos a destinatarios externos pero los da por enviados; si hay destinatarios mezclados, tampoco reciben los internos | `rms_mail_server/models/ir_mail_server.py:30` | Confirmar si es intencionado (entorno de pruebas); si no, fallo explícito |
+| Media | Los gastos de correo sin adjunto procesable se quedan para siempre en la cola del cron y pueden bloquear a los siguientes | `rms_hr_expense_ai_email/models/hr_expense.py:152,187` | Estado terminal «sin adjunto» y orden explícito |
+| Media (Codex: alta) | `sale.order.line.serial`: CRUD para cualquier usuario interno, sin reglas del pedido ni de compañía | `rms_product_state/security/ir.model.access.csv:3` | Restringir el ACL y añadir reglas equivalentes a las del pedido |
+| Media | Las lecciones de la Academia no disponibles para el usuario se pueden leer por RPC | `rms_training_academy/security/ir.model.access.csv:4`, `models/training_lesson.py:217` | Regla de lectura según disponibilidad |
+| Media | Falta `external_dependencies` con `openpyxl` en los importadores | `rms_product_import/__manifest__.py` | Declararlo |
+
+Diferencias de criterio: Codex considera correcto el enlace de invitación al portal, que aquí sigue pendiente de tu decisión. También sube a alta la falta de multicompañía en las certificaciones.
+
+## 9. Pendiente
 
 - **Servidor de producción:** no auditado. Faltan el acceso SSH, el tipo de despliegue y la URL.
 - **Fase 2 (correcciones):** pendiente de aprobar el plan de correcciones.
