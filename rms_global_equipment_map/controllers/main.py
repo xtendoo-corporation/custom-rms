@@ -61,7 +61,7 @@ class GlobalEquipmentMapController(http.Controller):
 
     @http.route(
         "/rms_global_equipment_map/partners",
-        type="json",
+        type="jsonrpc",
         auth="user",
         methods=["POST"],
     )
@@ -74,7 +74,7 @@ class GlobalEquipmentMapController(http.Controller):
 
     @http.route(
         "/rms_global_equipment_map/export_xlsx",
-        type="json",
+        type="jsonrpc",
         auth="user",
         methods=["POST"],
     )

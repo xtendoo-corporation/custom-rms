@@ -1,2 +1,8 @@
 __pycache__/
 *.py[cod]
+.DS_Store
+Claude outputs/
+.claude/
+.serena/
+*.log
+.env

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Comerciales Tasks Shortcut',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'category': 'Project',
     'summary': 'Add a root menu item shortcut to My Tasks for the Comerciales group.',
     'description': """
@@ -9,7 +9,7 @@
         restricted to the custom group Ventas: COMERCIALES (custom.comerciales).
     """,
     'author': 'Custom RMS',
-    'depends': ['project', 'web_responsive'],
+    'depends': ['project'],
     'data': [
         'views/project_task_menus.xml',
     ],
