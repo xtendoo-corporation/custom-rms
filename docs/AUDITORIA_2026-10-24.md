@@ -138,6 +138,7 @@ Codex repitió las revisiones 1, 2, 3, 5 y 6 sin ver este informe. Confirma A1, 
 | Media (Codex: alta) | `sale.order.line.serial`: CRUD para cualquier usuario interno, sin reglas del pedido ni de compañía | `rms_product_state/security/ir.model.access.csv:3` | Restringir el ACL y añadir reglas equivalentes a las del pedido |
 | Media | Las lecciones de la Academia no disponibles para el usuario se pueden leer por RPC | `rms_training_academy/security/ir.model.access.csv:4`, `models/training_lesson.py:217` | Regla de lectura según disponibilidad |
 | Media | Falta `external_dependencies` con `openpyxl` en los importadores | `rms_product_import/__manifest__.py` | Declararlo |
+| Alta ✔ (al ejecutar los tests) | `stock_cession.action_confirm` crea el `stock.move` con `name`, un campo que ya no existe en Odoo 19: confirmar cualquier cesión falla. Además, el movimiento no llevaba `company_id` | `stock_cession/models/stock_cession.py:70` (original) | Usar `description_picking` y la compañía de la cesión (corregido en W2D) |
 
 Diferencias de criterio: Codex considera correcto el enlace de invitación al portal, que aquí sigue pendiente de tu decisión. También sube a alta la falta de multicompañía en las certificaciones.
 
