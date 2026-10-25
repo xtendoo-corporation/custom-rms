@@ -142,7 +142,13 @@ Codex repitió las revisiones 1, 2, 3, 5 y 6 sin ver este informe. Confirma A1, 
 
 Diferencias de criterio: Codex considera correcto el enlace de invitación al portal, que aquí sigue pendiente de tu decisión. También sube a alta la falta de multicompañía en las certificaciones.
 
-## 9. Pendiente
+## 9. Decisiones (25/10/2026)
+
+- **Enlace de invitación al portal:** se mantiene como está.
+- **`rms_mail_server`:** el bloqueo es intencionado (solo deja salir correo a `@rmsproaudio.com` y da el resto por enviado). Se mantiene mientras no se quiera enviar correo a clientes; ese día se desinstala el módulo. Hay que tener en cuenta que, si un correo mezcla destinatarios internos y externos, tampoco lo reciben los internos.
+- **Grupo `custom.comerciales` (A11):** se revisará en la fase del servidor, comprobando en la base de producción cómo está creado antes de definirlo en un módulo.
+
+## 10. Pendiente
 
 - **Servidor de producción:** no auditado. Faltan el acceso SSH, el tipo de despliegue y la URL.
 - **Fase 2 (correcciones):** pendiente de aprobar el plan de correcciones.
