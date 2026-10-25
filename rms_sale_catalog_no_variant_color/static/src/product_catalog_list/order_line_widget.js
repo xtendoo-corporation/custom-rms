@@ -21,6 +21,8 @@ export class ProductCatalogListOrderLine extends Component {
             execBeforeUnmount: true,
         });
         this._pendingUpdate = Promise.resolve();
+        this._confirmedQuantity = this.productCatalogData.quantity;
+        this._quantityRevision = 0;
 
         useSubEnv({
             currencyId: this.props.record.context.product_catalog_currency_id,
@@ -53,13 +55,24 @@ export class ProductCatalogListOrderLine extends Component {
     }
 
     _updateQuantityAndGetPrice() {
-        // Chain RPC calls so each request completes before the next starts,
-        // preventing race conditions on quick successive clicks.
-        this._pendingUpdate = this._pendingUpdate.then(() => rpc(
-            "/product/catalog/update_order_line_info",
-            this._getUpdateQuantityAndGetPriceParams(),
-        ));
-        return this._pendingUpdate;
+        // Un fallo no debe bloquear las siguientes actualizaciones de la cola.
+        const p = this._pendingUpdate.catch(() => {}).then(async () => {
+            const params = this._getUpdateQuantityAndGetPriceParams();
+            const revision = this._quantityRevision;
+            try {
+                const price = await rpc("/product/catalog/update_order_line_info", params);
+                this._confirmedQuantity = params.quantity;
+                return price;
+            } catch (error) {
+                // No sobrescribir una edición posterior que aún está pendiente.
+                if (revision === this._quantityRevision) {
+                    this.productCatalogData.quantity = this._confirmedQuantity;
+                }
+                throw error;
+            }
+        });
+        this._pendingUpdate = p.catch(() => {});
+        return p;
     }
 
     _getUpdateQuantityAndGetPriceParams() {
@@ -80,6 +93,7 @@ export class ProductCatalogListOrderLine extends Component {
         if (this.productCatalogData.readOnly) {
             return;
         }
+        this._quantityRevision++;
         this.productCatalogData.quantity = quantity || 0;
         this.debouncedUpdateQuantity();
     }

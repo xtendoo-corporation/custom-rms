@@ -76,6 +76,10 @@ export class StockBarcodeScan extends Component {
         this._lastScanAt = {};
         this._searchTimer = null;
         this._locationSearchTimer = null;
+        this._camGen = 0;
+        this._unmounted = false;
+        this._pdaFocusTimer = null;
+        this._pdaFocusFrame = null;
         this._stream = null;
         this._detectTimer = null;
         this._zxingReader = null;
@@ -84,7 +88,14 @@ export class StockBarcodeScan extends Component {
         this._dragState = null;
         this._nextScanId = 1;
 
-        this._loadInitial();
+        this._loadInitial().catch((error) => {
+            console.error(error);
+            if (!this._unmounted) {
+                this.notification.add("No se pudo cargar el escáner. Inténtalo de nuevo.", {
+                    type: "danger",
+                });
+            }
+        });
 
         // El <video t-ref="video"> solo existe en el DOM mientras
         // state.step === "camera": no se puede llamar a _startCamera()
@@ -112,7 +123,14 @@ export class StockBarcodeScan extends Component {
             () => [this.state.step, this.state.inputMode]
         );
 
-        onWillUnmount(() => this.stopCamera());
+        onWillUnmount(() => {
+            this._unmounted = true;
+            this.stopCamera();
+            clearTimeout(this._searchTimer);
+            clearTimeout(this._locationSearchTimer);
+            clearTimeout(this._pdaFocusTimer);
+            cancelAnimationFrame(this._pdaFocusFrame);
+        });
     }
 
     // ------------------------------------------------------------------
@@ -143,7 +161,12 @@ export class StockBarcodeScan extends Component {
         }
     }
 
-    _focusPdaInput() {
+    _focusPdaInput(attempt = 0) {
+        cancelAnimationFrame(this._pdaFocusFrame);
+        this._pdaFocusFrame = null;
+        if (this._unmounted || this.state.step !== "camera" || this.state.inputMode !== "pda") {
+            return;
+        }
         // El lector "teclea" sobre lo que tenga el foco en ese momento: si
         // no es este campo, los caracteres no llegan a ningún sitio (o
         // peor, disparan atajos de teclado del navegador). Se reintenta en
@@ -151,8 +174,8 @@ export class StockBarcodeScan extends Component {
         const input = this.pdaInputRef.el;
         if (input) {
             input.focus();
-        } else {
-            requestAnimationFrame(() => this._focusPdaInput());
+        } else if (attempt < 20) {
+            this._pdaFocusFrame = requestAnimationFrame(() => this._focusPdaInput(attempt + 1));
         }
     }
 
@@ -172,7 +195,11 @@ export class StockBarcodeScan extends Component {
     // lecturas mientras se siga en este paso en modo PDA.
     onPdaBlur() {
         if (this.state.step === "camera" && this.state.inputMode === "pda") {
-            setTimeout(() => this._focusPdaInput(), 50);
+            clearTimeout(this._pdaFocusTimer);
+            this._pdaFocusTimer = setTimeout(() => {
+                this._pdaFocusTimer = null;
+                this._focusPdaInput();
+            }, 50);
         }
     }
 
@@ -181,6 +208,9 @@ export class StockBarcodeScan extends Component {
             const config = await this.orm.call(
                 "rms.stock.barcode.scan", "get_move_scan_config", [this.moveId]
             );
+            if (this._unmounted) {
+                return;
+            }
             this.state.product = config.product;
             this.state.location = { id: config.location_id, name: config.location_name };
             this.state.productStates = config.product_states || [];
@@ -193,6 +223,9 @@ export class StockBarcodeScan extends Component {
             this.orm.call("rms.stock.barcode.scan", "get_scan_config", []),
             this.orm.call("rms.stock.barcode.scan", "search_products", [""]),
         ]);
+        if (this._unmounted) {
+            return;
+        }
         if (config.location_id) {
             this.state.location = { id: config.location_id, name: config.location_name };
         }
@@ -259,8 +292,13 @@ export class StockBarcodeScan extends Component {
     // ------------------------------------------------------------------
 
     async _startCamera() {
+        const generation = ++this._camGen;
+        let stream;
+        const isCancelled = () => this._unmounted || generation !== this._camGen ||
+            this.state.step !== "camera" || this.state.inputMode !== "camera";
+        const stopStream = () => stream?.getTracks().forEach((track) => track.stop());
         const video = this.videoRef.el;
-        if (!video) {
+        if (!video || isCancelled()) {
             return;
         }
         try {
@@ -271,12 +309,21 @@ export class StockBarcodeScan extends Component {
             // cámara que no llega a renderizar nada, pantalla en negro).
             // Así el mismo track sirve tanto para la detección nativa como
             // para ZXing, y podemos aplicarle zoom nativo si lo soporta.
-            this._stream = await navigator.mediaDevices.getUserMedia({
+            stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: { ideal: "environment" } },
                 audio: false,
             });
-            video.srcObject = this._stream;
+            if (isCancelled()) {
+                stopStream();
+                return;
+            }
+            this._stream = stream;
+            video.srcObject = stream;
             await video.play();
+            if (isCancelled()) {
+                stopStream();
+                return;
+            }
             this._track = this._stream.getVideoTracks()[0];
             this._setupZoom();
 
@@ -290,6 +337,9 @@ export class StockBarcodeScan extends Component {
                 this._detectTimer = setInterval(async () => {
                     try {
                         const barcodes = await detector.detect(video);
+                        if (isCancelled()) {
+                            return;
+                        }
                         for (const barcode of barcodes) {
                             if (this._isInScanRect(barcode.boundingBox, video)) {
                                 this._onCodeDetected(barcode.rawValue);
@@ -305,6 +355,10 @@ export class StockBarcodeScan extends Component {
                 // propio módulo, sin llamadas a internet) solo el recorte
                 // de vídeo dentro del recuadro de escaneo.
                 await loadJS(ZXING_URL);
+                if (isCancelled()) {
+                    stopStream();
+                    return;
+                }
                 const codeReader = new window.ZXing.BrowserMultiFormatReader();
                 this._zxingReader = codeReader;
                 this._zxingCanvas = document.createElement("canvas");
@@ -314,6 +368,11 @@ export class StockBarcodeScan extends Component {
                 );
             }
         } catch (error) {
+            stopStream();
+            if (isCancelled()) {
+                return;
+            }
+            this.stopCamera();
             console.error(error);
             this.state.cameraError =
                 "No se pudo acceder a la cámara. Revisa que hayas dado permiso de " +
@@ -545,6 +604,7 @@ export class StockBarcodeScan extends Component {
     }
 
     stopCamera() {
+        this._camGen++;
         clearInterval(this._detectTimer);
         this._detectTimer = null;
         if (this._zxingReader) {
