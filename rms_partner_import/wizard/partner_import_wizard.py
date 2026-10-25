@@ -227,9 +227,11 @@ class PartnerImportWizard(models.TransientModel):
                     'name': partner.name,
                     'comercial': partner.comercial if 'comercial' in Partner._fields else '',
                 }
-                keys = [partner_key(values, partner.country_id)]
+                # Mismo país por defecto que en las filas importadas.
+                country = partner.country_id or self.env.company.country_id
+                keys = [partner_key(values, country)]
                 if partner.vat:
-                    keys.append(partner_key({'vat': partner.vat}, partner.country_id))
+                    keys.append(partner_key({'vat': partner.vat}, country))
                 for key in keys:
                     if key in vals_by_key:
                         existing_map.setdefault(key, []).append(partner)
