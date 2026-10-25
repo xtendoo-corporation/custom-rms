@@ -1,6 +1,6 @@
 {
     'name': 'RMS Partner Import',
-    'version': '19.0.1.0.1',
+    'version': '19.0.1.0.2',
     'license': 'LGPL-3',
     'category': 'Sales/CRM',
     'summary': 'Bypasses VAT validation during native partner imports.',

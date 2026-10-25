@@ -96,15 +96,16 @@ class PartnerImportWizard(models.TransientModel):
         def normalize_name(value):
             return ' '.join((value or '').split()).casefold()
 
-        def normalize_vat(value):
-            value = re.sub(r'[\s-]+', '', value or '').upper()
+        def normalize_vat(value, country):
+            value = re.sub(r'[\s.\-]+', '', value or '').upper()
+            # Conservar el país para no fusionar números de países distintos.
             if value[:2] in country_codes:
-                value = value[2:]
-            return value
+                return {'EL': 'GR', 'UK': 'GB'}.get(value[:2], value[:2]) + value[2:]
+            return (country.code or '').upper() + value if country else value
 
-        def partner_key(vals):
+        def partner_key(vals, country):
             if vals.get('vat'):
-                return ('vat', normalize_vat(vals['vat']))
+                return ('vat', normalize_vat(vals['vat'], country))
             return ('name', normalize_name(vals.get('name')),
                     normalize_name(vals.get('comercial')))
 
@@ -206,7 +207,8 @@ class PartnerImportWizard(models.TransientModel):
                 if state_id:
                     vals['state_id'] = state_id
 
-            key = partner_key(vals)
+            key = partner_key(vals, Country.browse(country_id)
+                              if country_id else self.env.company.country_id)
             if key in vals_by_key:
                 # La primera fila prevalece; las siguientes solo completan huecos.
                 first_vals, first_row = vals_by_key[key]
@@ -217,7 +219,7 @@ class PartnerImportWizard(models.TransientModel):
                 vals_by_key[key] = (vals, row_number)
 
         # La normalización requiere comparar también los valores almacenados con
-        # espacios, guiones o prefijo; se incluyen los contactos archivados.
+        # espacios, guiones o puntos; se incluyen los contactos archivados.
         existing_map = {}
         if vals_by_key:
             for partner in Partner.search([]):
@@ -225,9 +227,9 @@ class PartnerImportWizard(models.TransientModel):
                     'name': partner.name,
                     'comercial': partner.comercial if 'comercial' in Partner._fields else '',
                 }
-                keys = [partner_key(values)]
+                keys = [partner_key(values, partner.country_id)]
                 if partner.vat:
-                    keys.append(partner_key({'vat': partner.vat}))
+                    keys.append(partner_key({'vat': partner.vat}, partner.country_id))
                 for key in keys:
                     if key in vals_by_key:
                         existing_map.setdefault(key, []).append(partner)

@@ -55,13 +55,78 @@ class TestPartnerImport(TransactionCase):
     def test_vat_corrected_name_updates_archived(self):
         partner = self.Partner.create({
             'name': 'F6b Antiguo', 'vat': 'ES B-12345674', 'active': False,
+            'country_id': self.env.ref('base.es').id,
         })
-        self._import(['nombre', 'nif'], [['F6b Corregido', 'b12345674']])
+        self._import(['nombre', 'nif', 'pais'], [
+            ['F6b Corregido', 'b12345674', self.env.ref('base.es').name],
+        ])
         self.assertEqual(partner.name, 'F6b Corregido')
         self.assertFalse(partner.active)
         self.assertEqual(self.Partner.with_context(active_test=False).search_count([
             ('name', '=', 'F6b Corregido'),
         ]), 1)
+
+    def test_spanish_vat_with_and_without_prefix_match(self):
+        spain = self.env.ref('base.es')
+        partner = self.Partner.create({
+            'name': 'R6b España', 'vat': 'B12345678', 'country_id': spain.id,
+        })
+        self._import(['nombre', 'nif'], [['R6b España actualizado', 'es b-123.456.78']])
+        self.assertEqual(partner.name, 'R6b España actualizado')
+        self.assertEqual(self.Partner.search_count([
+            ('name', '=', 'R6b España actualizado'),
+        ]), 1)
+
+    def test_different_country_prefix_does_not_update_existing(self):
+        partner = self.Partner.create({
+            'name': 'R6b Alemania existente', 'vat': 'DE123456789',
+            'country_id': self.env.ref('base.de').id,
+        })
+        self._import(['nombre', 'nif'], [['R6b Bélgica nuevo', 'BE123456789']])
+        self.assertEqual(partner.name, 'R6b Alemania existente')
+        self.assertEqual(partner.vat, 'DE123456789')
+        belgian = self.Partner.search([('name', '=', 'R6b Bélgica nuevo')])
+        self.assertEqual(len(belgian), 1)
+        self.assertNotEqual(belgian, partner)
+        self.assertEqual(belgian.vat, 'BE123456789')
+
+    def test_same_number_with_different_prefixes_creates_two_partners(self):
+        self._import(['nombre', 'nif'], [
+            ['R6b Alemania fila', 'DE123456789'],
+            ['R6b Bélgica fila', 'BE123456789'],
+        ])
+        partners = self.Partner.search([
+            ('name', 'in', ['R6b Alemania fila', 'R6b Bélgica fila']),
+        ])
+        self.assertEqual(len(partners), 2)
+        self.assertEqual(set(partners.mapped('vat')), {'DE123456789', 'BE123456789'})
+
+    def test_unprefixed_vat_uses_row_country_before_company(self):
+        self.env.company.country_id = self.env.ref('base.de')
+        belgium = self.env.ref('base.be')
+        partner = self.Partner.create({
+            'name': 'R6b País fila', 'vat': 'BE123456789', 'country_id': belgium.id,
+        })
+        self._import(['nombre', 'nif', 'pais'], [
+            ['R6b País fila actualizado', '123456789', belgium.name],
+        ])
+        self.assertEqual(partner.name, 'R6b País fila actualizado')
+
+    def test_unprefixed_vat_uses_company_country(self):
+        self.env.company.country_id = self.env.ref('base.es')
+        partner = self.Partner.create({'name': 'R6b Compañía', 'vat': 'ESB12345678'})
+        self._import(['nombre', 'nif'], [['R6b Compañía actualizado', 'B12345678']])
+        self.assertEqual(partner.name, 'R6b Compañía actualizado')
+
+    def test_without_country_only_matches_unprefixed_existing(self):
+        self.env.company.country_id = False
+        prefixed = self.Partner.create({'name': 'R6b Prefijo', 'vat': 'DE123456789'})
+        unprefixed = self.Partner.create({
+            'name': 'R6b Sin país', 'vat': '123456789', 'country_id': False,
+        })
+        self._import(['nombre', 'nif'], [['R6b Sin país actualizado', '123.456-789']])
+        self.assertEqual(unprefixed.name, 'R6b Sin país actualizado')
+        self.assertEqual(prefixed.name, 'R6b Prefijo')
 
     def test_ambiguous_match_reports_row(self):
         self.Partner.create([{'name': 'F6b Ambiguo'}, {'name': 'F6b Ambiguo'}])
