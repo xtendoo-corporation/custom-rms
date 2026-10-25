@@ -17,6 +17,22 @@ import { useState } from "@odoo/owl";
  * servidor manda en data.debug) más la pantalla donde se estaba; el resto
  * (informe de IA, aviso en Conversaciones) lo hace el servidor.
  */
+function sanitizedUrl() {
+    const url = new URL(browser.location.href);
+    const allowed = new Set(["model", "id", "action", "view_type", "menu_id"]);
+    for (const key of [...url.searchParams.keys()]) {
+        if (!allowed.has(key)) url.searchParams.delete(key);
+    }
+    const fragment = new URLSearchParams(url.hash.slice(1));
+    for (const key of [...fragment.keys()]) {
+        if (!allowed.has(key)) fragment.delete(key);
+    }
+    url.hash = fragment.toString();
+    url.username = "";
+    url.password = "";
+    return url.href;
+}
+
 function useSupportReport(dialog) {
     const orm = useService("orm");
     const state = useState({
@@ -37,7 +53,7 @@ function useSupportReport(dialog) {
             error_message: dialog.message || props.message || "",
             traceback,
             user_comment: state.comment,
-            url: browser.location.href,
+            url: sanitizedUrl(),
             res_model: props.model || "",
             res_id: props.id || 0,
         };

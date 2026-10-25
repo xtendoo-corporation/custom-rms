@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS HR Expense AI Email Import',
-    'version': '19.0.1.0.1',
+    'version': '19.0.1.0.2',
     'category': 'Human Resources/Expenses',
     'summary': 'Un borrador por cada ticket recibido por email y extracción automática con IA reutilizando xtendoo_hr_expense_ai',
     'description': """

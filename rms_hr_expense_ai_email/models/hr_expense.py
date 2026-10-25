@@ -177,7 +177,7 @@ class HrExpense(models.Model):
             '|',
                 ('created_from_email_alias', '=', True),
                 ('ai_source_attachment_id', '!=', False),
-        ], limit=batch_limit)
+        ], order='id asc', limit=batch_limit)
         for expense in expenses:
             # El reparto se hace aquí, en el cron, y no al recibir el correo:
             # depender del orden exacto de los mensajes creados en el hilo
@@ -193,7 +193,14 @@ class HrExpense(models.Model):
                 # a continuación, una por cada ticket.
                 self.env.cr.commit()
             for to_process in expense + new_expenses:
-                to_process._rms_run_ai_import(max_attempts)
+                if not to_process.ai_source_attachment_id and not to_process._rms_get_candidate_attachments():
+                    # Sin documento no hay nada que reintentar en futuras pasadas.
+                    to_process.ai_processed = True
+                    to_process.message_post(body=_(
+                        "IA: correo sin adjunto procesable. Revisa el gasto manualmente."
+                    ))
+                else:
+                    to_process._rms_run_ai_import(max_attempts)
                 # Cada ticket se procesa con una llamada a la IA por
                 # separado (pueden ser bastantes en un correo con muchos
                 # adjuntos): se confirma cada uno según se completa, para
