@@ -32,7 +32,7 @@ def _clean(value, size=200):
 
 class PortalActivityTrack(http.Controller):
 
-    @http.route('/my/portal/track', type='http', auth='user', methods=['POST'], csrf=False)
+    @http.route('/my/portal/track', type='http', auth='user', methods=['POST'])
     def portal_activity_track(self, **kw):
         activity_type = kw.get('kind')
         if activity_type in CLIENT_EVENT_TYPES:
@@ -186,6 +186,13 @@ class CatalogActivity(CatalogProfileGuard):
     def portal_catalog_home(self, **kw):
         res = super().portal_catalog_home(**kw)
         if _ok(res):
+            # El HTML estático pertenece al catálogo; adaptamos su tracker aquí.
+            content = res.get_data()
+            content = content.replace(
+                b'new URLSearchParams({kind, hash:',
+                b'new URLSearchParams({kind, csrf_token: window.RMS_CSRF, hash:',
+            )
+            res.set_data(content)
             _log('catalog_home', name='Catálogo')
         return res
 

@@ -214,7 +214,7 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_open_portal_interest" type="object" class="oe_stat_button"
-                        icon="fa-eye" groups="base.group_user" invisible="not portal_activity_count">
+                        icon="fa-eye" groups="rms_portal_access_log.group_portal_weekly_report" invisible="not portal_activity_count">
                     <field name="portal_activity_count" widget="statinfo" string="Actividad portal"/>
                 </button>
             </xpath>

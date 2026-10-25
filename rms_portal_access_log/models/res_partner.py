@@ -6,7 +6,7 @@ class ResPartner(models.Model):
 
     portal_activity_count = fields.Integer(
         string='Actividad en el portal', compute='_compute_portal_activity_count',
-        groups='base.group_user',
+        groups='rms_portal_access_log.group_portal_weekly_report',
     )
 
     def _compute_portal_activity_count(self):

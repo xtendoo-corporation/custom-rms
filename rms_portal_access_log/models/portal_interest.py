@@ -1,4 +1,5 @@
 from odoo import fields, models, tools
+from odoo.tools import SQL
 
 # Modelo de puntuación (lead scoring de comportamiento), 0-100 %.
 # Cada señal tiene puntos por acción y un tope, y los topes suman 100: así
@@ -62,7 +63,7 @@ class PortalInterest(models.Model):
 
     def init(self):
         tools.drop_view_if_exists(self.env.cr, self._table)
-        self.env.cr.execute("""
+        self.env.cr.execute(SQL("""
             CREATE OR REPLACE VIEW %(table)s AS (
                 WITH events AS (
                     SELECT
@@ -120,12 +121,8 @@ class PortalInterest(models.Model):
                     first_date, last_date
                 FROM scored
             )
-        """ % {
-            'table': self._table,
-            'half_life': HALF_LIFE_DAYS,
-            'hot': HOT_THRESHOLD,
-            'warm': WARM_THRESHOLD,
-        })
+        """, table=SQL.identifier(self._table), half_life=HALF_LIFE_DAYS,
+            hot=HOT_THRESHOLD, warm=WARM_THRESHOLD))
 
     def action_open_activity(self):
         self.ensure_one()
