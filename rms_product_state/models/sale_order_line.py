@@ -45,6 +45,10 @@ class SaleOrderLine(models.Model):
                 )
 
     @api.constrains('product_id')
+    def _check_serial_product(self):
+        self.serial_ids._check_lot_product()
+
+    @api.constrains('product_id')
     def _check_demo_state(self):
         for line in self:
             if line.product_id and line.product_id.product_tmpl_id.product_state_id.code == 'demo':
@@ -88,7 +92,8 @@ class SaleOrderLine(models.Model):
         con @api.depends: hay que escribirlos de forma explícita cada vez
         que cambian las series de la línea.
         """
-        for line in self:
+        # Escritura interna de valores calculados; no acepta valores del RPC.
+        for line in self.sudo():
             state_code = line.serial_ids[0].product_state_id.code if line.serial_ids else False
             has_triple = 'discount1' in line._fields
 

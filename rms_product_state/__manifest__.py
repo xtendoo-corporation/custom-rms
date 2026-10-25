@@ -1,6 +1,6 @@
 {
     'name': 'RMS Product States',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'summary': 'Manage custom product states (New, Demo, Ex-Demo, Second Hand, Discontinued) and lot pricing rules.',
     'description': """
 This module adds a product state classification to Odoo.
