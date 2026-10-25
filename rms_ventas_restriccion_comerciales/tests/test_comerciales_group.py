@@ -25,6 +25,13 @@ class TestComercialesGroup(TransactionCase):
         self.assertTrue(self.group_existed_after_install)
         self.assertEqual(self.env.ref('custom.comerciales'), self.group)
 
+    def test_new_group_matches_production_definition(self):
+        self.assertTrue(self.group_existed_after_install)
+        self.assertEqual(self.group.with_context(lang='en_US').name, 'COMERCIALES')
+        self.assertEqual(self.group.privilege_id, self.env.ref('sales_team.res_groups_privilege_sales'))
+        self.assertEqual(self.group.implied_ids, self.env.ref('sales_team.group_sale_salesman'))
+        self.assertFalse(self.group.share)
+
     def test_existing_group_is_untouched(self):
         users_field = 'user_ids' if 'user_ids' in self.group._fields else 'users'
         fields = ['name', 'implied_ids', users_field, 'write_date']
