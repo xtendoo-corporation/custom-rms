@@ -125,7 +125,10 @@ class B2BCatalogPortal(http.Controller):
         Card = request.env['rms.catalog.card']
         card = Card.search([('page_key', '=', page_key)], limit=1)
         if not card:
-            card = Card.create({'page_key': page_key})
+            return request.make_response(
+                'Sin productos asignados todavía. Añade productos desde el catálogo.',
+                headers=[('Content-Type', 'text/plain; charset=utf-8')],
+            )
         action = request.env.ref('rms_portal_catalog.action_rms_catalog_card')
         return request.redirect(
             '/web#model=rms.catalog.card&view_type=form&id=%d&action=%d' % (card.id, action.id)
@@ -288,22 +291,23 @@ class B2BCatalogPortal(http.Controller):
 
     def _allowed_catalog_products(self, template_id=None, page_key=None):
         """Only linked, sellable active variants in the user's company scope."""
-        cards = request.env['rms.catalog.card'].sudo().search(
+        company = request.env.company
+        cards = request.env['rms.catalog.card'].sudo().with_company(company).search(
             [('active', '=', True)] + ([('page_key', '=', page_key)] if page_key is not None else [])
         )
         domain = [
             ('id', 'in', cards.line_ids.product_id.ids),
             ('sale_ok', '=', True), ('active', '=', True),
             ('product_tmpl_id.active', '=', True),
-            ('company_id', 'in', [False, request.env.user.company_id.id]),
+            ('company_id', 'in', [False, company.id]),
         ]
         if template_id is not None:
             try:
                 template_id = int(template_id)
             except (TypeError, ValueError):
-                return request.env['product.product'].sudo().browse([])
+                return request.env['product.product'].sudo().with_company(company).browse([])
             domain.append(('product_tmpl_id', '=', template_id))
-        return request.env['product.product'].sudo().search(domain)
+        return request.env['product.product'].sudo().with_company(company).search(domain)
 
     @http.route('/my/catalog/prices/<string:page_key>', type='http', auth='user')
     def portal_catalog_prices(self, page_key, **kw):
@@ -318,7 +322,7 @@ class B2BCatalogPortal(http.Controller):
                 {
                     'id': product.id,
                     'name': product.display_name,
-                    'description': html2plaintext(product.description or ''),
+                    'description': html2plaintext(product.description_sale or ''),
                     'list_price': product.list_price,
                     'has_image': bool(product.image_128),
                     'featured': product.id in featured_ids,
@@ -332,16 +336,19 @@ class B2BCatalogPortal(http.Controller):
         )
 
     def _get_portal_cart(self, create=False):
-        partner = request.env.user.partner_id
-        Order = request.env['sale.order'].sudo()
+        company = request.env.company
+        partner = request.env.user.partner_id.with_company(company)
+        Order = request.env['sale.order'].sudo().with_company(company)
         order = Order.search([
             ('partner_id', '=', partner.id),
+            ('company_id', '=', company.id),
             ('rms_portal_cart', '=', True),
             ('state', '=', 'draft'),
         ], order='create_date desc', limit=1)
         if not order and create:
             vals = {
                 'partner_id': partner.id,
+                'company_id': company.id,
                 'pricelist_id': partner.property_product_pricelist.id,
                 'rms_portal_cart': True,
             }
