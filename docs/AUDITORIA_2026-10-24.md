@@ -146,7 +146,7 @@ Diferencias de criterio: Codex considera correcto el enlace de invitación al po
 
 - **Enlace de invitación al portal:** se mantiene como está.
 - **`rms_mail_server`:** el bloqueo es intencionado (solo deja salir correo a `@rmsproaudio.com` y da el resto por enviado). Se mantiene mientras no se quiera enviar correo a clientes; ese día se desinstala el módulo. Hay que tener en cuenta que, si un correo mezcla destinatarios internos y externos, tampoco lo reciben los internos.
-- **Grupo `custom.comerciales` (A11):** se revisará en la fase del servidor, comprobando en la base de producción cómo está creado antes de definirlo en un módulo.
+- **Grupo `custom.comerciales` (A11):** se define en `rms_ventas_restriccion_comerciales` mediante un `pre_init_hook`. El hook solo se ejecuta al instalar el módulo por primera vez y, si el grupo ya existe, no hace nada; en producción, donde el módulo ya está instalado, no se ejecuta nunca, así que el grupo actual no cambia. En una base nueva crea el grupo con el mismo xmlid. **Pendiente (fase del servidor):** copiar en `hooks.py` la definición exacta de producción con `docs/extraer_grupo_comerciales.py`, que es de solo lectura. Hasta entonces, el nombre y los grupos implicados que se usan en bases nuevas son provisionales.
 
 ## 10. Pendiente
 
