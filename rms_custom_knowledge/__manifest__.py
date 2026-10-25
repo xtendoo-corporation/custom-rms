@@ -1,6 +1,6 @@
 {
     'name': 'RMS Custom Knowledge',
-    'version': '19.0.5.0.1',
+    'version': '19.0.5.0.2',
     'category': 'Knowledge',
     'summary': 'Extends Documents Knowledge with folders and PDF to Markdown rendering.',
     'description': """
