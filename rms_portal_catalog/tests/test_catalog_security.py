@@ -63,6 +63,71 @@ class TestCatalogSecurity(HttpCase):
                 self.assertEqual(response.status_code, 404)
                 self.assertEqual(self._cart(), cart)
 
+    def test_quote_removed_catalog_product(self):
+        token = self._login_catalog()
+        post_data = {
+            'product_id': self.catalog_product.product_tmpl_id.id, 'csrf_token': token,
+        }
+        for _ in range(3):
+            response = self.url_open('/my/catalog/quote/add', data=post_data)
+            self.assertEqual(response.status_code, 200)
+        self.card.line_ids.unlink()
+        cart = self._cart()
+        self.assertEqual(cart['count'], 3)
+        response = self.url_open('/my/catalog/quote/add', data=post_data)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self._cart(), cart)
+        response = self.url_open(
+            '/my/catalog/product-image/%d' % self.catalog_product.product_tmpl_id.id,
+        )
+        self.assertEqual(response.status_code, 404)
+        response = self.url_open('/my/catalog/quote/decrease', data=post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['count'], 2)
+        response = self.url_open('/my/catalog/quote/remove', data=post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['lines'], [])
+        self.assertEqual(self._cart()['count'], 0)
+
+    def test_quote_decrease_removed_product_last_unit(self):
+        token = self._login_catalog()
+        post_data = {
+            'product_id': self.catalog_product.product_tmpl_id.id, 'csrf_token': token,
+        }
+        response = self.url_open('/my/catalog/quote/add', data=post_data)
+        self.assertEqual(response.status_code, 200)
+        self.card.line_ids.unlink()
+        response = self.url_open('/my/catalog/quote/decrease', data=post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['lines'], [])
+        self.assertEqual(self._cart()['count'], 0)
+        response = self.url_open('/my/catalog/quote/add', data=post_data)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self._cart()['lines'], [])
+
+    def test_quote_cannot_modify_other_partner_cart(self):
+        token = self._login_catalog()
+        other_partner = self.env['res.partner'].create({'name': 'Other cart owner'})
+        order = self.env['sale.order'].create({
+            'partner_id': other_partner.id, 'rms_portal_cart': True,
+        })
+        line = self.env['sale.order.line'].create({
+            'order_id': order.id, 'product_id': self.catalog_product.id,
+            'product_uom_qty': 2,
+        })
+        before = self._cart()
+        for action in ('decrease', 'remove'):
+            with self.subTest(action=action):
+                response = self.url_open('/my/catalog/quote/' + action, data={
+                    'product_id': self.catalog_product.product_tmpl_id.id,
+                    'csrf_token': token,
+                })
+                self.assertEqual(response.status_code, 404)
+                self.assertEqual(self._cart(), before)
+                line.invalidate_recordset()
+                self.assertTrue(line.exists())
+                self.assertEqual(line.product_uom_qty, 2)
+
     def test_quote_requires_csrf(self):
         self._login_catalog()
         before = self._cart()

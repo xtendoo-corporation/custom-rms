@@ -1,9 +1,11 @@
 import base64
 import io
 import json
+import logging
 import mimetypes
 import os
 import re
+from functools import lru_cache
 
 from PIL import Image
 
@@ -15,6 +17,72 @@ from odoo.tools.misc import file_open, file_path
 BASE_TAG = b'<base href="/my/catalog/">\n'
 MAX_PDF_PAGES = 200
 A4_WIDTH_PT = 595.28
+
+_logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def catalog_metadata():
+    """Read deployment-static JS metadata without executing JavaScript.
+
+    The objects use JSON strings, unquoted keys, trailing commas and LOGO
+    references. Tokenizing strings first preserves braces/commas inside text.
+    Any unsupported syntax or incomplete metadata disables the whole result.
+    """
+    try:
+        with file_open('rms_portal_catalog/catalog_private/index.html', 'r') as source:
+            content = source.read()
+        objects = {}
+        token_re = re.compile(
+            r'"(?:[^"\\]|\\.)*"|//[^\n]*|/\*.*?\*/|'
+            r'LOGO\.[A-Za-z_$][\w$]*|[A-Za-z_$][\w$]*|'
+            r'-?\d+(?:\.\d+)?|[{}\[\]:,]|\s+', re.DOTALL,
+        )
+        for name in ('PAGES', 'BRANDS'):
+            declaration = re.search(r'\bconst\s+' + name + r'\s*=\s*(?={)', content)
+            if not declaration:
+                raise ValueError('Missing %s declaration' % name)
+            position = declaration.end()
+            depth = 0
+            tokens = []
+            while position < len(content):
+                match = token_re.match(content, position)
+                if not match:
+                    raise ValueError('Unsupported syntax in %s' % name)
+                token = match.group()
+                position = match.end()
+                if token.isspace() or token.startswith(('//', '/*')):
+                    continue
+                if token in ('{', '['):
+                    depth += 1
+                elif token in ('}', ']'):
+                    depth -= 1
+                if token.startswith('LOGO.'):
+                    token = 'null'
+                elif token[0] != '"' and re.fullmatch(r'[\w$]+', token):
+                    # Numeric page keys and JS identifiers become JSON keys.
+                    if re.match(r'\s*:', content[position:]):
+                        token = json.dumps(token)
+                    elif token not in ('true', 'false', 'null') and not token.isdigit():
+                        raise ValueError('Unsupported value in %s' % name)
+                if token in ('}', ']') and tokens[-1:] == [',']:
+                    tokens.pop()
+                tokens.append(token)
+                if depth == 0:
+                    break
+            objects[name] = json.loads(''.join(tokens))
+        brands = {key: {'name': value['name']} for key, value in objects['BRANDS'].items()}
+        pages = {key: {'title': value['title'], 'brand': value['brand']}
+                 for key, value in objects['PAGES'].items()}
+        if (not pages or not brands
+                or any(not isinstance(b['name'], str) or not b['name'] for b in brands.values())
+                or any(not isinstance(p['title'], str) or not p['title']
+                       or p['brand'] not in brands for p in pages.values())):
+            raise ValueError('Invalid catalog metadata')
+        return pages, brands
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        _logger.warning('Unable to parse catalog PAGES/BRANDS metadata', exc_info=True)
+        return {}, {}
 
 
 def _jpegs_to_pdf(jpegs, title=''):
@@ -421,20 +489,28 @@ class B2BCatalogPortal(http.Controller):
             headers=[('Content-Type', 'application/json')],
         )
 
+    def _portal_cart_product_lines(self, order, template_id):
+        """Resolve only lines in the partner-scoped cart, even if no longer sold."""
+        try:
+            template_id = int(template_id)
+        except (TypeError, ValueError):
+            return order.order_line.browse([])
+        return order.order_line.filtered(
+            lambda line: line.product_id.product_tmpl_id.id == template_id
+        )
+
     @http.route('/my/catalog/quote/decrease', type='http', auth='user', methods=['POST'])
     def portal_catalog_quote_decrease(self, product_id, **kw):
         """Quita una unidad; si era la última, quita la línea."""
-        products = self._allowed_catalog_products(template_id=product_id)
-        if not products:
+        order = self._get_portal_cart(create=False)
+        lines = self._portal_cart_product_lines(order, product_id)
+        if not lines:
             return request.not_found()
-        order = self._get_portal_cart()
-        if order:
-            variant_ids = products.ids
-            for line in order.order_line.filtered(lambda l: l.product_id.id in variant_ids):
-                if line.product_uom_qty > 1:
-                    line.product_uom_qty -= 1
-                else:
-                    line.unlink()
+        for line in lines:
+            if line.product_uom_qty > 1:
+                line.product_uom_qty -= 1
+            else:
+                line.unlink()
         return request.make_response(
             json.dumps(self._portal_cart_payload(order)),
             headers=[('Content-Type', 'application/json')],
@@ -442,13 +518,11 @@ class B2BCatalogPortal(http.Controller):
 
     @http.route('/my/catalog/quote/remove', type='http', auth='user', methods=['POST'])
     def portal_catalog_quote_remove(self, product_id, **kw):
-        products = self._allowed_catalog_products(template_id=product_id)
-        if not products:
+        order = self._get_portal_cart(create=False)
+        lines = self._portal_cart_product_lines(order, product_id)
+        if not lines:
             return request.not_found()
-        order = self._get_portal_cart()
-        if order:
-            variant_ids = products.ids
-            order.order_line.filtered(lambda l: l.product_id.id in variant_ids).unlink()
+        lines.unlink()
         return request.make_response(
             json.dumps(self._portal_cart_payload(order)),
             headers=[('Content-Type', 'application/json')],
