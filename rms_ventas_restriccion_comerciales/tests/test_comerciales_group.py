@@ -26,11 +26,18 @@ class TestComercialesGroup(TransactionCase):
         self.assertEqual(self.env.ref('custom.comerciales'), self.group)
 
     def test_new_group_matches_production_definition(self):
-        self.assertTrue(self.group_existed_after_install)
-        self.assertEqual(self.group.with_context(lang='en_US').name, 'COMERCIALES')
-        self.assertEqual(self.group.privilege_id, self.env.ref('sales_team.res_groups_privilege_sales'))
-        self.assertEqual(self.group.implied_ids, self.env.ref('sales_team.group_sale_salesman'))
-        self.assertFalse(self.group.share)
+        # Simula una base sin el grupo (se deshace al acabar el test) para
+        # comprobar la creación sin depender del grupo ya existente.
+        self.group.name = 'COMERCIALES (anterior)'  # el nombre es único por privilegio
+        self.env['ir.model.data'].search([('module', '=', 'custom'), ('name', '=', 'comerciales')]).unlink()
+        self.env.registry.clear_cache()
+        pre_init_hook(self.env)
+        group = self.env.ref('custom.comerciales')
+        self.assertNotEqual(group, self.group)
+        self.assertEqual(group.with_context(lang='en_US').name, 'COMERCIALES')
+        self.assertEqual(group.privilege_id, self.env.ref('sales_team.res_groups_privilege_sales'))
+        self.assertEqual(group.implied_ids, self.env.ref('sales_team.group_sale_salesman'))
+        self.assertFalse(group.share)
 
     def test_existing_group_is_untouched(self):
         users_field = 'user_ids' if 'user_ids' in self.group._fields else 'users'
