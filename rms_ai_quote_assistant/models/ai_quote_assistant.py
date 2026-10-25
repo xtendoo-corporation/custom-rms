@@ -799,12 +799,30 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             requested_lots = self.env["stock.lot"].browse(line.get("lot_ids") or []).exists()
             if (len(requested_lots) != len(set(line.get("lot_ids") or []))
                     or any(lot.product_id != product for lot in requested_lots)):
-                raise ValueError("Los seriales deben pertenecer al producto de la línea.")
+                raise ValueError("No se pudieron validar los seriales de la propuesta.")
             quantity = line["quantity"]
+            location = line.get("location")
             lot_ids = []
-            if state != "new":
+            if line.get("lot_ids"):
+                # Validar los seriales mostrados, sin sustituirlos por otros libres.
+                available = self._get_free_lots(product.id, state)
+                # Las reservas de otros comerciales también deben impedir la confirmación.
+                reserved = self.env["sale.order.line.serial"].sudo().search_count([
+                    ("lot_id", "in", requested_lots.ids),
+                    ("sale_order_line_id.order_id.state", "!=", "cancel"),
+                ])
+                if (state == "new" or len(requested_lots) != quantity
+                        or len(requested_lots) != len(line["lot_ids"])
+                        or requested_lots - available or reserved
+                        or (location and any(
+                            location.lower() not in (lot.location_id.display_name or "").lower()
+                            for lot in requested_lots
+                        ))):
+                    raise ValueError("No se pudieron validar los seriales de la propuesta.")
+                lot_ids = requested_lots.ids
+            elif state != "new":
                 lot_ids = self._pick_available_lots(
-                    product.id, state, quantity, location=line.get("location")
+                    product.id, state, quantity, location=location
                 )
                 quantity = len(lot_ids)
             line_previews.append(
@@ -815,6 +833,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
                     "quantity": quantity,
                     "state": state,
                     "lot_ids": lot_ids,
+                    "location": location,
                 }
             )
         return {

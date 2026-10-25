@@ -35,6 +35,94 @@ class TestF2Security(TransactionCase):
 
         cls.partner.user_id = cls.salesperson
 
+    def _warehouse_lots(self, state='second_hand'):
+        product = self.env['product.product'].create({
+            'name': 'Producto serializado R2Q', 'is_storable': True, 'tracking': 'serial',
+        })
+        lots = self.env['stock.lot']
+        # Crear primero Y para que la selección sin almacén elija otro lote.
+        for warehouse, price in (('Y', 90), ('X', 150), ('X', 180)):
+            location = self.env['stock.location'].create({
+                'name': 'Almacén R2Q %s' % warehouse, 'usage': 'internal',
+            })
+            lot = self.env['stock.lot'].create({
+                'name': 'R2Q-%s-%s' % (warehouse, price), 'product_id': product.id,
+                'company_id': self.env.company.id,
+                'product_state_id': self.env.ref('rms_product_state.state_%s' % state).id,
+                'custom_price': price,
+            })
+            self.env['stock.quant']._update_available_quantity(product, location, 1, lot_id=lot)
+            lots |= lot
+        return product, lots
+
+    def test_confirm_preserves_warehouse_and_preview_serials(self):
+        for state in ('second_hand', 'ex_demo'):
+            with self.subTest(state=state):
+                product, lots = self._warehouse_lots(state)
+                preview = self.assistant._build_quote_preview(self.partner.id, [{
+                    'product_id': product.id, 'quantity': 1,
+                    'state': state, 'location': 'Almacén R2Q X',
+                }])
+                line = preview['lines'][0]
+                self.assertEqual(line['location'], 'Almacén R2Q X')
+                self.assertIn(line['lot_ids'][0], lots[1:].ids)
+                # Incluso si cambia el orden de selección, se conserva el lote mostrado.
+                with patch.object(type(self.assistant), '_pick_available_lots', return_value=lots[-1:].ids) as pick:
+                    result = self.assistant.confirm_quote(self.partner.id, preview['lines'])
+                self.assertEqual(result['type'], 'result')
+                pick.assert_not_called()
+                serial = self.env['sale.order'].browse(result['order_id']).order_line.serial_ids
+                self.assertEqual(serial.lot_id.ids, line['lot_ids'])
+                self.assertEqual(serial.price_unit, serial.lot_id.custom_price)
+
+    def test_confirm_rejects_serial_from_other_warehouse(self):
+        product, lots = self._warehouse_lots()
+        before = self.env['sale.order'].search_count([])
+        result = self.assistant.confirm_quote(self.partner.id, [{
+            'product_id': product.id, 'quantity': 1, 'state': 'second_hand',
+            'location': 'Almacén R2Q X', 'lot_ids': lots[:1].ids,
+        }], new_opportunity_name='Oportunidad inválida R2Q')
+        self.assertEqual(result['type'], 'error')
+        self.assertNotIn(lots[0].name, result['text'])
+        self.assertEqual(self.env['sale.order'].search_count([]), before)
+        self.assertFalse(self.env['crm.lead'].search([('name', '=', 'Oportunidad inválida R2Q')]))
+
+    def test_confirm_rejects_stale_preview_serials(self):
+        product, lots = self._warehouse_lots()
+        preview = self.assistant._build_quote_preview(self.partner.id, [{
+            'product_id': product.id, 'quantity': 1,
+            'state': 'second_hand', 'location': 'Almacén R2Q X',
+        }])
+        lot = self.env['stock.lot'].browse(preview['lines'][0]['lot_ids'])
+        location = lot.location_id
+        for change in ('state', 'stock', 'reservation'):
+            with self.subTest(change=change), self.env.cr.savepoint():
+                if change == 'state':
+                    lot.product_state_id = self.env.ref('rms_product_state.state_new')
+                elif change == 'stock':
+                    self.env['stock.quant']._update_available_quantity(
+                        product, location, -1, lot_id=lot,
+                    )
+                else:
+                    order = self.env['sale.order'].create({'partner_id': self.partner.id})
+                    order_line = self.env['sale.order.line'].create({
+                        'order_id': order.id, 'product_id': product.id, 'product_uom_qty': 1,
+                    })
+                    self.env['sale.order.line.serial'].create({
+                        'sale_order_line_id': order_line.id, 'lot_id': lot.id,
+                    })
+                before = self.env['sale.order'].search_count([])
+                result = self.assistant.confirm_quote(self.partner.id, preview['lines'])
+                self.assertEqual(result['type'], 'error')
+                self.assertEqual(self.env['sale.order'].search_count([]), before)
+                # Restaurar cada condición para comprobar las demás de forma independiente.
+                if change == 'state':
+                    lot.product_state_id = self.env.ref('rms_product_state.state_second_hand')
+                elif change == 'stock':
+                    self.env['stock.quant']._update_available_quantity(
+                        product, location, 1, lot_id=lot,
+                    )
+
     def test_foreign_product_lot_rejected(self):
         before = self.env['sale.order'].search_count([])
         result = self.assistant.confirm_quote(self.partner.id, [{
