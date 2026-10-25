@@ -113,6 +113,7 @@ class ResPartner(models.Model):
 
     @api.model
     def _customer_equipment_map_partner_model(self):
+        # Entorno elevado exclusivo de los contadores y el estado de geolocalización.
         if self._is_customer_equipment_map_admin():
             return self.sudo()
         return self
@@ -612,8 +613,10 @@ class ResPartner(models.Model):
         phone, email = self.phone or "", self.email or ""
         contact_name = ""
         if not (phone and email):
-            # The company is visible to the user, so are its contact persons.
-            persons = self.sudo().child_ids.filtered(
+            # Los contactos hijos también deben respetar las reglas del usuario.
+            persons = self.env["res.partner"].search([
+                ("parent_id", "=", self.id), ("type", "=", "contact"),
+            ]).filtered(
                 lambda child: child.type == "contact"
                 and ((not phone and child.phone) or (not email and child.email))
             )
@@ -638,16 +641,17 @@ class ResPartner(models.Model):
             ("partner_latitude", "!=", 0.0),
             ("partner_longitude", "!=", 0.0),
         ]
-        Partner = self._customer_equipment_map_partner_model()
-        partners = Partner.search(domain, order="name, id")
+        partners = self.search(domain, order="name, id")
 
         equipment_by_partner = defaultdict(list)
-        # Search all equipment with sudo() so that any user with access to
-        # the partner can view all their installed products/equipments.
-        equipment = self.env["maintenance.equipment"].sudo().search(
-            [("partner_id", "in", partners.ids)],
-            order="name, id",
-        )
+        # Sin permiso de lectura no se incluyen equipos; la búsqueda aplica sus reglas.
+        Equipment = self.env["maintenance.equipment"]
+        equipment = Equipment.browse()
+        if Equipment.has_access("read"):
+            equipment = Equipment.search(
+                [("partner_id", "in", partners.ids)],
+                order="name, id",
+            )
         for item in equipment:
             equipment_by_partner[item.partner_id.id].append(
                 {

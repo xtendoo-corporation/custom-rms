@@ -3,12 +3,14 @@ from unittest.mock import MagicMock, patch
 
 from odoo import fields, sql_db
 from odoo.exceptions import AccessError, UserError
+from odoo.tests import tagged
 from odoo.tests.common import TransactionCase, new_test_user
 
 from odoo.addons.rms_customer_equipment_map.models import nominatim
 from odoo.addons.rms_customer_equipment_map.models import res_partner as res_partner_module
 
 
+@tagged("post_install", "-at_install")
 class TestGeoLocalize(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -39,6 +41,34 @@ class TestGeoLocalize(TransactionCase):
         return patch.object(
             type(self.Partner), "_geo_localize", autospec=True, side_effect=side_effect
         )
+
+    def test_geolocation_group_map_respects_company_rules(self):
+        company_a = self.env["res.company"].create({"name": "F3 mapa compañía A"})
+        company_b = self.env["res.company"].create({"name": "F3 mapa compañía B"})
+        user = new_test_user(
+            self.env, login="f3_geo_company_a",
+            groups="base.group_user,rms_customer_equipment_map.group_customer_equipment_map_geolocation",
+            company_id=company_a.id, company_ids=[(6, 0, company_a.ids)],
+        )
+        visible = self._create_partner(
+            name="F3 visible", company_id=company_a.id,
+            partner_latitude=40.4, partner_longitude=-3.7,
+        )
+        hidden = self._create_partner(
+            name="F3 oculto", company_id=company_b.id,
+            partner_latitude=41.4, partner_longitude=2.1,
+        )
+        Partner = self.Partner.with_user(user).with_context(allowed_company_ids=company_a.ids)
+        self.assertFalse(user.has_group("base.group_system"))
+        data = Partner.get_customer_equipment_map_data()
+        ids = {row["id"] for row in data["partners"]}
+        self.assertIn(visible.id, ids)
+        self.assertNotIn(hidden.id, ids)
+        self.assertTrue(data["is_admin"])
+        # Los contadores globales de geolocalización mantienen su alcance.
+        before = Partner.get_geo_localize_summary()["pending"]
+        self._create_partner(name="F3 pendiente B", company_id=company_b.id)
+        self.assertEqual(Partner.get_geo_localize_summary()["pending"], before + 1)
 
     def test_state_follows_coordinates_and_address(self):
         partner = self._create_partner()

@@ -1,6 +1,6 @@
 {
     "name": "RMS Global Equipment Map",
-    "version": "19.0.1.4.1",
+    "version": "19.0.1.4.2",
     "category": "Services/Maintenance",
     "summary": "Mapa global de clientes con Equipos del Cliente",
     "author": "Xtendoo",
