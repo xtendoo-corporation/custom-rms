@@ -21,7 +21,17 @@ class SaleOrder(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        return super().create([self._filter_restricted_values(vals) for vals in vals_list])
+        # Limpiar también los defaults que heredarían las líneas anidadas.
+        context = self.env['sale.order.line']._filter_restricted_context()
+        defaults = {key[8:]: value for key, value in context.items()
+                    if key.startswith('default_')}
+        allowed = self._filter_restricted_values(defaults)
+        context = {key: value for key, value in context.items()
+                   if not key.startswith('default_') or key[8:] in allowed}
+        clean_self = self.with_context(context)
+        return super(SaleOrder, clean_self).create(
+            [self._filter_restricted_values(vals) for vals in vals_list]
+        )
 
     def write(self, vals):
         return super().write(self._filter_restricted_values(vals))

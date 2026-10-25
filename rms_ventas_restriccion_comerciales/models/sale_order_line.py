@@ -18,9 +18,20 @@ class SaleOrderLine(models.Model):
         # anterior. Los precios de series se sincronizan internamente.
         return vals
 
+    def _filter_restricted_context(self):
+        # Aplicar las mismas restricciones antes de que default_get lea el contexto.
+        defaults = {key[8:]: value for key, value in self.env.context.items()
+                    if key.startswith('default_')}
+        allowed = self._filter_restricted_values(defaults)
+        return {key: value for key, value in self.env.context.items()
+                if not key.startswith('default_') or key[8:] in allowed}
+
     @api.model_create_multi
     def create(self, vals_list):
-        return super().create([self._filter_restricted_values(vals) for vals in vals_list])
+        clean_self = self.with_context(self._filter_restricted_context())
+        return super(SaleOrderLine, clean_self).create(
+            [self._filter_restricted_values(vals) for vals in vals_list]
+        )
 
     def write(self, vals):
         return super().write(self._filter_restricted_values(vals))
