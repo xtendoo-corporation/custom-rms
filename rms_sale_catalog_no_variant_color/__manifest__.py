@@ -2,6 +2,7 @@
 {
     'name': 'RMS Sale Catalog No Variant Color',
     'version': '19.0.1.1.2',
+    'post_init_hook': 'post_init_hook',
     'category': 'Sales',
     'summary': 'Elimina el color diferencial de las variantes de producto en la vista del catálogo del presupuesto.',
     'description': """
