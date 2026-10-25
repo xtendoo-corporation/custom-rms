@@ -2,6 +2,7 @@
 import logging
 
 from odoo import _, api, fields, models
+from odoo.exceptions import AccessError
 
 _logger = logging.getLogger(__name__)
 
@@ -39,7 +40,27 @@ class HrExpense(models.Model):
     ai_import_attempts = fields.Integer(
         string="Intentos de importación con IA", default=0, copy=False)
     ai_source_attachment_id = fields.Many2one(
-        'ir.attachment', string="Adjunto asignado para la IA", copy=False)
+        'ir.attachment', string="Adjunto asignado para la IA", copy=False, readonly=True)
+
+    def _rms_check_source_attachment(self, attachment_id):
+        attachment = self.env['ir.attachment'].sudo().browse(attachment_id).exists()
+        if not attachment or any(
+            attachment.res_model != 'hr.expense' or attachment.res_id != expense.id
+            for expense in self
+        ):
+            raise AccessError(_("El adjunto de IA debe pertenecer al propio gasto."))
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Un gasto nuevo todavía no puede tener un adjunto ligado a su id.
+        if not self.env.su and any(vals.get('ai_source_attachment_id') for vals in vals_list):
+            raise AccessError(_("Asigna el adjunto de IA después de crear el gasto."))
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if not self.env.su and vals.get('ai_source_attachment_id'):
+            self._rms_check_source_attachment(vals['ai_source_attachment_id'])
+        return super().write(vals)
 
     @api.model
     def message_new(self, msg_dict, custom_values=None):
@@ -185,6 +206,10 @@ class HrExpense(models.Model):
         if not attachment:
             attachment = self._rms_get_candidate_attachments()[:1]
         if not attachment:
+            return
+        if attachment.res_model != 'hr.expense' or attachment.res_id != self.id:
+            _logger.warning("Adjunto de IA ajeno al gasto #%s; se descarta", self.id)
+            self.ai_source_attachment_id = False
             return
 
         self.ai_import_attempts += 1

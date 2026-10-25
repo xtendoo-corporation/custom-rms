@@ -71,7 +71,7 @@ Sigue este flujo obligatorio:
 3. Si de verdad no hay ningún candidato razonable, o hay ambigüedad real
    entre opciones igual de plausibles, NO asumas: responde con texto
    normal preguntando al usuario que aclare, y espera su respuesta.
-4. Nunca inventes un id, default_code, nombre o email que no aparezca
+4. Nunca inventes un id, default_code o nombre que no aparezca
    literalmente en los listados de más abajo.
 5. Cuando cliente y TODAS las líneas estén resueltos, llama a
    propose_quote con partner_id y las líneas (product_id + quantity).
@@ -430,8 +430,11 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         for _round in range(MAX_TOOL_ROUNDS):
             try:
                 response = self._call_gemini(api_key, model, system_prompt, contents, tools)
-            except Exception:
-                _logger.exception("Error llamando a la API de Gemini")
+            except Exception as exc:
+                _logger.error(
+                    "Error llamando a Gemini: tipo=%s status=%s",
+                    type(exc).__name__, getattr(getattr(exc, "response", None), "status_code", None),
+                )
                 return {
                     "type": "error",
                     "text": "No se pudo contactar con el servicio de IA. Inténtalo de nuevo.",
@@ -558,58 +561,61 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         except ValueError as exc:
             return {"type": "error", "text": str(exc)}
 
-        partner = self.env["res.partner"].browse(partner_id)
-
-        if new_opportunity_name:
-            opportunity = self.env["crm.lead"].create({
-                "name": new_opportunity_name,
-                "partner_id": partner.id,
-                "type": "opportunity",
-            })
-            opportunity_id = opportunity.id
-        elif opportunity_id:
-            opportunity = self.env["crm.lead"].browse(opportunity_id).exists()
-            if not opportunity:
-                return {"type": "error", "text": "No existe ninguna oportunidad con id %s." % opportunity_id}
-
-        order_vals = {
-            "partner_id": partner.id,
-            "order_line": [
-                (0, 0, {
-                    "product_id": l["product_id"],
-                    "product_uom_qty": l["quantity"],
-                    "sequence": (idx + 1) * 10,
-                })
-                for idx, l in enumerate(lines)
-            ],
-        }
-        if opportunity_id:
-            order_vals["opportunity_id"] = opportunity_id
-        # Pricelist guard: never taken from the LLM or from any request
-        # parameter — always the partner's own pricelist. See
-        # rms_ventas_restriccion_comerciales/views/sale_order_views.xml for
-        # the UI-level counterpart of this restriction (readonly field for
-        # the custom.comerciales group); that protection doesn't apply here
-        # since this tool bypasses the form view entirely, so it's
-        # unconditional here for every user, not just comerciales.
-        if partner.property_product_pricelist:
-            order_vals["pricelist_id"] = partner.property_product_pricelist.id
-
         try:
-            order = self.env["sale.order"].create(order_vals)
-            created_lines = order.order_line.sorted("sequence")
-            for order_line, line in zip(created_lines, lines):
-                lot_ids = line.get("lot_ids") or []
-                state = line.get("state") or "new"
-                if state != "new" and lot_ids:
-                    self.env["sale.order.line.serial"].create([
-                        {"sale_order_line_id": order_line.id, "lot_id": lot_id}
-                        for lot_id in lot_ids
-                    ])
-        except Exception as exc:
-            self.env.cr.rollback()
+            with self.env.cr.savepoint():
+                partner = self.env["res.partner"].browse(partner_id)
+
+                if new_opportunity_name:
+                    opportunity = self.env["crm.lead"].create({
+                        "name": new_opportunity_name,
+                        "partner_id": partner.id,
+                        "type": "opportunity",
+                    })
+                    opportunity_id = opportunity.id
+                elif opportunity_id:
+                    opportunity = self.env["crm.lead"].browse(opportunity_id).exists()
+                    if not opportunity:
+                        return {"type": "error", "text": "No existe ninguna oportunidad con id %s." % opportunity_id}
+
+                order_vals = {
+                    "partner_id": partner.id,
+                    "order_line": [
+                        (0, 0, {
+                            "product_id": l["product_id"],
+                            "product_uom_qty": l["quantity"],
+                            "sequence": (idx + 1) * 10,
+                        })
+                        for idx, l in enumerate(preview["lines"])
+                    ],
+                }
+                if opportunity_id:
+                    order_vals["opportunity_id"] = opportunity_id
+                # Pricelist guard: never taken from the LLM or from any request
+                # parameter — always the partner's own pricelist. See
+                # rms_ventas_restriccion_comerciales/views/sale_order_views.xml for
+                # the UI-level counterpart of this restriction (readonly field for
+                # the custom.comerciales group); that protection doesn't apply here
+                # since this tool bypasses the form view entirely, so it's
+                # unconditional here for every user, not just comerciales.
+                if partner.property_product_pricelist:
+                    order_vals["pricelist_id"] = partner.property_product_pricelist.id
+
+                order = self.env["sale.order"].create(order_vals)
+                created_lines = order.order_line.sorted("sequence")
+                for order_line, line in zip(created_lines, preview["lines"]):
+                    lot_ids = line.get("lot_ids") or []
+                    state = line.get("state") or "new"
+                    if any(lot.product_id != order_line.product_id
+                           for lot in self.env["stock.lot"].browse(lot_ids)):
+                        raise ValueError("Los seriales deben pertenecer al producto de la línea.")
+                    if state != "new" and lot_ids:
+                        self.env["sale.order.line.serial"].create([
+                            {"sale_order_line_id": order_line.id, "lot_id": lot_id}
+                            for lot_id in lot_ids
+                        ])
+        except Exception:
             _logger.exception("Error creando presupuesto desde el asistente IA")
-            return {"type": "error", "text": "No se pudo crear el presupuesto: %s" % exc}
+            return {"type": "error", "text": "No se pudo crear el presupuesto. Revísalo e inténtalo de nuevo."}
 
         return {
             "type": "result",
@@ -633,7 +639,7 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         varies per conversation and must stay out of the cached prefix.
         """
         partners = self.env["res.partner"].search_read(
-            [], ["id", "name", "email", "phone"], order="name"
+            [], ["id", "name"], order="name"
         )
         products = self.env["product.product"].search_read(
             [], ["id", "default_code", "name", "list_price", "qty_available"], order="name"
@@ -790,6 +796,10 @@ class RmsAiQuoteAssistant(models.AbstractModel):
             state = line.get("state") or "new"
             if state not in ("new", "second_hand", "ex_demo"):
                 raise ValueError("Estado de línea no válido: %s." % state)
+            requested_lots = self.env["stock.lot"].browse(line.get("lot_ids") or []).exists()
+            if (len(requested_lots) != len(set(line.get("lot_ids") or []))
+                    or any(lot.product_id != product for lot in requested_lots)):
+                raise ValueError("Los seriales deben pertenecer al producto de la línea.")
             quantity = line["quantity"]
             lot_ids = []
             if state != "new":
@@ -810,7 +820,10 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         return {
             "partner_id": partner.id,
             "partner_name": partner.name,
-            "partner_email": partner.email or "",
+            "partner_email": (
+                "" if self.env.ref("custom.comerciales", raise_if_not_found=False)
+                and self.env.user.has_group("custom.comerciales") else partner.email or ""
+            ),
             "lines": line_previews,
         }
 
@@ -880,13 +893,12 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         }
         response = requests.post(
             "%s/%s:generateContent" % (GEMINI_API_BASE_URL, model),
-            params={"key": api_key},
-            headers={"content-type": "application/json"},
+            headers={"content-type": "application/json", "x-goog-api-key": api_key},
             json=payload,
             timeout=LLM_TIMEOUT,
         )
         if not response.ok:
-            _logger.error("Gemini API error %s: %s", response.status_code, response.text[:2000])
+            _logger.error("Gemini API error: status=%s", response.status_code)
         response.raise_for_status()
         return response.json()
 
