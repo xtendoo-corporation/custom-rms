@@ -682,7 +682,8 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         if not lots:
             return {}
         sold_lot_ids = set(
-            self.env["sale.order.line.serial"].search([
+            # sudo: las reservas de otros comerciales también ocupan el lote.
+            self.env["sale.order.line.serial"].sudo().search([
                 ("lot_id", "in", lots.ids),
                 ("sale_order_line_id.order_id.state", "!=", "cancel"),
             ]).lot_id.ids
@@ -713,7 +714,8 @@ class RmsAiQuoteAssistant(models.AbstractModel):
         if not candidates:
             return candidates
         sold_ids = set(
-            self.env["sale.order.line.serial"].search([
+            # sudo: las reservas de otros comerciales también ocupan el lote.
+            self.env["sale.order.line.serial"].sudo().search([
                 ("lot_id", "in", candidates.ids),
                 ("sale_order_line_id.order_id.state", "!=", "cancel"),
             ]).lot_id.ids
