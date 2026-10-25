@@ -10,6 +10,6 @@ class ProductState(models.Model):
     sequence = fields.Integer(string='Secuencia', default=10)
     active = fields.Boolean(string='Activo', default=True)
 
-    _sql_constraints = [
-        ('code_unique', 'unique(code)', 'El código del estado debe ser único.'),
-    ]
+    _code_unique = models.Constraint(
+        'UNIQUE(code)', 'El código del estado debe ser único.',
+    )

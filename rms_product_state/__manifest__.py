@@ -1,6 +1,6 @@
 {
     'name': 'RMS Product States',
-    'version': '19.0.1.0.1',
+    'version': '19.0.1.0.2',
     'summary': 'Manage custom product states (New, Demo, Ex-Demo, Second Hand, Discontinued) and lot pricing rules.',
     'description': """
 This module adds a product state classification to Odoo.
@@ -17,6 +17,7 @@ and automates the archiving of discontinued products with depleted stock.
     ],
     'data': [
         'security/ir.model.access.csv',
+        'security/serial_security.xml',
         'data/product_state_data.xml',
         'data/ir_cron_data.xml',
         'views/product_state_views.xml',

@@ -25,10 +25,10 @@ class SaleOrderLineSerial(models.Model):
         help='Precio de venta de esta unidad concreta (por defecto, el Precio Custom del lote al añadirlo).'
     )
 
-    _sql_constraints = [
-        ('lot_unique_per_line', 'unique(lot_id, sale_order_line_id)',
-         'Este número de serie ya está añadido en esta línea.'),
-    ]
+    _lot_unique_per_line = models.Constraint(
+        'UNIQUE(lot_id, sale_order_line_id)',
+        'Este número de serie ya está añadido en esta línea.',
+    )
 
     def _lock_prices(self):
         # Este módulo también funciona sin instalar las restricciones comerciales.
@@ -98,7 +98,9 @@ class SaleOrderLineSerial(models.Model):
 
     def _check_lot_not_sold_elsewhere(self):
         for rec in self:
-            other = self.search([
+            # sudo: la unicidad es global; las reglas por vendedor ocultarían
+            # las asignaciones de otros comerciales.
+            other = self.sudo().search([
                 ('lot_id', '=', rec.lot_id.id),
                 ('id', '!=', rec.id),
                 ('sale_order_line_id.order_id.state', '!=', 'cancel'),
