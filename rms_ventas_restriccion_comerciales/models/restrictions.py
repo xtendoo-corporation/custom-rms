@@ -7,7 +7,9 @@ GROUP_QUOTATION_FULL_EDIT = 'rms_ventas_restriccion_comerciales.group_comerciale
 
 def _is_restricted(env, allowed_group):
     user = env.user
-    return user.has_group(GROUP_COMERCIALES) and not user.has_group(allowed_group)
+    return bool(env.ref(GROUP_COMERCIALES, raise_if_not_found=False)) and (
+        user.has_group(GROUP_COMERCIALES) and not user.has_group(allowed_group)
+    )
 
 
 def hide_pricelists(env):

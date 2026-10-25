@@ -63,7 +63,7 @@ class InstallationProjectPortal(CustomerPortal):
             'date': {'label': 'Fecha', 'order': 'date desc'},
             'name': {'label': 'Referencia', 'order': 'name'},
         }
-        sortby = sortby or 'date'
+        sortby = sortby if sortby in searchbar_sortings else 'date'
         order = searchbar_sortings[sortby]['order']
 
         project_count = Project.search_count(domain)

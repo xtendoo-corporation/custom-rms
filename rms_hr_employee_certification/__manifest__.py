@@ -1,6 +1,6 @@
 {
     'name': 'RMS - Certificaciones de Empleado',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'category': 'Human Resources',
     'summary': 'Control de certificaciones, formaciones y consentimientos de empleados con renovación periódica',
     'description': """
@@ -31,6 +31,7 @@
         'security/hr_employee_certification_security.xml',
         'data/hr_certification_category_data.xml',
         'data/hr_certification_type_data.xml',
+        'data/mail_activity_type_data.xml',
         'data/ir_cron_data.xml',
         'views/hr_certification_category_views.xml',
         'views/hr_certification_type_views.xml',

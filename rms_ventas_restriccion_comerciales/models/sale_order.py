@@ -1,12 +1,58 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, models
+from odoo.exceptions import AccessError
 
 from .restrictions import hide_pricelists, lock_prices_and_taxes
 
 
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
+
+    def _filter_restricted_values(self, vals):
+        vals = dict(vals)
+        if not self.env.su:
+            locked = lock_prices_and_taxes(self.env)
+            if locked:
+                vals.pop('fiscal_position_id', None)
+            if locked or hide_pricelists(self.env):
+                vals.pop('pricelist_id', None)
+        return vals
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Limpiar también los defaults que heredarían las líneas anidadas.
+        context = self.env['sale.order.line']._filter_restricted_context()
+        defaults = {key[8:]: value for key, value in context.items()
+                    if key.startswith('default_')}
+        allowed = self._filter_restricted_values(defaults)
+        context = {key: value for key, value in context.items()
+                   if not key.startswith('default_') or key[8:] in allowed}
+        clean_self = self.with_context(context)
+        return super(SaleOrder, clean_self).create(
+            [self._filter_restricted_values(vals) for vals in vals_list]
+        )
+
+    def write(self, vals):
+        return super().write(self._filter_restricted_values(vals))
+
+    def _check_price_update_access(self, pricelist=False):
+        if not self.env.su and (
+            lock_prices_and_taxes(self.env) or (pricelist and hide_pricelists(self.env))
+        ):
+            raise AccessError('No tienes permiso para modificar precios, descuentos o impuestos.')
+
+    def action_update_taxes(self):
+        self._check_price_update_access()
+        return super().action_update_taxes()
+
+    def action_update_prices(self):
+        self._check_price_update_access(pricelist=True)
+        return super().action_update_prices()
+
+    def action_open_discount_wizard(self):
+        self._check_price_update_access()
+        return super().action_open_discount_wizard()
 
     @api.model
     def _get_view_cache_key(self, view_id=None, view_type='form', **options):

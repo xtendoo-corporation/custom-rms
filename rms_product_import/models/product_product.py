@@ -1,5 +1,5 @@
 from odoo import models, api
-from odoo.osv import expression
+from odoo.fields import Domain
 
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
@@ -40,14 +40,14 @@ class ProductProduct(models.Model):
                     words = value.split()
                     if len(words) > 1:
                         # Reemplaza la hoja por un AND con todas las palabras para ese campo
-                        leaf_domain = expression.AND([[(field, operator, w)] for w in words])
+                        leaf_domain = Domain.AND([Domain(field, operator, w) for w in words])
                         new_domain.extend(leaf_domain)
                         changed = True
                         continue
             new_domain.append(leaf)
             
         if changed:
-            return expression.normalize_domain(new_domain)
+            return list(Domain(new_domain))
         return domain
 
     @api.model

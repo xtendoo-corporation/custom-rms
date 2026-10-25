@@ -1,6 +1,8 @@
 import base64
 import io
 import logging
+import re
+from itertools import islice
 
 try:
     import xlrd
@@ -28,28 +30,40 @@ class PartnerImportWizard(models.TransientModel):
         if not self.file:
             raise UserError(_("Por favor, sube un archivo Excel."))
 
+        max_size = 20 * 1024 * 1024
+        if len(self.file) > 4 * ((max_size + 2) // 3):
+            raise UserError(_("El archivo supera el límite de 20 MB."))
         file_data = base64.b64decode(self.file)
+        if len(file_data) > max_size:
+            raise UserError(_("El archivo supera el límite de 20 MB."))
         
         # Intentar leer con openpyxl primero
         if openpyxl and self.filename and self.filename.endswith('.xlsx'):
-            wb = openpyxl.load_workbook(filename=io.BytesIO(file_data), data_only=True)
+            wb = openpyxl.load_workbook(filename=io.BytesIO(file_data), data_only=True, read_only=True)
             sheet = wb.active
             rows = sheet.iter_rows(values_only=True)
-            header = next(rows)
-            data_rows = list(rows)
+            header = next(rows, ())
+            data_rows = list(islice(rows, 50001))
+            wb.close()
         elif xlrd and self.filename and self.filename.endswith('.xls'):
             wb = xlrd.open_workbook(file_contents=file_data)
             sheet = wb.sheet_by_index(0)
-            header = sheet.row_values(0)
+            if sheet.nrows > 50001:
+                raise UserError(_("El archivo supera el límite de 50.000 filas."))
+            header = sheet.row_values(0) if sheet.nrows else []
             data_rows = [sheet.row_values(rx) for rx in range(1, sheet.nrows)]
         else:
             raise UserError(_("Formato de archivo no soportado o falta la librería openpyxl/xlrd. Sube un archivo .xlsx"))
+
+        if len(data_rows) > 50000:
+            raise UserError(_("El archivo supera el límite de 50.000 filas."))
 
         # Mapeo de columnas con nombres aproximados (en minúsculas)
         header_map = {str(k).strip().lower(): v for v, k in enumerate(header) if k}
         
         # ¡AQUÍ ESTÁ LA MAGIA! Pasamos no_vat_validation=True y desactivamos el chatter/notificaciones
         Partner = self.env['res.partner'].with_context(
+            active_test=False,
             no_vat_validation=True,
             mail_create_nosubscribe=True,
             mail_create_nolog=True,
@@ -77,39 +91,51 @@ class PartnerImportWizard(models.TransientModel):
         user_records = User.search([])
         user_map = {u.name.strip().lower(): u.id for u in user_records if u.name}
 
-        vals_list = []
+        country_codes = {c.code.upper() for c in country_records if c.code} | {'EL', 'UK'}
 
-        for row in data_rows:
+        def normalize_name(value):
+            return ' '.join((value or '').split()).casefold()
+
+        def normalize_vat(value, country):
+            value = re.sub(r'[\s.\-]+', '', value or '').upper()
+            # Conservar el país para no fusionar números de países distintos.
+            if value[:2] in country_codes:
+                return {'EL': 'GR', 'UK': 'GB'}.get(value[:2], value[:2]) + value[2:]
+            return (country.code or '').upper() + value if country else value
+
+        def partner_key(vals, country):
+            if vals.get('vat'):
+                return ('vat', normalize_vat(vals['vat'], country))
+            return ('name', normalize_name(vals.get('name')),
+                    normalize_name(vals.get('comercial')))
+
+        vals_by_key = {}
+        skipped_count = 0
+        for row_number, row in enumerate(data_rows, start=2):
             if not row or not any(row):
                 continue
-            
+
+            present_fields = set()
+
             def get_val(*keywords):
-                # 1. Coincidencia exacta primero (insensible a mayúsculas/minúsculas)
-                for kw in keywords:
-                    for h_name, idx in header_map.items():
-                        if kw == h_name:
-                            val = row[idx]
-                            return str(val).strip() if val is not None else ''
-                # 2. Coincidencia parcial si no hay exacta
-                for kw in keywords:
-                    for h_name, idx in header_map.items():
-                        if kw in h_name:
-                            val = row[idx]
-                            return str(val).strip() if val is not None else ''
+                # Coincidencia exacta antes de buscar nombres parciales.
+                for exact in (True, False):
+                    for kw in keywords:
+                        for h_name, idx in header_map.items():
+                            # El nombre comercial o del vendedor no suple al nombre.
+                            if keywords == ('nombre',) and ('comercial' in h_name or 'vendedor' in h_name):
+                                continue
+                            matches = kw == h_name if exact else kw in h_name
+                            if matches:
+                                present_fields.add(keywords)
+                                val = row[idx] if idx < len(row) else None
+                                return str(val).strip() if val is not None else ''
                 return ''
 
             nif = get_val('nif', 'cif')
             nombre_comercial = get_val('nombre comercial', 'nom. comercial', 'comercial')
             
-            nombre = ''
-            for h_name, idx in header_map.items():
-                if h_name == 'nombre':
-                    val = row[idx]
-                    nombre = str(val).strip() if val is not None else ''
-                    break
-            
-            if not nombre:
-                nombre = get_val('nombre')
+            nombre = get_val('nombre')
 
             calle = get_val('calle')
             cp = get_val('postal', 'cp', 'codigo')
@@ -120,22 +146,21 @@ class PartnerImportWizard(models.TransientModel):
             vendedor_name = get_val('nombre vendedor', 'vendedor', 'comercial')
 
             if not nombre:
+                skipped_count += 1
                 continue
 
-            vals = {
-                'name': nombre,
-                'street': calle,
-                'zip': cp,
-                'city': ciudad,
-                'email': email,
-                'company_type': 'company',
-            }
-
-            if 'comercial' in Partner._fields:
-                vals['comercial'] = nombre_comercial
-
-            if nif:
-                vals['vat'] = nif
+            vals = {'name': nombre, 'company_type': 'company'}
+            # Solo las columnas presentes participan en la importación.
+            for field, keywords, value in (
+                ('street', ('calle',), calle),
+                ('zip', ('postal', 'cp', 'codigo'), cp),
+                ('city', ('ciudad',), ciudad),
+                ('email', ('email',), email),
+                ('vat', ('nif', 'cif'), nif),
+                ('comercial', ('nombre comercial', 'nom. comercial', 'comercial'), nombre_comercial),
+            ):
+                if keywords in present_fields and field in Partner._fields:
+                    vals[field] = value
 
             # Mapeo de Vendedor (Comercial)
             user_id = False
@@ -182,55 +207,51 @@ class PartnerImportWizard(models.TransientModel):
                 if state_id:
                     vals['state_id'] = state_id
 
-            vals_list.append(vals)
+            key = partner_key(vals, Country.browse(country_id)
+                              if country_id else self.env.company.country_id)
+            if key in vals_by_key:
+                # La primera fila prevalece; las siguientes solo completan huecos.
+                first_vals, first_row = vals_by_key[key]
+                for field, value in vals.items():
+                    if not first_vals.get(field) and value:
+                        first_vals[field] = value
+            else:
+                vals_by_key[key] = (vals, row_number)
 
-        # 4. OPTIMIZACIÓN: Búsqueda masiva de potenciales contactos existentes para evitar duplicaciones
-        imported_vats = {v['vat'] for v in vals_list if v.get('vat')}
-        imported_names = {v['name'] for v in vals_list if v.get('name')}
-        
-        existing_domain = []
-        if imported_vats:
-            existing_domain.append(('vat', 'in', list(imported_vats)))
-        if imported_names:
-            existing_domain.append(('name', 'in', list(imported_names)))
-            
+        # La normalización requiere comparar también los valores almacenados con
+        # espacios, guiones o puntos; se incluyen los contactos archivados.
         existing_map = {}
-        if existing_domain:
-            if len(existing_domain) > 1:
-                existing_domain = ['|'] + existing_domain
-            
-            existing_partners = Partner.search(existing_domain)
-            for p in existing_partners:
-                p_comercial = p.comercial if 'comercial' in Partner._fields else ''
-                key = (
-                    (p.vat or '').strip().lower(),
-                    (p.name or '').strip().lower(),
-                    (p.comercial or '').strip().lower() if 'comercial' in Partner._fields else ''
-                )
-                if key not in existing_map:
-                    existing_map[key] = p
+        if vals_by_key:
+            for partner in Partner.search([]):
+                values = {
+                    'name': partner.name,
+                    'comercial': partner.comercial if 'comercial' in Partner._fields else '',
+                }
+                # Mismo país por defecto que en las filas importadas.
+                country = partner.country_id or self.env.company.country_id
+                keys = [partner_key(values, country)]
+                if partner.vat:
+                    keys.append(partner_key({'vat': partner.vat}, country))
+                for key in keys:
+                    if key in vals_by_key:
+                        existing_map.setdefault(key, []).append(partner)
 
-        # 5. Separación en creación o actualización
+        # Detectar ambigüedades antes de escribir ningún contacto.
+        for key, matches in existing_map.items():
+            if len(matches) > 1:
+                raise UserError(_("Fila %s: varios contactos coinciden con la clave de importación.")
+                                % vals_by_key[key][1])
+
         created_count = 0
         updated_count = 0
         to_create = []
-
-        for vals in vals_list:
-            nif = vals.get('vat', '')
-            nombre = vals.get('name', '')
-            nombre_comercial = vals.get('comercial', '') if 'comercial' in Partner._fields else ''
-            
-            key = (
-                nif.strip().lower(),
-                nombre.strip().lower(),
-                nombre_comercial.strip().lower()
-            )
-            
-            existing_partner = existing_map.get(key)
-            if existing_partner:
-                # Actualizar el contacto existente (excluyendo 'company_type' que ya está configurado)
-                write_vals = {k: v for k, v in vals.items() if k != 'company_type'}
-                existing_partner.write(write_vals)
+        for key, (vals, row_number) in vals_by_key.items():
+            matches = existing_map.get(key)
+            if matches:
+                # Una celda vacía nunca borra datos al actualizar.
+                write_vals = {k: v for k, v in vals.items()
+                              if k != 'company_type' and v not in ('', False, None)}
+                matches[0].write(write_vals)
                 updated_count += 1
             else:
                 to_create.append(vals)
@@ -245,7 +266,7 @@ class PartnerImportWizard(models.TransientModel):
             'tag': 'display_notification',
             'params': {
                 'title': _('Importación completada'),
-                'message': _('Se han creado %s empresas y actualizado %s empresas exitosamente.') % (created_count, updated_count),
+                'message': _('Se han creado %s empresas y actualizado %s empresas exitosamente. Filas sin nombre omitidas: %s.') % (created_count, updated_count, skipped_count),
                 'sticky': False,
                 'type': 'success',
             }

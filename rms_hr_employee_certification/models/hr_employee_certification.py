@@ -38,6 +38,9 @@ class HrEmployeeCertification(models.Model):
     document_filename = fields.Char(string='Nombre del Documento')
     notes = fields.Text(string='Notas')
     active = fields.Boolean(default=True)
+    renewal_notified_date = fields.Date(
+        string='Caducidad Notificada', readonly=True, copy=False)
+
 
     @api.depends(
         'date_obtained',
@@ -93,19 +96,23 @@ class HrEmployeeCertification(models.Model):
         recurring_certifications = self.search([('is_recurring', '=', True)])
         recurring_certifications._compute_state()
 
-        activity_type = self.env.ref('mail.mail_activity_data_todo')
+        activity_type = self.env.ref('rms_hr_employee_certification.mail_activity_type_certification_renewal')
         to_notify = recurring_certifications.filtered(
             lambda cert: cert.state in ('expiring', 'expired'))
         for cert in to_notify:
+            if cert.renewal_notified_date == cert.date_expiration:
+                continue
             already_notified = cert.activity_ids.filtered(
-                lambda activity: activity.activity_type_id == activity_type)
+                lambda activity: activity.activity_type_id == activity_type
+                and activity.date_deadline == cert.date_expiration)
             if already_notified:
+                cert.renewal_notified_date = cert.date_expiration
                 continue
             responsible = cert._get_reminder_responsible()
             if not responsible:
                 continue
             cert.activity_schedule(
-                'mail.mail_activity_data_todo',
+                'rms_hr_employee_certification.mail_activity_type_certification_renewal',
                 date_deadline=cert.date_expiration,
                 summary="Renovar certificación: %s" % cert.certification_type_id.name,
                 note=(
@@ -119,3 +126,4 @@ class HrEmployeeCertification(models.Model):
                 ),
                 user_id=responsible.id,
             )
+            cert.renewal_notified_date = cert.date_expiration

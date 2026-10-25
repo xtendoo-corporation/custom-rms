@@ -15,7 +15,7 @@ except ImportError:
 
 class GlobalEquipmentMapController(http.Controller):
     def _read_partners(self, partner_ids=None):
-        Partner = request.env["res.partner"].sudo()
+        Partner = request.env["res.partner"]
         domain = [
             ("partner_latitude", "!=", 0.0),
             ("partner_longitude", "!=", 0.0),
@@ -35,7 +35,11 @@ class GlobalEquipmentMapController(http.Controller):
 
         result = []
         for partner in partners:
-            contact = partner.child_ids.filtered(lambda child: child.type == "contact" and child.name)[:1]
+            contact = Partner.search([
+                ("parent_id", "=", partner.id),
+                ("type", "=", "contact"),
+                ("name", "!=", False),
+            ], limit=1)
             result.append(
                 {
                     "id": partner.id,
@@ -57,7 +61,7 @@ class GlobalEquipmentMapController(http.Controller):
 
     @http.route(
         "/rms_global_equipment_map/partners",
-        type="json",
+        type="jsonrpc",
         auth="user",
         methods=["POST"],
     )
@@ -70,7 +74,7 @@ class GlobalEquipmentMapController(http.Controller):
 
     @http.route(
         "/rms_global_equipment_map/export_xlsx",
-        type="json",
+        type="jsonrpc",
         auth="user",
         methods=["POST"],
     )

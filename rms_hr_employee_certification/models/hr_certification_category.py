@@ -12,6 +12,7 @@ class HrCertificationCategory(models.Model):
     active = fields.Boolean(default=True)
     description = fields.Text(string='Descripción')
 
-    _sql_constraints = [
-        ('name_uniq', 'unique(name)', 'Ya existe una categoría de certificación con este nombre.'),
-    ]
+    _name_uniq = models.Constraint(
+        'UNIQUE(name)',
+        'Ya existe una categoría de certificación con este nombre.',
+    )

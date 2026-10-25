@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 from odoo import _, api, fields, models
 from odoo.osv import expression
+from odoo.tools.mail import html_sanitize
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 try:
@@ -27,11 +28,12 @@ class IrAttachment(models.Model):
 
     def init(self):
         super().init()
-        # Clean up attachments that are not knowledge documents
+        # Limpiar solo adjuntos ajenos a Knowledge que aún tengan directorio
         self.env.cr.execute("""
             UPDATE ir_attachment
             SET knowledge_category_id = NULL
-            WHERE is_knowledge_document = FALSE OR is_knowledge_document IS NULL;
+            WHERE (is_knowledge_document = FALSE OR is_knowledge_document IS NULL)
+              AND knowledge_category_id IS NOT NULL;
         """)
 
     is_knowledge_document = fields.Boolean(
@@ -248,7 +250,6 @@ class IrAttachment(models.Model):
         if (
             field_name == 'knowledge_category_id'
             and not self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
-            and not self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
         ):
             kwargs = dict(kwargs)
             readable_ids = self._get_user_readable_knowledge_category_ids()
@@ -262,10 +263,7 @@ class IrAttachment(models.Model):
         domain = [
             ('is_knowledge_document', '=', True),
         ]
-        if (
-            self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')
-            or self.env.user.has_group('rms_custom_knowledge.group_knowledge_contributor')
-        ):
+        if self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager'):
             return domain
 
         readable_ids = self._get_user_readable_knowledge_category_ids()
@@ -1162,11 +1160,12 @@ th, td { border: 1px solid #d1d5db; padding: 6px 8px; }
         except ImportError:
             return self._basic_markdown_to_html(markdown_text)
 
-        return markdown.markdown(
+        # Markdown permite HTML crudo: sanear antes de incorporarlo a la preview.
+        return html_sanitize(markdown.markdown(
             markdown_text,
             extensions=['extra', 'sane_lists', 'nl2br'],
             output_format='html5',
-        )
+        ))
 
     @api.model
     def _basic_markdown_to_html(self, markdown_text):

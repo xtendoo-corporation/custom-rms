@@ -3,14 +3,16 @@ from datetime import timedelta
 from lxml import etree
 
 from odoo import fields
+from odoo.tests import tagged
 from odoo.tests.common import TransactionCase, new_test_user
 
 
+@tagged("post_install", "-at_install")
 class TestActivitySecurity(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.employee = new_test_user(cls.env, login='activity_employee', groups='base.group_user')
+        cls.employee = new_test_user(cls.env, login='activity_employee', groups='rms_portal_access_log.group_portal_weekly_report')
         cls.project = cls.env['rms.installation.project'].create({
             'name': 'Project name visible in activity',
             'partner_id': cls.employee.partner_id.id,

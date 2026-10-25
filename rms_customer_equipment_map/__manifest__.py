@@ -1,6 +1,6 @@
 {
     "name": "Customer Equipment Map",
-    "version": "19.0.8.2.1",
+    "version": "19.0.8.2.3",
     "category": "Services/Maintenance",
     "summary": "Geolocaliza clientes y vincula sus equipos instalados",
     "author": "Xtendoo",

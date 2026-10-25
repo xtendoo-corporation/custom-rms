@@ -466,14 +466,15 @@ class RmsAiHelpAssistant(models.AbstractModel):
             return json.dumps({"error": str(exc)}, ensure_ascii=False)
 
     def _is_comercial(self):
-        # has_group ya maneja con gracia el caso de que el external id no
-        # exista (devuelve False), así que no hace falta try/except aquí.
-        # 'custom.comerciales' es el external id real usado en
-        # rms_ventas_restriccion_comerciales/views/*.xml en producción; no
-        # está definido como <record model="res.groups"> en ningún módulo
-        # de este repositorio, así que se asume creado manualmente en la
-        # base de datos (Ajustes > Técnico > Grupos).
-        return self.env.user.has_group("custom.comerciales")
+        return bool(self.env.ref('custom.comerciales', raise_if_not_found=False)) and self.env.user.has_group(
+            'custom.comerciales'
+        )
+
+    def _hide_pricelist_details(self):
+        group = 'rms_ventas_restriccion_comerciales.group_comerciales_pricelist'
+        return self._is_comercial() and not (
+            self.env.ref(group, raise_if_not_found=False) and self.env.user.has_group(group)
+        )
 
     def _tool_buscar_cliente(self, tool_input):
         texto = (tool_input.get("texto") or "").strip()
@@ -495,8 +496,9 @@ class RmsAiHelpAssistant(models.AbstractModel):
                 "es_empresa": p.is_company,
                 "ciudad": p.city or "",
                 "comercial_asignado": p.user_id.name or "",
-                "lista_precios": p.property_product_pricelist.name or "",
             }
+            if not self._hide_pricelist_details():
+                row["lista_precios"] = p.property_product_pricelist.name or ""
             if oculto_para_comerciales:
                 row["nota"] = (
                     "Email, teléfono y NIF no disponibles para tu perfil "
@@ -547,7 +549,7 @@ class RmsAiHelpAssistant(models.AbstractModel):
             return {
                 "cliente": partner.display_name,
                 "producto": product.display_name,
-                "lista_precios": "",
+                **({} if self._hide_pricelist_details() else {"lista_precios": ""}),
                 "precio_final": product.list_price,
                 "nota": "El cliente no tiene lista de precios asignada; se muestra el precio de tarifa general.",
             }
@@ -560,7 +562,7 @@ class RmsAiHelpAssistant(models.AbstractModel):
 
         descuentos = None
         try:
-            rule_id = pricelist._get_product_rule(product, 1.0)
+            rule_id = False if self._hide_pricelist_details() else pricelist._get_product_rule(product, 1.0)
             if rule_id:
                 item = self.env["product.pricelist.item"].browse(rule_id)
                 if hasattr(item, "discount1"):
@@ -576,7 +578,7 @@ class RmsAiHelpAssistant(models.AbstractModel):
         result = {
             "cliente": partner.display_name,
             "producto": product.display_name,
-            "lista_precios": pricelist.name,
+            **({} if self._hide_pricelist_details() else {"lista_precios": pricelist.name}),
             "precio_tarifa_general": product.list_price,
             "precio_final": precio_final,
         }

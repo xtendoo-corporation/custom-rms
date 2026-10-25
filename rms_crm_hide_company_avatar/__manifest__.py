@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS CRM Hide Company Avatar',
-    'version': '1.0',
+    'version': '19.0.1.0.1',
+    'author': 'RMS Pro Audio',
     'category': 'Sales/CRM',
     'summary': 'Oculta el avatar de la empresa en las tarjetas kanban del pipeline de CRM.',
     'depends': [

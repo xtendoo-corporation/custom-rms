@@ -43,7 +43,8 @@ class SaleOrderLineSerialSelectorWizard(models.TransientModel):
                 ('product_id', '=', wiz.product_id.id),
                 ('product_state_code', '=', wiz.state_code),
             ])
-            reservations = Serial.search([
+            # sudo: hay que ver también las reservas de otros comerciales.
+            reservations = Serial.sudo().search([
                 ('lot_id', 'in', lots.ids),
                 ('sale_order_line_id.order_id.state', '!=', 'cancel'),
                 ('sale_order_line_id', '!=', wiz.sale_order_line_id.id),

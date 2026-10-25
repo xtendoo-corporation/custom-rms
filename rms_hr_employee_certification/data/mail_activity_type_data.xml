@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="mail_activity_type_certification_renewal" model="mail.activity.type">
+        <field name="name">Renovación de certificación</field>
+        <field name="res_model">rms.hr.employee.certification</field>
+        <field name="icon">fa-graduation-cap</field>
+    </record>
+</odoo>

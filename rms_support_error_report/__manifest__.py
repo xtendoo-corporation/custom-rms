@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Notificar Errores a Soporte (IA)',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'category': 'Productivity',
     'summary': 'Botón "Notificar a soporte" en las ventanas de error de Odoo, con informe automático de la IA (Claude) y aviso en Conversaciones.',
     'description': """

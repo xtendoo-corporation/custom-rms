@@ -33,9 +33,10 @@ class DocumentKnowledgeAccess(models.Model):
         default='read',
     )
 
-    _sql_constraints = [
-        ('category_group_unique', 'UNIQUE(category_id, group_id)', 'Este grupo ya tiene permisos en este directorio.'),
-    ]
+    _category_group_unique = models.Constraint(
+        'UNIQUE(category_id, group_id)',
+        'Este grupo ya tiene permisos en este directorio.',
+    )
 
     def _check_can_manage_knowledge_access(self):
         if not (
@@ -59,6 +60,7 @@ class DocumentKnowledgeAccess(models.Model):
 
     def init(self):
         super().init()
+        # Conservar category_group_unique; solo retirar las constraints por usuario obsoletas.
         self.env.cr.execute("""
             ALTER TABLE document_knowledge_access DROP CONSTRAINT IF EXISTS document_knowledge_access_category_user_unique;
             ALTER TABLE document_knowledge_access DROP CONSTRAINT IF EXISTS document_knowledge_access_category_id_user_id_key;

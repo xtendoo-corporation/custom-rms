@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS AI Quote Assistant',
-    'version': '19.0.1.0.1',
+    'version': '19.0.1.0.3',
     'category': 'Sales',
     'summary': 'Asistente de IA (Claude) que crea presupuestos a partir de lenguaje natural.',
     'description': """

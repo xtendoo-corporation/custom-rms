@@ -2,6 +2,7 @@
 
 from odoo import api, fields, models
 from odoo.tools import html2plaintext
+from odoo.exceptions import AccessError
 
 LEVELS = [
     ("1_basic", "Básico"),
@@ -234,6 +235,9 @@ class RmsTrainingLesson(models.Model):
         return True
 
     def action_mark_done(self):
+        available = set(self._get_available_lesson_ids())
+        if any(lesson.id not in available for lesson in self):
+            raise AccessError("No puedes completar una lección que no está disponible para ti.")
         for lesson in self:
             lesson._get_or_create_my_progress()._set_done()
         return True

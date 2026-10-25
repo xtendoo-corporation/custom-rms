@@ -1,6 +1,6 @@
 {
     'name': 'RMS Portal Projects',
-    'version': '19.0.1.7.5',
+    'version': '19.0.1.7.7',
     'category': 'Sales',
     'summary': 'Comparte PDFs de proyectos de instalación con el cliente a través del portal.',
     'description': """

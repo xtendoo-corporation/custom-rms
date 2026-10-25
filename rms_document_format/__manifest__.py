@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Document Format Customization',
-    'version': '1.0',
+    'version': '19.0.1.0.1',
+    'author': 'RMS Pro Audio',
     'category': 'Sales',
     'summary': 'Añade una nueva plantilla de impresión personalizada para presupuestos',
     'depends': [

@@ -17,6 +17,9 @@ class StockCession(models.Model):
         ('done', 'Cedido'),
         ('cancel', 'Cancelado'),
     ], string='Estado', default='draft', tracking=True)
+    company_id = fields.Many2one(
+        'res.company', string='Compañía', required=True, default=lambda self: self.env.company,
+    )
     date = fields.Datetime(string='Fecha', default=fields.Datetime.now, required=True)
     partner_id = fields.Many2one('res.partner', string='Cliente Destino', required=True)
     location_src_id = fields.Many2one(
@@ -41,8 +44,20 @@ class StockCession(models.Model):
             if vals.get('name', _('Nuevo')) == _('Nuevo'):
                 vals['name'] = self.env['ir.sequence'].next_by_code('stock.cession') or _('Nuevo')
         return super().create(vals_list)
+    def write(self, vals):
+        if not self.env.su and {'state', 'picking_id'} & vals.keys():
+            raise UserError(_('El estado y el albarán solo se pueden cambiar mediante las acciones de la cesión.'))
+        return super().write(vals)
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_done(self):
+        if any(record.state == 'done' for record in self):
+            raise UserError(_('No se puede borrar una cesión realizada.'))
+
     def action_confirm(self):
         for record in self:
+            if record.picking_id.state == 'done':
+                raise UserError(_('La cesión ya tiene un albarán validado.'))
             if record.state != 'draft':
                 continue
             if record.quantity <= 0:
@@ -50,24 +65,27 @@ class StockCession(models.Model):
             # Generar el movimiento de stock (albaran de salida o interno)
             picking_type = self.env['stock.picking.type'].search([
                 ('default_location_src_id', '=', record.location_src_id.id),
+                ('company_id', '=', record.company_id.id),
                 ('code', 'in', ['outgoing', 'internal'])
             ], limit=1)
             if not picking_type:
                 # Buscar cualquier picking type interno de la compania
                 picking_type = self.env['stock.picking.type'].search([
-                    ('company_id', '=', self.env.company.id),
+                    ('company_id', '=', record.company_id.id),
                     ('code', '=', 'internal')
                 ], limit=1)
                 if not picking_type:
                     raise UserError(_("No se ha encontrado un tipo de operacion valido para mover esta mercancia."))
             picking_vals = {
+                'company_id': record.company_id.id,
                 'partner_id': record.partner_id.id,
                 'location_id': record.location_src_id.id,
                 'location_dest_id': record.location_dest_id.id,
                 'picking_type_id': picking_type.id,
                 'origin': record.name,
                 'move_ids': [(0, 0, {
-                    'name': _('Cesion ') + record.name,
+                    'description_picking': _('Cesion ') + record.name,
+                    'company_id': record.company_id.id,
                     'product_id': record.product_id.id,
                     'product_uom_qty': record.quantity,
                     'product_uom': record.uom_id.id,
@@ -75,14 +93,14 @@ class StockCession(models.Model):
                     'location_dest_id': record.location_dest_id.id,
                 })]
             }
-            picking = self.env['stock.picking'].create(picking_vals)
+            picking = self.env['stock.picking'].with_company(record.company_id).create(picking_vals)
             picking.action_confirm()
             # Forzar la valdiacion automatica
             picking.action_assign()
             for move in picking.move_ids:
                 move.quantity = move.product_uom_qty
             picking.button_validate()
-            record.write({
+            super(StockCession, record).write({
                 'picking_id': picking.id,
                 'state': 'done'
             })
@@ -90,7 +108,9 @@ class StockCession(models.Model):
         for record in self:
             if record.picking_id and record.picking_id.state != 'cancel':
                 raise UserError(_('No se puede cancelar una cesión que ya tiene un movimiento de stock validado. Cancela/devuelve el movimiento primero.'))
-            record.state = 'cancel'
+            super(StockCession, record).write({'state': 'cancel'})
     def action_draft(self):
         for record in self:
-            record.state = 'draft'
+            if record.state != 'cancel' or record.picking_id.state == 'done':
+                raise UserError(_('Solo se puede volver a borrador una cesión cancelada sin albarán validado.'))
+            super(StockCession, record).write({'state': 'draft'})
