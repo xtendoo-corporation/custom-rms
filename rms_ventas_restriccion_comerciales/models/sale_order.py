@@ -12,10 +12,12 @@ class SaleOrder(models.Model):
     def _filter_restricted_values(self, vals):
         vals = dict(vals)
         if not self.env.su:
-            locked = lock_prices_and_taxes(self.env)
-            if locked:
+            if lock_prices_and_taxes(self.env):
                 vals.pop('fiscal_position_id', None)
-            if locked or hide_pricelists(self.env):
+            # Con el permiso de listas de precios el comercial puede elegir la
+            # tarifa aunque no pueda tocar precios ni descuentos a mano: los
+            # descuentos de las líneas se recalculan a partir de ella.
+            if hide_pricelists(self.env):
                 vals.pop('pricelist_id', None)
         return vals
 
@@ -37,9 +39,10 @@ class SaleOrder(models.Model):
         return super().write(self._filter_restricted_values(vals))
 
     def _check_price_update_access(self, pricelist=False):
-        if not self.env.su and (
-            lock_prices_and_taxes(self.env) or (pricelist and hide_pricelists(self.env))
-        ):
+        # Actualizar precios solo aplica la tarifa elegida, así que basta con
+        # el permiso de listas de precios.
+        restricted = hide_pricelists if pricelist else lock_prices_and_taxes
+        if not self.env.su and restricted(self.env):
             raise AccessError('No tienes permiso para modificar precios, descuentos o impuestos.')
 
     def action_update_taxes(self):

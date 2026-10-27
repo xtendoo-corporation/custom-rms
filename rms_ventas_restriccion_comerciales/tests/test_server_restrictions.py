@@ -115,3 +115,28 @@ class TestServerRestrictions(TransactionCase):
         self.assertEqual(line.price_unit, 1)
         self.assertEqual(line.discount, 95)
         self.assertEqual(line.tax_ids, tax)
+
+    def test_pricelist_group_keeps_pricelist_and_discounts(self):
+        self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_pricelist')
+        pricelist = self.env['product.pricelist'].create({
+            'name': 'Tarifa tipo de cliente',
+            'item_ids': [(0, 0, {
+                'applied_on': '3_global', 'compute_price': 'percentage', 'percent_price': 10,
+            })],
+        })
+        order = self.env['sale.order'].with_user(self.user).create({
+            'partner_id': self.partner.id, 'user_id': self.user.id,
+            'pricelist_id': pricelist.id,
+            'order_line': [(0, 0, {'product_id': self.product.id})],
+        })
+        self.assertEqual(order.pricelist_id, pricelist)
+        self.assertEqual(order.order_line.price_subtotal, 90)
+        other = self.env['product.pricelist'].create({'name': 'Otra tarifa'})
+        order.with_user(self.user).write({'pricelist_id': other.id})
+        self.assertEqual(order.pricelist_id, other)
+        order.with_user(self.user).action_update_prices()
+        # Sigue sin poder tocar precios ni descuentos a mano.
+        order.order_line.with_user(self.user).write({'discount': 50})
+        self.assertNotEqual(order.order_line.discount, 50)
+        with self.assertRaises(AccessError):
+            order.with_user(self.user).action_update_taxes()
