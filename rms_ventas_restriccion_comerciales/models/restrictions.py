@@ -13,6 +13,11 @@ def _is_restricted(env, allowed_group):
     )
 
 
+def is_comercial(env):
+    """El usuario pertenece al grupo Comerciales."""
+    return bool(env.ref(GROUP_COMERCIALES, raise_if_not_found=False)) and env.user.has_group(GROUP_COMERCIALES)
+
+
 def only_own_customers(env):
     """El usuario es comercial y solo puede hacer presupuestos a sus clientes."""
     return _is_restricted(env, GROUP_ALL_CUSTOMERS)
