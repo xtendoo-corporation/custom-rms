@@ -2,7 +2,9 @@ __pycache__/
 *.py[cod]
 .DS_Store
 Claude outputs/
-.claude/
+.claude/*
+# Las skills del proyecto sí se versionan (p. ej. /experto-almacen).
+!.claude/skills/
 .serena/
 *.log
 .env
