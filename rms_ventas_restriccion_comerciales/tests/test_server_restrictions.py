@@ -1,6 +1,6 @@
 from lxml import etree
 
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase, new_test_user
 
@@ -220,3 +220,36 @@ class TestServerRestrictions(TransactionCase):
         self.assertTrue(nodes)
         for node in nodes:
             self.assertEqual(node.get('readonly'), '1')
+
+    def test_comercial_can_delete_own_quotations(self):
+        order = self.env['sale.order'].with_user(self.user).create({
+            'partner_id': self.partner.id, 'user_id': self.user.id,
+            'order_line': [(0, 0, {'product_id': self.product.id})],
+        })
+        order.with_user(self.user).unlink()
+        self.assertFalse(order.exists())
+        # No puede borrar presupuestos de otro comercial.
+        other_user = new_test_user(self.env, login='f1_otro_comercial', groups='base.group_user,sales_team.group_sale_salesman_all_leads,custom.comerciales')
+        with self.assertRaises(AccessError):
+            self.order.with_user(other_user).unlink()
+        self.assertTrue(self.order.exists())
+        # Ni los ya enviados o confirmados (Odoo exige cancelarlos antes).
+        self.order.state = 'sent'
+        with self.assertRaises(UserError):
+            self.order.with_user(self.user).unlink()
+
+    def test_comercial_can_delete_own_opportunities(self):
+        lead = self.env['crm.lead'].with_user(self.user).create({
+            'name': 'Oportunidad F1', 'type': 'opportunity',
+            'partner_id': self.partner.id, 'user_id': self.user.id,
+        })
+        lead.with_user(self.user).unlink()
+        self.assertFalse(lead.exists())
+        # No puede borrar oportunidades de otro comercial.
+        other_lead = self.env['crm.lead'].create({
+            'name': 'Oportunidad de otro', 'type': 'opportunity', 'user_id': self.user.id,
+        })
+        other_user = new_test_user(self.env, login='f1_otro_comercial_crm', groups='base.group_user,sales_team.group_sale_salesman_all_leads,custom.comerciales')
+        with self.assertRaises(AccessError):
+            other_lead.with_user(other_user).unlink()
+        self.assertTrue(other_lead.exists())

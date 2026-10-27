@@ -3,7 +3,7 @@
 from odoo import api, models
 from odoo.exceptions import AccessError, ValidationError
 
-from .restrictions import hide_pricelists, lock_prices_and_taxes, only_own_customers, own_customers_domain
+from .restrictions import hide_pricelists, is_comercial, lock_prices_and_taxes, only_own_customers, own_customers_domain
 
 
 class SaleOrder(models.Model):
@@ -51,6 +51,16 @@ class SaleOrder(models.Model):
     def write(self, vals):
         self._check_own_customer(vals)
         return super().write(self._filter_restricted_values(vals))
+
+    def unlink(self):
+        # Los comerciales pueden borrar sus presupuestos (por si se equivocan al
+        # crearlos), pero no los de otros. Odoo ya impide borrar los enviados o
+        # confirmados: hay que cancelarlos antes.
+        if not self.env.su and is_comercial(self.env) and any(
+            order.user_id != self.env.user for order in self
+        ):
+            raise AccessError('Solo puedes eliminar tus propios presupuestos.')
+        return super().unlink()
 
     def _check_price_update_access(self, pricelist=False):
         # Actualizar precios solo aplica la tarifa elegida, así que basta con
