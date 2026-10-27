@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase, new_test_user
@@ -15,7 +17,7 @@ class TestServerRestrictions(TransactionCase):
                 'model': 'res.groups', 'res_id': group.id,
             })
         cls.user = new_test_user(cls.env, login='f1_rms_ventas_restriccion_comerciales', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
-        cls.partner = cls.env['res.partner'].create({'name': 'Cliente F1'})
+        cls.partner = cls.env['res.partner'].create({'name': 'Cliente F1', 'user_id': cls.user.id})
         cls.product = cls.env['product.product'].create({'name': 'Producto F1', 'list_price': 100})
         cls.order = cls.env['sale.order'].create({'partner_id': cls.partner.id, 'user_id': cls.user.id})
         cls.line = cls.env['sale.order.line'].create({'order_id': cls.order.id, 'product_id': cls.product.id})
@@ -115,3 +117,72 @@ class TestServerRestrictions(TransactionCase):
         self.assertEqual(line.price_unit, 1)
         self.assertEqual(line.discount, 95)
         self.assertEqual(line.tax_ids, tax)
+
+    def test_pricelist_group_keeps_pricelist_and_discounts(self):
+        self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_pricelist')
+        pricelist = self.env['product.pricelist'].create({
+            'name': 'Tarifa tipo de cliente',
+            'item_ids': [(0, 0, {
+                'applied_on': '3_global', 'compute_price': 'percentage', 'percent_price': 10,
+            })],
+        })
+        order = self.env['sale.order'].with_user(self.user).create({
+            'partner_id': self.partner.id, 'user_id': self.user.id,
+            'pricelist_id': pricelist.id,
+            'order_line': [(0, 0, {'product_id': self.product.id})],
+        })
+        self.assertEqual(order.pricelist_id, pricelist)
+        self.assertEqual(order.order_line.price_subtotal, 90)
+        other = self.env['product.pricelist'].create({'name': 'Otra tarifa'})
+        order.with_user(self.user).write({'pricelist_id': other.id})
+        self.assertEqual(order.pricelist_id, other)
+        order.with_user(self.user).action_update_prices()
+        # Sigue sin poder tocar precios ni descuentos a mano.
+        order.order_line.with_user(self.user).write({'discount': 50})
+        self.assertNotEqual(order.order_line.discount, 50)
+        with self.assertRaises(AccessError):
+            order.with_user(self.user).action_update_taxes()
+
+    def test_only_own_customers(self):
+        other = self.env['res.partner'].create({'name': 'Cliente de otro comercial'})
+        with self.assertRaises(ValidationError):
+            self.env['sale.order'].with_user(self.user).create({'partner_id': other.id})
+        with self.assertRaises(ValidationError):
+            self.order.with_user(self.user).write({'partner_id': other.id})
+        self.assertEqual(self.order.partner_id, self.partner)
+        # Un contacto de la empresa de su cliente también es cliente suyo.
+        contact = self.env['res.partner'].create({'name': 'Contacto F1', 'parent_id': self.partner.id})
+        contact.user_id = False
+        order = self.env['sale.order'].with_user(self.user).create({'partner_id': contact.id})
+        self.assertEqual(order.partner_id, contact)
+        # Otros usuarios de ventas no tienen esta restricción, ni los comerciales
+        # con permiso para presupuestar a cualquier cliente.
+        self.env['sale.order'].create({'partner_id': other.id})
+        self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_all_customers')
+        order = self.env['sale.order'].with_user(self.user).create({'partner_id': other.id})
+        self.assertEqual(order.partner_id, other)
+
+    def test_partner_dropdown_only_own_customers(self):
+        arch = self.env['sale.order'].with_user(self.user).get_view(view_type='form')['arch']
+        self.assertIn("('commercial_partner_id.user_id', '=', uid)", arch)
+        arch = self.env['sale.order'].get_view(view_type='form')['arch']
+        self.assertNotIn("('commercial_partner_id.user_id', '=', uid)", arch)
+        self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_all_customers')
+        arch = self.env['sale.order'].with_user(self.user).get_view(view_type='form')['arch']
+        self.assertNotIn("('commercial_partner_id.user_id', '=', uid)", arch)
+
+    def test_pricelist_readonly_without_pricelist_group(self):
+        def pricelist_node():
+            arch = self.env['sale.order'].with_user(self.user).get_view(view_type='form')['arch']
+            return etree.fromstring(arch).xpath("//field[@name='pricelist_id']")[0]
+        node = pricelist_node()
+        self.assertEqual(node.get('readonly'), '1')
+        self.assertNotEqual(node.get('invisible'), '1')
+        self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_pricelist')
+        self.assertNotEqual(pricelist_node().get('readonly'), '1')
+
+    def test_order_takes_customer_pricelist(self):
+        pricelist = self.env['product.pricelist'].create({'name': 'Tarifa del cliente'})
+        self.partner.property_product_pricelist = pricelist
+        order = self.env['sale.order'].with_user(self.user).create({'partner_id': self.partner.id})
+        self.assertEqual(order.pricelist_id, pricelist)
