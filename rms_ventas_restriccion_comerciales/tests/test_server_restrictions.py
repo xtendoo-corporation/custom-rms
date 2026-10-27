@@ -209,7 +209,14 @@ class TestServerRestrictions(TransactionCase):
     def test_discount_columns_visible_readonly(self):
         if 'discount1' not in self.env['sale.order.line']._fields:
             self.skipTest('sale_triple_discount no instalado')
+        # Con el grupo «Descuentos en líneas» las columnas siempre se ven; sin
+        # él, la vista de un comercial debe seguir mostrándolas en solo lectura.
+        admin_arch = self.env['sale.order'].get_view(view_type='form')['arch']
+        xpath = "//field[@name='order_line']//field[@name='discount1']"
+        if not etree.fromstring(admin_arch).xpath(xpath):
+            self.skipTest('la vista de presupuesto no tiene la columna discount1')
         arch = self.env['sale.order'].with_user(self.user).get_view(view_type='form')['arch']
-        nodes = etree.fromstring(arch).xpath("//field[@name='order_line']//list//field[@name='discount1']")
+        nodes = etree.fromstring(arch).xpath(xpath)
         self.assertTrue(nodes)
-        self.assertEqual(nodes[0].get('readonly'), '1')
+        for node in nodes:
+            self.assertEqual(node.get('readonly'), '1')
