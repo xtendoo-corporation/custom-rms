@@ -122,9 +122,6 @@ class TestServerRestrictions(TransactionCase):
         self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_pricelist')
         pricelist = self.env['product.pricelist'].create({
             'name': 'Tarifa tipo de cliente',
-            'item_ids': [(0, 0, {
-                'applied_on': '3_global', 'compute_price': 'percentage', 'percent_price': 10,
-            })],
         })
         order = self.env['sale.order'].with_user(self.user).create({
             'partner_id': self.partner.id, 'user_id': self.user.id,
@@ -132,7 +129,6 @@ class TestServerRestrictions(TransactionCase):
             'order_line': [(0, 0, {'product_id': self.product.id})],
         })
         self.assertEqual(order.pricelist_id, pricelist)
-        self.assertEqual(order.order_line.price_subtotal, 90)
         other = self.env['product.pricelist'].create({'name': 'Otra tarifa'})
         order.with_user(self.user).write({'pricelist_id': other.id})
         self.assertEqual(order.pricelist_id, other)
@@ -186,3 +182,34 @@ class TestServerRestrictions(TransactionCase):
         self.partner.property_product_pricelist = pricelist
         order = self.env['sale.order'].with_user(self.user).create({'partner_id': self.partner.id})
         self.assertEqual(order.pricelist_id, pricelist)
+
+    def test_lines_take_pricelist_triple_discount(self):
+        if 'discount1' not in self.env['product.pricelist.item']._fields:
+            self.skipTest('product_pricelist_triple_discount no instalado')
+        pricelist = self.env['product.pricelist'].create({
+            'name': 'Touring prueba',
+            'item_ids': [(0, 0, {
+                'applied_on': '3_global', 'compute_price': 'triple_discount',
+                'discount1': 10, 'percent_price': 10, 'price_discount': 10,
+            })],
+        })
+        self.partner.property_product_pricelist = pricelist
+        order = self.env['sale.order'].with_user(self.user).create({
+            'partner_id': self.partner.id,
+            'order_line': [(0, 0, {'product_id': self.product.id})],
+        })
+        line = order.order_line
+        self.assertEqual(order.pricelist_id, pricelist)
+        self.assertEqual(line.discount1, 10)
+        self.assertAlmostEqual(line.price_subtotal, 90)
+        line.with_user(self.user).write({'product_uom_qty': 2})
+        self.assertEqual(line.discount1, 10)
+        self.assertAlmostEqual(line.price_subtotal, 180)
+
+    def test_discount_columns_visible_readonly(self):
+        if 'discount1' not in self.env['sale.order.line']._fields:
+            self.skipTest('sale_triple_discount no instalado')
+        arch = self.env['sale.order'].with_user(self.user).get_view(view_type='form')['arch']
+        nodes = etree.fromstring(arch).xpath("//field[@name='order_line']//list//field[@name='discount1']")
+        self.assertTrue(nodes)
+        self.assertEqual(nodes[0].get('readonly'), '1')

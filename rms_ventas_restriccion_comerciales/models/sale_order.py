@@ -117,6 +117,14 @@ class SaleOrder(models.Model):
             ):
                 node.set('readonly', '1')
                 node.set('force_save', '1')
+            # Los descuentos de la tarifa se ven aunque el comercial no tenga
+            # el grupo «Descuentos en líneas» (que solo sirve para editarlos).
+            for node in arch.xpath(
+                "//field[@name='order_line']//field[@name='discount1' or @name='discount2' or @name='discount3']"
+                " | //field[@name='order_line']//label[@for='discount1' or @for='discount2' or @for='discount3']"
+                " | //field[@name='order_line']//div[@name='discount1' or @name='discount2' or @name='discount3']"
+            ):
+                node.attrib.pop('groups', None)
             # Recalcular impuestos tras cambiar la posición fiscal es otra forma
             # de cambiar el IVA de las líneas, y el asistente de descuento
             # aplica un descuento a todo el presupuesto.
