@@ -15,7 +15,7 @@ class TestServerRestrictions(TransactionCase):
                 'model': 'res.groups', 'res_id': group.id,
             })
         cls.user = new_test_user(cls.env, login='f1_rms_ventas_restriccion_comerciales', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
-        cls.partner = cls.env['res.partner'].create({'name': 'Cliente F1'})
+        cls.partner = cls.env['res.partner'].create({'name': 'Cliente F1', 'user_id': cls.user.id})
         cls.product = cls.env['product.product'].create({'name': 'Producto F1', 'list_price': 100})
         cls.order = cls.env['sale.order'].create({'partner_id': cls.partner.id, 'user_id': cls.user.id})
         cls.line = cls.env['sale.order.line'].create({'order_id': cls.order.id, 'product_id': cls.product.id})
@@ -140,3 +140,24 @@ class TestServerRestrictions(TransactionCase):
         self.assertNotEqual(order.order_line.discount, 50)
         with self.assertRaises(AccessError):
             order.with_user(self.user).action_update_taxes()
+
+    def test_only_own_customers(self):
+        other = self.env['res.partner'].create({'name': 'Cliente de otro comercial'})
+        with self.assertRaises(ValidationError):
+            self.env['sale.order'].with_user(self.user).create({'partner_id': other.id})
+        with self.assertRaises(ValidationError):
+            self.order.with_user(self.user).write({'partner_id': other.id})
+        self.assertEqual(self.order.partner_id, self.partner)
+        # Un contacto de la empresa de su cliente también es cliente suyo.
+        contact = self.env['res.partner'].create({'name': 'Contacto F1', 'parent_id': self.partner.id})
+        contact.user_id = False
+        order = self.env['sale.order'].with_user(self.user).create({'partner_id': contact.id})
+        self.assertEqual(order.partner_id, contact)
+        # Otros usuarios de ventas no tienen esta restricción.
+        self.env['sale.order'].create({'partner_id': other.id})
+
+    def test_partner_dropdown_only_own_customers(self):
+        arch = self.env['sale.order'].with_user(self.user).get_view(view_type='form')['arch']
+        self.assertIn("('commercial_partner_id.user_id', '=', uid)", arch)
+        arch = self.env['sale.order'].get_view(view_type='form')['arch']
+        self.assertNotIn("('commercial_partner_id.user_id', '=', uid)", arch)

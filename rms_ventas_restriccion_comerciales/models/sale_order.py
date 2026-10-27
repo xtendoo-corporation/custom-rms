@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, models
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 
-from .restrictions import hide_pricelists, lock_prices_and_taxes
+from .restrictions import hide_pricelists, is_comercial, lock_prices_and_taxes, own_customers_domain
 
 
 class SaleOrder(models.Model):
@@ -21,8 +21,21 @@ class SaleOrder(models.Model):
                 vals.pop('pricelist_id', None)
         return vals
 
+    def _check_own_customer(self, vals):
+        # Un comercial solo puede hacer presupuestos a sus propios clientes.
+        if self.env.su or not vals.get('partner_id') or not is_comercial(self.env):
+            return
+        partner = self.env['res.partner'].sudo().browse(vals['partner_id'])
+        if not partner.filtered_domain(own_customers_domain(self.env.uid)):
+            raise ValidationError(
+                'Solo puedes hacer presupuestos a clientes que tengas asignados '
+                '(%s no es cliente tuyo).' % partner.display_name
+            )
+
     @api.model_create_multi
     def create(self, vals_list):
+        for vals in vals_list:
+            self._check_own_customer(vals)
         # Limpiar también los defaults que heredarían las líneas anidadas.
         context = self.env['sale.order.line']._filter_restricted_context()
         defaults = {key[8:]: value for key, value in context.items()
@@ -36,6 +49,7 @@ class SaleOrder(models.Model):
         )
 
     def write(self, vals):
+        self._check_own_customer(vals)
         return super().write(self._filter_restricted_values(vals))
 
     def _check_price_update_access(self, pricelist=False):
@@ -62,11 +76,29 @@ class SaleOrder(models.Model):
         # La vista procesada se cachea una sola vez para todos los usuarios, así
         # que la clave debe distinguir qué restricciones se aplican.
         key = super()._get_view_cache_key(view_id, view_type, **options)
-        return key + (hide_pricelists(self.env), lock_prices_and_taxes(self.env))
+        return key + (
+            hide_pricelists(self.env), lock_prices_and_taxes(self.env), is_comercial(self.env)
+        )
 
     @api.model
     def _get_view(self, view_id=None, view_type='form', **options):
         arch, view = super()._get_view(view_id, view_type, **options)
+        if view_type == 'form' and is_comercial(self.env):
+            # En el desplegable de cliente solo aparecen sus propios clientes.
+            field = self._fields['partner_id']
+            terms = ["'|', ('user_id', '=', uid), ('commercial_partner_id.user_id', '=', uid)"]
+            if field.check_company:
+                terms.append("('company_id', 'in', (False, company_id))")
+            for node in arch.xpath("//field[@name='partner_id'][not(ancestor::field)]"):
+                domain = node.get('domain') or field.domain
+                if isinstance(domain, list):
+                    domain = repr(domain)
+                if isinstance(domain, str) and domain.strip().startswith('['):
+                    rest = domain.strip()[1:-1].strip()
+                    node_terms = terms + [rest] if rest else terms
+                else:
+                    node_terms = terms
+                node.set('domain', '[%s]' % ', '.join(node_terms))
         if hide_pricelists(self.env):
             # El campo se mantiene (invisible) para que la lista de precios se
             # siga calculando a partir del cliente y se guarde con el pedido.

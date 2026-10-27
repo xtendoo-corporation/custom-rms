@@ -12,6 +12,17 @@ def _is_restricted(env, allowed_group):
     )
 
 
+def is_comercial(env):
+    """El usuario pertenece al grupo Comerciales."""
+    return bool(env.ref(GROUP_COMERCIALES, raise_if_not_found=False)) and env.user.has_group(GROUP_COMERCIALES)
+
+
+def own_customers_domain(uid):
+    """Clientes cuyo comercial asignado (Vendedor) es el usuario, directamente
+    o a través de su empresa."""
+    return ['|', ('user_id', '=', uid), ('commercial_partner_id.user_id', '=', uid)]
+
+
 def hide_pricelists(env):
     """El usuario es comercial y no tiene permiso para ver listas de precios."""
     return _is_restricted(env, GROUP_PRICELIST)
