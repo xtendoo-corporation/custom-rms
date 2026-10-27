@@ -36,9 +36,10 @@ class HrCertificationType(models.Model):
     active = fields.Boolean(default=True)
     description = fields.Text(string='Descripción')
 
-    _sql_constraints = [
-        ('code_uniq', 'unique(code)', 'Ya existe un tipo de certificación con este código.'),
-    ]
+    _code_uniq = models.Constraint(
+        'UNIQUE(code)',
+        'Ya existe un tipo de certificación con este código.',
+    )
 
     @api.onchange('is_recurring')
     def _onchange_is_recurring(self):

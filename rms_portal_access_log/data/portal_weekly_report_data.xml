@@ -7,7 +7,7 @@
              Con group_ids, Odoo solo comprueba el grupo; sin él exigiría
              permiso de escritura sobre el modelo, que es de solo lectura. -->
         <field name="model_id" ref="model_rms_portal_activity"/>
-        <field name="group_ids" eval="[(6, 0, [ref('base.group_user')])]"/>
+        <field name="group_ids" eval="[(6, 0, [ref('group_portal_weekly_report')])]"/>
         <field name="state">code</field>
         <field name="code">action = env['rms.portal.weekly.report'].action_send_now()</field>
     </record>
@@ -16,6 +16,15 @@
               parent="menu_portal_access_log_root" action="action_portal_weekly_report_send_now"
               sequence="90"/>
 
+    <record id="ir_cron_portal_log_retention" model="ir.cron">
+        <field name="name">Portal: retención de accesos y actividad</field>
+        <field name="model_id" ref="model_rms_portal_access_log"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_purge_old_logs()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+    </record>
     <data noupdate="1">
         <!-- Cada lunes a las 06:00 UTC (08:00 en Madrid en verano, 07:00 en invierno). -->
         <record id="ir_cron_portal_weekly_report" model="ir.cron">

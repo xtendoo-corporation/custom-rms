@@ -83,6 +83,9 @@ class DocumentKnowledgeCategory(models.Model):
 
     @api.model
     def _get_user_permissions(self):
+        if not self.env.su and self.env.user.share:
+            return {}
+
         # Admin / Knowledge Manager has full access
         is_manager = (
             self.env.user.has_group('rms_custom_knowledge.group_knowledge_manager')

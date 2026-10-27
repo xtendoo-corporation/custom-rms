@@ -1,13 +1,13 @@
 {
     'name': 'RMS Portal Access Log',
-    'version': '19.0.1.4.3',
+    'version': '19.0.1.4.8',
     'category': 'Sales',
     'summary': 'Registra los accesos al portal y qué mira cada cliente (fichas, precios, presupuestos, facturas).',
     'description': """
         Guarda un histórico de accesos al portal de clientes: quién entra,
         cuándo y desde qué IP. A diferencia del log de login estándar de
         Odoo (que solo conserva el último acceso de cada usuario), este
-        histórico no se purga automáticamente.
+        histórico se purga diariamente según la retención configurada (365 días por defecto).
 
         Además registra la actividad dentro del portal: pantallas visitadas,
         marcas y fichas del catálogo abiertas, consultas de precio,

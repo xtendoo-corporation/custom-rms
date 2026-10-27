@@ -1,4 +1,9 @@
+import logging
+
 from odoo import models, fields, api
+
+_logger = logging.getLogger(__name__)
+
 
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
@@ -19,16 +24,26 @@ class ProductTemplate(models.Model):
         discontinued_state = self.env['product.state'].search([('code', '=', 'discontinued')], limit=1)
         if not discontinued_state:
             return
-        
-        products = self.search([
-            ('product_state_id', '=', discontinued_state.id),
-            ('active', '=', True)
-        ])
-        
-        for product in products:
-            if product.qty_available <= 0:
-                product.active = False
-                product.message_post(
-                    body="Este producto ha sido archivado automáticamente porque su estado es 'Descontinuado' y su stock está liquidado (0 unidades)."
-                )
 
+        # Avanzar por ID evita repetir productos con stock o con errores.
+        last_id = 0
+        while True:
+            products = self.search([
+                ('product_state_id', '=', discontinued_state.id),
+                ('active', '=', True),
+                ('id', '>', last_id),
+            ], order='id', limit=100)
+            if not products:
+                break
+            last_id = products[-1].id
+            for product in products:
+                try:
+                    with self.env.cr.savepoint():
+                        if product.qty_available <= 0:
+                            product.active = False
+                            product.message_post(
+                                body="Este producto ha sido archivado automáticamente porque su estado es 'Descontinuado' y su stock está liquidado (0 unidades)."
+                            )
+                except Exception:
+                    # El fallo de un producto no debe abortar el resto del lote.
+                    _logger.exception('No se pudo archivar el producto %s', product.id)

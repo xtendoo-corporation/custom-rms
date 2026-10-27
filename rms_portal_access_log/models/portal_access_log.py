@@ -1,4 +1,6 @@
-from odoo import fields, models
+from datetime import timedelta
+
+from odoo import api, fields, models
 
 
 class PortalAccessLog(models.Model):
@@ -29,3 +31,23 @@ class PortalAccessLog(models.Model):
         ))
         for log in self:
             log.activity_count = counts.get(log, 0)
+
+    @api.model
+    def _cron_purge_old_logs(self):
+        """Borra primero actividad y después accesos, en lotes acotados."""
+        value = self.env['ir.config_parameter'].sudo().get_param(
+            'rms_portal_access_log.retention_days', '365',
+        )
+        try:
+            days = int(value)
+        except (TypeError, ValueError):
+            days = 365
+        if days <= 0:
+            days = 365
+        cutoff = fields.Datetime.now() - timedelta(days=days)
+        for model, date_field in (
+            ('rms.portal.activity', 'date'), ('rms.portal.access.log', 'login_date'),
+        ):
+            records = self.env[model].sudo()
+            while batch := records.search([(date_field, '<', cutoff)], limit=1000):
+                batch.unlink()

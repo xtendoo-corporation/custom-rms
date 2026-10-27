@@ -1,4 +1,5 @@
-from odoo import fields, models
+from odoo import _, fields, models
+from odoo.exceptions import AccessError
 
 PORTAL_PROFILE_GROUP_XMLIDS = {
     'customer': 'rms_portal_profiles.group_portal_customer',
@@ -21,6 +22,13 @@ class ResPartner(models.Model):
     )
 
     def write(self, vals):
+        if (
+            'portal_profile' in vals
+            and not self.env.su
+            and not self.env.user.has_group('base.group_erp_manager')
+            and any(partner.portal_profile != vals['portal_profile'] for partner in self)
+        ):
+            raise AccessError(_('Solo un administrador puede cambiar el perfil de portal.'))
         res = super().write(vals)
         if 'portal_profile' in vals:
             self._sync_portal_profile_groups()
@@ -39,7 +47,7 @@ class ResPartner(models.Model):
             if not target_xmlid:
                 continue
             target_group = self.env.ref(target_xmlid)
-            portal_users.write({
+            portal_users.sudo().write({
                 'group_ids': [(3, group.id) for group in all_profile_groups] + [(4, target_group.id)],
             })
 

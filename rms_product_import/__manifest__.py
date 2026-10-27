@@ -1,6 +1,6 @@
 {
     'name': 'RMS Product Import',
-    'version': '1.0',
+    'version': '19.0.1.0.2',
     'category': 'Inventory/Inventory',
     'summary': 'Smart Wizard to import products from Excel with hierarchical categories and state handling.',
     'description': """
@@ -13,6 +13,7 @@
     'author': 'Antigravity',
     'website': 'https://xtendoo.es',
     'depends': ['product', 'purchase', 'stock'],
+    'external_dependencies': {'python': ['openpyxl']},
     'data': [
         'security/ir.model.access.csv',
         'data/product_attribute_data.xml',

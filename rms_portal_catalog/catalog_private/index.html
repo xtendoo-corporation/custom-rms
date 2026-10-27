@@ -409,34 +409,34 @@ function toggleTheme(){
 }
 
 /* =========================================================
-   IMÁGENES — rutas relativas (images/full, images/thumb, images/logos)
+   IMÁGENES — rutas autenticadas bajo /my/catalog/images/
 ========================================================= */
 function imgOf(p){ const d = PAGES[p]; return (d && d.img) || p; }
-function fullImg(p){ return "images/full/p" + String(imgOf(p)).padStart(3,"0") + ".jpg"; }
-function thumbImg(p){ return "images/thumb/p" + String(imgOf(p)).padStart(3,"0") + ".jpg"; }
+function fullImg(p){ return "/my/catalog/images/full/p" + String(imgOf(p)).padStart(3,"0") + ".jpg"; }
+function thumbImg(p){ return "/my/catalog/images/thumb/p" + String(imgOf(p)).padStart(3,"0") + ".jpg"; }
 
 const LOGO = {
-  rms: "images/logos/logo-rms.png",
-  meyer: "images/logos/logo-meyer.png",
-  digico: "images/logos/logo-digico.png",
-  hollyland: "images/logos/logo-hollyland.png",
-  fourier: "images/logos/logo-fourier.png",
-  atb: "images/logos/logo-atb.png",
-  blacktrax: "images/logos/logo-blacktrax.png",
-  fiberfox: "images/logos/logo-fiberfox.png",
-  joyned: "images/logos/logo-joyned.png",
-  luminex: "images/logos/logo-luminex.png",
-  pointsource: "images/logos/logo-pointsource.png",
-  remic: "images/logos/logo-remic.png",
-  sounddevices: "images/logos/logo-sounddevices.png",
-  optocore: "images/logos/logo-optocore.png",
-  auvitran: "images/logos/logo-auvitran.png",
-  atlasied: "images/logos/logo-atlasied.png",
-  furman: "images/logos/logo-furman.png",
-  harvey: "images/logos/logo-harvey.png",
-  klang: "images/logos/logo-klang.png",
-  teqsas: "images/logos/logo-teqsas.png",
-  sony: "images/logos/logo-sony.png"
+  rms: "/my/catalog/images/logos/logo-rms.png",
+  meyer: "/my/catalog/images/logos/logo-meyer.png",
+  digico: "/my/catalog/images/logos/logo-digico.png",
+  hollyland: "/my/catalog/images/logos/logo-hollyland.png",
+  fourier: "/my/catalog/images/logos/logo-fourier.png",
+  atb: "/my/catalog/images/logos/logo-atb.png",
+  blacktrax: "/my/catalog/images/logos/logo-blacktrax.png",
+  fiberfox: "/my/catalog/images/logos/logo-fiberfox.png",
+  joyned: "/my/catalog/images/logos/logo-joyned.png",
+  luminex: "/my/catalog/images/logos/logo-luminex.png",
+  pointsource: "/my/catalog/images/logos/logo-pointsource.png",
+  remic: "/my/catalog/images/logos/logo-remic.png",
+  sounddevices: "/my/catalog/images/logos/logo-sounddevices.png",
+  optocore: "/my/catalog/images/logos/logo-optocore.png",
+  auvitran: "/my/catalog/images/logos/logo-auvitran.png",
+  atlasied: "/my/catalog/images/logos/logo-atlasied.png",
+  furman: "/my/catalog/images/logos/logo-furman.png",
+  harvey: "/my/catalog/images/logos/logo-harvey.png",
+  klang: "/my/catalog/images/logos/logo-klang.png",
+  teqsas: "/my/catalog/images/logos/logo-teqsas.png",
+  sony: "/my/catalog/images/logos/logo-sony.png"
 };
 
 /* =========================================================
@@ -456,7 +456,7 @@ const GROUPS = [
    COMERCIALES — equipo de contacto RMS Proaudio.
 ========================================================= */
 const REPS = window.RMS_CATALOG_REP ? [window.RMS_CATALOG_REP] : [
-  {name:"Salvador Escobar", email:"salva@rmsproaudio.com", phone:"607 709 777", photo:"images/reps/salvador-escobar.jpg"},
+  {name:"Salvador Escobar", email:"salva@rmsproaudio.com", phone:"607 709 777", photo:"/my/catalog/images/reps/salvador-escobar.jpg"},
 ];
 
 /* =========================================================
@@ -714,23 +714,6 @@ function bindGroupNav(){
    RENDER: CONTACTO
 ========================================================= */
 function renderContact(){
-  const cards = REPS.map(r => `
-    <div class="rep-card">
-      <img class="rep-photo" src="${r.photo}" alt="${r.name}">
-      <div class="rep-info">
-        <p class="rep-name">${r.name}</p>
-        <a class="rep-line" href="mailto:${r.email}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
-          ${r.email}
-        </a>
-        <a class="rep-line" href="tel:${r.phone.replace(/\s+/g,'')}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
-          ${r.phone}
-        </a>
-      </div>
-    </div>
-  `).join("");
-
   app.innerHTML = shell(`
     <div class="wrap chero">
       <span class="eyebrow">RMS Proaudio · Equipo comercial</span>
@@ -738,13 +721,32 @@ function renderContact(){
       <p class="lede">Resolvemos dudas de producto, disponibilidad y presupuestos. Escríbenos o llámanos directamente.</p>
     </div>
     <div class="wrap">
-      <div class="rep-grid">${cards}</div>
+      <div class="rep-grid"></div>
     </div>
     <footer class="site"><div class="wrap">
       <span>RMS Proaudio · Distribuidor oficial</span>
       <span>955 542 111 · info@rmsproaudio.com</span>
     </div></footer>
   `);
+  const grid = app.querySelector(".rep-grid");
+  REPS.forEach(r => {
+    const card = catalogNode("div", "rep-card");
+    const photo = catalogNode("img", "rep-photo");
+    photo.setAttribute("src", String(r.photo || ""));
+    photo.setAttribute("alt", String(r.name || ""));
+    const info = catalogNode("div", "rep-info");
+    info.append(catalogNode("p", "rep-name", r.name));
+    [[r.email, /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/, "mailto:"],
+     [r.phone, /^[0-9+ ()-]+$/, "tel:"]].forEach(([value, valid, scheme]) => {
+      const text = String(value || "");
+      const safe = valid.test(text) && !/[\r\n]/.test(text);
+      const line = catalogNode(safe ? "a" : "span", "rep-line", text);
+      if(safe) line.setAttribute("href", scheme + text);
+      info.append(line);
+    });
+    card.append(photo, info);
+    grid.append(card);
+  });
   bindSearch();
 }
 
@@ -892,7 +894,7 @@ function bindSearch(){
       return hay.includes(q);
     }).slice(0,8);
     if(!matches.length){
-      results.innerHTML = `<div class="r-empty">Sin resultados para "${q}"</div>`;
+      results.replaceChildren(catalogNode("div", "r-empty", `Sin resultados para "${q}"`));
     } else {
       results.innerHTML = matches.map(([p,d]) => `
         <div class="r-item" onclick="openViewer(${p})">
@@ -973,8 +975,47 @@ function formatEUR(value){
   return (n < 0 ? "-" : "") + int.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + dec + " €";
 }
 
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function catalogNode(tag, className, text){
+  const node = document.createElement(tag);
+  if(className) node.setAttribute("class", className);
+  if(text !== undefined) node.textContent = String(text || "");
+  return node;
+}
+
+function productRow(product, options = {}){
+  const id = Number(product.id);
+  const row = catalogNode("div", "price-row");
+  if(options.stars){
+    const slot = catalogNode("div");
+    slot.innerHTML = starHtml(id, Boolean(product.featured), options.prices ? null : adminPageKey);
+    row.append(...slot.childNodes);
+  }
+  if(product.has_image){
+    const image = catalogNode("img", "price-thumb");
+    const url = "/my/catalog/product-image/" + id;
+    image.setAttribute("src", url);
+    image.setAttribute("alt", "");
+    image.setAttribute("loading", "lazy");
+    if(options.prices) image.addEventListener("click", () => openImageLightbox(url + "?size=full"));
+    row.append(image);
+  }
+  const info = catalogNode("div", "price-info");
+  info.append(catalogNode("span", "price-name", product.name));
+  if(options.prices && product.description) info.append(catalogNode("span", "price-desc", product.description));
+  row.append(info);
+  if(options.prices){
+    row.append(catalogNode("span", "price-value", formatEUR(product.list_price)));
+    const qty = catalogNode("div", "qty-slot");
+    qty.setAttribute("data-pid", id);
+    qty.innerHTML = qtyControlHtml(id);
+    row.append(qty);
+  }
+  if(options.action){
+    const button = catalogNode("button", options.remove ? "admin-btn remove" : "admin-btn", options.remove ? "Quitar" : "Añadir");
+    button.addEventListener("click", () => options.action(id));
+    row.append(button);
+  }
+  return row;
 }
 
 async function openPrices(page){
@@ -1000,18 +1041,9 @@ async function openPrices(page){
     // Los internos ven siempre la estrella (para marcar/desmarcar); los
     // clientes solo la de los destacados, y solo si la ficha tiene alguno.
     const showStars = window.RMS_CATALOG_IS_INTERNAL || data.products.some(p => p.featured);
-    document.getElementById("priceModalBody").innerHTML = data.products.map(p => `
-      <div class="price-row">
-        ${showStars ? starHtml(p.id, p.featured) : ""}
-        ${p.has_image ? `<img class="price-thumb" loading="lazy" src="/my/catalog/product-image/${p.id}" alt="" onclick="openImageLightbox('/my/catalog/product-image/${p.id}?size=full')">` : ""}
-        <div class="price-info">
-          <span class="price-name">${escapeHtml(p.name)}</span>
-          ${p.description ? `<span class="price-desc">${escapeHtml(p.description)}</span>` : ""}
-        </div>
-        <span class="price-value">${formatEUR(p.list_price)}</span>
-        <div class="qty-slot" data-pid="${p.id}">${qtyControlHtml(p.id)}</div>
-      </div>
-    `).join("");
+    document.getElementById("priceModalBody").replaceChildren(
+      ...data.products.map(p => productRow(p, {prices: true, stars: showStars}))
+    );
   }catch(e){
     document.getElementById("priceModalBody").innerHTML = '<p class="price-status">No se han podido cargar los precios. Inténtalo de nuevo.</p>';
   }
@@ -1028,10 +1060,10 @@ function closePrices(){
 let pricePageKey = null;
 const STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.83 5.73 6.32.92-4.57 4.46 1.08 6.3L12 17.24l-5.66 2.97 1.08-6.3L2.85 9.45l6.32-.92z"/></svg>';
 
-function starHtml(productId, featured){
+function starHtml(productId, featured, pageKey = null){
   if(window.RMS_CATALOG_IS_INTERNAL){
     const label = featured ? "Quitar de destacados" : "Marcar como destacado";
-    return `<button class="star ${featured ? "on" : ""}" title="${label}" aria-label="${label}" aria-pressed="${featured}" onclick="toggleFeatured(${productId}, this)">${STAR_SVG}</button>`;
+    return `<button class="star ${featured ? "on" : ""}" title="${label}" aria-label="${label}" aria-pressed="${featured}" onclick="toggleFeatured(${productId}, this, ${pageKey === null ? "null" : "adminPageKey"})">${STAR_SVG}</button>`;
   }
   return featured ? `<span class="star on" title="Producto destacado" aria-label="Producto destacado">${STAR_SVG}</span>` : '<span class="star-slot"></span>';
 }
@@ -1041,7 +1073,7 @@ async function toggleFeatured(productId, btn, pageKey){
   if(!key) return;
   btn.disabled = true;
   try{
-    const res = await fetch(`/my/catalog/admin/card/${key}/products/${productId}/featured`, {method: "POST"});
+    const res = await fetch(`/my/catalog/admin/card/${key}/products/${productId}/featured`, {method: "POST", body: new URLSearchParams({csrf_token: window.RMS_CSRF})});
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
     btn.classList.toggle("on", data.featured);
@@ -1088,7 +1120,7 @@ async function changeQty(productId, delta){
     const res = await fetch(delta > 0 ? "/my/catalog/quote/add" : "/my/catalog/quote/decrease", {
       method: "POST",
       headers: {"Content-Type": "application/x-www-form-urlencoded"},
-      body: `product_id=${encodeURIComponent(productId)}`,
+      body: new URLSearchParams({product_id: productId, csrf_token: window.RMS_CSRF}),
     });
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
@@ -1141,18 +1173,21 @@ function renderCartBody(data){
     downloadBtn.disabled = true;
     return;
   }
-  body.innerHTML = data.lines.map(l => `
-    <div class="price-row">
-      <div class="price-info">
-        <span class="price-name">${escapeHtml(l.name)}</span>
-        <span class="price-value">${formatEUR(l.price_subtotal)}</span>
-      </div>
-      <div class="cart-actions">
-        <div class="qty-slot" data-pid="${l.product_id}">${qtyControlHtml(l.product_id)}</div>
-        <button class="admin-btn remove" onclick="removeFromCart(${l.product_id})">Quitar</button>
-      </div>
-    </div>
-  `).join("");
+  body.replaceChildren(...data.lines.map(l => {
+    const id = Number(l.product_id);
+    const row = catalogNode("div", "price-row");
+    const info = catalogNode("div", "price-info");
+    info.append(catalogNode("span", "price-name", l.name), catalogNode("span", "price-value", formatEUR(l.price_subtotal)));
+    const actions = catalogNode("div", "cart-actions");
+    const qty = catalogNode("div", "qty-slot");
+    qty.setAttribute("data-pid", id);
+    qty.innerHTML = qtyControlHtml(id);
+    const remove = catalogNode("button", "admin-btn remove", "Quitar");
+    remove.addEventListener("click", () => removeFromCart(id));
+    actions.append(qty, remove);
+    row.append(info, actions);
+    return row;
+  }));
   downloadBtn.disabled = false;
 }
 
@@ -1183,7 +1218,7 @@ async function removeFromCart(productId){
     const res = await fetch(`/my/catalog/quote/remove`, {
       method: "POST",
       headers: {"Content-Type": "application/x-www-form-urlencoded"},
-      body: `product_id=${encodeURIComponent(productId)}`,
+      body: new URLSearchParams({product_id: productId, csrf_token: window.RMS_CSRF}),
     });
     if(!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
@@ -1231,14 +1266,9 @@ async function loadAdminAssigned(){
       body.innerHTML = '<p class="price-status">Sin productos asignados todavía.</p>';
       return;
     }
-    body.innerHTML = data.products.map(p => `
-      <div class="price-row">
-        <button class="star ${p.featured ? "on" : ""}" title="${p.featured ? "Quitar de destacados" : "Marcar como destacado"}" aria-pressed="${p.featured}" onclick="toggleFeatured(${p.id}, this, adminPageKey)">${STAR_SVG}</button>
-        ${p.has_image ? `<img class="price-thumb" loading="lazy" src="/my/catalog/product-image/${p.id}" alt="">` : ""}
-        <div class="price-info"><span class="price-name">${escapeHtml(p.name)}</span></div>
-        <button class="admin-btn remove" onclick="adminRemoveProduct(${p.id})">Quitar</button>
-      </div>
-    `).join("");
+    body.replaceChildren(...data.products.map(p => productRow(p, {
+      stars: true, action: adminRemoveProduct, remove: true,
+    })));
   }catch(e){
     body.innerHTML = '<p class="price-status">No se pudo cargar. Inténtalo de nuevo.</p>';
   }
@@ -1261,27 +1291,21 @@ async function adminDoSearch(q){
       results.innerHTML = '<p class="price-status">Sin resultados.</p>';
       return;
     }
-    results.innerHTML = data.products.map(p => `
-      <div class="price-row">
-        ${p.has_image ? `<img class="price-thumb" loading="lazy" src="/my/catalog/product-image/${p.id}" alt="">` : ""}
-        <div class="price-info"><span class="price-name">${escapeHtml(p.name)}</span></div>
-        <button class="admin-btn" onclick="adminAddProduct(${p.id})">Añadir</button>
-      </div>
-    `).join("");
+    results.replaceChildren(...data.products.map(p => productRow(p, {action: adminAddProduct})));
   }catch(e){
     results.innerHTML = '<p class="price-status">Error en la búsqueda.</p>';
   }
 }
 
 async function adminAddProduct(productId){
-  await fetch(`/my/catalog/admin/card/${adminPageKey}/products/${productId}/add`, {method: "POST"});
+  await fetch(`/my/catalog/admin/card/${adminPageKey}/products/${productId}/add`, {method: "POST", body: new URLSearchParams({csrf_token: window.RMS_CSRF})});
   document.getElementById("adminSearchInput").value = "";
   document.getElementById("adminSearchResults").innerHTML = "";
   await loadAdminAssigned();
 }
 
 async function adminRemoveProduct(productId){
-  await fetch(`/my/catalog/admin/card/${adminPageKey}/products/${productId}/remove`, {method: "POST"});
+  await fetch(`/my/catalog/admin/card/${adminPageKey}/products/${productId}/remove`, {method: "POST", body: new URLSearchParams({csrf_token: window.RMS_CSRF})});
   await loadAdminAssigned();
 }
 
@@ -1382,12 +1406,12 @@ document.addEventListener("keydown", e => {
 ========================================================= */
 let lastTracked = "";
 function track(kind, data){
-  if(window.RMS_CATALOG_IS_INTERNAL) return;
+  if(window.RMS_CATALOG_IS_INTERNAL || !window.RMS_CSRF) return;
   const sig = kind + "|" + JSON.stringify(data);
   if(sig === lastTracked) return;
   lastTracked = sig;
   try{
-    const body = new URLSearchParams({kind, hash: location.hash.replace(/^#/, ""), ...data});
+    const body = new URLSearchParams({kind, hash: location.hash.replace(/^#/, ""), ...data, csrf_token: window.RMS_CSRF});
     fetch("/my/portal/track", {method:"POST", body, keepalive:true, credentials:"same-origin"}).catch(() => {});
   }catch(e){}
 }

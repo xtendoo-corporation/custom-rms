@@ -1,6 +1,6 @@
 {
     'name': 'Stock Cession (Gestión de Cesiones)',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.2',
     'category': 'Inventory/Inventory',
     'summary': 'Gestión de mercancía cedida a clientes o en ubicaciones externas',
     'description': """
@@ -12,6 +12,7 @@
     'depends': ['stock'],
     'data': [
         'security/ir.model.access.csv',
+        'security/stock_cession_security.xml',
         'views/stock_cession_views.xml',
     ],
     'installable': True,

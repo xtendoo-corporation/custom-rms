@@ -1,6 +1,6 @@
 {
     'name': 'RMS Quotation Import',
-    'version': '1.0',
+    'version': '19.0.1.0.2',
     'category': 'Sales/Sales',
     'summary': 'Smart Wizard to import quotations (Sales Orders) from Excel with dynamic variant resolution and automatic discount calculation.',
     'description': """

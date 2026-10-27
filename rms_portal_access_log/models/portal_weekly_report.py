@@ -2,6 +2,7 @@ from collections import Counter, defaultdict
 from datetime import timedelta
 
 from odoo import api, fields, models
+from odoo.exceptions import AccessError
 from odoo.tools import format_datetime
 
 REPORT_DAYS = 7
@@ -28,13 +29,26 @@ class PortalWeeklyReport(models.AbstractModel):
 
     @api.model
     def _cron_send_weekly_report(self):
+        params = self.env['ir.config_parameter'].sudo()
+        # Serializa ejecuciones simultáneas antes de comprobar la semana.
+        params.env.cr.execute("SELECT pg_advisory_xact_lock(191904365)")
+        today = fields.Date.today()
+        week_start = today - timedelta(days=today.weekday())
+        last_sent = params.get_param('rms_portal_access_log.last_weekly_report_date')
+        if last_sent and fields.Date.to_date(last_sent) >= week_start:
+            return
         recipients = self._get_recipients()
         if recipients:
             self._send_report(recipients)
+            params.set_param('rms_portal_access_log.last_weekly_report_date', today)
 
     @api.model
     def action_send_now(self):
         """Envía el informe ahora solo al usuario que lo pide (para probarlo)."""
+        if not self.env.su and (
+            self.env.user.share or not self.env.user.has_group(RECIPIENT_GROUP)
+        ):
+            raise AccessError("Acceso restringido a usuarios internos con permisos para esta función.")
         self._send_report(self.env.user)
         return {
             'type': 'ir.actions.client',

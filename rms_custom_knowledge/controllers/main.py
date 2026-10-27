@@ -9,6 +9,8 @@ class KnowledgeDownloadController(http.Controller):
 
     @http.route('/rms_custom_knowledge/download', type='http', auth='user')
     def download_knowledge_documents(self, ids, **kwargs):
+        if request.env.user.share:
+            return request.not_found()
         attachment_ids = [int(attachment_id) for attachment_id in ids.split(',') if attachment_id.isdigit()]
         attachments = request.env['ir.attachment'].browse(attachment_ids).exists()
         downloadable = attachments.filtered(lambda attachment: attachment.type == 'binary' and attachment.datas)

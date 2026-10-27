@@ -16,7 +16,7 @@
                             </div>
                             <div class="row mt16">
                                 <label string="Secreto JWT" for="onlyoffice_jwt_secret" class="col-lg-4 o_light_label"/>
-                                <field name="onlyoffice_jwt_secret" password="True" placeholder="Déjalo vacío si el servidor no usa JWT"/>
+                                <field name="onlyoffice_jwt_secret" password="True" placeholder="Obligatorio: mismo valor que JWT_SECRET"/>
                             </div>
                         </div>
                     </setting>

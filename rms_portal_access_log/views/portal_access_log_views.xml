@@ -79,6 +79,7 @@
     </record>
 
     <menuitem id="menu_portal_access_log_root" name="Accesos al Portal" sequence="65"
+              groups="rms_portal_access_log.group_portal_weekly_report"
               web_icon="rms_portal_access_log,static/description/icon.png"/>
     <menuitem id="menu_portal_access_log" name="Accesos" parent="menu_portal_access_log_root" action="action_portal_access_log" sequence="10"/>
 </odoo>

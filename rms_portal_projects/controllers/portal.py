@@ -1,8 +1,9 @@
 import base64
+import re
 
 from odoo import http
 from odoo.exceptions import AccessError, MissingError
-from odoo.http import request
+from odoo.http import content_disposition, request
 from odoo.addons.portal.controllers.portal import CustomerPortal, pager as portal_pager
 
 BACK_TO_PORTAL_BUTTON = b"""
@@ -22,19 +23,25 @@ class InstallationProjectPortal(CustomerPortal):
             ('state', '!=', 'draft'),
         ]
 
+    def _can_read_installation_projects(self):
+        user = request.env.user
+        return user.has_group('base.group_portal') or user.has_group(
+            'rms_portal_projects.group_installation_project_manager'
+        )
+
     def _prepare_home_portal_values(self, counters):
         values = super()._prepare_home_portal_values(counters)
         if 'installation_project_count' in counters:
             values['installation_project_count'] = request.env['rms.installation.project'].search_count(
                 self._installation_project_domain()
-            )
+            ) if self._can_read_installation_projects() else 0
         return values
 
     def _prepare_portal_layout_values(self):
         values = super()._prepare_portal_layout_values()
         values['installation_project_count'] = request.env['rms.installation.project'].search_count(
             self._installation_project_domain()
-        )
+        ) if self._can_read_installation_projects() else 0
         return values
 
     def _installation_project_check_access(self, project_id):
@@ -56,7 +63,7 @@ class InstallationProjectPortal(CustomerPortal):
             'date': {'label': 'Fecha', 'order': 'date desc'},
             'name': {'label': 'Referencia', 'order': 'name'},
         }
-        sortby = sortby or 'date'
+        sortby = sortby if sortby in searchbar_sortings else 'date'
         order = searchbar_sortings[sortby]['order']
 
         project_count = Project.search_count(domain)
@@ -105,10 +112,23 @@ class InstallationProjectPortal(CustomerPortal):
         if not project_sudo.file_data:
             return request.redirect('/my/installation-projects/%s' % project_id)
 
+        document = base64.b64decode(project_sudo.file_data)
+        insertion = re.search(br'<body\b[^>]*>', document, re.IGNORECASE)
+        if insertion is None:
+            insertion = re.search(br'</head\s*>', document, re.IGNORECASE)
+        offset = insertion.end() if insertion else 0
+        document = document[:offset] + BACK_TO_PORTAL_BUTTON + document[offset:]
+
         return request.make_response(
-            BACK_TO_PORTAL_BUTTON + base64.b64decode(project_sudo.file_data),
+            document,
             headers=[
                 ('Content-Type', 'text/html; charset=utf-8'),
-                ('Content-Disposition', 'inline; filename="%s"' % (project_sudo.file_name or 'proyecto.html')),
+                ('Content-Disposition', content_disposition(
+                    project_sudo.file_name or 'proyecto.html', disposition_type='inline',
+                )),
+                ('Content-Security-Policy', 'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads'),
+                ('X-Content-Type-Options', 'nosniff'),
+                ('Referrer-Policy', 'no-referrer'),
+                ('Cache-Control', 'private, no-store'),
             ],
         )

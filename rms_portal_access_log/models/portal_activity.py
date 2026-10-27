@@ -78,6 +78,13 @@ class PortalActivity(models.Model):
     def _log_unsafe(self, user, activity_type, vals):
         Activity = self.sudo()
         now = fields.Datetime.now()
+        # El bloqueo por usuario evita superar el límite con peticiones paralelas.
+        self.env.cr.execute('SELECT pg_advisory_xact_lock(%s, %s)', (191904, user.id))
+        if Activity.search_count([
+            ('user_id', '=', user.id),
+            ('date', '>=', now - timedelta(minutes=1)),
+        ], limit=60) >= 60:
+            return self.browse()
         if activity_type not in NO_DEDUPE_TYPES:
             domain = [
                 ('user_id', '=', user.id),

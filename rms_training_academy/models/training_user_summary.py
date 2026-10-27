@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models
+from odoo.exceptions import AccessError
 
 
 class RmsTrainingUserSummary(models.Model):
@@ -52,6 +53,11 @@ class RmsTrainingUserSummary(models.Model):
 
     @api.model
     def action_open(self):
+        if not self.env.su and (
+            self.env.user.share or not self.env.user.has_group("base.group_user")
+            or not self.env.user.has_group("rms_training_academy.group_training_manager")
+        ):
+            raise AccessError("Acceso restringido a usuarios internos con permisos para esta función.")
         self._refresh()
         return self.env["ir.actions.act_window"]._for_xml_id(
             "rms_training_academy.action_rms_training_user_summary"

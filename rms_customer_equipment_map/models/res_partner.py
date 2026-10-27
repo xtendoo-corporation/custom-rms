@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 from . import nominatim
 
@@ -104,12 +104,16 @@ class ResPartner(models.Model):
         without granting full Settings administrator access.
         """
         user = self.env.user
-        return user.has_group("base.group_system") or user.has_group(
-            "rms_customer_equipment_map.group_customer_equipment_map_geolocation"
+        return self.env.su or (
+            not user.share and user.has_group("base.group_user")
+            and (user.has_group("base.group_system") or user.has_group(
+                "rms_customer_equipment_map.group_customer_equipment_map_geolocation"
+            ))
         )
 
     @api.model
     def _customer_equipment_map_partner_model(self):
+        # Entorno elevado exclusivo de los contadores y el estado de geolocalización.
         if self._is_customer_equipment_map_admin():
             return self.sudo()
         return self
@@ -118,7 +122,7 @@ class ResPartner(models.Model):
     def get_geo_localize_summary(self):
         """Counts per geolocation state and next automatic run, for the map."""
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("You don't have permission to perform bulk geolocation."))
+            raise AccessError("Solo los usuarios internos con permisos de geolocalización pueden realizar esta operación.")
         Partner = self._customer_equipment_map_partner_model()
         counts = dict.fromkeys(("done", "pending", "failed", "no_address"), 0)
         for state, count in Partner._read_group(
@@ -140,7 +144,7 @@ class ResPartner(models.Model):
     def action_view_geo_localize_partners(self, state):
         """Open the geolocation list filtered on one state."""
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("You don't have permission to perform bulk geolocation."))
+            raise AccessError("Solo los usuarios internos con permisos de geolocalización pueden realizar esta operación.")
         titles = {
             "done": _("Clientes geolocalizados"),
             "pending": _("Clientes pendientes de geolocalizar"),
@@ -171,7 +175,7 @@ class ResPartner(models.Model):
     def action_geo_localize_retry(self):
         """Put the selected contacts back in the geolocation queue now."""
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("You don't have permission to perform bulk geolocation."))
+            raise AccessError("Solo los usuarios internos con permisos de geolocalización pueden realizar esta operación.")
         partners = self._customer_equipment_map_partner_model().browse(self.ids)
         partners = partners.filtered(
             lambda partner: partner.geo_localize_state in ("pending", "failed")
@@ -206,7 +210,7 @@ class ResPartner(models.Model):
         cron is not woken up to avoid querying the service twice in parallel.
         """
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("You don't have permission to perform bulk geolocation."))
+            raise AccessError("Solo los usuarios internos con permisos de geolocalización pueden realizar esta operación.")
         Partner = self._customer_equipment_map_partner_model()
         failed = Partner.search([("geo_localize_state", "=", "failed")])
         failed.with_context(skip_geo_localize_trigger=True).write(
@@ -229,7 +233,7 @@ class ResPartner(models.Model):
             before calling again (after a "too many requests").
         """
         if not self._is_customer_equipment_map_admin():
-            raise UserError(_("You don't have permission to perform bulk geolocation."))
+            raise AccessError("Solo los usuarios internos con permisos de geolocalización pueden realizar esta operación.")
         Partner = self.sudo()
         result = {
             "located": 0,
@@ -609,8 +613,10 @@ class ResPartner(models.Model):
         phone, email = self.phone or "", self.email or ""
         contact_name = ""
         if not (phone and email):
-            # The company is visible to the user, so are its contact persons.
-            persons = self.sudo().child_ids.filtered(
+            # Los contactos hijos también deben respetar las reglas del usuario.
+            persons = self.env["res.partner"].search([
+                ("parent_id", "=", self.id), ("type", "=", "contact"),
+            ]).filtered(
                 lambda child: child.type == "contact"
                 and ((not phone and child.phone) or (not email and child.email))
             )
@@ -626,21 +632,26 @@ class ResPartner(models.Model):
     @api.model
     def get_customer_equipment_map_data(self):
         """Return geolocated contacts allowed in the customer map."""
+        if not self.env.su and (
+            self.env.user.share or not self.env.user.has_group("base.group_user")
+        ):
+            raise AccessError("Acceso restringido a usuarios internos con permisos para esta función.")
         self.check_access("read")
         domain = [
             ("partner_latitude", "!=", 0.0),
             ("partner_longitude", "!=", 0.0),
         ]
-        Partner = self._customer_equipment_map_partner_model()
-        partners = Partner.search(domain, order="name, id")
+        partners = self.search(domain, order="name, id")
 
         equipment_by_partner = defaultdict(list)
-        # Search all equipment with sudo() so that any user with access to
-        # the partner can view all their installed products/equipments.
-        equipment = self.env["maintenance.equipment"].sudo().search(
-            [("partner_id", "in", partners.ids)],
-            order="name, id",
-        )
+        # Sin permiso de lectura no se incluyen equipos; la búsqueda aplica sus reglas.
+        Equipment = self.env["maintenance.equipment"]
+        equipment = Equipment.browse()
+        if Equipment.has_access("read"):
+            equipment = Equipment.search(
+                [("partner_id", "in", partners.ids)],
+                order="name, id",
+            )
         for item in equipment:
             equipment_by_partner[item.partner_id.id].append(
                 {

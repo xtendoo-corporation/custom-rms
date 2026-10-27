@@ -8,7 +8,7 @@
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_open_portal_invite_link" type="object"
                         class="oe_stat_button" icon="fa-link"
-                        groups="base.group_erp_manager"
+                        groups="base.group_erp_manager,rms_portal_projects.group_installation_project_manager"
                         invisible="not email"
                         string="Enlace portal"/>
             </xpath>
