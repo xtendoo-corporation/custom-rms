@@ -3,6 +3,7 @@
 GROUP_COMERCIALES = 'custom.comerciales'
 GROUP_PRICELIST = 'rms_ventas_restriccion_comerciales.group_comerciales_pricelist'
 GROUP_QUOTATION_FULL_EDIT = 'rms_ventas_restriccion_comerciales.group_comerciales_quotation_full_edit'
+GROUP_ALL_CUSTOMERS = 'rms_ventas_restriccion_comerciales.group_comerciales_all_customers'
 
 
 def _is_restricted(env, allowed_group):
@@ -12,9 +13,9 @@ def _is_restricted(env, allowed_group):
     )
 
 
-def is_comercial(env):
-    """El usuario pertenece al grupo Comerciales."""
-    return bool(env.ref(GROUP_COMERCIALES, raise_if_not_found=False)) and env.user.has_group(GROUP_COMERCIALES)
+def only_own_customers(env):
+    """El usuario es comercial y solo puede hacer presupuestos a sus clientes."""
+    return _is_restricted(env, GROUP_ALL_CUSTOMERS)
 
 
 def own_customers_domain(uid):

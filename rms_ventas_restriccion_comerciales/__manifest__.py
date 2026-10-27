@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Restricción Ficha Comerciales',
-    'version': '19.0.1.3.0',
+    'version': '19.0.1.4.0',
     'category': 'Sales',
-    'summary': 'Comerciales ven listados pero no pueden abrir fichas de cliente/producto, ver listas de precios ni cambiar precios, descuentos e impuestos; solo presupuestan a sus propios clientes',
+    'summary': 'Comerciales ven listados pero no pueden abrir fichas de cliente/producto, cambiar listas de precios ni precios, descuentos e impuestos; solo presupuestan a sus propios clientes',
     'author': 'Custom RMS',
     'depends': ['base', 'contacts', 'product', 'sale'],
     'data': [

@@ -3,7 +3,7 @@
 from odoo import api, models
 from odoo.exceptions import AccessError, ValidationError
 
-from .restrictions import hide_pricelists, is_comercial, lock_prices_and_taxes, own_customers_domain
+from .restrictions import hide_pricelists, lock_prices_and_taxes, only_own_customers, own_customers_domain
 
 
 class SaleOrder(models.Model):
@@ -23,7 +23,7 @@ class SaleOrder(models.Model):
 
     def _check_own_customer(self, vals):
         # Un comercial solo puede hacer presupuestos a sus propios clientes.
-        if self.env.su or not vals.get('partner_id') or not is_comercial(self.env):
+        if self.env.su or not vals.get('partner_id') or not only_own_customers(self.env):
             return
         partner = self.env['res.partner'].sudo().browse(vals['partner_id'])
         if not partner.filtered_domain(own_customers_domain(self.env.uid)):
@@ -77,13 +77,13 @@ class SaleOrder(models.Model):
         # que la clave debe distinguir qué restricciones se aplican.
         key = super()._get_view_cache_key(view_id, view_type, **options)
         return key + (
-            hide_pricelists(self.env), lock_prices_and_taxes(self.env), is_comercial(self.env)
+            hide_pricelists(self.env), lock_prices_and_taxes(self.env), only_own_customers(self.env)
         )
 
     @api.model
     def _get_view(self, view_id=None, view_type='form', **options):
         arch, view = super()._get_view(view_id, view_type, **options)
-        if view_type == 'form' and is_comercial(self.env):
+        if view_type == 'form' and only_own_customers(self.env):
             # En el desplegable de cliente solo aparecen sus propios clientes.
             field = self._fields['partner_id']
             terms = ["'|', ('user_id', '=', uid), ('commercial_partner_id.user_id', '=', uid)"]
@@ -100,14 +100,11 @@ class SaleOrder(models.Model):
                     node_terms = terms
                 node.set('domain', '[%s]' % ', '.join(node_terms))
         if hide_pricelists(self.env):
-            # El campo se mantiene (invisible) para que la lista de precios se
-            # siga calculando a partir del cliente y se guarde con el pedido.
-            for node in arch.xpath(
-                "//field[@name='pricelist_id']"
-                " | //label[@for='pricelist_id']"
-                " | //div[field[@name='pricelist_id']]"
-                " | //button[@name='action_update_prices']"
-            ):
+            # La lista de precios (tipo de cliente) se ve, pero es la del
+            # cliente: Odoo la calcula al elegirlo y el comercial no la cambia.
+            for node in arch.xpath("//field[@name='pricelist_id']"):
+                node.set('readonly', '1')
+            for node in arch.xpath("//button[@name='action_update_prices']"):
                 node.set('invisible', '1')
         if lock_prices_and_taxes(self.env):
             # force_save: el valor que calcula Odoo al elegir producto o cliente
