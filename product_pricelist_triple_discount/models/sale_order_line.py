@@ -1,6 +1,29 @@
 from odoo import models, api
 class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
+
+    def write(self, vals):
+        """
+        La mixin de OCA (triple.discount.mixin.write) pasa cualquier 'discount'
+        que llegue a discount1 y pone discount2 y discount3 a 0, aunque vengan
+        en los mismos valores. Si el descuento total es justo el que resulta de
+        discount1/2/3 no aporta nada (se recalcula a partir de ellos), así que
+        lo quitamos para que no aplaste el desglose (30 % + 10 % -> 37 % + 0 %).
+        Un total distinto (p. ej. el reseteo a 0 de "Actualizar precios") se
+        sigue pasando a OCA como hasta ahora.
+        """
+        if 'discount' in vals and hasattr(self, '_get_aggregated_multiple_discounts'):
+            discount_fields = self._get_multiple_discount_field_names()
+            if all(
+                abs(line._get_aggregated_multiple_discounts(
+                    [vals.get(field, line[field]) for field in discount_fields]
+                ) - (vals['discount'] or 0.0)) < 0.000001
+                for line in self
+            ):
+                vals = dict(vals)
+                vals.pop('discount')
+        return super().write(vals)
+
     def _get_display_price_ignore_combo(self):
         pricelist_item = self.pricelist_item_id
         if not pricelist_item and self.order_id.pricelist_id:
