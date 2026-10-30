@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Reglas iniciales sacadas de las fotos de etiquetas del almacén (octubre
+    2026). Son datos editables desde Inventario > Configuración > Reglas de
+    lectura de etiquetas: noupdate para no pisar los cambios al actualizar.
+-->
+<odoo noupdate="1">
+    <!-- ======================= Códigos a ignorar ======================= -->
+    <record id="scan_rule_ignore_sscc" model="rms.scan.rule">
+        <field name="sequence">1</field>
+        <field name="name">Etiqueta de transporte (SSCC)</field>
+        <field name="pattern">(\(00\)|00)\d{18}</field>
+        <field name="action">ignore</field>
+        <field name="example">(00)050134930120831424</field>
+        <field name="note">Etiquetas logísticas de Sony (IDL Tilburg) y de otros envíos paletizados.</field>
+    </record>
+    <record id="scan_rule_ignore_short" model="rms.scan.rule">
+        <field name="sequence">2</field>
+        <field name="name">Cantidad u otro código muy corto</field>
+        <field name="pattern">.{1,2}</field>
+        <field name="action">ignore</field>
+        <field name="example">01</field>
+        <field name="note">DiGiCo ("Quantity *01*") y Neutrik ("PCS 10") codifican la cantidad de la caja en un código de barras.</field>
+    </record>
+    <record id="scan_rule_ignore_url" model="rms.scan.rule">
+        <field name="sequence">3</field>
+        <field name="name">Enlace web (QR de reciclaje, manuales...)</field>
+        <field name="pattern">https?://.*</field>
+        <field name="action">ignore</field>
+        <field name="example">https://digico.biz/recycling-information/</field>
+    </record>
+    <record id="scan_rule_ignore_digico_a41" model="rms.scan.rule">
+        <field name="sequence">4</field>
+        <field name="name">DiGiCo: pegatina interna A41…C…</field>
+        <field name="brand">DiGiCo</field>
+        <field name="pattern">A41\d{10}C\d{4}</field>
+        <field name="action">ignore</field>
+        <field name="example">A410001587102C0087</field>
+        <field name="note">Pegatina suelta junto a la etiqueta de la caja (S21, A-164). No es el número de serie, que va en su propia casilla "Serial number". No hay documentación pública de qué identifica (parece un nº de pedido/bulto); los nº de serie de DiGiCo tienen otro formato (6 cifras + año/mes, p. ej. 215466 2301).</field>
+    </record>
+    <record id="scan_rule_ignore_sony_no_serial" model="rms.scan.rule">
+        <field name="sequence">5</field>
+        <field name="name">Sony: caja sin número de serie (S01-0000000)</field>
+        <field name="brand">Sony</field>
+        <field name="pattern">S\d{2}-?0{7}-?[0-9A-Z]</field>
+        <field name="action">ignore</field>
+        <field name="example">S01-0000000-T</field>
+        <field name="note">Cajas de kit UWP-D y auriculares MDR: el número de serie va en cada componente, no en la caja.</field>
+    </record>
+
+    <!-- ===================== Números de serie por marca ===================== -->
+    <record id="scan_rule_sony_serial" model="rms.scan.rule">
+        <field name="sequence">20</field>
+        <field name="name">Sony: número de serie S01-NNNNNNN-X</field>
+        <field name="brand">Sony</field>
+        <field name="pattern">S\d{2}-?(?P&lt;serial&gt;\d{7})-?[0-9A-Z\-]</field>
+        <field name="action">serial</field>
+        <field name="example">S010040579B</field>
+        <field name="note">Etiqueta "CE7" de Sony: P-xxxxxxxx-x es la referencia del producto y S01-xxxxxxx-x el número de serie (7 cifras). En los kits UWP-D la caja trae una lista con el número de serie de cada transmisor y receptor. Sony no publica el formato; si en Odoo el nº de serie se dio de alta con el código completo (S010040579B), también se encuentra.</field>
+    </record>
+    <record id="scan_rule_auvitran_qr" model="rms.scan.rule">
+        <field name="sequence">21</field>
+        <field name="name">Auvitran: QR con el S/N en hexadecimal</field>
+        <field name="brand">Auvitran</field>
+        <field name="pattern">FF01[0-9A-F]{2}(?P&lt;serial&gt;[0-9A-F]{6})</field>
+        <field name="action">serial</field>
+        <field name="transform">hex_to_dec</field>
+        <field name="padding">6</field>
+        <field name="example">FF01140004E7</field>
+        <field name="note">Auvitran no imprime el S/N en código de barras, pero el QR lo lleva en hexadecimal: FF01 + tipo de producto (14 = AxC-AVB, 0A = AxC-MADI, 07 = AxC-DX8I, 2B = AxC-DANTE V2, FA = AVBx7) + S/N. FF01140004E7 → S/N 001255, FF01FA00031A → S/N 00000794. Comprobado con 5 cajas.</field>
+    </record>
+    <record id="scan_rule_atlas_sn" model="rms.scan.rule">
+        <field name="sequence">22</field>
+        <field name="name">AtlasIED: prefijo SN en el código del número de serie</field>
+        <field name="brand">AtlasIED</field>
+        <field name="pattern">SN(?P&lt;serial&gt;[A-Z]{2}\d{15})</field>
+        <field name="action">serial</field>
+        <field name="example">SNCV700722322000148</field>
+        <field name="note">El código de la caja lleva "SN" delante del número de serie. A confirmar con la etiqueta del propio equipo que el número de serie empieza por las dos letras (CV…, DQ…). Si en Odoo ya están dados de alta con "SN" delante, también se encuentran.</field>
+    </record>
+</odoo>

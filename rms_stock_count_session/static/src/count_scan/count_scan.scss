@@ -1,0 +1,36 @@
+.o_rms_count_scan {
+    background-color: var(--o-view-background-color, #fff);
+
+    .o_rms_cs_ctx {
+        max-width: 100%;
+    }
+
+    .o_rms_cs_video_wrap {
+        position: relative;
+        width: 100%;
+        max-width: 480px;
+        margin: 0 auto;
+        background-color: #000;
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+
+    .o_rms_cs_video {
+        width: 100%;
+        display: block;
+    }
+
+    // Solo se aceptan los códigos que caen dentro de este recuadro.
+    .o_rms_cs_scan_rect {
+        position: absolute;
+        box-sizing: border-box;
+        border: 2px solid rgba(255, 255, 255, 0.85);
+        border-radius: 0.25rem;
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+        pointer-events: none;
+    }
+
+    .o_rms_cs_last {
+        font-size: 1.05rem;
+    }
+}

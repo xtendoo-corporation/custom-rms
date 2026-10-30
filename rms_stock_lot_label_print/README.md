@@ -6,6 +6,30 @@ una etiqueta de **10x5 cm**, lista para pegar en la pieza y escanear
 después con lector físico o con la cámara del móvil
 (`rms_stock_barcode_scan`).
 
+## Etiqueta sustituta (Inventario > Operaciones > Etiqueta sustituta)
+
+Para equipos que tienen el número de serie pero no una etiqueta que se pueda
+escanear: el nº de serie grabado en la placa de un equipo antiguo sin su caja
+original (p. ej. un Meyer Leopard de 2009), una etiqueta del fabricante dañada,
+o una caja con varios equipos.
+
+1. Se elige el producto, el motivo y el estado (Nuevo, Demo, 2ª Mano...).
+2. Se escriben los números de serie, uno por línea. Si es uno solo, se pide
+   repetirlo para no imprimir una errata. El resumen avisa de los que ya existen
+   (se reimprimen) y de los que existen en otro producto.
+3. **Crear e imprimir**: se dan de alta los que no existen (con el estado
+   elegido), se marcan como "Etiqueta sustituta" con el motivo y la fecha, y se
+   imprimen todas las etiquetas en un PDF.
+
+La etiqueta lleva la **referencia del producto en grande**, la descripción, el
+**número de serie en Code128** (lo que se escanea), `S/N: …` en texto, el estado
+si no es Nuevo (DEMO, 2ª MANO...) y al pie "Etiqueta sustituta" con la fecha.
+Pégala en el equipo o en la caja **sin tapar la etiqueta original**: algunos
+fabricantes (Hollyland, Furman) anulan la garantía si se tapa o se altera.
+
+Desde el escáner del recuento cruzado (`rms_stock_count_session`) el botón
+**Sin etiqueta** abre este mismo asistente y deja el número de serie contado.
+
 ## Requisito previo en el producto
 
 En el producto, pestaña **Inventario**, el campo **Trazabilidad** debe
