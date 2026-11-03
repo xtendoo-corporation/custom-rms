@@ -1,6 +1,6 @@
 # ERS · Sistema de almacén e inventario · RMS Proaudio
 
-Versión: 0.1 · Fecha: 2026-11-03 · Estado: borrador
+Versión: 0.2 · Fecha: 2026-11-03 · Estado: borrador
 Participantes: administrador de la empresa; segundo participante de los audios
 del 27-10-2026 (pendiente de confirmar quién es).
 
@@ -39,6 +39,10 @@ Resumen de los audios del 27-10-2026; el detalle está en `entrevista.md`.
 | Dato | Valor | Fuente |
 |---|---|---|
 | Edición de Odoo | Community (sin app Código de barras) | Administrador, 2026-11-03 |
+| Sistema actual | Sage (Odoo no está en marcha en almacén) | Administrador, 2026-11-03 |
+| **Arranque de Odoo en almacén** | **1 de enero de 2027** | Administrador, 2026-11-03 |
+| Zonas por estado | 4 zonas separadas físicamente; se admiten mezclas temporales | Administrador, 2026-11-03 |
+| Quién cambia el estado | Administración (por ahora) | Administrador, 2026-11-03 |
 | Último nº de pedido de compra | ≈ 4386 | Audio Mov_almacen |
 | Marcas con soporte técnico | ~24 (repuestos sobre todo de Meyer, DiGiCo y Point Source) | Audio 32 |
 | Resto | _pendiente_ | |
@@ -47,8 +51,13 @@ Resumen de los audios del 27-10-2026; el detalle está en `entrevista.md`.
 
 _Pendiente de completar con la entrevista._
 
-Principio ya acordado en los audios: **la referencia del producto no cambia
-con el estado**. El estado es un dato del número de serie, con su historial.
+Decisiones tomadas:
+- **La referencia del producto no cambia con el estado** (audios). El estado es
+  un dato del número de serie, con su historial.
+- **El estado no depende de la ubicación.** Hay una zona por estado (Nuevo,
+  Demo, Ex-demo, 2ª mano), pero un equipo puede estar temporalmente en otra
+  zona. Odoo debe mostrar esas discrepancias sin bloquearlas.
+- **Cambio de estado programado o manual**, decidido por administración.
 
 ## 5. Requisitos (borrador, sacados de los audios)
 
@@ -62,6 +71,9 @@ entrevista.
 | RF-01 | Un equipo se identifica por producto + número de serie; la referencia del producto no cambia al cambiar de estado | Must | Ya existe en parte (`rms_product_state`); hay que decidir qué pasa con las variantes "Estado" de `rms_product_import` | Audio Demo_exdeml |
 | RF-02 | Historial por número de serie: entradas, salidas, clientes, cambios de estado con fecha y usuario | Must | Estándar Odoo para los movimientos (trazabilidad del lote); **Desarrollo** para el historial de estado (M) | Audio Demo_exdeml |
 | RF-03 | Cambio de estado Nuevo → Demo → Ex-demo → 2ª mano como operación registrada, no como edición libre | Must | Desarrollo (S/M) | Audio Demo_exdeml |
+| RF-03a | Programar el cambio de estado: estado destino y fecha en el número de serie; llegada la fecha, el cambio se aplica solo. Sin fecha, el cambio es manual | Must | Desarrollo (S): tarea programada sobre `rms_product_state` | Administrador, 2026-11-03 |
+| RF-03b | Solo administración puede cambiar o programar el estado | Must | Desarrollo (S): grupo de permisos | Administrador, 2026-11-03 |
+| RF-03c | Informe de equipos fuera de la zona de su estado (p. ej. una demo en la zona de nuevo) | Should | Desarrollo (S) o filtro sobre el stock | Administrador, 2026-11-03 |
 | RF-04 | Demo no vendible, ex-demo vendible con su precio | Must | Ya existe (`rms_product_state`: bloqueo de venta de demo y precio por número de serie). A verificar | Audio Demo_exdeml |
 | RF-05 | Depósito: salida de equipos con número de serie a un cliente, que vuelve, con fecha prevista de devolución y avisos | Must | Ampliación de `stock_cession` (M) | Audios Demo_exdeml y 32 |
 | RF-06 | Equipo de sustitución durante una reparación, ligado a la reparación y con devolución controlada | Should | Desarrollo, sobre RF-05 (S/M) | Audio 32 |
@@ -79,13 +91,16 @@ entrevista.
 
 ### 5.2 No funcionales
 
-_Pendiente._
+| ID | Requisito | Origen |
+|---|---|---|
+| RNF-01 | La parte 1 (identidad, estado e historial) y la carga de datos deben estar listas y probadas antes del **1 de enero de 2027** | Administrador, 2026-11-03 |
 
 ### 5.3 Datos
 
 | ID | Requisito | Cobertura |
 |---|---|---|
-| RD-01 | Migración desde Sage: productos con referencia única (sin una referencia por estado), números de serie con su estado actual y stock por ubicación | Desarrollo / carga (a dimensionar) |
+| RD-01 | Migración desde Sage: productos con referencia única (sin una referencia por estado), números de serie con su estado actual y stock por ubicación. **Fecha límite: 1 de enero de 2027** | Desarrollo / carga (a dimensionar) |
+| RD-02 | Stock inicial validado con un recuento físico en el cambio de sistema; se propone el recuento cruzado (`rms_stock_count_session`) | Ya existe + Proceso |
 
 ## 6. Análisis de brechas
 
@@ -97,8 +112,12 @@ _Pendiente._
 
 ## 10. Supuestos y preguntas abiertas
 
-- [ ] Estado del paso de Sage a Odoo (qué módulos están ya en uso).
-- [ ] ¿Los cuatro estados están separados físicamente en la nave?
-- [ ] Quién cambia el estado y cuándo; qué se guarda de los pactos de demo.
+- [x] Paso de Sage a Odoo: almacén sigue en Sage; arranque el 1 de enero de 2027.
+- [x] Zonas por estado: separadas, con mezclas temporales permitidas.
+- [x] Cambio de estado: administración; con fecha programada o manual.
+- [ ] Listado por número de serie exportable desde Sage (estado, ubicación, cliente si está fuera).
+- [ ] Eliminar las variantes "Estado" (una referencia por producto); cómo se fija el precio de ex-demo y 2ª mano.
+- [ ] Qué más ocurre al llegar la fecha de cambio de estado (traslado, aviso, etiqueta).
+- [ ] Qué se guarda de los pactos de demo con la fábrica (precio, plazo sin vender).
 - [ ] ¿El atributo "2MV" es la "segunda mano vendible"?
 - [ ] ¿Quién es el segundo participante de los audios?

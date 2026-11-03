@@ -125,10 +125,32 @@ en un audio se cita a "Miguel Ángel Jiménez como CEO".
 5. Servicio técnico: fichas de reparación, RA, componentes.
 6. Paquetes de segunda mano (no prioritario).
 
-### Preguntas de la sesión 1 (pendientes de respuesta)
+### Preguntas y respuestas de la sesión 1
 
-1. ¿En qué punto está el paso de Sage a Odoo para almacén, compras y ventas?
-2. ¿Los cuatro "almacenes" (Nuevo, Demo, Ex-demo, 2ª mano) están separados
-   físicamente en la nave o comparten estanterías?
-3. ¿Quién decide el cambio de estado, cuándo, y qué hay que guardar de los
-   pactos de demo con la fábrica (precio, plazo sin vender)?
+1. **¿En qué punto está el paso de Sage a Odoo?**
+   Se sigue con Sage. Odoo no está en marcha en almacén. **Arranque previsto:
+   1 de enero (2027).**
+2. **¿Están separados físicamente los cuatro estados?**
+   Sí, en zonas separadas, pero **no es cerrado**: una zona puede tener
+   temporalmente equipos de otro estado.
+3. **¿Quién decide el cambio de estado y cuándo?**
+   Decide **administración** (por ahora). Se quiere poder poner **una fecha
+   para que el equipo pase a otro estado**; si no hay fecha, el cambio se hace
+   a mano.
+
+**Decisiones que se derivan:**
+- El estado es un dato del número de serie, no de la ubicación. La zona dice
+  dónde está; un equipo en una zona que no es la de su estado se permite, pero
+  debe poder verse.
+- El arranque del 1 de enero convierte la carga de datos desde Sage (números
+  de serie con su estado y ubicación) en el requisito más urgente.
+
+### Preguntas de la sesión 1, segunda tanda (pendientes)
+
+1. ¿Se puede sacar de Sage un listado por número de serie con su estado, su
+   ubicación y, si está fuera, el cliente que lo tiene?
+2. Variantes por estado: se propone una sola referencia por producto con el
+   estado en el número de serie. ¿Se confirma? ¿Cómo se fija el precio de
+   ex-demo y segunda mano: por unidad o por regla?
+3. Cuando llega la fecha de cambio de estado, ¿qué más debe pasar (traslado a
+   la zona, aviso, etiqueta)?
