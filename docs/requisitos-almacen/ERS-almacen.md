@@ -44,7 +44,7 @@ Resumen de los audios del 27-10-2026; el detalle está en `entrevista.md`.
 | Zonas por estado | 4 zonas separadas físicamente; se admiten mezclas temporales | Administrador, 2026-11-03 |
 | Quién cambia el estado | Administración (por ahora) | Administrador, 2026-11-03 |
 | Stock Meyer en Sage | rms 5.074 u. / 456 art.; espacio 1.298 u. / 212 art.; rjb 138 u. / 26 art. | Exportaciones de Sage, 2026-11-03 |
-| Empresas | **3 empresas distintas** (RMS, Espacio, RJB), con 7 almacenes cada una | Administrador, 2026-11-03 |
+| Empresas | **3 empresas distintas**, con 7 almacenes cada una. Códigos en Sage: 01 = RMS, 02 = Espacio Tecnológico, 03 = RJB | Administrador, 2026-11-03; sesión del panel BI |
 | Números de serie en Sage | El informe "Valoración de stocks" no los trae. El informe "Situación de stock" sí, con lotes: en Point Source, 229 números de serie reales y 165 unidades con "S/N" genérico | Exportaciones de Sage |
 | Posible paso a Enterprise | En estudio, por la contabilidad | Administrador, 2026-11-03 |
 

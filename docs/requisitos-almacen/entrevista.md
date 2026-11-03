@@ -194,7 +194,9 @@ varios almacenes, las líneas siguientes vienen sin artículo.
 1. **¿Qué son RMS, Espacio y RJB?**
    **Tres empresas distintas.** Cada una tiene 7 almacenes. (El administrador
    indica que ya se habló en conversaciones anteriores: se está buscando en
-   sus otras sesiones.)
+   sus otras sesiones.) Códigos de empresa en Sage, según la sesión del panel
+   de BI sobre Sage ("Conexión repositorio ConnBi", 22-10-2026): **01 = RMS,
+   02 = Espacio Tecnológico, 03 = RJB**.
 2. **¿Qué es cada código de almacén de Sage?**
    Pendiente: se recupera de las conversaciones anteriores. Dato seguro: `AL1`
    = "Almacen Delegacion de Madrid" (informe de Point Source).
