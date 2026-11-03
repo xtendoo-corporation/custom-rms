@@ -1,6 +1,6 @@
 # ERS · Sistema de almacén e inventario · RMS Proaudio
 
-Versión: 0.2 · Fecha: 2026-11-03 · Estado: borrador
+Versión: 0.3 · Fecha: 2026-11-03 · Estado: borrador
 Participantes: administrador de la empresa; segundo participante de los audios
 del 27-10-2026 (pendiente de confirmar quién es).
 
@@ -43,6 +43,22 @@ Resumen de los audios del 27-10-2026; el detalle está en `entrevista.md`.
 | **Arranque de Odoo en almacén** | **1 de enero de 2027** | Administrador, 2026-11-03 |
 | Zonas por estado | 4 zonas separadas físicamente; se admiten mezclas temporales | Administrador, 2026-11-03 |
 | Quién cambia el estado | Administración (por ahora) | Administrador, 2026-11-03 |
+| Stock Meyer en Sage | rms 5.074 u. / 456 art.; espacio 1.298 u. / 212 art.; rjb 138 u. / 26 art. | Exportaciones de Sage, 2026-11-03 |
+| Números de serie en Sage | No vienen en la exportación de stock | Exportaciones de Sage |
+| Posible paso a Enterprise | En estudio, por la contabilidad | Administrador, 2026-11-03 |
+
+**Community frente a Enterprise.** Enterprise es Community más módulos de pago
+sobre la misma base de datos, así que pasar de uno a otro en la misma versión
+(19) no obliga a migrar los datos del inventario. Los módulos propios basados
+en el estándar (`stock.lot`, `stock.picking`, `stock.location`) siguen
+funcionando; hay que probarlos tras el cambio. Dos condiciones:
+- El alojamiento debe admitir módulos propios: Odoo.sh o servidor propio. En
+  Odoo Online (SaaS) no se pueden instalar.
+- Lo único que se solaparía es el escaneo de recepciones y salidas: Enterprise
+  trae la app Código de barras. Esa parte conviene decidirla después de saber
+  la edición.
+Las partes 1 (estado e historial), 2 (depósitos) y 3 (reservas, estándar), y
+la carga de datos, valen igual en las dos ediciones.
 | Último nº de pedido de compra | ≈ 4386 | Audio Mov_almacen |
 | Marcas con soporte técnico | ~24 (repuestos sobre todo de Meyer, DiGiCo y Point Source) | Audio 32 |
 | Resto | _pendiente_ | |
@@ -68,10 +84,12 @@ entrevista.
 
 | ID | Requisito | Prioridad | Cobertura | Origen |
 |---|---|---|---|---|
-| RF-01 | Un equipo se identifica por producto + número de serie; la referencia del producto no cambia al cambiar de estado | Must | Ya existe en parte (`rms_product_state`); hay que decidir qué pasa con las variantes "Estado" de `rms_product_import` | Audio Demo_exdeml |
+| RF-01 | Un equipo se identifica por producto + número de serie; la referencia del producto no cambia al cambiar de estado. **Decidido: una referencia por producto, sin variantes "Estado"** | Must | Ya existe en parte (`rms_product_state`); hay que quitar las variantes "Estado" de `rms_product_import` y unificar los productos (M) | Audio Demo_exdeml; administrador, 2026-11-03 |
 | RF-02 | Historial por número de serie: entradas, salidas, clientes, cambios de estado con fecha y usuario | Must | Estándar Odoo para los movimientos (trazabilidad del lote); **Desarrollo** para el historial de estado (M) | Audio Demo_exdeml |
 | RF-03 | Cambio de estado Nuevo → Demo → Ex-demo → 2ª mano como operación registrada, no como edición libre | Must | Desarrollo (S/M) | Audio Demo_exdeml |
 | RF-03a | Programar el cambio de estado: estado destino y fecha en el número de serie; llegada la fecha, el cambio se aplica solo. Sin fecha, el cambio es manual | Must | Desarrollo (S): tarea programada sobre `rms_product_state` | Administrador, 2026-11-03 |
+| RF-03d | Al cambiar el estado (programado o manual) se avisa a los comerciales (p. ej. "nuevo ex-demo a la venta"). Sin tarea de traslado físico | Must | Desarrollo (S): actividad o mensaje | Administrador, 2026-11-03 |
+| RF-03e | Precio de ex-demo y segunda mano fijado equipo a equipo en el número de serie | Must | Ya existe (`custom_price` en `rms_product_state`); a verificar en la venta | Administrador, 2026-11-03 |
 | RF-03b | Solo administración puede cambiar o programar el estado | Must | Desarrollo (S): grupo de permisos | Administrador, 2026-11-03 |
 | RF-03c | Informe de equipos fuera de la zona de su estado (p. ej. una demo en la zona de nuevo) | Should | Desarrollo (S) o filtro sobre el stock | Administrador, 2026-11-03 |
 | RF-04 | Demo no vendible, ex-demo vendible con su precio | Must | Ya existe (`rms_product_state`: bloqueo de venta de demo y precio por número de serie). A verificar | Audio Demo_exdeml |
@@ -100,7 +118,10 @@ entrevista.
 | ID | Requisito | Cobertura |
 |---|---|---|
 | RD-01 | Migración desde Sage: productos con referencia única (sin una referencia por estado), números de serie con su estado actual y stock por ubicación. **Fecha límite: 1 de enero de 2027** | Desarrollo / carga (a dimensionar) |
-| RD-02 | Stock inicial validado con un recuento físico en el cambio de sistema; se propone el recuento cruzado (`rms_stock_count_session`) | Ya existe + Proceso |
+| RD-02 | **Captura de todos los números de serie en un recuento físico antes del arranque**, porque Sage no los exporta; se propone el recuento cruzado (`rms_stock_count_session`) | Ya existe + Proceso |
+| RD-03 | Unificar las referencias de Sage que codifican el estado (`2M-`, `D-`, `-DEMO`, `DEMO-`, `D` sin guion) en una sola referencia, pasando el estado al número de serie | Desarrollo / carga (M) |
+| RD-04 | Repuestos por cantidad (tornillos, tuercas, mangos...) como productos sin número de serie en su propia ubicación | Carga + Estándar Odoo |
+| RD-05 | Correspondencia de los almacenes de Sage (AL1, AL2, A.4...) con ubicaciones de Odoo | Pendiente de saber qué es cada uno |
 
 ## 6. Análisis de brechas
 
@@ -115,9 +136,13 @@ _Pendiente._
 - [x] Paso de Sage a Odoo: almacén sigue en Sage; arranque el 1 de enero de 2027.
 - [x] Zonas por estado: separadas, con mezclas temporales permitidas.
 - [x] Cambio de estado: administración; con fecha programada o manual.
-- [ ] Listado por número de serie exportable desde Sage (estado, ubicación, cliente si está fuera).
-- [ ] Eliminar las variantes "Estado" (una referencia por producto); cómo se fija el precio de ex-demo y 2ª mano.
-- [ ] Qué más ocurre al llegar la fecha de cambio de estado (traslado, aviso, etiqueta).
+- [x] Listado de Sage: existe por artículo y almacén, sin números de serie.
+- [x] Una referencia por producto; precio de ex-demo y 2ª mano equipo a equipo.
+- [x] Al llegar la fecha: cambia el estado y se avisa a comerciales (a + c).
+- [ ] ¿Qué son RMS, Espacio y RJB (empresas o naves)?
+- [ ] ¿Qué es cada almacén de Sage (AL1, AL2, A.4, A.6, A.7, A.9, AL5, AL7, AL8, AL9, ALB, STM, STS)?
+- [ ] ¿Cómo se identifica hoy un ex-demo en Sage?
+- [ ] Decisión Community / Enterprise y tipo de alojamiento.
 - [ ] Qué se guarda de los pactos de demo con la fábrica (precio, plazo sin vender).
 - [ ] ¿El atributo "2MV" es la "segunda mano vendible"?
 - [ ] ¿Quién es el segundo participante de los audios?

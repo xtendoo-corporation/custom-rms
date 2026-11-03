@@ -145,12 +145,54 @@ en un audio se cita a "Miguel Ángel Jiménez como CEO".
 - El arranque del 1 de enero convierte la carga de datos desde Sage (números
   de serie con su estado y ubicación) en el requisito más urgente.
 
-### Preguntas de la sesión 1, segunda tanda (pendientes)
+### Preguntas y respuestas de la sesión 1, segunda tanda
 
-1. ¿Se puede sacar de Sage un listado por número de serie con su estado, su
-   ubicación y, si está fuera, el cliente que lo tiene?
-2. Variantes por estado: se propone una sola referencia por producto con el
-   estado en el número de serie. ¿Se confirma? ¿Cómo se fija el precio de
-   ex-demo y segunda mano: por unidad o por regla?
-3. Cuando llega la fecha de cambio de estado, ¿qué más debe pasar (traslado a
-   la zona, aviso, etiqueta)?
+1. **¿Se puede sacar de Sage un listado por número de serie?**
+   Se entregan tres exportaciones de Sage "Valoración de stocks" de Meyer:
+   `stock_meyer_rms.xlsx`, `stock_meyer_espacio.xlsx` y `stock_meyer_rjb.xlsx`
+   (análisis abajo). **No llevan número de serie.**
+2. **¿Una sola referencia por producto?**
+   **Sí**, una referencia por producto (se quitan las variantes "Estado"). El
+   precio de ex-demo y segunda mano se pone **equipo a equipo**.
+3. **¿Qué más pasa al llegar la fecha de cambio de estado?**
+   **a + c**: cambia el estado y se avisa a los comerciales. Sin tarea de
+   traslado físico.
+
+**Duda planteada:** se habla de pasar de Community a **Enterprise** por la
+contabilidad. ¿Conviene avanzar con el inventario? Ver la respuesta en el chat
+y en la ERS, sección 3.
+
+### Análisis de las exportaciones de Sage (Meyer)
+
+Formato: almacén, artículo, nombre y unidades. Cuando un artículo está en
+varios almacenes, las líneas siguientes vienen sin artículo.
+
+| Fichero | Líneas | Artículos | Unidades | Nuevo | Demo | 2ª mano |
+|---|---|---|---|---|---|---|
+| rms | 598 | 456 | 5.074 | 4.603 | 57 | 414 |
+| espacio | 290 | 212 | 1.298 | 861 | 205 | 232 |
+| rjb | 26 | 26 | 138 | 36 | 0 | 102 |
+
+- **No hay números de serie.** La carga en Odoo no puede sacarlos de Sage: hay
+  que capturarlos en un recuento físico antes del arranque.
+- **El estado va codificado en la referencia, de forma irregular**: `2M-…`,
+  `D-…`, `…-DEMO`, `DEMO-…`, `D4024906101` (sin guion). **No aparece ninguna
+  referencia de ex-demo.**
+- **Los almacenes de Sage no son los estados.** `AL1` mezcla nuevo, demo y
+  segunda mano. Códigos: AL1, AL2, AL5, AL7, AL8, AL9, ALB, A.4, A.6, A.7, A.9,
+  STM y STS.
+- **Hay repuestos por cantidad** (tornillos, tuercas, mangos; referencias de 6
+  cifras como `101567`), sobre todo en AL2 y A.4.
+- Los artículos de Meyer son su número de pieza sin puntos: `0923700102` es el
+  `09.237.001.02` impreso en la caja. Con la comparación sin puntos que ya hace
+  el escáner, la etiqueta de la caja identifica el producto.
+- Los tres ficheros comparten artículos: 63 entre rms y espacio, 13 entre rms
+  y rjb.
+
+### Preguntas de la sesión 1, tercera tanda (pendientes)
+
+1. ¿Qué son RMS, Espacio y RJB: empresas distintas en Sage, o naves o almacenes
+   de la misma empresa?
+2. ¿Qué es cada código de almacén de Sage (AL1, AL2, A.4, A.6, A.7, A.9, AL5,
+   AL7, AL8, AL9, ALB, STM, STS)?
+3. ¿Cómo se identifica hoy un ex-demo en Sage, si no tiene referencia propia?
