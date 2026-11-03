@@ -1,6 +1,6 @@
 # ERS · Sistema de almacén e inventario · RMS Proaudio
 
-Versión: 0.3 · Fecha: 2026-11-03 · Estado: borrador
+Versión: 0.4 · Fecha: 2026-11-03 · Estado: borrador
 Participantes: administrador de la empresa; segundo participante de los audios
 del 27-10-2026 (pendiente de confirmar quién es).
 
@@ -44,7 +44,8 @@ Resumen de los audios del 27-10-2026; el detalle está en `entrevista.md`.
 | Zonas por estado | 4 zonas separadas físicamente; se admiten mezclas temporales | Administrador, 2026-11-03 |
 | Quién cambia el estado | Administración (por ahora) | Administrador, 2026-11-03 |
 | Stock Meyer en Sage | rms 5.074 u. / 456 art.; espacio 1.298 u. / 212 art.; rjb 138 u. / 26 art. | Exportaciones de Sage, 2026-11-03 |
-| Números de serie en Sage | No vienen en la exportación de stock | Exportaciones de Sage |
+| Empresas | **3 empresas distintas** (RMS, Espacio, RJB), con 7 almacenes cada una | Administrador, 2026-11-03 |
+| Números de serie en Sage | El informe "Valoración de stocks" no los trae. El informe "Situación de stock" sí, con lotes: en Point Source, 229 números de serie reales y 165 unidades con "S/N" genérico | Exportaciones de Sage |
 | Posible paso a Enterprise | En estudio, por la contabilidad | Administrador, 2026-11-03 |
 
 **Community frente a Enterprise.** Enterprise es Community más módulos de pago
@@ -118,7 +119,9 @@ entrevista.
 | ID | Requisito | Cobertura |
 |---|---|---|
 | RD-01 | Migración desde Sage: productos con referencia única (sin una referencia por estado), números de serie con su estado actual y stock por ubicación. **Fecha límite: 1 de enero de 2027** | Desarrollo / carga (a dimensionar) |
-| RD-02 | **Captura de todos los números de serie en un recuento físico antes del arranque**, porque Sage no los exporta; se propone el recuento cruzado (`rms_stock_count_session`) | Ya existe + Proceso |
+| RD-02 | **Recuento físico antes del arranque para validar y completar los números de serie.** Se parte de los que exporta Sage ("Situación de stock"), que están incompletos (lotes "S/N") y tienen incoherencias. Se propone el recuento cruzado (`rms_stock_count_session`), con lo de Sage como stock esperado | Ya existe + Proceso |
+| RD-06 | Carga de números de serie desde el informe "Situación de stock" de Sage, con informe de incidencias: lotes "S/N", sumas que no cuadran con el stock, números de serie repetidos en varios productos | Desarrollo / carga (M) |
+| RD-07 | Tres empresas en Odoo, cada una con sus almacenes (correspondencia pendiente) | Estándar Odoo (multicompañía) a configurar |
 | RD-03 | Unificar las referencias de Sage que codifican el estado (`2M-`, `D-`, `-DEMO`, `DEMO-`, `D` sin guion) en una sola referencia, pasando el estado al número de serie | Desarrollo / carga (M) |
 | RD-04 | Repuestos por cantidad (tornillos, tuercas, mangos...) como productos sin número de serie en su propia ubicación | Carga + Estándar Odoo |
 | RD-05 | Correspondencia de los almacenes de Sage (AL1, AL2, A.4...) con ubicaciones de Odoo | Pendiente de saber qué es cada uno |
@@ -139,7 +142,8 @@ _Pendiente._
 - [x] Listado de Sage: existe por artículo y almacén, sin números de serie.
 - [x] Una referencia por producto; precio de ex-demo y 2ª mano equipo a equipo.
 - [x] Al llegar la fecha: cambia el estado y se avisa a comerciales (a + c).
-- [ ] ¿Qué son RMS, Espacio y RJB (empresas o naves)?
+- [x] RMS, Espacio y RJB son tres empresas distintas, con 7 almacenes cada una.
+- [ ] ¿Se puede sacar "Situación de stock" con lotes para todas las marcas y empresas?
 - [ ] ¿Qué es cada almacén de Sage (AL1, AL2, A.4, A.6, A.7, A.9, AL5, AL7, AL8, AL9, ALB, STM, STS)?
 - [ ] ¿Cómo se identifica hoy un ex-demo en Sage?
 - [ ] Decisión Community / Enterprise y tipo de alojamiento.

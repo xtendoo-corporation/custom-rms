@@ -189,10 +189,44 @@ varios almacenes, las líneas siguientes vienen sin artículo.
 - Los tres ficheros comparten artículos: 63 entre rms y espacio, 13 entre rms
   y rjb.
 
-### Preguntas de la sesión 1, tercera tanda (pendientes)
+### Preguntas y respuestas de la sesión 1, tercera tanda
 
-1. ¿Qué son RMS, Espacio y RJB: empresas distintas en Sage, o naves o almacenes
-   de la misma empresa?
-2. ¿Qué es cada código de almacén de Sage (AL1, AL2, A.4, A.6, A.7, A.9, AL5,
-   AL7, AL8, AL9, ALB, STM, STS)?
-3. ¿Cómo se identifica hoy un ex-demo en Sage, si no tiene referencia propia?
+1. **¿Qué son RMS, Espacio y RJB?**
+   **Tres empresas distintas.** Cada una tiene 7 almacenes. (El administrador
+   indica que ya se habló en conversaciones anteriores: se está buscando en
+   sus otras sesiones.)
+2. **¿Qué es cada código de almacén de Sage?**
+   Pendiente: se recupera de las conversaciones anteriores. Dato seguro: `AL1`
+   = "Almacen Delegacion de Madrid" (informe de Point Source).
+3. **¿Cómo se identifica un ex-demo en Sage?**
+   El administrador no lo sabe; lo pregunta y lo comunica.
+
+### Análisis del informe de Sage "Situación de stock" (Point Source)
+
+`POINT_SOURCE.xlsx`: informe distinto al de Meyer, con columnas de stock,
+virtual, disponible, pedido de venta, pedido de compra, mínimo y máximo, y
+**una línea por lote o número de serie** debajo de cada almacén.
+
+- 578 artículos, 80 con stock; 503 unidades, todas en AL1. 2 unidades en
+  pedidos de venta y 84 en pedidos de compra.
+- **229 números de serie reales**, todos con cantidad 1. Casi todos tienen 7
+  cifras (`2524001`, `2410326`…).
+- **165 unidades con el lote genérico "S/N"**: equipos o accesorios sin número
+  de serie apuntado.
+- De los artículos con stock: 25 con números de serie reales, 38 solo con
+  "S/N" y 17 sin lotes (material por cantidad).
+- **Problemas de calidad de datos:**
+  - 4 artículos cuyos números de serie no suman su stock
+    (`PS-CO-8WD-XSK-BE`: stock 14 y 35 números de serie;
+    `D-PS-CO-8WD-XSK-BE`: stock 1 y 2 números de serie).
+  - 2 números de serie repetidos en dos productos distintos
+    (`2303008`, `2634023`).
+- Conclusión: Sage **sí** puede exportar números de serie, pero incompletos y
+  con incoherencias. Se pueden usar como **punto de partida** del recuento del
+  arranque, no como dato definitivo.
+
+### Preguntas pendientes
+
+1. ¿Se puede sacar este mismo informe "Situación de stock" (con lotes) para
+   todas las marcas y las tres empresas?
+2. Ex-demo en Sage (pendiente de respuesta del administrador).
