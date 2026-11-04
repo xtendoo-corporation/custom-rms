@@ -16,6 +16,20 @@ class TestServerRestrictions(TransactionCase):
                 'module': 'custom', 'name': 'comerciales',
                 'model': 'res.groups', 'res_id': group.id,
             })
+        if not cls.env['ir.rule'].search_count([
+            ('model_id', '=', cls.env.ref('base.model_res_partner').id),
+            ('name', '=', 'CUSTOM/Contactos propios'),
+        ]):
+            cls.env['ir.rule'].create({
+                'name': 'CUSTOM/Contactos propios (prueba)',
+                'model_id': cls.env.ref('base.model_res_partner').id,
+                'groups': [(6, 0, cls.env.ref('custom.comerciales').ids)],
+                'domain_force': "['|', ('user_id', '=', user.id), ('user_ids', '!=', False)]",
+                'perm_read': True,
+                'perm_write': True,
+                'perm_create': True,
+                'perm_unlink': False,
+            })
         cls.user = new_test_user(cls.env, login='f1_rms_ventas_restriccion_comerciales', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
         cls.partner = cls.env['res.partner'].create({'name': 'Cliente F1', 'user_id': cls.user.id})
         cls.product = cls.env['product.product'].create({'name': 'Producto F1', 'list_price': 100})
