@@ -68,8 +68,12 @@ class SaleOrder(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         vals_list = [dict(vals) for vals in vals_list]
+        default_partner_id = self.env.context.get('default_partner_id')
         for vals in vals_list:
-            if self._check_own_customer(vals):
+            # El cliente puede venir por defecto en el contexto (p. ej. desde
+            # la ficha del cliente) en vez de en los valores.
+            checked = vals if 'partner_id' in vals else dict(vals, partner_id=default_partner_id)
+            if self._check_own_customer(checked):
                 # Odoo pondría de comercial al Vendedor del cliente, y un
                 # comercial no puede crear presupuestos a nombre de otro: el
                 # presupuesto de una oportunidad asignada queda a su nombre.

@@ -486,3 +486,20 @@ class TestServerRestrictions(TransactionCase):
         self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_all_customers')
         arch = self.env['crm.lead'].with_user(self.user).get_view(view_type='form')['arch']
         self.assertNotIn("('rms_is_own_customer', '=', True)", arch)
+
+    def test_quotation_default_partner_from_context(self):
+        # El cliente por defecto del contexto también se valida.
+        other_user = new_test_user(self.env, login='f1_comercial_default', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
+        other = self.env['res.partner'].create({'name': 'Cliente ajeno por defecto F1', 'is_company': True, 'user_id': other_user.id})
+        SaleOrder = self.env['sale.order'].with_user(self.user)
+        with self.assertRaises(ValidationError):
+            SaleOrder.with_context(default_partner_id=other.id).create({})
+        order = SaleOrder.with_context(default_partner_id=self.partner.id).create({})
+        self.assertEqual(order.partner_id, self.partner)
+        # Desde una oportunidad que le ha asignado el administrador, sí.
+        lead = self.env['crm.lead'].create({
+            'name': 'Oportunidad por defecto F1', 'type': 'opportunity',
+            'partner_id': other.id, 'user_id': self.user.id,
+        })
+        order = SaleOrder.with_context(default_partner_id=other.id, default_opportunity_id=lead.id).create({})
+        self.assertEqual((order.partner_id, order.opportunity_id, order.user_id), (other, lead, self.user))
