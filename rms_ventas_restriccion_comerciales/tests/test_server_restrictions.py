@@ -4,6 +4,8 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase, new_test_user
 
+from ..models.restrictions import own_customers_domain
+
 
 @tagged('post_install', '-at_install')
 class TestServerRestrictions(TransactionCase):
@@ -157,6 +159,30 @@ class TestServerRestrictions(TransactionCase):
         self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_all_customers')
         order = self.env['sale.order'].with_user(self.user).create({'partner_id': other.id})
         self.assertEqual(order.partner_id, other)
+
+    def test_shared_customers(self):
+        # Cliente cuyo Vendedor es otro comercial, pero que también lleva este.
+        other_user = new_test_user(self.env, login='f1_comercial_compartido', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
+        shared = self.env['res.partner'].create({
+            'name': 'Cliente compartido F1', 'is_company': True, 'user_id': other_user.id,
+        })
+        with self.assertRaises(ValidationError):
+            self.env['sale.order'].with_user(self.user).create({'partner_id': shared.id})
+        shared.rms_shared_user_ids = self.user
+        order = self.env['sale.order'].with_user(self.user).create({'partner_id': shared.id})
+        self.assertEqual(order.partner_id, shared)
+        # Sigue siendo cliente del Vendedor, y sus contactos también son del otro comercial.
+        self.env['sale.order'].with_user(other_user).create({'partner_id': shared.id})
+        contact = self.env['res.partner'].create({'name': 'Contacto compartido F1', 'parent_id': shared.id})
+        order = self.env['sale.order'].with_user(self.user).create({'partner_id': contact.id})
+        self.assertEqual(order.partner_id, contact)
+        # Y aparece en el desplegable de cliente del presupuesto.
+        domain = self.env['sale.order'].with_user(self.user).get_view(view_type='form')['arch']
+        self.assertIn("('commercial_partner_id.rms_shared_user_ids', 'in', [uid])", domain)
+        found = self.env['res.partner'].with_user(self.user).search(
+            [('id', 'in', (shared | contact).ids)] + own_customers_domain(self.user.id)
+        )
+        self.assertEqual(found, shared | contact)
 
     def test_partner_dropdown_only_own_customers(self):
         arch = self.env['sale.order'].with_user(self.user).get_view(view_type='form')['arch']

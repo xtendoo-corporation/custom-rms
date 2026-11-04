@@ -24,9 +24,22 @@ def only_own_customers(env):
 
 
 def own_customers_domain(uid):
-    """Clientes cuyo comercial asignado (Vendedor) es el usuario, directamente
-    o a través de su empresa."""
-    return ['|', ('user_id', '=', uid), ('commercial_partner_id.user_id', '=', uid)]
+    """Clientes cuyo comercial asignado (Vendedor u Otros comerciales) es el
+    usuario, directamente o a través de su empresa."""
+    return [
+        '|', '|', '|',
+        ('user_id', '=', uid),
+        ('commercial_partner_id.user_id', '=', uid),
+        ('rms_shared_user_ids', 'in', [uid]),
+        ('commercial_partner_id.rms_shared_user_ids', 'in', [uid]),
+    ]
+
+
+# El mismo dominio, como texto para las vistas (uid lo pone el cliente web).
+OWN_CUSTOMERS_VIEW_DOMAIN = (
+    "'|', '|', '|', ('user_id', '=', uid), ('commercial_partner_id.user_id', '=', uid), "
+    "('rms_shared_user_ids', 'in', [uid]), ('commercial_partner_id.rms_shared_user_ids', 'in', [uid])"
+)
 
 
 def hide_pricelists(env):

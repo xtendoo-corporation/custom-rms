@@ -3,7 +3,10 @@
 from odoo import api, models
 from odoo.exceptions import AccessError, ValidationError
 
-from .restrictions import hide_pricelists, is_comercial, lock_prices_and_taxes, only_own_customers, own_customers_domain
+from .restrictions import (
+    hide_pricelists, is_comercial, lock_prices_and_taxes, only_own_customers, own_customers_domain,
+    OWN_CUSTOMERS_VIEW_DOMAIN,
+)
 
 
 class SaleOrder(models.Model):
@@ -96,7 +99,7 @@ class SaleOrder(models.Model):
         if view_type == 'form' and only_own_customers(self.env):
             # En el desplegable de cliente solo aparecen sus propios clientes.
             field = self._fields['partner_id']
-            terms = ["'|', ('user_id', '=', uid), ('commercial_partner_id.user_id', '=', uid)"]
+            terms = [OWN_CUSTOMERS_VIEW_DOMAIN]
             if field.check_company:
                 terms.append("('company_id', 'in', (False, company_id))")
             for node in arch.xpath("//field[@name='partner_id'][not(ancestor::field)]"):
