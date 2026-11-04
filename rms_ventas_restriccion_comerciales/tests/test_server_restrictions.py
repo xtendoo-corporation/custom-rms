@@ -300,3 +300,53 @@ class TestServerRestrictions(TransactionCase):
         with self.assertRaises(AccessError):
             other_lead.with_user(other_user).unlink()
         self.assertTrue(other_lead.exists())
+
+    def test_assigned_lead_customer_readable_and_chatter_works(self):
+        # INC-00007: el administrador asigna al comercial una oportunidad de un
+        # cliente que no es suyo, con un seguidor que tampoco puede leer.
+        other_user = new_test_user(self.env, login='f1_comercial_inc7', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
+        customer = self.env['res.partner'].create({
+            'name': 'Cliente ajeno F1', 'email': 'ajeno@example.com', 'user_id': other_user.id,
+        })
+        follower = self.env['res.partner'].create({
+            'name': 'Seguidor ajeno F1', 'email': 'seguidor@example.com', 'user_id': other_user.id,
+        })
+        lead = self.env['crm.lead'].create({
+            'name': 'Oportunidad INC-00007', 'type': 'opportunity',
+            'partner_id': customer.id, 'user_id': self.user.id,
+        })
+        lead.message_subscribe(partner_ids=follower.ids)
+        order = self.env['sale.order'].create({'partner_id': customer.id, 'user_id': self.user.id})
+        order.message_subscribe(partner_ids=follower.ids)
+        unrelated = self.env['res.partner'].create({'name': 'Cliente sin documentos F1', 'user_id': other_user.id})
+        lead.with_user(self.user).message_post(
+            body='Hola', message_type='comment', subtype_xmlid='mail.mt_comment', partner_ids=unrelated.ids,
+        )
+
+        Partner = self.env['res.partner'].with_user(self.user)
+        # El cliente de su oportunidad se puede leer, pero no editar.
+        self.assertEqual(customer.with_user(self.user).name, 'Cliente ajeno F1')
+        with self.assertRaises(AccessError):
+            customer.with_user(self.user).write({'name': 'Cambiado'})
+        # Los demás contactos ajenos siguen ocultos.
+        self.assertFalse(Partner.search([('id', 'in', (follower | unrelated).ids)]))
+        # Sigue sin poder presupuestarle: no es cliente suyo.
+        self.assertFalse(customer.with_user(self.user).rms_is_own_customer)
+        with self.assertRaises(ValidationError):
+            self.env['sale.order'].with_user(self.user).create({'partner_id': customer.id})
+
+        # El chatter calcula los destinatarios sin AccessError y no expone los
+        # contactos que no puede leer.
+        for record in (lead, order):
+            record.invalidate_recordset()
+            self.env['res.partner'].invalidate_model()
+            suggested = record.with_user(self.user)._message_get_suggested_recipients(
+                reply_discussion=True, no_create=True,
+            )
+            partner_ids = {r['partner_id'] for r in suggested if r['partner_id']}
+            self.assertFalse(partner_ids & set((follower | unrelated).ids))
+
+        # Sin la oportunidad ni el presupuesto asignados, deja de verlo.
+        lead.user_id = other_user
+        order.user_id = other_user
+        self.assertFalse(Partner.search([('id', '=', customer.id)]))

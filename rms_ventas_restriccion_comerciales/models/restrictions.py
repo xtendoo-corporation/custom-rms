@@ -45,3 +45,18 @@ def hide_pricelists(env):
 def lock_prices_and_taxes(env):
     """El usuario es comercial y no puede cambiar precios, descuentos ni impuestos."""
     return _is_restricted(env, GROUP_QUOTATION_FULL_EDIT)
+
+
+def readable_suggested_recipients(env, suggested):
+    """Quita de los destinatarios sugeridos del chatter los contactos que el
+    usuario no puede leer (calculados con sudo)."""
+    partner_ids = {
+        recipient['partner_id']
+        for recipients in suggested.values() for recipient in recipients
+        if recipient.get('partner_id')
+    }
+    readable = set(env['res.partner'].browse(partner_ids)._filtered_access('read').ids)
+    return {
+        res_id: [r for r in recipients if not r.get('partner_id') or r['partner_id'] in readable]
+        for res_id, recipients in suggested.items()
+    }

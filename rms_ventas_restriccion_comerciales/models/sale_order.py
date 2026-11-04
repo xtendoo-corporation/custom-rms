@@ -3,7 +3,10 @@
 from odoo import api, models
 from odoo.exceptions import AccessError, ValidationError
 
-from .restrictions import hide_pricelists, is_comercial, lock_prices_and_taxes, only_own_customers, own_customers_domain
+from .restrictions import (
+    hide_pricelists, is_comercial, lock_prices_and_taxes, only_own_customers, own_customers_domain,
+    readable_suggested_recipients,
+)
 
 
 class SaleOrder(models.Model):
@@ -61,6 +64,18 @@ class SaleOrder(models.Model):
         ):
             raise AccessError('Solo puedes eliminar tus propios presupuestos.')
         return super().unlink()
+
+    def _message_get_suggested_recipients_batch(self, *args, **kwargs):
+        # El cálculo lee el email de los seguidores y de los autores y
+        # destinatarios del último mensaje, que pueden ser contactos que el
+        # comercial no puede leer: sin sudo, el chatter falla con AccessError al
+        # abrir el documento (INC-00007). Se calcula con sudo y se quitan de la
+        # sugerencia los contactos que no puede leer.
+        if self.env.su or not is_comercial(self.env):
+            return super()._message_get_suggested_recipients_batch(*args, **kwargs)
+        # sudo: res.partner - seguidores y autores que el comercial no puede leer
+        suggested = super(SaleOrder, self.sudo())._message_get_suggested_recipients_batch(*args, **kwargs)
+        return readable_suggested_recipients(self.env, suggested)
 
     def _check_price_update_access(self, pricelist=False):
         # Actualizar precios solo aplica la tarifa elegida, así que basta con
