@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="base.view_users_form"/>
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
-                <page string="Clientes (comerciales)" name="rms_shared_customers">
+                <page string="Cartera compartida" name="rms_shared_customers">
                     <group>
                         <field name="rms_shared_customer_user_ids" widget="many2many_avatar_user"/>
                     </group>
