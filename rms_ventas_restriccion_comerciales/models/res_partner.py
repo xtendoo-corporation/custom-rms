@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 
 from .restrictions import own_customers_domain
 
@@ -28,7 +29,7 @@ class ResPartner(models.Model):
         elif operator in ('in', 'not in'):
             values, negate = {bool(v) for v in value}, operator == 'not in'
         else:
-            return NotImplemented
+            raise UserError('Operador de búsqueda no admitido: %s' % operator)
         if len(values) != 1:
             # True y False a la vez: todos o ninguno.
             return [('id', '=', 0)] if negate else []
