@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Notificar Errores a Soporte (IA)',
-    'version': '19.0.1.0.1',
+    'version': '19.0.1.0.2',
     'category': 'Productivity',
     'summary': 'Botón "Notificar a soporte" en las ventanas de error de Odoo, con informe automático de la IA (Claude) y aviso en Conversaciones.',
     'description': """
@@ -20,6 +20,9 @@ error muestra un botón "Notificar a soporte". Al pulsarlo:
 3. Se publica un aviso en el canal de Conversaciones "Soporte Odoo", al que
    pertenecen automáticamente los usuarios del grupo "Recibe incidencias de
    soporte".
+4. Se encola un correo con el diagnóstico para las direcciones del parámetro
+   rms_support_error_report.notify_email (separadas por comas; vacío desactiva
+   el correo). Por defecto: notificaciones@rmsproaudio.com.
 
 La IA solo diagnostica: nunca modifica código ni datos.
     """,

@@ -32,6 +32,9 @@ soluciones (con parche propuesto cuando aplica).
    - la lista de módulos propios instalados con su versión.
 4. El informe se guarda en la incidencia y se publica un resumen con enlace
    en el canal de Conversaciones **"Soporte Odoo"**.
+5. Se encola un correo con el diagnóstico para las direcciones de
+   `rms_support_error_report.notify_email`, separadas por comas. Por defecto:
+   `notificaciones@rmsproaudio.com`; un valor vacío desactiva el correo.
 
 La IA **solo diagnostica**: no modifica código ni datos. Revisa siempre el
 informe antes de aplicar cambios.
