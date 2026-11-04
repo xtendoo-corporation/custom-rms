@@ -9,13 +9,18 @@ from .restrictions import own_customers_domain
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
-    # Todas las oportunidades del contacto (opportunity_ids de crm solo incluye
-    # las de tipo oportunidad). Se usa en la regla de acceso de los contactos
-    # de las oportunidades asignadas a un comercial.
-    rms_crm_lead_ids = fields.One2many(
+    # Oportunidades (de cualquier tipo) y presupuestos de la empresa del
+    # contacto. Se usan en la regla que deja a un comercial leer los contactos
+    # de la empresa de las oportunidades y presupuestos que tiene asignados.
+    rms_commercial_crm_lead_ids = fields.One2many(
         comodel_name='crm.lead',
-        inverse_name='partner_id',
-        string='Oportunidades y leads',
+        inverse_name='rms_commercial_partner_id',
+        string='Oportunidades de la empresa',
+    )
+    rms_commercial_sale_order_ids = fields.One2many(
+        comodel_name='sale.order',
+        inverse_name='rms_commercial_partner_id',
+        string='Presupuestos de la empresa',
     )
 
     rms_is_own_customer = fields.Boolean(
