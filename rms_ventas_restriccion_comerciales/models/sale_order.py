@@ -5,7 +5,7 @@ from odoo.exceptions import AccessError, ValidationError
 
 from .restrictions import (
     hide_pricelists, is_comercial, lock_prices_and_taxes, only_own_customers, own_customers_domain,
-    readable_suggested_recipients,
+    readable_suggested_recipients, restrict_partner_dropdown,
 )
 
 
@@ -145,20 +145,7 @@ class SaleOrder(models.Model):
         arch, view = super()._get_view(view_id, view_type, **options)
         if view_type == 'form' and only_own_customers(self.env):
             # En el desplegable de cliente solo aparecen sus propios clientes.
-            field = self._fields['partner_id']
-            terms = ["('rms_is_own_customer', '=', True)"]
-            if field.check_company:
-                terms.append("('company_id', 'in', (False, company_id))")
-            for node in arch.xpath("//field[@name='partner_id'][not(ancestor::field)]"):
-                domain = node.get('domain') or field.domain
-                if isinstance(domain, list):
-                    domain = repr(domain)
-                if isinstance(domain, str) and domain.strip().startswith('['):
-                    rest = domain.strip()[1:-1].strip()
-                    node_terms = terms + [rest] if rest else terms
-                else:
-                    node_terms = terms
-                node.set('domain', '[%s]' % ', '.join(node_terms))
+            restrict_partner_dropdown(self, arch)
         if hide_pricelists(self.env):
             # La lista de precios (tipo de cliente) se ve, pero es la del
             # cliente: Odoo la calcula al elegirlo y el comercial no la cambia.
