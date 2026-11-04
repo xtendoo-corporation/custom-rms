@@ -26,7 +26,7 @@ class SaleOrder(models.Model):
         if self.env.su or not vals.get('partner_id') or not only_own_customers(self.env):
             return
         partner = self.env['res.partner'].sudo().browse(vals['partner_id'])
-        if not partner.filtered_domain(own_customers_domain(self.env.uid)):
+        if not partner.filtered_domain(own_customers_domain(self.env)):
             raise ValidationError(
                 'Solo puedes hacer presupuestos a clientes que tengas asignados '
                 '(%s no es cliente tuyo).' % partner.display_name
@@ -96,7 +96,7 @@ class SaleOrder(models.Model):
         if view_type == 'form' and only_own_customers(self.env):
             # En el desplegable de cliente solo aparecen sus propios clientes.
             field = self._fields['partner_id']
-            terms = ["'|', ('user_id', '=', uid), ('commercial_partner_id.user_id', '=', uid)"]
+            terms = ["('rms_is_own_customer', '=', True)"]
             if field.check_company:
                 terms.append("('company_id', 'in', (False, company_id))")
             for node in arch.xpath("//field[@name='partner_id'][not(ancestor::field)]"):

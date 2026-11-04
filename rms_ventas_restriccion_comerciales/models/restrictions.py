@@ -23,10 +23,18 @@ def only_own_customers(env):
     return _is_restricted(env, GROUP_ALL_CUSTOMERS)
 
 
-def own_customers_domain(uid):
-    """Clientes cuyo comercial asignado (Vendedor) es el usuario, directamente
-    o a través de su empresa."""
-    return ['|', ('user_id', '=', uid), ('commercial_partner_id.user_id', '=', uid)]
+def own_customer_user_ids(env):
+    """El usuario y los comerciales cuyos clientes lleva también."""
+    user = env.user
+    return [user.id] + user.sudo().rms_shared_customer_user_ids.ids
+
+
+def own_customers_domain(env):
+    """Clientes cuyo comercial asignado (Vendedor) es el usuario o uno de los
+    comerciales cuyos clientes lleva también, directamente o a través de su
+    empresa."""
+    user_ids = own_customer_user_ids(env)
+    return ['|', ('user_id', 'in', user_ids), ('commercial_partner_id.user_id', 'in', user_ids)]
 
 
 def hide_pricelists(env):

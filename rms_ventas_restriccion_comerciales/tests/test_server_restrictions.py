@@ -16,6 +16,20 @@ class TestServerRestrictions(TransactionCase):
                 'module': 'custom', 'name': 'comerciales',
                 'model': 'res.groups', 'res_id': group.id,
             })
+        if not cls.env['ir.rule'].search_count([
+            ('model_id', '=', cls.env.ref('base.model_res_partner').id),
+            ('name', '=', 'CUSTOM/Contactos propios'),
+        ]):
+            cls.env['ir.rule'].create({
+                'name': 'CUSTOM/Contactos propios (prueba)',
+                'model_id': cls.env.ref('base.model_res_partner').id,
+                'groups': [(6, 0, cls.env.ref('custom.comerciales').ids)],
+                'domain_force': "['|', ('user_id', '=', user.id), ('user_ids', '!=', False)]",
+                'perm_read': True,
+                'perm_write': True,
+                'perm_create': True,
+                'perm_unlink': False,
+            })
         cls.user = new_test_user(cls.env, login='f1_rms_ventas_restriccion_comerciales', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
         cls.partner = cls.env['res.partner'].create({'name': 'Cliente F1', 'user_id': cls.user.id})
         cls.product = cls.env['product.product'].create({'name': 'Producto F1', 'list_price': 100})
@@ -158,14 +172,47 @@ class TestServerRestrictions(TransactionCase):
         order = self.env['sale.order'].with_user(self.user).create({'partner_id': other.id})
         self.assertEqual(order.partner_id, other)
 
+    def test_shared_customers_between_salespeople(self):
+        # Traspaso de cartera: este comercial lleva también los clientes de otro.
+        other_user = new_test_user(self.env, login='f1_comercial_traspaso', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
+        other_partner = self.env['res.partner'].create({
+            'name': 'Cliente traspasado F1', 'is_company': True, 'user_id': other_user.id,
+        })
+        contact = self.env['res.partner'].create({'name': 'Contacto traspasado F1', 'parent_id': other_partner.id})
+        contact.user_id = False
+        other_order = self.env['sale.order'].with_user(other_user).create({'partner_id': other_partner.id})
+        other_lead = self.env['crm.lead'].create({'name': 'Oportunidad F1', 'user_id': other_user.id})
+        Partner = self.env['res.partner'].with_user(self.user)
+        partners = other_partner | contact
+        with self.assertRaises(ValidationError):
+            self.env['sale.order'].with_user(self.user).create({'partner_id': other_partner.id})
+        self.assertFalse(Partner.search([('id', 'in', partners.ids), ('rms_is_own_customer', '=', True)]))
+        self.assertFalse(self.env['sale.order'].with_user(self.user).search([('id', '=', other_order.id)]))
+        self.assertFalse(self.env['crm.lead'].with_user(self.user).search([('id', '=', other_lead.id)]))
+
+        self.user.rms_shared_customer_user_ids = other_user
+        for partner in partners:
+            order = self.env['sale.order'].with_user(self.user).create({'partner_id': partner.id})
+            self.assertEqual(order.partner_id, partner)
+        self.assertEqual(Partner.search([('id', 'in', partners.ids), ('rms_is_own_customer', '=', True)]), partners)
+        self.assertEqual(Partner.search([('id', 'in', (partners | self.partner).ids), ('rms_is_own_customer', '=', False)]), Partner)
+        self.assertTrue(other_partner.with_user(self.user).rms_is_own_customer)
+        self.assertEqual(self.env['sale.order'].with_user(self.user).search([('id', '=', other_order.id)]), other_order)
+        self.assertEqual(self.env['crm.lead'].with_user(self.user).search([('id', '=', other_lead.id)]), other_lead)
+        # Sigue teniendo sus propios clientes, y el otro comercial no gana nada.
+        self.env['sale.order'].with_user(self.user).create({'partner_id': self.partner.id})
+        with self.assertRaises(ValidationError):
+            self.env['sale.order'].with_user(other_user).create({'partner_id': self.partner.id})
+        self.assertFalse(self.env['sale.order'].with_user(other_user).search([('id', '=', self.order.id)]))
+
     def test_partner_dropdown_only_own_customers(self):
         arch = self.env['sale.order'].with_user(self.user).get_view(view_type='form')['arch']
-        self.assertIn("('commercial_partner_id.user_id', '=', uid)", arch)
+        self.assertIn("('rms_is_own_customer', '=', True)", arch)
         arch = self.env['sale.order'].get_view(view_type='form')['arch']
-        self.assertNotIn("('commercial_partner_id.user_id', '=', uid)", arch)
+        self.assertNotIn("('rms_is_own_customer', '=', True)", arch)
         self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_all_customers')
         arch = self.env['sale.order'].with_user(self.user).get_view(view_type='form')['arch']
-        self.assertNotIn("('commercial_partner_id.user_id', '=', uid)", arch)
+        self.assertNotIn("('rms_is_own_customer', '=', True)", arch)
 
     def test_pricelist_readonly_without_pricelist_group(self):
         def pricelist_node():
