@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Traspaso de cartera entre comerciales: además de lo suyo (reglas
+         estándar de «Solo sus documentos»), un comercial ve y trabaja los
+         presupuestos y oportunidades de los comerciales cuyos clientes lleva
+         también (campo «Lleva también los clientes de» del usuario). Las
+         reglas de distintos grupos se suman, así que esto amplía el acceso. -->
+    <record id="rule_sale_order_shared_customers" model="ir.rule">
+        <field name="name">Presupuestos de los comerciales cuyos clientes lleva también</field>
+        <field name="model_id" ref="sale.model_sale_order"/>
+        <field name="domain_force">[('user_id', 'in', user.rms_shared_customer_user_ids.ids)]</field>
+        <field name="groups" eval="[(4, ref('custom.comerciales'))]"/>
+    </record>
+
+    <record id="rule_sale_order_line_shared_customers" model="ir.rule">
+        <field name="name">Líneas de presupuesto de los comerciales cuyos clientes lleva también</field>
+        <field name="model_id" ref="sale.model_sale_order_line"/>
+        <field name="domain_force">[('salesman_id', 'in', user.rms_shared_customer_user_ids.ids)]</field>
+        <field name="groups" eval="[(4, ref('custom.comerciales'))]"/>
+    </record>
+
+    <record id="rule_crm_lead_shared_customers" model="ir.rule">
+        <field name="name">Oportunidades de los comerciales cuyos clientes lleva también</field>
+        <field name="model_id" ref="crm.model_crm_lead"/>
+        <field name="domain_force">[('user_id', 'in', user.rms_shared_customer_user_ids.ids)]</field>
+        <field name="groups" eval="[(4, ref('custom.comerciales'))]"/>
+    </record>
+</odoo>

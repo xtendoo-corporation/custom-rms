@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_form_shared_customers" model="ir.ui.view">
+        <field name="name">res.users.form.shared.customers</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Clientes (comerciales)" name="rms_shared_customers" invisible="share">
+                    <group>
+                        <field name="rms_shared_customer_user_ids" widget="many2many_avatar_user"/>
+                    </group>
+                    <div class="text-muted">
+                        Para traspasos de cartera: si el usuario está en el grupo
+                        Comerciales, podrá presupuestar a los clientes de estos
+                        comerciales y ver sus presupuestos y oportunidades.
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
