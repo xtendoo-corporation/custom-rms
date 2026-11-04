@@ -2,6 +2,7 @@ from lxml import etree
 
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import tagged
+from odoo.tests import Form
 from odoo.tests.common import TransactionCase, new_test_user
 
 
@@ -350,3 +351,52 @@ class TestServerRestrictions(TransactionCase):
         lead.user_id = other_user
         order.user_id = other_user
         self.assertFalse(Partner.search([('id', '=', customer.id)]))
+
+    def test_quotation_from_assigned_opportunity_of_other_customer(self):
+        # INC-00007: el administrador asigna al comercial una oportunidad de un
+        # cliente ajeno; desde ella puede hacerle presupuestos e imprimirlos.
+        other_user = new_test_user(self.env, login='f1_comercial_inc7b', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
+        company = self.env['res.partner'].create({'name': 'Empresa ajena F1', 'is_company': True, 'user_id': other_user.id})
+        contact = self.env['res.partner'].create({'name': 'Contacto ajeno F1', 'parent_id': company.id})
+        invoice = self.env['res.partner'].create({'name': 'Factura ajena F1', 'parent_id': company.id, 'type': 'invoice'})
+        other_company = self.env['res.partner'].create({'name': 'Otra empresa ajena F1', 'is_company': True, 'user_id': other_user.id})
+        lead = self.env['crm.lead'].create({
+            'name': 'Oportunidad asignada F1', 'type': 'opportunity',
+            'partner_id': company.id, 'user_id': self.user.id,
+        })
+        SaleOrder = self.env['sale.order'].with_user(self.user)
+
+        # Como en la interfaz: botón «Nuevo presupuesto» de la oportunidad.
+        with Form(SaleOrder.with_context(**lead._prepare_opportunity_quotation_context())) as form:
+            form.partner_id = company
+        ui_order = form.save()
+        self.assertEqual((ui_order.partner_id, ui_order.user_id, ui_order.opportunity_id), (company, self.user, lead))
+        # Con la oportunidad en los valores o en el contexto.
+        order = SaleOrder.create({'partner_id': company.id, 'opportunity_id': lead.id})
+        self.assertEqual(order.partner_invoice_id, invoice)
+        self.assertEqual(order.partner_invoice_id.name, 'Factura ajena F1')
+        order2 = SaleOrder.with_context(default_opportunity_id=lead.id).create({'partner_id': contact.id})
+        self.assertEqual(order2.opportunity_id, lead)
+        order.write({'partner_id': contact.id})
+        self.env['sale.order.line'].create({'order_id': order.id, 'product_id': self.product.id})
+        self.env.invalidate_all()
+        self.env['ir.actions.report'].with_user(self.user)._render_qweb_html('sale.action_report_saleorder', order.ids)
+        # Los contactos de la empresa se leen, pero no se editan.
+        with self.assertRaises(AccessError):
+            invoice.with_user(self.user).write({'name': 'Cambiado'})
+
+        # Sigue bloqueado: sin oportunidad, otra empresa, o al cambiar a otro cliente.
+        with self.assertRaises(ValidationError):
+            SaleOrder.create({'partner_id': company.id})
+        with self.assertRaises(ValidationError):
+            SaleOrder.create({'partner_id': other_company.id, 'opportunity_id': lead.id})
+        with self.assertRaises(ValidationError):
+            order.write({'partner_id': other_company.id})
+        self.assertFalse(self.env['res.partner'].with_user(self.user).search([('id', '=', other_company.id)]))
+        # Ni con una oportunidad que no es suya.
+        lead2 = self.env['crm.lead'].create({
+            'name': 'Oportunidad de otro F1', 'type': 'opportunity',
+            'partner_id': company.id, 'user_id': other_user.id,
+        })
+        with self.assertRaises(ValidationError):
+            SaleOrder.create({'partner_id': company.id, 'opportunity_id': lead2.id})

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from odoo import api, models
+from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
 from .restrictions import (
@@ -11,6 +11,14 @@ from .restrictions import (
 
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
+
+    rms_commercial_partner_id = fields.Many2one(
+        comodel_name='res.partner',
+        related='partner_id.commercial_partner_id',
+        string='Empresa del cliente',
+        store=True,
+        index=True,
+    )
 
     def _filter_restricted_values(self, vals):
         vals = dict(vals)
@@ -24,21 +32,48 @@ class SaleOrder(models.Model):
                 vals.pop('pricelist_id', None)
         return vals
 
+    def _assigned_opportunity_allows(self, lead, partner):
+        """La oportunidad está asignada al usuario y su cliente es de la misma
+        empresa que el del presupuesto."""
+        lead = lead.sudo()
+        return bool(lead) and lead.user_id == self.env.user and (
+            lead.partner_id.commercial_partner_id == partner.commercial_partner_id
+        )
+
     def _check_own_customer(self, vals):
-        # Un comercial solo puede hacer presupuestos a sus propios clientes.
+        """Un comercial solo puede hacer presupuestos a sus propios clientes...
+        Devuelve True si se permite solo por una oportunidad asignada."""
         if self.env.su or not vals.get('partner_id') or not only_own_customers(self.env):
-            return
+            return False
         partner = self.env['res.partner'].sudo().browse(vals['partner_id'])
-        if not partner.filtered_domain(own_customers_domain(self.env)):
-            raise ValidationError(
-                'Solo puedes hacer presupuestos a clientes que tengas asignados '
-                '(%s no es cliente tuyo).' % partner.display_name
-            )
+        if partner.filtered_domain(own_customers_domain(self.env)):
+            return False
+        # ...o al cliente de una oportunidad que le han asignado, desde ella
+        # (INC-00007).
+        Lead = self.env['crm.lead']
+        if 'opportunity_id' in vals:
+            leads = [Lead.browse(vals['opportunity_id'] or [])]
+        elif self:
+            leads = [order.opportunity_id for order in self]
+        else:
+            leads = [Lead.browse(self.env.context.get('default_opportunity_id') or [])]
+        if all(self._assigned_opportunity_allows(lead, partner) for lead in leads):
+            return True
+        raise ValidationError(
+            'Solo puedes hacer presupuestos a clientes que tengas asignados '
+            'o desde una oportunidad suya que te hayan asignado '
+            '(%s no es cliente tuyo).' % partner.display_name
+        )
 
     @api.model_create_multi
     def create(self, vals_list):
+        vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
-            self._check_own_customer(vals)
+            if self._check_own_customer(vals):
+                # Odoo pondría de comercial al Vendedor del cliente, y un
+                # comercial no puede crear presupuestos a nombre de otro: el
+                # presupuesto de una oportunidad asignada queda a su nombre.
+                vals['user_id'] = self.env.uid
         # Limpiar también los defaults que heredarían las líneas anidadas.
         context = self.env['sale.order.line']._filter_restricted_context()
         defaults = {key[8:]: value for key, value in context.items()

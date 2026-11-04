@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from odoo import models
+from odoo import fields, models
 from odoo.exceptions import AccessError
 
 from .restrictions import is_comercial, readable_suggested_recipients
@@ -8,6 +8,16 @@ from .restrictions import is_comercial, readable_suggested_recipients
 
 class CrmLead(models.Model):
     _inherit = 'crm.lead'
+
+    # commercial_partner_id de crm no se guarda; este sí, para la regla de
+    # acceso a los contactos de las oportunidades asignadas.
+    rms_commercial_partner_id = fields.Many2one(
+        comodel_name='res.partner',
+        related='partner_id.commercial_partner_id',
+        string='Empresa del cliente',
+        store=True,
+        index=True,
+    )
 
     def unlink(self):
         # Los comerciales pueden borrar sus oportunidades, pero no las de otros.
