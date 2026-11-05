@@ -1,29 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!--
+        Etiqueta 10x5 cm: referencia del producto en grande (lo que se busca
+        en la estantería), descripción, código de barras Code128 del número
+        de serie (lo que se escanea) y el número de serie en texto. Si el
+        número de serie no es "Nuevo" se marca el estado (DEMO, 2ª MANO...),
+        y si es una etiqueta sustituta, una línea al pie lo indica.
+    -->
     <template id="report_lot_label_10x5_document">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
-                <div class="page"
-                     style="width:100%;height:100%;box-sizing:border-box;
-                            display:flex;flex-direction:column;
-                            justify-content:center;align-items:center;
-                            font-family:Arial, sans-serif;text-align:center;
-                            overflow:hidden;">
-                    <div style="font-size:13px;font-weight:bold;
-                                max-width:100%;overflow:hidden;
-                                white-space:nowrap;text-overflow:ellipsis;">
-                        <t t-esc="o.product_id.display_name"/>
+                <t t-foreach="range(copies or 1)" t-as="copy_index">
+                    <t t-set="state" t-value="o.product_state_id if 'product_state_id' in o._fields else False"/>
+                    <div class="page"
+                         style="width:100%;height:100%;box-sizing:border-box;
+                                display:flex;flex-direction:column;
+                                justify-content:space-between;
+                                font-family:Arial, sans-serif;overflow:hidden;
+                                page-break-after:always;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                            <div style="font-size:20px;font-weight:bold;line-height:1.1;
+                                        max-width:75%;overflow:hidden;white-space:nowrap;
+                                        text-overflow:ellipsis;">
+                                <t t-esc="o.product_id.default_code or o.product_id.name"/>
+                            </div>
+                            <div t-if="state and state.code != 'new'"
+                                 style="font-size:13px;font-weight:bold;border:2px solid #000;
+                                        padding:0 4px;text-transform:uppercase;">
+                                <t t-esc="state.name"/>
+                            </div>
+                        </div>
+                        <div style="font-size:11px;max-width:100%;overflow:hidden;
+                                    white-space:nowrap;text-overflow:ellipsis;">
+                            <t t-esc="o.product_id.name"/>
+                        </div>
+                        <div style="text-align:center;">
+                            <img t-if="o.rms_label_barcode_image"
+                                 t-att-src="image_data_uri(o.rms_label_barcode_image)"
+                                 style="width:92%;height:17mm;"/>
+                            <div t-if="not o.rms_label_barcode_image" style="font-size:11px;color:#b00;">
+                                No se pudo generar el código de barras.
+                            </div>
+                        </div>
+                        <div style="text-align:center;font-size:15px;font-weight:bold;letter-spacing:1px;">
+                            S/N: <t t-esc="o.name"/>
+                        </div>
+                        <div t-if="o.rms_replacement_label"
+                             style="font-size:8px;text-align:center;color:#333;">
+                            Etiqueta sustituta <t t-esc="o.company_id.name or env.company.name"/>
+                            <t t-if="o.rms_label_printed_date">
+                                · <t t-esc="context_timestamp(o.rms_label_printed_date).strftime('%d/%m/%Y')"/>
+                            </t>
+                        </div>
                     </div>
-                    <img t-if="o.rms_label_barcode_image"
-                         t-att-src="image_data_uri(o.rms_label_barcode_image)"
-                         style="width:90%;max-height:22mm;margin:2mm 0;"/>
-                    <div t-if="not o.rms_label_barcode_image" style="font-size:11px;color:#b00;">
-                        No se pudo generar el código de barras.
-                    </div>
-                    <div style="font-size:15px;font-weight:bold;letter-spacing:1px;">
-                        <t t-esc="o.name"/>
-                    </div>
-                </div>
+                </t>
             </t>
         </t>
     </template>
