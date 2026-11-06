@@ -2,37 +2,15 @@
 
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { loadJS } from "@web/core/assets";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { Component, onMounted, onWillUnmount, useEffect, useRef, useState } from "@odoo/owl";
 
-const ZXING_URL = "/rms_stock_count_session/static/lib/zxing-wasm/zxing_reader.iife.js";
-const WASM_URL = "/rms_stock_count_session/static/lib/zxing-wasm/zxing_reader.wasm";
+const WORKER_URL = "/rms_stock_count_session/static/lib/zxing-wasm/zxing_worker.js";
 const RESCAN_COOLDOWN_MS = 2000;
-const DETECT_INTERVAL_MS = 250;
+const DETECT_INTERVAL_MS = 350;
 const RETRY_MS = 4000;
 const REFRESH_MS = 15000;
 const SCAN_RECT = { x: 0.05, y: 0.2, w: 0.9, h: 0.6 };
-// Names and options accepted by the bundled zxing-wasm 3.1.6 reader.
-const READER_OPTIONS = {
-    formats: ["Code39", "Code128", "EAN-13", "EAN-8", "UPC-A", "UPC-E",
-        "ITF", "Codabar", "Code93", "QRCode", "DataMatrix"],
-    tryHarder: true,
-    tryRotate: true,
-    maxNumberOfSymbols: 8,
-};
-let readerReady;
-function prepareReader() {
-    if (!readerReady) {
-        readerReady = loadJS(ZXING_URL).then(() => window.ZXingWASM.prepareZXingModule({
-            overrides: {
-                locateFile: (path, prefix) => path.endsWith(".wasm") ? WASM_URL : prefix + path,
-            },
-            fireImmediately: true,
-        }));
-    }
-    return readerReady;
-}
 const MODE_KEY = "rms_stock_count_session.inputMode";
 
 function storageGet(key) {
@@ -85,6 +63,7 @@ export class StockCountScan extends Component {
             joinName: "",
             operatorState: null,
             last: null, // {status, message}
+            history: [],
             pending: [], // [{uid, code}] lecturas aún no confirmadas por el servidor
             offline: false,
             inputMode: storageGet(MODE_KEY) === "camera" ? "camera" : "pda",
@@ -106,6 +85,10 @@ export class StockCountScan extends Component {
         this._decoding = false;
         this._visibleCodes = new Set();
         this._snapshotsEnabled = false;
+        this._worker = null;
+        this._workerRequestId = 0;
+        this._snapshotTasks = new Map();
+        this._historyGeneration = 0;
 
         onMounted(() => this._load());
 
@@ -189,6 +172,9 @@ export class StockCountScan extends Component {
         const operatorState = await this.orm.call(
             "rms.stock.count.operator", "scanner_join", [this.sessionId, name]
         );
+        this.state.history = await this.orm.call(
+            "rms.stock.count.scan", "scanner_history", [operatorState.operator.id]
+        );
         this._applyState(operatorState);
         storageSet(this.operatorKey, String(operatorState.operator.id));
         this.state.pending = this._loadQueue();
@@ -206,16 +192,19 @@ export class StockCountScan extends Component {
             );
             return;
         }
+        this._historyGeneration++;
         storageSet(this.operatorKey, null);
         clearInterval(this._refreshTimer);
         this.state.operatorState = null;
         this.state.last = null;
+        this.state.history = [];
         this.state.step = "join";
         this._load();
     }
 
     _applyState(operatorState) {
         this.state.operatorState = operatorState;
+        this._mergeHistory(operatorState.recent || []);
         if (operatorState.session.state !== "counting") {
             this.state.step = "finished";
         }
@@ -225,15 +214,20 @@ export class StockCountScan extends Component {
         if (this.state.step !== "scan" || this.state.pending.length || this._sending) {
             return;
         }
+        const op = this.state.operatorState.operator;
+        const generation = this._historyGeneration;
+        const isCurrent = () => this.state.step === "scan" &&
+            this.state.operatorState?.operator.id === op.id &&
+            generation === this._historyGeneration;
         try {
-            const op = this.state.operatorState.operator;
             const operatorState = await this.orm.silent.call(
                 "rms.stock.count.operator", "scanner_state", [[op.id]]
             );
+            if (!isCurrent()) { return; }
             this._applyState(operatorState);
             this.state.offline = false;
         } catch {
-            this.state.offline = true;
+            if (isCurrent()) { this.state.offline = true; }
         }
     }
 
@@ -303,31 +297,49 @@ export class StockCountScan extends Component {
         if (!fresh.length || this.state.step !== "scan") {
             return;
         }
-        // The server also classifies the whole batch before registering it.
-        fresh.sort((a, b) => Number(/^S\d{2}-?\d{7}/i.test(a)) -
-            Number(/^S\d{2}-?\d{7}/i.test(b)));
-        let snapshot;
+        // Keep the entire frame: a product already visible is still essential
+        // evidence for a new serial in this same batch.
+        const uid = newUid();
         if (this._snapshotsEnabled) {
             try {
-                const canvas = document.createElement("canvas");
-                const scale = Math.min(1, 1280 / Math.max(frame.width, frame.height));
-                canvas.width = Math.round(frame.width * scale);
-                canvas.height = Math.round(frame.height * scale);
-                canvas.getContext("2d").drawImage(frame, 0, 0, canvas.width, canvas.height);
-                snapshot = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
-                canvas.width = canvas.height = 0;
+                this._snapshotTasks.set(uid, this._prepareSnapshot(frame));
             } catch {
-                // A snapshot must never prevent a reading.
+                // Snapshot allocation must never discard a valid reading.
             }
         }
-        if (navigator.vibrate) {
-            try { navigator.vibrate(40); } catch { /* optional feedback */ }
-        }
-        if (fresh.length === 1) {
-            this._enqueue(fresh[0], { snapshot });
-        } else {
-            this._enqueue(fresh[0], { codes: fresh, snapshot });
-        }
+        this._enqueue(codes[0], { uid, codes, source: "camera" });
+    }
+
+    _prepareSnapshot(frame) {
+        // Preserve this exact frame before the capture canvas is reused. JPEG
+        // encoding is deferred and never holds up decoding or registration.
+        const copy = document.createElement("canvas");
+        const scale = Math.min(1, 1024 / Math.max(frame.width, frame.height));
+        copy.width = Math.round(frame.width * scale);
+        copy.height = Math.round(frame.height * scale);
+        copy.getContext("2d").drawImage(frame, 0, 0, copy.width, copy.height);
+        return new Promise((resolve) => {
+            const encode = () => {
+                try {
+                    copy.toBlob((blob) => {
+                        copy.width = copy.height = 0;
+                        if (!blob) { resolve(null); return; }
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result.split(",")[1]);
+                        reader.onerror = () => resolve(null);
+                        reader.readAsDataURL(blob);
+                    }, "image/jpeg", 0.7);
+                } catch {
+                    copy.width = copy.height = 0;
+                    resolve(null);
+                }
+            };
+            if (window.requestIdleCallback) {
+                window.requestIdleCallback(encode, { timeout: 1500 });
+            } else {
+                setTimeout(encode, 0);
+            }
+        });
     }
 
     // ------------------------------------------------------------------
@@ -388,13 +400,15 @@ export class StockCountScan extends Component {
                     result = await this.orm.silent.call(
                         "rms.stock.count.scan",
                         item.codes ? "scanner_register_batch" : "scanner_register",
-                        [op.id, item.codes || item.code, item.uid]
+                        [op.id, item.codes || item.code, item.uid],
+                        item.codes ? { source: "camera" } : {}
                     );
                 } catch (error) {
                     if (error && error.data && error.data.message) {
                         // Error funcional del servidor (recuento cerrado...):
                         // no tiene sentido reintentar esta lectura.
                         this.state.pending.shift();
+                        this._snapshotTasks.delete(item.uid);
                         this._saveQueue();
                         this._showResult({ status: "error", message: error.data.message });
                         await this._refresh();
@@ -410,13 +424,21 @@ export class StockCountScan extends Component {
                 const results = item.codes ? result : [result];
                 for (const reading of results) {
                     this._applyState(reading.state);
-                    this._showResult(reading);
+                    this._showResult(reading, false);
                 }
+                const feedback = results.find((reading) => reading.status === "unknown") ||
+                    results.find((reading) => reading.status === "ok") || results[results.length - 1];
+                if (feedback) { this._feedback(feedback.status); }
                 const first = results.find((reading) => reading.scan && reading.scan.id);
-                if (item.snapshot && first) {
-                    // Independent upload: failures never hold up the scan queue.
-                    this.orm.silent.call("rms.stock.count.scan", "scanner_attach_snapshot",
-                        [first.scan.id, item.snapshot]).catch(() => {});
+                const snapshotTask = this._snapshotTasks.get(item.uid);
+                this._snapshotTasks.delete(item.uid);
+                if (first && (snapshotTask || item.snapshot)) {
+                    Promise.resolve(snapshotTask || item.snapshot).then((snapshot) => {
+                        if (snapshot) {
+                            return this.orm.silent.call("rms.stock.count.scan", "scanner_attach_snapshot",
+                                [first.scan.id, snapshot]);
+                        }
+                    }).catch(() => {});
                 }
             }
         } finally {
@@ -424,14 +446,23 @@ export class StockCountScan extends Component {
         }
     }
 
-    _showResult(result) {
+    _mergeHistory(scans) {
+        const byId = new Map(this.state.history.map((scan) => [scan.id, scan]));
+        for (const scan of scans) {
+            if (scan.id && scan.type !== "location") { byId.set(scan.id, scan); }
+        }
+        this.state.history = [...byId.values()].sort((a, b) => b.id - a.id);
+    }
+
+    _showResult(result, feedback = true) {
         const scan = result.scan || {};
+        this._mergeHistory(result.scan ? [scan] : []);
         this.state.last = {
             status: result.status,
             message: result.message || scan.message || "",
             code: scan.code || "",
         };
-        this._feedback(result.status);
+        if (feedback) { this._feedback(result.status); }
     }
 
     _feedback(status) {
@@ -478,9 +509,11 @@ export class StockCountScan extends Component {
     // ------------------------------------------------------------------
 
     async deleteScan(scanId) {
+        this._historyGeneration++;
         const operatorState = await this.orm.call(
             "rms.stock.count.scan", "scanner_delete", [[scanId]]
         );
+        this.state.history = this.state.history.filter((scan) => scan.id !== scanId);
         if (operatorState && operatorState.operator) {
             this._applyState(operatorState);
         }
@@ -582,10 +615,11 @@ export class StockCountScan extends Component {
         }
         this.state.cameraError = null;
         try {
-            await prepareReader();
+            await this._prepareWorker(generation);
         } catch (error) {
             if (generation === this._cameraGeneration) {
-                this.state.cameraError = "No se pudo cargar el lector de cámara WASM. " +
+                this._stopCamera();
+                this.state.cameraError = "No se pudo cargar el Worker o el lector de cámara WASM. " +
                     "Puedes seguir usando el lector PDA o escribir el código a mano.";
             }
             return;
@@ -643,34 +677,85 @@ export class StockCountScan extends Component {
         }
     }
 
-    async _decodeZxingFrame(video, generation) {
-        if (this._decoding || !video.videoWidth || !video.videoHeight || !this._zxingCanvas) {
+    _prepareWorker(generation) {
+        return new Promise((resolve, reject) => {
+            const worker = new Worker(WORKER_URL);
+            this._worker = worker;
+            const timeout = setTimeout(() => {
+                worker.terminate();
+                reject(new Error("Tiempo de carga agotado"));
+            }, 20000);
+            this._workerInitCancel = () => {
+                clearTimeout(timeout);
+                reject(new Error("Cámara detenida"));
+            };
+            worker.onerror = () => {
+                clearTimeout(timeout);
+                reject(new Error("Error del Worker de cámara"));
+                if (generation === this._cameraGeneration) {
+                    this._stopCamera();
+                    this.state.cameraError = "El lector de cámara ha fallado. Puedes seguir con PDA o entrada manual.";
+                }
+            };
+            worker.onmessage = ({ data }) => {
+                if (generation !== this._cameraGeneration) { return; }
+                if (data.type === "ready" || data.type === "error") {
+                    clearTimeout(timeout);
+                    this._workerInitCancel = null;
+                    if (data.type === "error") {
+                        reject(new Error(data.error));
+                    } else {
+                        resolve();
+                    }
+                    return;
+                }
+                if (data.id !== this._workerRequestId) { return; }
+                this._decoding = false;
+                if (data.error) {
+                    this._stopCamera();
+                    this.state.cameraError = "El lector de cámara WASM ha fallado. Puedes seguir con PDA o entrada manual.";
+                    return;
+                }
+                if (!document.hidden) {
+                    this._onCameraCodes(data.results.map((result) => result.text), this._zxingCanvas);
+                }
+            };
+        });
+    }
+
+    _decodeZxingFrame(video, generation) {
+        if (document.hidden || this._decoding || this._sending || this.state.pending.length ||
+            generation !== this._cameraGeneration || !this._worker ||
+            !video.videoWidth || !video.videoHeight || !this._zxingCanvas) {
             return;
         }
         this._decoding = true;
         try {
             const canvas = this._zxingCanvas;
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            const cropWidth = video.videoWidth * SCAN_RECT.w;
+            const cropHeight = video.videoHeight * SCAN_RECT.h;
+            const scale = Math.min(1, 1280 / Math.max(cropWidth, cropHeight));
+            canvas.width = Math.round(cropWidth * scale);
+            canvas.height = Math.round(cropHeight * scale);
             const context = canvas.getContext("2d", { willReadFrequently: true });
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const image = context.getImageData(
-                Math.round(SCAN_RECT.x * canvas.width), Math.round(SCAN_RECT.y * canvas.height),
-                Math.round(SCAN_RECT.w * canvas.width), Math.round(SCAN_RECT.h * canvas.height)
-            );
-            const results = await window.ZXingWASM.readBarcodes(image, READER_OPTIONS);
-            if (generation === this._cameraGeneration) {
-                this._onCameraCodes(results.map((result) => result.text), canvas);
-            }
+            context.drawImage(video, video.videoWidth * SCAN_RECT.x,
+                video.videoHeight * SCAN_RECT.y, cropWidth, cropHeight,
+                0, 0, canvas.width, canvas.height);
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            this._worker.postMessage({ id: ++this._workerRequestId, imageData },
+                [imageData.data.buffer]);
         } catch {
-            // Unreadable frames do not interrupt the video or manual input.
-        } finally {
             this._decoding = false;
         }
     }
 
     _stopCamera() {
         this._cameraGeneration++;
+        this._workerInitCancel?.();
+        this._workerInitCancel = null;
+        this._worker?.terminate();
+        this._worker = null;
+        this._decoding = false;
         clearInterval(this._detectTimer);
         this._detectTimer = null;
         if (this._zxingCanvas) {
@@ -704,7 +789,7 @@ export class StockCountScan extends Component {
             location: "text-bg-info",
             product_ref: "text-bg-info",
             duplicate: "text-bg-warning",
-            unknown: "text-bg-danger",
+            unknown: "text-bg-warning",
             ignored: "text-bg-secondary",
             error: "text-bg-danger",
             empty: "text-bg-secondary",
@@ -716,7 +801,7 @@ export class StockCountScan extends Component {
             product: "Unidad",
             serial: "Nº serie",
             product_ref: "Producto",
-            unknown: "Desconocido",
+            unknown: "Pendiente de revisar",
             ignored: "Ignorado",
         }[type] || type;
     }
@@ -726,7 +811,7 @@ export class StockCountScan extends Component {
             product: "text-bg-success",
             serial: "text-bg-success",
             product_ref: "text-bg-info",
-            unknown: "text-bg-danger",
+            unknown: "text-bg-warning",
             ignored: "text-bg-light border",
         }[type] || "text-bg-secondary";
     }

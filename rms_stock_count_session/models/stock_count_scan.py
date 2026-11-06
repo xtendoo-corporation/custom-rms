@@ -127,7 +127,7 @@ class RmsStockCountScan(models.Model):
         return variants[:1]
 
     @api.model
-    def _classify(self, operator, code):
+    def _classify(self, operator, code, camera=False):
         """Decide qué es el código leído, en este orden:
 
         1. Etiqueta de una ubicación del recuento -> cambia la ubicación
@@ -181,6 +181,7 @@ class RmsStockCountScan(models.Model):
             if len(products) > 1:
                 return dict(
                     base, scan_type="unknown",
+                    **({"_camera_product_ids": products.ids} if camera else {}),
                     message="El código %s corresponde a varios productos (%s): elige el "
                             "producto a mano." % (code, ", ".join(products.mapped("display_name"))),
                 )
@@ -204,6 +205,12 @@ class RmsStockCountScan(models.Model):
                     message=message,
                 )
 
+        # Product-shaped camera codes must never become invented serials,
+        # including malformed GTINs whose check digit is invalid.
+        if camera and not rule_match and code.isdigit() and len(code) in (8, 12, 13, 14):
+            return dict(base, scan_type="unknown", quantity=0.0,
+                        message="código de producto desconocido")
+
         serial = rule_match["serial"] if rule_match else code
         brand_note = (" (%s)" % rule_match["rule"].name) if rule_match else ""
         candidates = list(dict.fromkeys([serial, code]))
@@ -225,6 +232,10 @@ class RmsStockCountScan(models.Model):
                         ),
             )
 
+        if camera:
+            return dict(base, scan_type="unknown", lot_name=serial, quantity=0.0,
+                        message="sin producto en el encuadre")
+
         current = operator.current_product_id
         if current and current.tracking != "none":
             return dict(
@@ -243,7 +254,7 @@ class RmsStockCountScan(models.Model):
         )
 
     @api.model
-    def scanner_register_batch(self, operator_id, codes, client_uid_prefix=False):
+    def scanner_register_batch(self, operator_id, codes, client_uid_prefix=False, source=False):
         """Clasifica la etiqueta completa antes de cambiar el contexto del operario.
 
         El índice original identifica cada lectura aunque el orden de ejecución
@@ -253,6 +264,8 @@ class RmsStockCountScan(models.Model):
         if not operator:
             raise UserError("El operario ya no existe en este recuento.")
         operator._check_counting()
+        if source == "camera":
+            return self._scanner_register_camera_batch(operator, codes, client_uid_prefix)
         classified = []
         for index, raw_code in enumerate(codes):
             code = clean_code(raw_code)
@@ -269,6 +282,67 @@ class RmsStockCountScan(models.Model):
             )
             for _serial, index, raw_code in sorted(classified, key=lambda item: (item[0], item[1]))
         ]
+
+    @api.model
+    def _scanner_register_camera_batch(self, operator, codes, client_uid_prefix):
+        # Classify the entire frame before changing the operator's context.
+        readings = [
+            (index, raw, self._classify(operator, clean_code(raw), camera=True))
+            for index, raw in enumerate(codes) if clean_code(raw)
+        ]
+        product_ids = {
+            vals["product_id"] for _index, _raw, vals in readings
+            if vals["scan_type"] in ("product_ref", "product")
+        }
+        for _index, _raw, vals in readings:
+            product_ids.update(vals.pop("_camera_product_ids", []))
+        candidates = {
+            vals["lot_name"] for _index, _raw, vals in readings
+            if vals.get("lot_name") and vals["scan_type"] in ("serial", "unknown")
+        }
+        product = self.env["product.product"].browse(list(product_ids))
+        for _index, _raw, vals in readings:
+            if vals["scan_type"] != "unknown" or vals.get("message") != "sin producto en el encuadre":
+                continue
+            if not product_ids:
+                reason = "sin producto en el encuadre"
+            elif len(product_ids) > 1:
+                reason = "varios productos en el encuadre"
+            elif len(candidates) > 1:
+                reason = "varios números de serie en el encuadre"
+            elif product.tracking == "none":
+                reason = "producto sin seguimiento por número de serie"
+            else:
+                vals.update(scan_type="serial", product_id=product.id,
+                            is_new_lot=True, quantity=1.0,
+                            message="%s · %s" % (product.display_name, vals["lot_name"]))
+                continue
+            vals["message"] = reason
+        return [
+            self._scanner_register(
+                operator.id, raw,
+                "%s:%s" % (client_uid_prefix, index) if client_uid_prefix else False,
+                classification=vals,
+            )
+            for index, raw, vals in sorted(
+                readings, key=lambda item: (item[2]["scan_type"] == "serial", item[0]),
+            )
+        ]
+
+    @api.model
+    def scanner_history(self, operator_id):
+        """Load this operator's session history once when opening the scanner."""
+        operator = self.env["rms.stock.count.operator"].browse(operator_id).exists()
+        if not operator:
+            raise UserError("El operario ya no existe en este recuento.")
+        operator.check_access("read")
+        operator.session_id.check_access("read")
+        scans = self.search([
+            ("operator_id", "=", operator.id),
+            ("session_id", "=", operator.session_id.id),
+            ("scan_type", "!=", "location"),
+        ])
+        return [scan._scanner_payload() for scan in scans]
 
     @api.model
     def scanner_camera_config(self):
@@ -328,6 +402,10 @@ class RmsStockCountScan(models.Model):
         """Registra una lectura del escáner. Devuelve {'status', 'scan',
         'state'}; status puede ser ok | location | product_ref | unknown |
         duplicate | empty."""
+        return self._scanner_register(operator_id, raw_code, client_uid)
+
+    @api.model
+    def _scanner_register(self, operator_id, raw_code, client_uid=False, classification=None):
         operator = self.env["rms.stock.count.operator"].browse(operator_id).exists()
         if not operator:
             raise UserError("El operario ya no existe en este recuento.")
@@ -348,7 +426,7 @@ class RmsStockCountScan(models.Model):
         if not code:
             return {"status": "empty", "scan": False, "state": operator._scanner_state()}
 
-        vals = self._classify(operator, code)
+        vals = dict(classification) if classification is not None else self._classify(operator, code)
 
         # Un número de serie es una unidad: si ESTE operario ya lo ha
         # leído, no se vuelve a contar. Que lo lea otro operario es justo

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Recuento cruzado (varios operarios)',
-    'version': '19.0.1.3.0',
+    'version': '19.0.1.4.0',
     'category': 'Inventory/Inventory',
     'summary': (
         'Varias personas recorren el almacén escaneando con PDA o móvil y '
