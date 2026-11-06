@@ -110,7 +110,9 @@ class SaleOrder(models.Model):
         # comercial no puede leer: sin sudo, el chatter falla con AccessError al
         # abrir el documento (INC-00007). Se calcula con sudo y se quitan de la
         # sugerencia los contactos que no puede leer.
-        if self.env.su or not is_comercial(self.env):
+        # También los Product Managers, que ven documentos de clientes cuya
+        # ficha pueden dejar de leer al cerrarse la oportunidad.
+        if self.env.su:
             return super()._message_get_suggested_recipients_batch(*args, **kwargs)
         # sudo: res.partner - seguidores y autores que el comercial no puede leer
         suggested = super(SaleOrder, self.sudo())._message_get_suggested_recipients_batch(*args, **kwargs)
