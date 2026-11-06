@@ -42,7 +42,7 @@
         <field name="sequence">5</field>
         <field name="name">Sony: caja sin número de serie (S01-0000000)</field>
         <field name="brand">Sony</field>
-        <field name="pattern">S\d{2}-?0{7}-?[0-9A-Z]</field>
+        <field name="pattern">S\d{2}-?0{7}(?:-?[0-9A-Z\-.%$/+ ])?</field>
         <field name="action">ignore</field>
         <field name="example">S01-0000000-T</field>
         <field name="note">Cajas de kit UWP-D y auriculares MDR: el número de serie va en cada componente, no en la caja.</field>
@@ -53,7 +53,7 @@
         <field name="sequence">20</field>
         <field name="name">Sony: número de serie S01-NNNNNNN-X</field>
         <field name="brand">Sony</field>
-        <field name="pattern">S\d{2}-?(?P&lt;serial&gt;\d{7})-?[0-9A-Z\-]</field>
+        <field name="pattern">S\d{2}-?(?P&lt;serial&gt;\d{7})(?:-?[0-9A-Z\-.%$/+ ])?</field>
         <field name="action">serial</field>
         <field name="example">S010040579B</field>
         <field name="note">Etiqueta "CE7" de Sony: P-xxxxxxxx-x es la referencia del producto y S01-xxxxxxx-x el número de serie (7 cifras). En los kits UWP-D la caja trae una lista con el número de serie de cada transmisor y receptor. Sony no publica el formato; si en Odoo el nº de serie se dio de alta con el código completo (S010040579B), también se encuentra.</field>

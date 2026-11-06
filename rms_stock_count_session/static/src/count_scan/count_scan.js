@@ -6,16 +6,33 @@ import { loadJS } from "@web/core/assets";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { Component, onMounted, onWillUnmount, useEffect, useRef, useState } from "@odoo/owl";
 
-// Copia de ZXing que ya trae rms_stock_barcode_scan (lectura con cámara en
-// navegadores sin BarcodeDetector nativo, p. ej. Safari/iOS).
-const ZXING_URL = "/rms_stock_barcode_scan/static/lib/zxing/zxing.min.js";
+const ZXING_URL = "/rms_stock_count_session/static/lib/zxing-wasm/zxing_reader.iife.js";
+const WASM_URL = "/rms_stock_count_session/static/lib/zxing-wasm/zxing_reader.wasm";
 const RESCAN_COOLDOWN_MS = 2000;
-const DETECT_INTERVAL_MS = 300;
+const DETECT_INTERVAL_MS = 250;
 const RETRY_MS = 4000;
 const REFRESH_MS = 15000;
-// Recuadro fijo (fracciones del vídeo) donde se aceptan códigos con la
-// cámara: evita leer a la vez el resto de códigos de la misma etiqueta.
-const SCAN_RECT = { x: 0.1, y: 0.3, w: 0.8, h: 0.4 };
+const SCAN_RECT = { x: 0.05, y: 0.2, w: 0.9, h: 0.6 };
+// Names and options accepted by the bundled zxing-wasm 3.1.6 reader.
+const READER_OPTIONS = {
+    formats: ["Code39", "Code128", "EAN-13", "EAN-8", "UPC-A", "UPC-E",
+        "ITF", "Codabar", "Code93", "QRCode", "DataMatrix"],
+    tryHarder: true,
+    tryRotate: true,
+    maxNumberOfSymbols: 8,
+};
+let readerReady;
+function prepareReader() {
+    if (!readerReady) {
+        readerReady = loadJS(ZXING_URL).then(() => window.ZXingWASM.prepareZXingModule({
+            overrides: {
+                locateFile: (path, prefix) => path.endsWith(".wasm") ? WASM_URL : prefix + path,
+            },
+            fireImmediately: true,
+        }));
+    }
+    return readerReady;
+}
 const MODE_KEY = "rms_stock_count_session.inputMode";
 
 function storageGet(key) {
@@ -33,8 +50,10 @@ function storageSet(key, value) {
         } else {
             window.localStorage.setItem(key, value);
         }
+        return true;
     } catch {
-        // localStorage no disponible (modo privado...): no es crítico
+        // localStorage no disponible o lleno: el llamante puede reducir la carga.
+        return false;
     }
 }
 
@@ -83,6 +102,10 @@ export class StockCountScan extends Component {
         this._stream = null;
         this._detectTimer = null;
         this._zxingCanvas = null;
+        this._cameraGeneration = 0;
+        this._decoding = false;
+        this._visibleCodes = new Set();
+        this._snapshotsEnabled = false;
 
         onMounted(() => this._load());
 
@@ -268,18 +291,43 @@ export class StockCountScan extends Component {
         }
     }
 
-    _onCameraCode(code) {
-        code = (code || "").trim();
-        if (!code) {
-            return;
-        }
+    _onCameraCodes(codes, frame) {
         const now = Date.now();
-        if (now - (this._lastSeenAt[code] || 0) < RESCAN_COOLDOWN_MS) {
+        codes = [...new Set(codes.map((code) => (code || "").trim()).filter(Boolean))];
+        const fresh = codes.filter((code) => !this._visibleCodes.has(code) &&
+            now - (this._lastSeenAt[code] || 0) >= RESCAN_COOLDOWN_MS);
+        this._visibleCodes = new Set(codes);
+        for (const code of codes) {
             this._lastSeenAt[code] = now;
+        }
+        if (!fresh.length || this.state.step !== "scan") {
             return;
         }
-        this._lastSeenAt[code] = now;
-        this._enqueue(code);
+        // The server also classifies the whole batch before registering it.
+        fresh.sort((a, b) => Number(/^S\d{2}-?\d{7}/i.test(a)) -
+            Number(/^S\d{2}-?\d{7}/i.test(b)));
+        let snapshot;
+        if (this._snapshotsEnabled) {
+            try {
+                const canvas = document.createElement("canvas");
+                const scale = Math.min(1, 1280 / Math.max(frame.width, frame.height));
+                canvas.width = Math.round(frame.width * scale);
+                canvas.height = Math.round(frame.height * scale);
+                canvas.getContext("2d").drawImage(frame, 0, 0, canvas.width, canvas.height);
+                snapshot = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+                canvas.width = canvas.height = 0;
+            } catch {
+                // A snapshot must never prevent a reading.
+            }
+        }
+        if (navigator.vibrate) {
+            try { navigator.vibrate(40); } catch { /* optional feedback */ }
+        }
+        if (fresh.length === 1) {
+            this._enqueue(fresh[0], { snapshot });
+        } else {
+            this._enqueue(fresh[0], { codes: fresh, snapshot });
+        }
     }
 
     // ------------------------------------------------------------------
@@ -303,16 +351,24 @@ export class StockCountScan extends Component {
     _saveQueue() {
         const key = this.queueKey;
         if (key) {
-            storageSet(key, this.state.pending.length ? JSON.stringify(this.state.pending) : null);
+            const saved = storageSet(
+                key, this.state.pending.length ? JSON.stringify(this.state.pending) : null
+            );
+            if (!saved && this.state.pending.length) {
+                // Prioritize durable codes if offline JPEGs exhaust localStorage.
+                // Keep snapshots in memory for best-effort upload this session.
+                const codesOnly = this.state.pending.map(({ snapshot, ...item }) => item);
+                storageSet(key, JSON.stringify(codesOnly));
+            }
         }
     }
 
-    _enqueue(code) {
+    _enqueue(code, extra = {}) {
         code = (code || "").trim();
         if (!code || this.state.step !== "scan") {
             return;
         }
-        this.state.pending.push({ uid: newUid(), code });
+        this.state.pending.push({ uid: newUid(), code, ...extra });
         this._saveQueue();
         this._flushQueue();
     }
@@ -330,7 +386,9 @@ export class StockCountScan extends Component {
                 let result;
                 try {
                     result = await this.orm.silent.call(
-                        "rms.stock.count.scan", "scanner_register", [op.id, item.code, item.uid]
+                        "rms.stock.count.scan",
+                        item.codes ? "scanner_register_batch" : "scanner_register",
+                        [op.id, item.codes || item.code, item.uid]
                     );
                 } catch (error) {
                     if (error && error.data && error.data.message) {
@@ -349,8 +407,17 @@ export class StockCountScan extends Component {
                 this.state.offline = false;
                 this.state.pending.shift();
                 this._saveQueue();
-                this._applyState(result.state);
-                this._showResult(result);
+                const results = item.codes ? result : [result];
+                for (const reading of results) {
+                    this._applyState(reading.state);
+                    this._showResult(reading);
+                }
+                const first = results.find((reading) => reading.scan && reading.scan.id);
+                if (item.snapshot && first) {
+                    // Independent upload: failures never hold up the scan queue.
+                    this.orm.silent.call("rms.stock.count.scan", "scanner_attach_snapshot",
+                        [first.scan.id, item.snapshot]).catch(() => {});
+                }
             }
         } finally {
             this._sending = false;
@@ -503,102 +570,120 @@ export class StockCountScan extends Component {
     }
 
     // ------------------------------------------------------------------
-    // Cámara (BarcodeDetector nativo o ZXing de reserva)
+    // Cámara: lector WASM local en todos los navegadores
     // ------------------------------------------------------------------
 
     async _startCamera() {
+        this._stopCamera();
+        const generation = this._cameraGeneration;
         const video = this.videoRef.el;
         if (!video) {
             return;
         }
         this.state.cameraError = null;
         try {
-            this._stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: "environment" } },
-                audio: false,
-            });
-            video.srcObject = this._stream;
-            await video.play();
-            if (window.BarcodeDetector) {
-                const detector = new window.BarcodeDetector({
-                    formats: [
-                        "ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39",
-                        "code_93", "itf", "codabar", "qr_code", "data_matrix",
-                    ],
-                });
-                this._detectTimer = setInterval(async () => {
-                    try {
-                        const barcodes = await detector.detect(video);
-                        for (const barcode of barcodes) {
-                            if (this._inScanRect(barcode.boundingBox, video)) {
-                                this._onCameraCode(barcode.rawValue);
-                            }
-                        }
-                    } catch {
-                        // fotograma no decodificable: se sigue intentando
-                    }
-                }, DETECT_INTERVAL_MS);
-            } else {
-                await loadJS(ZXING_URL);
-                const reader = new window.ZXing.BrowserMultiFormatReader();
-                this._zxingCanvas = document.createElement("canvas");
-                this._detectTimer = setInterval(
-                    () => this._decodeZxingFrame(video, reader), DETECT_INTERVAL_MS
-                );
-            }
+            await prepareReader();
         } catch (error) {
-            this.state.cameraError =
-                (error && error.name === "NotAllowedError")
-                    ? "No hay permiso para usar la cámara."
-                    : `No se pudo abrir la cámara: ${(error && error.message) || error}`;
-        }
-    }
-
-    _inScanRect(box, video) {
-        const vw = video.videoWidth;
-        const vh = video.videoHeight;
-        if (!vw || !vh) {
-            return true;
-        }
-        const cx = (box.x + box.width / 2) / vw;
-        const cy = (box.y + box.height / 2) / vh;
-        return (
-            cx >= SCAN_RECT.x && cx <= SCAN_RECT.x + SCAN_RECT.w &&
-            cy >= SCAN_RECT.y && cy <= SCAN_RECT.y + SCAN_RECT.h
-        );
-    }
-
-    _decodeZxingFrame(video, reader) {
-        if (!video.videoWidth || !video.videoHeight || !this._zxingCanvas) {
+            if (generation === this._cameraGeneration) {
+                this.state.cameraError = "No se pudo cargar el lector de cámara WASM. " +
+                    "Puedes seguir usando el lector PDA o escribir el código a mano.";
+            }
             return;
         }
-        const sx = Math.round(SCAN_RECT.x * video.videoWidth);
-        const sy = Math.round(SCAN_RECT.y * video.videoHeight);
-        const sw = Math.round(SCAN_RECT.w * video.videoWidth);
-        const sh = Math.round(SCAN_RECT.h * video.videoHeight);
-        const canvas = this._zxingCanvas;
-        canvas.width = sw;
-        canvas.height = sh;
-        canvas.getContext("2d").drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+        if (generation !== this._cameraGeneration) {
+            return;
+        }
         try {
-            const source = new window.ZXing.HTMLCanvasElementLuminanceSource(canvas);
-            const bitmap = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(source));
-            const result = reader.decodeBitmap(bitmap);
-            if (result) {
-                this._onCameraCode(result.getText());
+            const config = await this.orm.silent.call(
+                "rms.stock.count.scan", "scanner_camera_config", []
+            ).catch(() => ({ camera_snapshots: false }));
+            if (generation !== this._cameraGeneration) {
+                return;
+            }
+            this._snapshotsEnabled = config.camera_snapshots;
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: { ideal: "environment" },
+                    width: { ideal: 1920 }, height: { ideal: 1080 },
+                },
+                audio: false,
+            });
+            if (generation !== this._cameraGeneration) {
+                stream.getTracks().forEach((track) => track.stop());
+                return;
+            }
+            this._stream = stream;
+            const track = stream.getVideoTracks()[0];
+            try {
+                if (track.getCapabilities?.().focusMode?.includes("continuous")) {
+                    await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+                }
+            } catch {
+                // Fixed-focus cameras and unsupported constraints are usable too.
+            }
+            if (generation !== this._cameraGeneration) {
+                return;
+            }
+            video.srcObject = stream;
+            await video.play();
+            if (generation !== this._cameraGeneration) {
+                return;
+            }
+            this._zxingCanvas = document.createElement("canvas");
+            this._detectTimer = setInterval(
+                () => this._decodeZxingFrame(video, generation), DETECT_INTERVAL_MS
+            );
+        } catch (error) {
+            if (generation === this._cameraGeneration) {
+                this._stopCamera();
+                this.state.cameraError = error?.name === "NotAllowedError"
+                    ? "No hay permiso para usar la cámara."
+                    : `No se pudo abrir la cámara: ${error?.message || error}`;
+            }
+        }
+    }
+
+    async _decodeZxingFrame(video, generation) {
+        if (this._decoding || !video.videoWidth || !video.videoHeight || !this._zxingCanvas) {
+            return;
+        }
+        this._decoding = true;
+        try {
+            const canvas = this._zxingCanvas;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext("2d", { willReadFrequently: true });
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const image = context.getImageData(
+                Math.round(SCAN_RECT.x * canvas.width), Math.round(SCAN_RECT.y * canvas.height),
+                Math.round(SCAN_RECT.w * canvas.width), Math.round(SCAN_RECT.h * canvas.height)
+            );
+            const results = await window.ZXingWASM.readBarcodes(image, READER_OPTIONS);
+            if (generation === this._cameraGeneration) {
+                this._onCameraCodes(results.map((result) => result.text), canvas);
             }
         } catch {
-            // ningún código en este recorte
+            // Unreadable frames do not interrupt the video or manual input.
+        } finally {
+            this._decoding = false;
         }
     }
 
     _stopCamera() {
+        this._cameraGeneration++;
         clearInterval(this._detectTimer);
         this._detectTimer = null;
-        this._zxingCanvas = null;
+        if (this._zxingCanvas) {
+            this._zxingCanvas.width = this._zxingCanvas.height = 0;
+            this._zxingCanvas = null;
+        }
+        this._visibleCodes = new Set();
         if (this._stream) {
             this._stream.getTracks().forEach((track) => track.stop());
             this._stream = null;
+        }
+        if (this.videoRef.el) {
+            this.videoRef.el.srcObject = null;
         }
     }
 

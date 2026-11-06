@@ -83,6 +83,8 @@
                 <field name="message" readonly="1" optional="show"/>
                 <field name="raw_code" readonly="1" optional="hide"/>
                 <field name="ignored"/>
+                <button name="action_view_snapshots" type="object" string="Capturas"
+                        icon="fa-camera" title="Ver las capturas automáticas de esta lectura"/>
                 <button name="action_assign_product" type="object" string="Es su nº de serie"
                         icon="fa-check" invisible="scan_type != 'unknown' or not product_id"
                         title="El código es el número de serie (o una unidad) de este producto"/>

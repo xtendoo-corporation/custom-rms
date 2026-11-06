@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import base64
+import binascii
 import re
 
 from odoo import api, fields, models
@@ -20,6 +22,7 @@ _SERIAL_PREFIX_RE = re.compile(
 # lectores anteponen, y caracteres de control (separador GS de GS1).
 _AIM_PREFIX_RE = re.compile(r"^\][A-Za-z][0-9A-Za-z]")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_CAMERA_SERIAL_RE = re.compile(r"^S\d{2}-?\d{7}", re.IGNORECASE)
 
 
 def clean_code(raw):
@@ -238,6 +241,87 @@ class RmsStockCountScan(models.Model):
             "Código desconocido. Elige el producto y vuelve a escanear, o se "
             "asignará en la revisión.",
         )
+
+    @api.model
+    def scanner_register_batch(self, operator_id, codes, client_uid_prefix=False):
+        """Clasifica la etiqueta completa antes de cambiar el contexto del operario.
+
+        El índice original identifica cada lectura aunque el orden de ejecución
+        cambie: un reintento conserva el mismo control de duplicados.
+        """
+        operator = self.env["rms.stock.count.operator"].browse(operator_id).exists()
+        if not operator:
+            raise UserError("El operario ya no existe en este recuento.")
+        operator._check_counting()
+        classified = []
+        for index, raw_code in enumerate(codes):
+            code = clean_code(raw_code)
+            vals = self._classify(operator, code) if code else {"scan_type": "unknown"}
+            kind = vals["scan_type"]
+            serial = kind == "serial" or (
+                kind == "unknown" and (vals.get("lot_name") or _CAMERA_SERIAL_RE.match(code))
+            )
+            classified.append((bool(serial), index, raw_code))
+        return [
+            self.scanner_register(
+                operator_id, raw_code,
+                "%s:%s" % (client_uid_prefix, index) if client_uid_prefix else False,
+            )
+            for _serial, index, raw_code in sorted(classified, key=lambda item: (item[0], item[1]))
+        ]
+
+    @api.model
+    def scanner_camera_config(self):
+        value = self.env["ir.config_parameter"].sudo().get_param(
+            "rms_stock_count_session.camera_snapshots", "True",
+        )
+        return {"camera_snapshots": str(value).strip().lower() not in ("false", "0", "no", "off", "")}
+
+    @api.model
+    def scanner_attach_snapshot(self, scan_id, snapshot_base64):
+        """Carga independiente de la lectura: el cliente puede fallar sin perderla."""
+        if not self.scanner_camera_config()["camera_snapshots"]:
+            return False
+        scan = self.browse(scan_id).exists()
+        if not scan:
+            return False
+        scan.ensure_one()
+        scan.check_access("write")
+        # La comprobación explícita conserva el aislamiento multicompañía de
+        # la sesión aunque la lectura no tenga una regla propia.
+        scan.session_id.check_access("read")
+        if not isinstance(snapshot_base64, str) or len(snapshot_base64) > 7 * 1024 * 1024:
+            raise UserError("La captura de cámara no es válida.")
+        try:
+            image = base64.b64decode(snapshot_base64, validate=True)
+        except (ValueError, binascii.Error):
+            raise UserError("La captura de cámara no es válida.") from None
+        if not image.startswith(b"\xff\xd8\xff"):
+            raise UserError("La captura debe ser una imagen JPEG.")
+        Attachment = self.env["ir.attachment"]
+        name = "camera-scan-%s.jpg" % scan.id
+        existing = Attachment.search([
+            ("res_model", "=", self._name), ("res_id", "=", scan.id), ("name", "=", name),
+        ], limit=1)
+        if existing:
+            return existing.id
+        return Attachment.create({
+            "name": name, "type": "binary", "mimetype": "image/jpeg",
+            "datas": snapshot_base64, "res_model": self._name, "res_id": scan.id,
+        }).id
+
+    def action_view_snapshots(self):
+        self.ensure_one()
+        self.check_access("read")
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Capturas de la lectura",
+            "res_model": "ir.attachment",
+            "view_mode": "kanban,list,form",
+            "domain": [("res_model", "=", self._name), ("res_id", "=", self.id)],
+            "context": {"create": False},
+            "target": "new",
+        }
 
     @api.model
     def scanner_register(self, operator_id, raw_code, client_uid=False):

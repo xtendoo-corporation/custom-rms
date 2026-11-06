@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Recuento cruzado (varios operarios)',
-    'version': '19.0.1.2.0',
+    'version': '19.0.1.3.0',
     'category': 'Inventory/Inventory',
     'summary': (
         'Varias personas recorren el almacén escaneando con PDA o móvil y '
@@ -25,8 +25,6 @@ Recuento cruzado con varios operarios
     'author': 'Custom RMS',
     'website': 'https://xtendoo.es',
     'license': 'LGPL-3',
-    # rms_stock_barcode_scan: se reutiliza su copia de ZXing para leer con
-    # la cámara en navegadores sin BarcodeDetector (iOS).
     # rms_stock_lot_label_print: etiqueta sustituta desde el escáner.
     'depends': ['stock', 'web', 'rms_stock_barcode_scan', 'rms_stock_lot_label_print'],
     'data': [
@@ -39,6 +37,9 @@ Recuento cruzado con varios operarios
         'views/scan_rule_views.xml',
     ],
     'assets': {
+        'rms_stock_count_session.assets_camera': [
+            'rms_stock_count_session/static/lib/zxing-wasm/zxing_reader.iife.js',
+        ],
         'web.assets_backend': [
             'rms_stock_count_session/static/src/count_scan/**/*',
         ],
