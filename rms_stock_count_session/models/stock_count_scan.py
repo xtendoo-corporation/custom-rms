@@ -9,6 +9,7 @@ from odoo.exceptions import UserError
 from odoo.tools import SQL
 
 from .scan_rule import normalize_code
+from .sage_expected import normalize_serial
 
 # Prefijos que algunos fabricantes imprimen dentro del propio código de
 # barras del número de serie ("S/N: 12345", "SN 12345", "SERIAL NO. 12345").
@@ -22,6 +23,8 @@ _SERIAL_PREFIX_RE = re.compile(
 # lectores anteponen, y caracteres de control (separador GS de GS1).
 _AIM_PREFIX_RE = re.compile(r"^\][A-Za-z][0-9A-Za-z]")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_SONY_PART_RE = re.compile(r"^P-?\d{8}-?[0-9A-Z]$", re.IGNORECASE)
+_SSCC_RE = re.compile(r"^(?:\(00\)|00)\d{18}$")
 _CAMERA_SERIAL_RE = re.compile(r"^S\d{2}-?\d{7}", re.IGNORECASE)
 
 
@@ -82,6 +85,68 @@ class RmsStockCountScan(models.Model):
         string="Id. de lectura en el dispositivo", readonly=True, index=True,
         help="Evita duplicar una lectura si la PDA la reenvía tras perder la conexión.",
     )
+
+    source = fields.Selection([("camera", "Cámara"), ("scanner", "PDA")], default="scanner", readonly=True)
+    sage_suggestion_product_id = fields.Many2one(
+        "product.product", compute="_compute_sage_suggestion", store=True,
+        string="Producto sugerido por Sage",
+    )
+    sage_suggestion = fields.Char(
+        string="Sugerencia de Sage", compute="_compute_sage_suggestion", store=True,
+    )
+
+    @api.depends("scan_type", "lot_name", "session_id.expected_ids.serial_normalized",
+                 "session_id.expected_ids.product_id", "session_id.expected_ids.model_code",
+                 "session_id.expected_ids.warehouse_code",
+                 "session_id.expected_ids.state_hint")
+    def _compute_sage_suggestion(self):
+        for scan in self:
+            scan.sage_suggestion_product_id = False
+            scan.sage_suggestion = False
+            if scan.scan_type != "unknown" or not scan.lot_name:
+                continue
+            serial = normalize_serial(scan.lot_name)
+            matches = scan.session_id.expected_ids.filtered(
+                lambda line: line.serial_normalized and line.serial_normalized == serial
+            )
+            products = matches.product_id
+            if len(products) == 1:
+                scan.sage_suggestion_product_id = products
+            if matches:
+                scan.sage_suggestion = "; ".join(dict.fromkeys(
+                    "%s · Sage: %s %s" % (
+                        line.product_id.display_name or line.model_code,
+                        line.warehouse_code or "", line.state_hint or "",
+                    ) for line in matches
+                ))
+
+    def action_use_sage_suggestion(self):
+        for scan in self:
+            if not scan.sage_suggestion_product_id:
+                raise UserError("Sage no propone un único producto para esta lectura.")
+            scan.product_id = scan.sage_suggestion_product_id
+            scan.action_assign_product()
+            if scan.source != "camera":
+                continue
+            prefix = scan.client_uid.rsplit(":", 1)[0] if scan.client_uid and ":" in scan.client_uid else False
+            peers = self.search([
+                ("session_id", "=", scan.session_id.id),
+                ("operator_id", "=", scan.operator_id.id),
+                ("source", "=", "camera"), ("scan_type", "=", "unknown"),
+            ])
+            for peer in peers:
+                # Aprender un código identifica todas sus lecturas de la sesión.
+                # Un peer anterior puede haber convertido ya esta misma fila.
+                if peer.scan_type != "unknown":
+                    continue
+                peer_prefix = peer.client_uid.rsplit(":", 1)[0] if peer.client_uid and ":" in peer.client_uid else False
+                same_frame = (prefix == peer_prefix) if prefix and peer_prefix else (
+                    scan.scanned_at.replace(microsecond=0) == peer.scanned_at.replace(microsecond=0)
+                )
+                if same_frame and _SONY_PART_RE.fullmatch(peer.code):
+                    peer.product_id = scan.product_id
+                    peer.action_learn_product_code()
+        return True
 
     # ------------------------------------------------------------------
     # Clasificación de un código escaneado
@@ -174,7 +239,10 @@ class RmsStockCountScan(models.Model):
                 message="Ignorado: %s" % rule_match["rule"].name,
             )
 
-        if not rule_match:
+        product_code = bool(rule_match and rule_match["action"] == "product_code") or bool(
+            camera and _SONY_PART_RE.fullmatch(code)
+        )
+        if not rule_match or product_code:
             products, is_case = self.env["product.product"]._rms_find_by_code(code)
             if len(products) > 1 and len(products.product_tmpl_id) == 1:
                 products = self._pick_variant(products, operator.current_product_id)
@@ -204,6 +272,10 @@ class RmsStockCountScan(models.Model):
                     base, scan_type="product_ref", product_id=product.id, quantity=0.0,
                     message=message,
                 )
+
+        if product_code:
+            return dict(base, scan_type="unknown", quantity=0.0,
+                        message="número de pieza desconocido")
 
         # Product-shaped camera codes must never become invented serials,
         # including malformed GTINs whose check digit is invalid.
@@ -296,12 +368,46 @@ class RmsStockCountScan(models.Model):
         }
         for _index, _raw, vals in readings:
             product_ids.update(vals.pop("_camera_product_ids", []))
+        # Los códigos de 3-4 cifras de IDL son logísticos únicamente si el
+        # encuadre aporta contexto. DiGiCo usa 6 cifras + año/mes y no se toca.
+        logistics_context = bool(product_ids) or any(
+            _SSCC_RE.fullmatch(clean_code(raw)) for _index, raw, _vals in readings
+        )
+        if logistics_context:
+            for _index, raw, vals in readings:
+                if re.fullmatch(r"\d{3,4}", clean_code(raw)) and vals["scan_type"] in ("unknown", "serial"):
+                    vals.clear()
+                    vals.update(scan_type="ignored", ignored=True, quantity=0.0,
+                                message="código logístico corto del encuadre")
         candidates = {
             vals["lot_name"] for _index, _raw, vals in readings
             if vals.get("lot_name") and vals["scan_type"] in ("serial", "unknown")
         }
         product = self.env["product.product"].browse(list(product_ids))
+        sage_serial = False
+        if len(product_ids) == 1 and len(candidates) > 1 and product.tracking != "none":
+            expected = operator.session_id.expected_ids.filtered(lambda line: line.product_id == product)
+            expected_serials = set(expected.mapped("serial_normalized")) - {False, ""}
+            matching = {serial for serial in candidates if normalize_serial(serial) in expected_serials}
+            if len(matching) == 1:
+                sage_serial = next(iter(matching))
         for _index, _raw, vals in readings:
+            vals["source"] = "camera"
+            if sage_serial and vals.get("lot_name") in candidates:
+                if vals["lot_name"] != sage_serial:
+                    vals.update(scan_type="ignored", ignored=True, quantity=0.0,
+                                message="componente del kit (número de serie de Sage: %s)" % sage_serial)
+                    continue
+                # Una serie ya existente de otro producto sigue pendiente.
+                if vals.get("product_id") and vals["product_id"] != product.id:
+                    vals.update(scan_type="unknown", quantity=0.0,
+                                message="La serie de Sage existe con otro producto en Odoo")
+                    continue
+                if product.tracking != "none":
+                    vals.update(scan_type="serial", product_id=product.id,
+                                is_new_lot=not vals.get("lot_id"), quantity=1.0,
+                                message="%s · %s (Sage)" % (product.display_name, sage_serial))
+                    continue
             if vals["scan_type"] != "unknown" or vals.get("message") != "sin producto en el encuadre":
                 continue
             if not product_ids:
@@ -509,6 +615,8 @@ class RmsStockCountScan(models.Model):
         serie, si lo lleva)."""
         for scan in self:
             scan._check_reviewable()
+            if _SONY_PART_RE.fullmatch(scan.code):
+                raise UserError("Este número de pieza es un código de producto; usa Es el código del producto.")
             product = scan.product_id
             vals = {"quantity": 1.0, "message": "Asignado a mano a %s" % product.display_name}
             if product.tracking == "none":

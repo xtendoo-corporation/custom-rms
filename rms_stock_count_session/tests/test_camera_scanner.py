@@ -2,6 +2,7 @@
 
 import base64
 
+from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -296,3 +297,108 @@ class TestCameraScanner(TransactionCase):
                          {'RMSTEST-HISTORY-%s' % index for index in range(65)})
         self.assertEqual([scan['id'] for scan in history],
                          sorted((scan['id'] for scan in history), reverse=True))
+
+    def test_unknown_sony_part_is_never_a_camera_serial(self):
+        results = self._camera_batch(
+            ['027242792319', 'P81672643J'], 'camera-unknown-part',
+        )
+        part = self.Scan.browse(next(
+            result['scan']['id'] for result in results
+            if result['scan']['code'] == 'P81672643J'
+        ))
+        self.assertEqual(part.scan_type, 'unknown')
+        self.assertFalse(part.lot_name)
+        self.assertEqual(part.message, 'número de pieza desconocido')
+        self.assertFalse(self.session.scan_ids.filtered(lambda scan: scan.scan_type == 'serial'))
+
+    def test_camera_part_guard_without_configured_rule(self):
+        # A noupdate rule can be absent or disabled in an upgraded database.
+        self.env['rms.scan.rule'].search([('action', '=', 'product_code')]).write({'active': False})
+        self.env['stock.lot'].create({'name': 'P81672643J', 'product_id': self.product.id})
+        results = self._camera_batch(
+            ['027242792319', 'P81672643J'], 'camera-part-no-rule',
+        )
+        part = next(result for result in results if result['scan']['code'] == 'P81672643J')
+        self.assertEqual(part['status'], 'unknown')
+        self.assertFalse(part['scan']['lot_name'])
+
+    def test_sony_part_rule_also_protects_pda_current_product(self):
+        self.operator.current_product_id = self.product
+        result = self.Scan.scanner_register(self.operator.id, 'P81672643J')
+        self.assertEqual(result['status'], 'unknown')
+        self.assertFalse(result['scan']['lot_name'])
+        self.assertEqual(result['scan']['message'], 'número de pieza desconocido')
+        known = self.Scan.scanner_register(self.operator.id, 'P81675340G')
+        self.assertEqual(known['status'], 'product_ref')
+
+    def test_short_logistics_codes_require_camera_frame_context(self):
+        isolated = self._camera_batch(['2218'], 'short-alone')[0]
+        self.assertEqual(isolated['status'], 'unknown')
+        with_product = self._camera_batch(
+            ['2218', '027242792319', 'S010040002Z'], 'short-product',
+        )
+        self.assertEqual(next(r for r in with_product if r['scan']['code'] == '2218')['status'],
+                         'ignored')
+        self.assertEqual(next(r for r in with_product if r['scan']['lot_name'] == '0040002')['status'],
+                         'ok')
+        with_sscc = self._camera_batch(
+            ['318', '(00)050134930120831424'], 'short-sscc',
+        )
+        self.assertEqual(next(r for r in with_sscc if r['scan']['code'] == '318')['status'],
+                         'ignored')
+        # DiGiCo's six-digit serial plus year/month remains a serial.
+        digico = self._camera_batch(['027242792319', '215466 2301'], 'short-digico')
+        self.assertEqual(next(r for r in digico if r['scan']['lot_name'] == '215466 2301')['status'],
+                         'ok')
+        self.operator.current_product_id = self.product
+        pda = self.Scan.scanner_register(self.operator.id, '2218')
+        self.assertEqual(pda['status'], 'ok')
+        self.assertEqual(pda['scan']['lot_name'], '2218')
+
+    def test_camera_kit_uses_only_unique_sage_serial(self):
+        self.product.default_code = 'RMSTEST-KIT-SAGE'
+        self.env['rms.stock.count.expected'].create({
+            'session_id': self.session.id, 'warehouse_code': 'AL1',
+            'article_code': 'RMSTEST-KIT-SAGE', 'model_code': 'RMSTEST-KIT-SAGE',
+            'serial': '0040002', 'quantity': 1,
+        })
+        results = self._camera_batch(
+            ['027242792319', 'S010040001Z', 'S010040002Z', 'S010040003Z'],
+            'camera-sage-kit',
+        )
+        serials = self.session.scan_ids.filtered(lambda scan: scan.scan_type == 'serial')
+        self.assertEqual(serials.product_id, self.product)
+        self.assertEqual(serials.lot_name, '0040002')
+        components = self.session.scan_ids.filtered(
+            lambda scan: scan.lot_name in ('0040001', '0040003')
+        )
+        self.assertEqual(len(components), 2)
+        self.assertTrue(all(scan.scan_type == 'ignored' and scan.ignored for scan in components))
+        self.assertEqual(set(components.mapped('message')),
+                         {'componente del kit (número de serie de Sage: 0040002)'})
+        self.assertEqual(len(results), 4)
+
+    def test_camera_kit_multiple_sage_serials_remains_pending(self):
+        self.product.default_code = 'RMSTEST-KIT-AMBIGUOUS'
+        self.env['rms.stock.count.expected'].create([
+            {'session_id': self.session.id, 'warehouse_code': 'AL1',
+             'article_code': self.product.default_code, 'model_code': self.product.default_code,
+             'serial': serial, 'quantity': 1}
+            for serial in ('0040001', '0040002')
+        ])
+        self._camera_batch(
+            ['027242792319', 'S010040001Z', 'S010040002Z', 'S010040003Z'],
+            'camera-sage-kit-ambiguous',
+        )
+        serials = self.session.scan_ids.filtered(lambda scan: bool(scan.lot_name))
+        self.assertEqual(len(serials), 3)
+        self.assertEqual(set(serials.mapped('scan_type')), {'unknown'})
+
+    def test_review_cannot_assign_part_number_as_serial(self):
+        result = self._camera_batch(['P81672643J'], 'part-review')[0]
+        scan = self.Scan.browse(result['scan']['id'])
+        scan.product_id = self.product
+        with self.assertRaises(UserError):
+            scan.action_assign_product()
+        self.assertEqual(scan.scan_type, 'unknown')
+        self.assertFalse(scan.lot_name)

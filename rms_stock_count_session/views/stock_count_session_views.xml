@@ -78,6 +78,10 @@
                 <field name="code" readonly="1"/>
                 <field name="product_id" readonly="scan_type != 'unknown'" options="{'no_create': True}"/>
                 <field name="lot_name" readonly="1"/>
+                <field name="sage_suggestion" readonly="1" optional="show"/>
+                <field name="sage_suggestion_product_id" column_invisible="True"/>
+                <button name="action_use_sage_suggestion" type="object" string="Usar sugerencia de Sage"
+                        icon="fa-check" invisible="scan_type != 'unknown' or not sage_suggestion_product_id"/>
                 <field name="is_new_lot" readonly="1" optional="show"/>
                 <field name="location_id" readonly="1"/>
                 <field name="message" readonly="1" optional="show"/>

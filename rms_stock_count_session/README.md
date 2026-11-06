@@ -76,6 +76,43 @@ el otro.
 
 ## Informe de cruce
 
+### Exportación de Sage 50
+
+**Cargar exportación de Sage** importa el Excel «Valoración de stocks» y
+reemplaza lo esperado de esa sesión. Conserva almacenes como `AL1` o `A.7`,
+el artículo original, estado, cantidad, precio y las series como texto. Las
+series se comparan sin separadores ni ceros iniciales. `S/N` representa
+cantidad sin serie identificada. La importación necesita `openpyxl` en el
+servidor de Odoo.
+
+La identificación de producto se actualiza al importar y al abrir **Cruce
+Sage**, incluyendo los alias aprendidos después de la carga. Para artículos
+sin serie, una cantidad contada inferior a la esperada sigue como **no
+contado**; las dos columnas de cantidades muestran lo contado y lo pendiente.
+Se retiran los prefijos `D-`/`2M-` y las marcas reconocidas (Sony, DiGiCo,
+Meyer, Luminex, Auvitran, AtlasIED, Williams, SoundDevices, Sennheiser, Shure
+y Yamaha). Otras marcas necesitan ampliar esa lista antes de importar sus
+referencias con prefijo de marca.
+
+En **Sin identificar**, una serie con un único producto candidato muestra
+**Usar sugerencia de Sage**. Al usarla se asigna la unidad y se aprende el
+número de pieza Sony desconocido del mismo encuadre de cámara, si existe.
+Los candidatos ambiguos requieren revisión manual. **Cruce Sage** abre una
+lista exportable con lo contado, lo contado con otro producto, lo pendiente
+y las unidades sobrantes.
+
+Los números de pieza Sony `P-xxxxxxxx-x` son códigos de producto, nunca
+series: si aún no se conocen, se aprenden con **Es el código del producto**.
+Solo en cámara, las pegatinas numéricas de 3–4 cifras se ignoran cuando el
+encuadre contiene un SSCC o un código de producto reconocido; solas quedan
+pendientes. Esto conserva las series DiGiCo de 6 cifras más año/mes y el
+comportamiento del lector PDA.
+
+En un kit con un producto reconocido y varias series, la cámara cuenta la
+única serie que Sage espera para ese producto e ignora las otras como
+componentes. Si no hay una coincidencia única, las series nuevas siguen
+pendientes de revisión.
+
 | Resultado | Significado | ¿Se vuelca por defecto? |
 |---|---|---|
 | Coincide | Lo vieron todos (y en la misma cantidad) | Sí |

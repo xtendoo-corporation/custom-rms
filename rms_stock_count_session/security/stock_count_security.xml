@@ -5,4 +5,19 @@
         <field name="model_id" ref="model_rms_stock_count_session"/>
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
+    <record id="rule_rms_stock_count_expected_company" model="ir.rule">
+        <field name="name">Sage: multicompañía (expected)</field>
+        <field name="model_id" ref="model_rms_stock_count_expected"/>
+        <field name="domain_force">[('session_id.company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_rms_stock_count_sage_line_company" model="ir.rule">
+        <field name="name">Sage: multicompañía (sage.line)</field>
+        <field name="model_id" ref="model_rms_stock_count_sage_line"/>
+        <field name="domain_force">[('session_id.company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_rms_stock_count_sage_import_company" model="ir.rule">
+        <field name="name">Sage: multicompañía (sage.import)</field>
+        <field name="model_id" ref="model_rms_stock_count_sage_import"/>
+        <field name="domain_force">[('session_id.company_id', 'in', company_ids)]</field>
+    </record>
 </odoo>

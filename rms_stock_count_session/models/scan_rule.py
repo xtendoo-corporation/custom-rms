@@ -74,7 +74,8 @@ class RmsScanRule(models.Model):
              "(?P<serial>...).",
     )
     action = fields.Selection(
-        [("serial", "Es un número de serie"), ("ignore", "Ignorar (no es de producto)")],
+        [("serial", "Es un número de serie"), ("product_code", "Es un código de producto"),
+         ("ignore", "Ignorar (no es de producto)")],
         string="Acción", required=True, default="serial",
     )
     transform = fields.Selection(
@@ -90,7 +91,7 @@ class RmsScanRule(models.Model):
     example = fields.Char(string="Ejemplo de lectura")
     note = fields.Text(string="Notas")
 
-    @api.constrains("pattern")
+    @api.constrains("pattern", "action")
     def _check_pattern(self):
         for rule in self:
             try:

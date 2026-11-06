@@ -48,6 +48,16 @@
         <field name="note">Cajas de kit UWP-D y auriculares MDR: el número de serie va en cada componente, no en la caja.</field>
     </record>
 
+    <record id="scan_rule_sony_product_code" model="rms.scan.rule">
+        <field name="sequence">10</field>
+        <field name="name">Sony: número de pieza P-xxxxxxxx-x</field>
+        <field name="brand">Sony</field>
+        <field name="pattern">P-?\d{8}-?[0-9A-Z]</field>
+        <field name="action">product_code</field>
+        <field name="example">P81672643J</field>
+        <field name="note">Referencia de producto, nunca número de serie. Si no se conoce, aprender como código del producto.</field>
+    </record>
+
     <!-- ===================== Números de serie por marca ===================== -->
     <record id="scan_rule_sony_serial" model="rms.scan.rule">
         <field name="sequence">20</field>
