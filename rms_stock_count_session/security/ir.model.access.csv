@@ -21,3 +21,4 @@ access_rms_sage_article_map_user,rms.sage.article_map.user,model_rms_sage_articl
 access_rms_sage_article_map_manager,rms.sage.article_map.manager,model_rms_sage_article_map,stock.group_stock_manager,1,1,1,1
 access_rms_sage_article_assign_user,rms.sage.article_assign.user,model_rms_sage_article_assign,stock.group_stock_user,1,0,0,0
 access_rms_sage_article_assign_manager,rms.sage.article_assign.manager,model_rms_sage_article_assign,stock.group_stock_manager,1,1,1,1
+access_rms_sage_brand_prefix_manager,rms.sage.brand.prefix.manager,model_rms_sage_brand_prefix,stock.group_stock_manager,1,1,1,1

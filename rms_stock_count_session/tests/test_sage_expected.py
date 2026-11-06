@@ -32,14 +32,14 @@ class TestSageExpected(TransactionCase):
         cls.snapshot = cls.env['rms.sage.snapshot'].create({'name': 'Test additional', 'brand_categ_id': cls.brand.id})
         Product = cls.env['product.product']
         cls.dwm = Product.create({
-            'name': 'RMSTEST DWM', 'default_code': 'DWM-02N/33',
+            'name': 'RMSTEST DWM', 'categ_id': cls.brand.id, 'default_code': 'DWM-02N/33',
             'is_storable': True, 'tracking': 'serial',
         })
         cls.antenna = Product.create({
-            'name': 'AN-01', 'is_storable': True, 'tracking': 'none',
+            'name': 'AN-01', 'categ_id': cls.brand.id, 'is_storable': True, 'tracking': 'none',
         })
         cls.wd = Product.create({
-            'name': 'WD-850A', 'is_storable': True, 'tracking': 'serial',
+            'name': 'WD-850A', 'categ_id': cls.brand.id, 'is_storable': True, 'tracking': 'serial',
         })
         cls.env['rms.product.scan.alias'].create({
             'product_tmpl_id': cls.wd.product_tmpl_id.id, 'code': 'WD-850A',
@@ -69,7 +69,7 @@ class TestSageExpected(TransactionCase):
         workbook.save(stream)
         workbook.close()
         wizard = self.env['rms.stock.count.sage.import'].create({
-            'brand_categ_id': self.brand.id, 'mode': 'replace', 'allow_duplicate': True, 'filename': 'sage_valoracion_sony_ejemplo.xlsx',
+            'scope': 'brand', 'brand_categ_id': self.brand.id, 'mode': 'replace', 'allow_duplicate': True, 'filename': 'sage_valoracion_sony_ejemplo.xlsx',
             'file_data': base64.b64encode(stream.getvalue()),
         })
         wizard.action_import()
@@ -169,7 +169,7 @@ class TestSageExpected(TransactionCase):
         workbook.save(stream)
         workbook.close()
         self.env['rms.stock.count.sage.import'].create({
-            'brand_categ_id': self.brand.id, 'mode': 'replace', 'allow_duplicate': True, 'filename': 'sin_series.xlsx',
+            'scope': 'brand', 'brand_categ_id': self.brand.id, 'mode': 'replace', 'allow_duplicate': True, 'filename': 'sin_series.xlsx',
             'file_data': base64.b64encode(stream.getvalue()),
         }).action_import()
         expected = self.session._sage_lines()

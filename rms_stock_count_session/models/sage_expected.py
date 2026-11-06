@@ -22,7 +22,9 @@ def sage_article_parts(article):
         state, article = 'Demo', article[2:]
     # Sage antepone la marca al modelo. No cortar WD-850A ni DWM-02N.
     brands = ('SONY', 'DIGICO', 'MEYER', 'LUMINEX', 'AUVITRAN', 'ATLASIED',
-              'WILLIAMS', 'SOUNDDEVICES', 'SENNHEISER', 'SHURE', 'YAMAHA')
+              'WILLIAMS', 'SOUNDDEVICES', 'SENNHEISER', 'SHURE', 'YAMAHA',
+              'DIG', 'DIGX', 'DIGCARD', 'DIGMOD', 'AUV', 'W', 'PS', 'LU',
+              'A', 'N', 'OPT', 'FUR', 'WAV', 'WIL', 'BLK', 'SD', 'TEQ', 'HAR')
     for brand in brands:
         if article.upper().startswith(brand + '-'):
             article = article[len(brand) + 1:]

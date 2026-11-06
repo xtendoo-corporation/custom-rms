@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Recuento cruzado (varios operarios)',
-    'version': '19.0.2.0.0',
+    'version': '19.0.2.1.0',
     'category': 'Inventory/Inventory',
     'summary': (
         'Varias personas recorren el almacén escaneando con PDA o móvil y '
@@ -32,6 +32,7 @@ Recuento cruzado con varios operarios
         'security/stock_count_security.xml',
         'security/ir.model.access.csv',
         'data/sage_warehouse_data.xml',
+        'data/sage_brand_prefix_data.xml',
         'data/ir_sequence_data.xml',
         'data/rms_scan_rule_data.xml',
         'report/stock_count_cross_report.xml',

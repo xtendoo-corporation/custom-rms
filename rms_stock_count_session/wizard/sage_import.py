@@ -3,13 +3,17 @@ import base64
 import binascii
 import csv
 import hashlib
-from io import BytesIO
+from collections import Counter, defaultdict
+from io import BytesIO, StringIO
 from zipfile import BadZipFile
 
 from odoo import fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..models.sage_library import SAGE_COMPANIES, article_parts
+from ..models.sage_expected import normalize_serial
+from ..models.scan_rule import normalize_code
+
+from ..models.sage_library import SAGE_COMPANIES, article_parts, article_prefix
 
 
 class StockCountSageImport(models.TransientModel):
@@ -19,8 +23,10 @@ class StockCountSageImport(models.TransientModel):
     session_id = fields.Many2one('rms.stock.count.session', ondelete='cascade')
     company_id = fields.Many2one('res.company', required=True, default=lambda self: self.env.company)
     sage_company_code = fields.Selection(SAGE_COMPANIES, required=True, default='01')
-    brand_categ_id = fields.Many2one('product.category', required=True, domain="[('parent_id', '=', False)]")
-    mode = fields.Selection([('add', 'Añadir archivos'), ('replace', 'Reemplazar versión')], required=True, default='add')
+    scope = fields.Selection([('all', 'Todas las marcas (archivo completo de la empresa)'),
+                              ('brand', 'Una marca')], required=True, default='all')
+    brand_categ_id = fields.Many2one('product.category', domain="[('parent_id', '=', False)]")
+    mode = fields.Selection([('add', 'Añadir archivos'), ('replace', 'Reemplazar versión')], required=True, default='replace')
     export_date = fields.Date(required=True, default=fields.Date.context_today)
     file_data = fields.Binary(string='Excel o CSV Valoración de stocks', required=True)
     filename = fields.Char(string='Nombre de archivo')
@@ -34,14 +40,16 @@ class StockCountSageImport(models.TransientModel):
             raise AccessError('Solo administración de inventario puede cargar Sage.')
         if self.company_id not in self.env.companies:
             raise AccessError('La empresa no está permitida.')
+        if self.scope == 'brand' and not self.brand_categ_id:
+            raise UserError('Selecciona una marca para cargar un archivo de una marca.')
+        if self.scope == 'brand' and self.brand_categ_id.parent_id:
+            raise UserError('La marca debe ser una categoría de primer nivel.')
         try:
             raw = base64.b64decode(self.file_data, validate=True)
         except (ValueError, binascii.Error) as exc:
             raise UserError('El archivo no es válido.') from exc
         digest = hashlib.sha256(raw).hexdigest()
         Snapshot = self.env['rms.sage.snapshot']
-        if not self.allow_duplicate and Snapshot.search_count([('file_hash', '=', digest), ('company_id', '=', self.company_id.id), ('sage_company_code', '=', self.sage_company_code), ('brand_categ_id', '=', self.brand_categ_id.id)]):
-            raise UserError('Este archivo ya se cargó. Activa «Cargar aunque ya se haya cargado» para continuar.')
         workbook = None
         try:
             if (self.filename or '').lower().endswith('.csv') or not raw.startswith(b'PK'):
@@ -51,9 +59,9 @@ class StockCountSageImport(models.TransientModel):
                     content = raw.decode('latin-1')
                 try:
                     dialect = csv.Sniffer().sniff(content[:8192], delimiters=';,')
-                    rows = csv.reader(content.splitlines(), dialect)
+                    rows = csv.reader(StringIO(content, newline=""), dialect)
                 except csv.Error:
-                    rows = csv.reader(content.splitlines(), delimiter=';')
+                    rows = csv.reader(StringIO(content, newline=""), delimiter=';')
             else:
                 from openpyxl import load_workbook
                 workbook = load_workbook(BytesIO(raw), read_only=True, data_only=True)
@@ -66,20 +74,100 @@ class StockCountSageImport(models.TransientModel):
                 workbook.close()
         if not vals:
             raise UserError('La exportación no contiene existencias.')
-        snapshot = Snapshot.create({'name': self.filename or 'Exportación Sage', 'company_id': self.company_id.id,
-            'sage_company_code': self.sage_company_code, 'brand_categ_id': self.brand_categ_id.id,
-            'export_date': self.export_date, 'filename': self.filename, 'attachment': self.file_data, 'file_hash': digest})
+        Line = self.env['rms.sage.stock.line'].sudo().with_context(tracking_disable=True, mail_notrack=True)
         for val in vals:
             val.pop('session_id', None)
             hint = val.pop('state_hint', 'Nuevo')
-            val.update(snapshot_id=snapshot.id, state={'Nuevo': 'nuevo', 'Demo': 'demo', '2Mano': '2mano'}.get(hint, 'nuevo'))
-        Line = self.env['rms.sage.stock.line'].sudo().with_context(tracking_disable=True, mail_notrack=True)
-        for start in range(0, len(vals), 2000):
-            Line.create(vals[start:start + 2000])
-        snapshot.action_activate(self.mode)
-        if self.parse_warnings:
+            val['state'] = {'Nuevo': 'nuevo', 'Demo': 'demo', '2Mano': '2mano'}.get(hint, 'nuevo')
+        articles = {(val['article_code'], val['model_code'], val['state']) for val in vals}
+        resolved = Line._resolve_article_values(articles, self.company_id.id)
+        products = self.env['product.product'].browse(list({v['product_id'] for v in resolved.values() if v['product_id']}))
+        product_brands = {}
+        for product in products:
+            category = product.categ_id
+            while category.parent_id:
+                category = category.parent_id
+            product_brands[product.id] = category.id
+        # Count articles, not stock rows or serials, when learning prefixes and
+        # detecting a company-wide file uploaded as a single brand.
+        counts = Counter()
+        learned = defaultdict(Counter)
+        seen_articles = set()
+        for key, match in resolved.items():
+            article = normalize_code(key[0])
+            brand = product_brands.get(match['product_id'])
+            if brand and article not in seen_articles:
+                seen_articles.add(article)
+                counts[brand] += 1
+                prefix = article_prefix(key[0])
+                if prefix:
+                    learned[prefix][brand] += 1
+        if self.scope == 'brand' and counts:
+            other = sum(count for brand, count in counts.items() if brand != self.brand_categ_id.id)
+            if other / sum(counts.values()) > 0.20:
+                categories = self.env['product.category'].browse(sorted(counts))
+                details = ', '.join('%s de %s' % (counts[category.id], category.name) for category in categories)
+                raise UserError("Este archivo parece tener varias marcas (%s); elige 'Todas las marcas'" % details)
+        prefix_brands = {}
+        if self.scope == 'all':
+            Prefix = self.env['rms.sage.brand.prefix']
+            Prefix._seed_existing_brands()
+            prefix_brands = {mapping.prefix: mapping.brand_categ_id.id for mapping in Prefix.search([])
+                             if not mapping.brand_categ_id.parent_id}
+            for prefix, brands in learned.items():
+                prefix_brands[prefix] = min(brands, key=lambda brand: (-brands[brand], brand))
+        grouped = defaultdict(list)
+        unknown = False
+        warehouses = self.env['rms.sage.warehouse'].search([
+            ('company_id', '=', self.company_id.id), ('sage_company_code', '=', self.sage_company_code)])
+        wh_map = {warehouse.code: warehouse.id for warehouse in warehouses}
+        for val in vals:
+            match = resolved[(val['article_code'], val['model_code'], val['state'])]
+            val.update(match, sage_warehouse_id=wh_map.get(val['warehouse_code'], False))
+            brand = self.brand_categ_id.id if self.scope == 'brand' else (
+                product_brands.get(match['product_id']) or prefix_brands.get(article_prefix(val['article_code'])))
+            if not brand:
+                if not unknown:
+                    Category = self.env['product.category'].sudo()
+                    unknown = Category.search([('name', '=', 'Sin marca'), ('parent_id', '=', False)], limit=1)
+                    if not unknown:
+                        unknown = Category.create({'name': 'Sin marca'})
+                brand = unknown.id
+            grouped[brand].append(val)
+        domain = [('file_hash', '=', digest), ('company_id', '=', self.company_id.id),
+                  ('sage_company_code', '=', self.sage_company_code), ('brand_categ_id', 'in', list(grouped))]
+        if not self.allow_duplicate and Snapshot.search_count(domain):
+            raise UserError('Este archivo ya se cargó. Activa «Cargar aunque ya se haya cargado» para continuar.')
+        snapshots = Snapshot.with_context(tracking_disable=True, mail_notrack=True).create([
+            {'name': self.filename or 'Exportación Sage', 'company_id': self.company_id.id,
+             'sage_company_code': self.sage_company_code, 'brand_categ_id': brand,
+             'export_date': self.export_date, 'filename': self.filename,
+             'attachment': self.file_data, 'file_hash': digest} for brand in sorted(grouped)])
+        # Binary attachment storage deduplicates the identical file content.
+        summary = []
+        for snapshot in snapshots:
+            values = grouped[snapshot.brand_categ_id.id]
+            for val in values:
+                val['snapshot_id'] = snapshot.id
+            for start in range(0, len(values), 2000):
+                Line.create(values[start:start + 2000])
+            summary.append('%s: %s líneas, %s unidades, %s números de serie, %s sin producto.' % (
+                snapshot.brand_categ_id.name, len(values), sum(val['quantity'] for val in values),
+                sum(bool(val.get('serial')) for val in values), sum(val['match_state'] != 'ok' for val in values)))
+        snapshots.action_activate(self.mode, products_resolved=True)
+        for snapshot in snapshots:
             snapshot.quality_warnings = '\n'.join(filter(None, [snapshot.quality_warnings, self.parse_warnings]))
-        return {'type': 'ir.actions.act_window', 'res_model': 'rms.sage.snapshot', 'res_id': snapshot.id, 'view_mode': 'form'}
+        message = '\n'.join(summary)
+        # Keep the per-brand summary available after the notification disappears.
+        snapshots.write({'import_summary': message})
+        action = {'type': 'ir.actions.act_window', 'res_model': 'rms.sage.snapshot', 'view_mode': 'list,form',
+                  'domain': [('id', 'in', snapshots.ids)]}
+        if len(snapshots) == 1:
+            action.update(res_id=snapshots.id, view_mode='form')
+            return action
+        return {'type': 'ir.actions.client', 'tag': 'display_notification',
+                'params': {'title': 'Carga de Sage completada', 'message': message,
+                           'type': 'success', 'sticky': True, 'next': action}}
 
     def _parse_rows(self, rows):
         """Los totales de artículo son cabeceras; sus lotes son el detalle."""
@@ -90,6 +178,12 @@ class StockCountSageImport(models.TransientModel):
         price = 0
         group = None
         result = []
+        block_rows = []
+        block_values = []
+        seen_blocks = set()
+        seen_serials = set()
+        quantities = {}
+        model_cache = {}
         prefixes = sorted(self.env['product.category'].search([('parent_id', '=', False)]).mapped('name'), key=len, reverse=True)
 
         def number(value):
@@ -102,20 +196,48 @@ class StockCountSageImport(models.TransientModel):
         def flush():
             if not group:
                 return
-            model, state = article_parts(self.env, group['article'], prefixes)
+            if group['article'] not in model_cache:
+                model_cache[group['article']] = article_parts(self.env, group['article'], prefixes)
+            model, state = model_cache[group['article']]
             base = {'session_id': self.session_id.id, 'warehouse_code': group['warehouse'],
                     'article_code': group['article'], 'model_code': model,
                     'state_hint': state, 'cost': group['price']}
             real = [(s, q) for s, q in group['lots'] if s.upper().replace(' ', '') not in ('S/N', 'SN')]
             generic_qty = sum(q for s, q in group['lots'] if s.upper().replace(' ', '') in ('S/N', 'SN'))
             for serial, qty in real:
-                result.append(dict(base, serial=serial, quantity=qty))
+                block_values.append(dict(base, serial=serial, quantity=qty))
             remainder = group['quantity'] - sum(q for _s, q in real)
             if group['quantity'] >= 0:
                 remainder = max(0, remainder)
             quantity = max(generic_qty, remainder) if group['quantity'] >= 0 else remainder
             if quantity:
-                result.append(dict(base, quantity=quantity))
+                block_values.append(dict(base, quantity=quantity))
+
+        def flush_block():
+            if not block_rows:
+                return
+            fingerprint = hashlib.sha256(repr(block_rows).encode('utf-8')).digest()
+            if fingerprint not in seen_blocks:
+                seen_blocks.add(fingerprint)
+                for val in block_values:
+                    serial = normalize_serial(val.get('serial'))
+                    key = (val['warehouse_code'], normalize_code(val['article_code']), serial)
+                    if serial:
+                        if key in seen_serials:
+                            continue
+                        seen_serials.add(key)
+                    else:
+                        if key in quantities:
+                            previous = quantities[key]
+                            total = previous['quantity'] + val['quantity']
+                            if total:
+                                previous['cost'] = (previous['cost'] * previous['quantity'] + val['cost'] * val['quantity']) / total
+                            previous['quantity'] = total
+                            continue
+                        quantities[key] = val
+                    result.append(val)
+            block_rows.clear()
+            block_values.clear()
 
         for row in rows:
             if headers is None:
@@ -133,6 +255,11 @@ class StockCountSageImport(models.TransientModel):
                 return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value or '').strip()
             wh, art, serial = text('Almacén'), text('Artículo'), text('Lotes')
             qty = cell('Unidades')
+            if art:
+                flush()
+                group = None
+                flush_block()
+            block_rows.append(tuple(row))
             if art or wh:
                 flush()
                 group = None
@@ -141,12 +268,13 @@ class StockCountSageImport(models.TransientModel):
                     price = number(cell('Precio'))
                 if wh:
                     warehouse = wh
-                if article and warehouse and qty is not None:
+                if article and warehouse and warehouse != '000' and qty not in (None, '') and number(qty):
                     group = {'article': article, 'warehouse': warehouse, 'quantity': number(qty),
                              'price': number(cell('Precio') if cell('Precio') is not None else price), 'lots': []}
             if serial and group:
                 group['lots'].append((serial, number(qty if qty is not None else 1)))
         flush()
+        flush_block()
         if headers is None:
             raise UserError('No se encontró la cabecera de Valoración de stocks de Sage.')
         return result

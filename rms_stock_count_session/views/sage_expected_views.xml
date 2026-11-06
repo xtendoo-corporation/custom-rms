@@ -6,11 +6,13 @@
         <field name="arch" type="xml">
             <form string="Cargar exportación de Sage">
                 <group>
-                    <field name="company_id"/><field name="sage_company_code"/><field name="brand_categ_id"/><field name="mode"/><field name="export_date"/><field name="allow_duplicate"/>
+                    <field name="company_id"/><field name="sage_company_code"/><field name="scope"/><field name="brand_categ_id" invisible="scope == 'all'" required="scope == 'brand'"/><field name="mode"/><field name="export_date"/><field name="allow_duplicate"/>
                     <field name="filename" invisible="1"/>
                     <field name="file_data" filename="filename"/>
                 </group>
-                <p>Selecciona un Excel o CSV «Valoración de stocks» de una empresa Sage y una marca. Añadir conserva los archivos vigentes; reemplazar sustituye toda la versión de esa empresa y marca.</p>
+                <p>Selecciona un Excel o CSV «Valoración de stocks» de una empresa Sage. Todas las marcas distribuye el archivo por la marca de cada artículo. Una marca permite cargar una exportación filtrada de esa marca.</p>
+                <p>Reemplazar: retira las versiones vigentes de las marcas presentes en el archivo; las demás marcas se conservan.</p>
+                <p>Añadir: conserva las versiones vigentes y añade las existencias de este archivo.</p>
                 <footer>
                     <button name="action_import" type="object" string="Cargar exportación" class="btn-primary"/>
                     <button special="cancel" string="Cancelar"/>
