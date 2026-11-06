@@ -400,3 +400,106 @@ class TestServerRestrictions(TransactionCase):
         })
         with self.assertRaises(ValidationError):
             SaleOrder.create({'partner_id': company.id, 'opportunity_id': lead2.id})
+
+    def test_opportunities_only_own_customers(self):
+        Lead = self.env['crm.lead'].with_user(self.user)
+        other_user = new_test_user(self.env, login='f1_comercial_oport', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
+        other = self.env['res.partner'].create({'name': 'Cliente ajeno oportunidad F1', 'user_id': other_user.id})
+        # Con un cliente ajeno no puede crearla, tampoco desde la ficha del cliente.
+        with self.assertRaises(ValidationError):
+            Lead.create({'name': 'Oportunidad ajena F1', 'type': 'opportunity', 'partner_id': other.id})
+        with self.assertRaises(ValidationError):
+            Lead.with_context(default_partner_id=other.id).create({'name': 'Desde la ficha F1', 'type': 'opportunity'})
+        # Con su cliente, un contacto de su empresa o sin cliente, sí.
+        contact = self.env['res.partner'].create({'name': 'Contacto oportunidad F1', 'parent_id': self.partner.id})
+        contact.user_id = False
+        lead = Lead.create({'name': 'Oportunidad propia F1', 'type': 'opportunity', 'partner_id': self.partner.id})
+        Lead.create({'name': 'Oportunidad contacto F1', 'type': 'opportunity', 'partner_id': contact.id})
+        Lead.create({'name': 'Oportunidad sin cliente F1', 'type': 'opportunity'})
+        # No puede cambiar su oportunidad a un cliente ajeno.
+        with self.assertRaises(ValidationError):
+            lead.with_user(self.user).write({'partner_id': other.id})
+        self.assertEqual(lead.partner_id, self.partner)
+        # El administrador no tiene restricción, ni el comercial con el
+        # permiso de presupuestar a cualquier cliente.
+        self.env['crm.lead'].create({'name': 'Oportunidad admin F1', 'partner_id': other.id, 'user_id': self.user.id})
+        self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_all_customers')
+        lead = Lead.create({'name': 'Oportunidad permitida F1', 'type': 'opportunity', 'partner_id': other.id})
+        self.assertEqual(lead.partner_id, other)
+
+    def test_opportunity_assigned_by_admin_of_other_customer(self):
+        # El administrador asigna al comercial una oportunidad de un cliente
+        # ajeno: puede trabajarla y cambiar a otro contacto de esa empresa,
+        # pero no a otra empresa ajena.
+        other_user = new_test_user(self.env, login='f1_comercial_oport2', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
+        company = self.env['res.partner'].create({'name': 'Empresa asignada F1', 'is_company': True, 'user_id': other_user.id})
+        contact = self.env['res.partner'].create({'name': 'Contacto asignado F1', 'parent_id': company.id})
+        other_company = self.env['res.partner'].create({'name': 'Otra empresa F1', 'is_company': True, 'user_id': other_user.id})
+        lead = self.env['crm.lead'].create({
+            'name': 'Oportunidad asignada F1', 'type': 'opportunity',
+            'partner_id': company.id, 'user_id': self.user.id,
+        })
+        lead.with_user(self.user).write({'name': 'Renombrada F1'})
+        lead.with_user(self.user).write({'partner_id': contact.id})
+        self.assertEqual(lead.partner_id, contact)
+        with self.assertRaises(ValidationError):
+            lead.with_user(self.user).write({'partner_id': other_company.id})
+        self.assertEqual(lead.partner_id, contact)
+        # Pero no puede crearse él mismo una oportunidad de ese cliente.
+        with self.assertRaises(ValidationError):
+            self.env['crm.lead'].with_user(self.user).create({
+                'name': 'Autoasignada F1', 'type': 'opportunity', 'partner_id': company.id,
+            })
+
+    def test_opportunities_shared_customers(self):
+        other_user = new_test_user(self.env, login='f1_comercial_oport3', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
+        other_partner = self.env['res.partner'].create({'name': 'Cliente traspasado oport F1', 'user_id': other_user.id})
+        Lead = self.env['crm.lead'].with_user(self.user)
+        with self.assertRaises(ValidationError):
+            Lead.create({'name': 'Oportunidad traspaso F1', 'type': 'opportunity', 'partner_id': other_partner.id})
+        self.user.rms_shared_customer_user_ids = other_user
+        lead = Lead.create({'name': 'Oportunidad traspaso F1', 'type': 'opportunity', 'partner_id': other_partner.id})
+        self.assertEqual(lead.partner_id, other_partner)
+
+    def test_convert_lead_creates_own_customer(self):
+        # Al convertir una iniciativa sin vendedor creando un cliente nuevo,
+        # el cliente queda a nombre del comercial y la conversión no falla.
+        lead = self.env['crm.lead'].with_user(self.user).create({
+            'name': 'Iniciativa F1', 'type': 'lead',
+            'contact_name': 'Persona nueva F1', 'partner_name': 'Empresa nueva F1',
+        })
+        lead.user_id = False
+        lead.with_user(self.user)._handle_partner_assignment(create_missing=True)
+        self.assertTrue(lead.partner_id)
+        self.assertEqual(lead.partner_id.commercial_partner_id.user_id, self.user)
+        self.assertTrue(lead.partner_id.with_user(self.user).rms_is_own_customer)
+
+    def test_opportunity_partner_dropdown_only_own_customers(self):
+        arch = self.env['crm.lead'].with_user(self.user).get_view(view_type='form')['arch']
+        self.assertIn("('rms_is_own_customer', '=', True)", arch)
+        quick = self.env.ref('crm.quick_create_opportunity_form', raise_if_not_found=False)
+        if quick:
+            arch = self.env['crm.lead'].with_user(self.user).get_view(quick.id, 'form')['arch']
+            self.assertIn("('rms_is_own_customer', '=', True)", arch)
+        arch = self.env['crm.lead'].get_view(view_type='form')['arch']
+        self.assertNotIn("('rms_is_own_customer', '=', True)", arch)
+        self.user.group_ids |= self.env.ref('rms_ventas_restriccion_comerciales.group_comerciales_all_customers')
+        arch = self.env['crm.lead'].with_user(self.user).get_view(view_type='form')['arch']
+        self.assertNotIn("('rms_is_own_customer', '=', True)", arch)
+
+    def test_quotation_default_partner_from_context(self):
+        # El cliente por defecto del contexto también se valida.
+        other_user = new_test_user(self.env, login='f1_comercial_default', groups='base.group_user,sales_team.group_sale_salesman,custom.comerciales')
+        other = self.env['res.partner'].create({'name': 'Cliente ajeno por defecto F1', 'is_company': True, 'user_id': other_user.id})
+        SaleOrder = self.env['sale.order'].with_user(self.user)
+        with self.assertRaises(ValidationError):
+            SaleOrder.with_context(default_partner_id=other.id).create({})
+        order = SaleOrder.with_context(default_partner_id=self.partner.id).create({})
+        self.assertEqual(order.partner_id, self.partner)
+        # Desde una oportunidad que le ha asignado el administrador, sí.
+        lead = self.env['crm.lead'].create({
+            'name': 'Oportunidad por defecto F1', 'type': 'opportunity',
+            'partner_id': other.id, 'user_id': self.user.id,
+        })
+        order = SaleOrder.with_context(default_partner_id=other.id, default_opportunity_id=lead.id).create({})
+        self.assertEqual((order.partner_id, order.opportunity_id, order.user_id), (other, lead, self.user))
