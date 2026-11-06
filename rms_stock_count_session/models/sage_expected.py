@@ -43,7 +43,7 @@ class StockCountExpected(models.Model):
     serial = fields.Char(string='Número de serie')
     serial_normalized = fields.Char(compute='_compute_serial', store=True, index=True)
     quantity = fields.Float(string='Unidades', default=1)
-    cost = fields.Float(string='Precio')
+    cost = fields.Float(string='Precio', groups='rms_stock_count_session.group_sage_cost')
     product_id = fields.Many2one('product.product', compute='_compute_product', store=True, string='Producto')
 
     @api.depends('serial')
@@ -60,10 +60,7 @@ class StockCountExpected(models.Model):
                 Product = self.env['product.product'].with_company(line.session_id.company_id)
                 products, _case = Product._rms_find_by_code(line.model_code or '')
                 if not products:
-                    products = Product.search([
-                        ('company_id', 'in', [False, key[0]]),
-                    ]).filtered(lambda p: normalize_code(p.name) == key[1]
-                                or normalize_code(p.barcode) == key[1])
+                    products = Product.search([('name', '=', line.model_code), ('company_id', 'in', [False, key[0]])], limit=3)
                 if len(products.product_tmpl_id) == 1:
                     products = products.product_tmpl_id.product_variant_ids
                 products = products.filtered(lambda p: not p.company_id or p.company_id.id == key[0])
@@ -86,6 +83,7 @@ class StockCountSageLine(models.Model):
     _order = 'status, warehouse_code, article_code, id'
 
     session_id = fields.Many2one('rms.stock.count.session', required=True, ondelete='cascade', index=True)
+    stock_line_id = fields.Many2one('rms.sage.stock.line', ondelete='set null', index=True)
     expected_id = fields.Many2one('rms.stock.count.expected', ondelete='cascade')
     warehouse_code = fields.Char(string='Almacén Sage', index=True)
     article_code = fields.Char(string='Artículo Sage')
@@ -104,14 +102,44 @@ class StockCountSageLine(models.Model):
 class StockCountSession(models.Model):
     _inherit = 'rms.stock.count.session'
 
+    sage_company_code = fields.Selection([('01', 'RMS'), ('02', 'Espacio'), ('03', 'RJB')], default='01', required=True)
+    brand_categ_ids = fields.Many2many('product.category', string='Marcas Sage', domain="[('parent_id', '=', False)]")
+    sage_warehouse_ids = fields.Many2many('rms.sage.warehouse', string='Almacenes Sage')
+
+    @api.onchange('location_id', 'company_id', 'sage_company_code')
+    def _onchange_sage_scope(self):
+        for session in self:
+            session.sage_warehouse_ids = self.env['rms.sage.warehouse'].search([
+                ('company_id', '=', session.company_id.id),
+                ('sage_company_code', '=', session.sage_company_code),
+                ('location_id', '=', session.location_id.id),
+            ])
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        sessions = super().create(vals_list)
+        for session, vals in zip(sessions, vals_list):
+            if 'sage_warehouse_ids' not in vals:
+                session._onchange_sage_scope()
+        return sessions
+
+    def _sage_scope_domain(self):
+        self.ensure_one()
+        return [('is_current', '=', True), ('company_id', '=', self.company_id.id),
+                ('sage_company_code', '=', self.sage_company_code),
+                ('brand_categ_id', 'in', self.brand_categ_ids.ids),
+                ('sage_warehouse_id', 'in', self.sage_warehouse_ids.ids)]
+
+    def _sage_lines(self):
+        return self.env['rms.sage.stock.line'].sudo().search(self._sage_scope_domain())
+
     expected_ids = fields.One2many('rms.stock.count.expected', 'session_id', string='Exportación Sage')
     sage_line_ids = fields.One2many('rms.stock.count.sage.line', 'session_id', string='Cruce Sage')
-    sage_expected_count = fields.Integer(compute='_compute_sage_count')
+    sage_expected_count = fields.Integer(compute='_compute_sage_count', groups='stock.group_stock_manager')
 
-    @api.depends('expected_ids')
     def _compute_sage_count(self):
         for session in self:
-            session.sage_expected_count = len(session.expected_ids)
+            session.sage_expected_count = len(session._sage_lines())
 
     def action_import_sage(self):
         self.ensure_one()
@@ -139,7 +167,7 @@ class StockCountSession(models.Model):
             remaining = {key: (1.0 if key[1] and key[0] in serial_products else max(qtys.values()))
                          for key, qtys in per_operator.items()}
             vals = []
-            for expected in session.expected_ids.sorted(key=lambda e: (not bool(e.serial), e.id)):
+            for expected in session._sage_lines().sorted(key=lambda e: (not bool(e.serial), e.id)):
                 serial = expected.serial_normalized or ''
                 key = (expected.product_id.id, serial)
                 matches = [key] if expected.product_id and remaining.get(key, 0) > 0 else []
@@ -159,7 +187,7 @@ class StockCountSession(models.Model):
                     if counted >= expected.quantity:
                         break
                 vals.append({
-                    'session_id': session.id, 'expected_id': expected.id,
+                    'session_id': session.id, 'stock_line_id': expected.id,
                     'warehouse_code': expected.warehouse_code, 'article_code': expected.article_code,
                     'state_hint': expected.state_hint, 'serial': expected.serial,
                     'product_id': expected.product_id.id, 'counted_product_id': counted_product,
@@ -177,7 +205,8 @@ class StockCountSession(models.Model):
 
     def action_view_sage(self):
         self.ensure_one()
-        self.expected_ids._compute_product()
+        if not self.env.user.has_group('stock.group_stock_manager'):
+            raise UserError('Solo administración puede consultar el cruce de Sage.')
         self._build_sage_reconciliation()
         return {'type': 'ir.actions.act_window', 'name': 'Cruce Sage',
                 'res_model': 'rms.stock.count.sage.line', 'view_mode': 'list',

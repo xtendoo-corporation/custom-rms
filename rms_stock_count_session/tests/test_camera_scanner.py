@@ -50,7 +50,7 @@ class TestCameraScanner(TransactionCase):
     def test_batch_registers_product_before_new_serial(self):
         results = self.Scan.scanner_register_batch(
             self.operator.id, ['S01-0040002-Z', 'P-81675340-G'], 'camera-order',
-        )
+        )['results']
         self.assertEqual([r['scan']['type'] for r in results], ['product_ref', 'serial'])
         self.assertEqual(results[0]['scan']['code'], 'P-81675340-G')
         serial = self.Scan.browse(results[1]['scan']['id'])
@@ -66,7 +66,7 @@ class TestCameraScanner(TransactionCase):
         results = self.Scan.scanner_register_batch(
             self.operator.id, ['RMSTEST-EXISTING-SERIAL', '027242792319'],
             'camera-existing',
-        )
+        )['results']
         self.assertEqual([r['scan']['type'] for r in results], ['product_ref', 'serial'])
         self.assertEqual(results[1]['scan']['lot_name'], 'RMSTEST-EXISTING-SERIAL')
 
@@ -75,7 +75,7 @@ class TestCameraScanner(TransactionCase):
             self.operator.id,
             ['S01-0040002-Z', '(00)050134930120831424', 'P-81675340-G'],
             'camera-sscc',
-        )
+        )['results']
         self.assertEqual([r['scan']['type'] for r in results],
                          ['ignored', 'product_ref', 'serial'])
         self.assertEqual(self.Scan.browse(results[-1]['scan']['id']).product_id, self.product)
@@ -83,8 +83,8 @@ class TestCameraScanner(TransactionCase):
 
     def test_batch_retry_keeps_client_uids_and_does_not_duplicate(self):
         codes = ['S01-0040002-Z', 'P-81675340-G']
-        first = self.Scan.scanner_register_batch(self.operator.id, codes, 'camera-retry')
-        again = self.Scan.scanner_register_batch(self.operator.id, codes, 'camera-retry')
+        first = self.Scan.scanner_register_batch(self.operator.id, codes, 'camera-retry')['results']
+        again = self.Scan.scanner_register_batch(self.operator.id, codes, 'camera-retry')['results']
         self.assertEqual([r['status'] for r in again], ['resent', 'resent'])
         self.assertEqual([r['scan']['id'] for r in again], [r['scan']['id'] for r in first])
         self.assertEqual(len(self.session.scan_ids), 2)
@@ -97,7 +97,7 @@ class TestCameraScanner(TransactionCase):
         self.assertTrue(self.Scan.scanner_camera_config()['camera_snapshots'])
         results = self.Scan.scanner_register_batch(
             self.operator.id, ['S01-0040002-Z', 'P-81675340-G'], 'camera-photo',
-        )
+        )['results']
         first_id = results[0]['scan']['id']
         attachment_id = self.Scan.scanner_attach_snapshot(first_id, _SNAPSHOT)
         attachment = self.env['ir.attachment'].browse(attachment_id)
@@ -125,7 +125,7 @@ class TestCameraScanner(TransactionCase):
     def _camera_batch(self, codes, uid):
         return self.Scan.scanner_register_batch(
             self.operator.id, codes, uid, source='camera',
-        )
+        )['results']
 
     def test_real_camera_frames_never_invent_serials(self):
         # Keep each frame independent. RMU's complete-label frame is added
@@ -196,7 +196,7 @@ class TestCameraScanner(TransactionCase):
         kit_serials = [r for r in results[10] if r['scan']['lot_name']]
         self.assertEqual(len(kit_serials), 2)
         self.assertTrue(all(r['status'] == 'unknown' for r in kit_serials))
-        self.assertTrue(all(r['scan']['message'] == 'varios números de serie en el encuadre'
+        self.assertTrue(all(r['scan']['message'] == 'Acerca a una sola etiqueta'
                             for r in kit_serials))
         self.assertEqual(results[-1][0]['status'], 'unknown')
         self.assertEqual(results[-1][0]['scan']['message'], 'sin producto en el encuadre')
@@ -264,7 +264,7 @@ class TestCameraScanner(TransactionCase):
         new = next(r for r in results if r['scan']['lot_name'] == '0040003')
         self.assertEqual(existing['status'], 'ok')
         self.assertEqual(new['status'], 'unknown')
-        self.assertEqual(new['scan']['message'], 'varios números de serie en el encuadre')
+        self.assertEqual(new['scan']['message'], 'Acerca a una sola etiqueta')
 
     def test_camera_new_serial_retry_does_not_duplicate(self):
         codes = ['S010040002Z', 'P-81675340-G']
@@ -355,9 +355,22 @@ class TestCameraScanner(TransactionCase):
         self.assertEqual(pda['status'], 'ok')
         self.assertEqual(pda['scan']['lot_name'], '2218')
 
+    def _create_sage_lines(self, vals):
+        brand = self.env['product.category'].create({'name': 'RMSTEST Camera Sage'})
+        warehouse = self.env['rms.sage.warehouse'].search([('code', '=', 'AL1'), ('sage_company_code', '=', '01')], limit=1)
+        snapshot = self.env['rms.sage.snapshot'].create({'name': 'Camera fixture', 'brand_categ_id': brand.id})
+        self.session.write({'brand_categ_ids': [(6, 0, brand.ids)], 'sage_warehouse_ids': [(6, 0, warehouse.ids)]})
+        vals = vals if isinstance(vals, list) else [vals]
+        for val in vals:
+            val.pop('session_id', None)
+            val.update(snapshot_id=snapshot.id)
+        lines = self.env['rms.sage.stock.line'].create(vals)
+        snapshot.action_activate()
+        return lines
+
     def test_camera_kit_uses_only_unique_sage_serial(self):
         self.product.default_code = 'RMSTEST-KIT-SAGE'
-        self.env['rms.stock.count.expected'].create({
+        self._create_sage_lines({
             'session_id': self.session.id, 'warehouse_code': 'AL1',
             'article_code': 'RMSTEST-KIT-SAGE', 'model_code': 'RMSTEST-KIT-SAGE',
             'serial': '0040002', 'quantity': 1,
@@ -380,7 +393,7 @@ class TestCameraScanner(TransactionCase):
 
     def test_camera_kit_multiple_sage_serials_remains_pending(self):
         self.product.default_code = 'RMSTEST-KIT-AMBIGUOUS'
-        self.env['rms.stock.count.expected'].create([
+        self._create_sage_lines([
             {'session_id': self.session.id, 'warehouse_code': 'AL1',
              'article_code': self.product.default_code, 'model_code': self.product.default_code,
              'serial': serial, 'quantity': 1}

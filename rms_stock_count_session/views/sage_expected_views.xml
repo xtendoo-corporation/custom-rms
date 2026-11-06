@@ -6,11 +6,11 @@
         <field name="arch" type="xml">
             <form string="Cargar exportación de Sage">
                 <group>
-                    <field name="session_id" readonly="1"/>
+                    <field name="company_id"/><field name="sage_company_code"/><field name="brand_categ_id"/><field name="mode"/><field name="export_date"/><field name="allow_duplicate"/>
                     <field name="filename" invisible="1"/>
                     <field name="file_data" filename="filename"/>
                 </group>
-                <p>Selecciona el Excel «Valoración de stocks» de Sage 50. La carga reemplaza la exportación anterior de esta sesión.</p>
+                <p>Selecciona un Excel o CSV «Valoración de stocks» de una empresa Sage y una marca. Añadir conserva los archivos vigentes; reemplazar sustituye toda la versión de esa empresa y marca.</p>
                 <footer>
                     <button name="action_import" type="object" string="Cargar exportación" class="btn-primary"/>
                     <button special="cancel" string="Cancelar"/>
@@ -29,7 +29,7 @@
                 <field name="state_hint"/>
                 <field name="serial"/>
                 <field name="quantity" sum="Total"/>
-                <field name="cost"/>
+                <field name="cost" groups="rms_stock_count_session.group_sage_cost"/>
                 <field name="product_id"/>
             </list>
         </field>
@@ -79,18 +79,14 @@
         <field name="model">rms.stock.count.session</field>
         <field name="inherit_id" ref="view_stock_count_session_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//header" position="inside">
-                <button name="action_import_sage" type="object" string="Cargar exportación de Sage"
-                        icon="fa-upload" invisible="state in ('done', 'cancel')"/>
-            </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
-                <button name="action_view_sage" type="object" class="oe_stat_button" icon="fa-table">
+                <button name="action_view_sage" groups="stock.group_stock_manager" type="object" class="oe_stat_button" icon="fa-table">
                     <field name="sage_expected_count" widget="statinfo" string="Cruce Sage"/>
                 </button>
             </xpath>
             <xpath expr="//notebook" position="inside">
-                <page string="Exportación Sage" name="sage_expected">
-                    <field name="expected_ids" readonly="1"/>
+                <page string="Alcance Sage" name="sage_scope">
+                    <group><field name="sage_company_code"/><field name="brand_categ_ids" widget="many2many_tags"/><field name="sage_warehouse_ids" widget="many2many_tags"/></group>
                 </page>
             </xpath>
         </field>

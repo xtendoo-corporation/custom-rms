@@ -5,3 +5,5 @@ from . import test_scan_rules
 from . import test_camera_scanner
 
 from . import test_sage_expected
+
+from . import test_sage_library

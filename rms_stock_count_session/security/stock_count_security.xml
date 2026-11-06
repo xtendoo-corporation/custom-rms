@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="group_sage_cost" model="res.groups">
+        <field name="name">Ver costes de Sage</field>
+    </record>
     <record id="rule_stock_count_session_company" model="ir.rule">
         <field name="name">Recuento cruzado: multicompañía</field>
         <field name="model_id" ref="model_rms_stock_count_session"/>
@@ -18,6 +21,21 @@
     <record id="rule_rms_stock_count_sage_import_company" model="ir.rule">
         <field name="name">Sage: multicompañía (sage.import)</field>
         <field name="model_id" ref="model_rms_stock_count_sage_import"/>
-        <field name="domain_force">[('session_id.company_id', 'in', company_ids)]</field>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_rms_sage_warehouse_company" model="ir.rule">
+        <field name="name">Biblioteca Sage: multicompañía (warehouse)</field>
+        <field name="model_id" ref="model_rms_sage_warehouse"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_rms_sage_snapshot_company" model="ir.rule">
+        <field name="name">Biblioteca Sage: multicompañía (snapshot)</field>
+        <field name="model_id" ref="model_rms_sage_snapshot"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_rms_sage_stock_line_company" model="ir.rule">
+        <field name="name">Biblioteca Sage: multicompañía (stock_line)</field>
+        <field name="model_id" ref="model_rms_sage_stock_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
 </odoo>

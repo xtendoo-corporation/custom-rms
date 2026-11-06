@@ -20,6 +20,8 @@ class RmsStockCountOperator(models.Model):
     user_id = fields.Many2one(
         "res.users", string="Usuario", default=lambda self: self.env.user, readonly=True,
     )
+    search_mode = fields.Boolean(default=False)
+    zone_closed = fields.Boolean(default=False)
     done = fields.Boolean(string="Ha terminado")
     current_location_id = fields.Many2one(
         "stock.location", string="Ubicación actual",
@@ -117,6 +119,7 @@ class RmsStockCountOperator(models.Model):
                 "name": self.name,
                 "done": self.done,
                 "scan_count": self.scan_count,
+                "search_mode": self.search_mode,
             },
             "session": {
                 "id": session.id,
@@ -133,7 +136,7 @@ class RmsStockCountOperator(models.Model):
                 {"name": op.name, "scan_count": op.scan_count, "done": op.done}
                 for op in session.operator_ids - self
             ],
-            "recent": [scan._scanner_payload() for scan in recent],
+            "recent": [scan.with_context(sage_batch=True)._scanner_payload() for scan in recent],
         }
 
     @api.model
@@ -185,8 +188,58 @@ class RmsStockCountOperator(models.Model):
 
     def scanner_finish(self):
         self.ensure_one()
-        self.done = True
-        return True
+        return self.scanner_close_zone()
+
+    def scanner_close_zone(self):
+        self.ensure_one()
+        self._check_counting()
+        self.write({'done': True, 'zone_closed': True, 'search_mode': False})
+        return self._scanner_missing()
+
+    def _scanner_missing(self):
+        self.ensure_one()
+        if not self.zone_closed:
+            raise UserError('Termina primero el recorrido para ver los faltantes.')
+        session = self.session_id
+        seen = set()
+        counted_products = set()
+        from .sage_expected import normalize_serial
+        for scan in session.scan_ids.filtered(lambda s: not s.ignored and s.scan_type in ('serial', 'product')):
+            if scan.product_id:
+                counted_products.add(scan.product_id.id)
+                if scan.lot_name:
+                    seen.add((scan.product_id.id, normalize_serial(scan.lot_name)))
+        groups = {}
+        lines = session._sage_lines()
+        # Reserve exact product matches before allocating unmatched serials.
+        lines = lines.sorted(key=lambda line: (line.product_id.id, line.serial_normalized) not in seen)
+        for line in lines:
+            if line.serial_normalized:
+                key = (line.product_id.id, line.serial_normalized)
+                match = key if key in seen else next((k for k in seen if k[1] == line.serial_normalized), None)
+                if match:
+                    seen.remove(match)
+                    continue
+            elif line.product_id.id in counted_products:
+                continue
+            key = (line.product_id.id, line.model_code, bool(line.serial_normalized))
+            group = groups.setdefault(key, {'model': line.product_id.display_name or line.model_code,
+                                           'serials': [], 'count_by_quantity': not bool(line.serial_normalized)})
+            if line.serial and line.serial not in group['serials']:
+                group['serials'].append(line.serial)
+        missing = list(groups.values())
+        sites = ', '.join('%s (%s)' % (w.name, w.code) if w.name and w.name != w.code else w.code
+                          for w in session.sage_warehouse_ids)
+        return {'missing': missing, 'site': sites or session.location_id.display_name,
+                'count': sum(len(row['serials']) if not row['count_by_quantity'] else 1 for row in missing)}
+
+    def scanner_start_search(self):
+        self.ensure_one()
+        self._check_counting()
+        if not self.zone_closed:
+            raise UserError('Cierra primero la zona.')
+        self.write({'search_mode': True, 'done': False})
+        return self._scanner_state()
 
     def scanner_search_products(self, query, limit=20):
         self.ensure_one()

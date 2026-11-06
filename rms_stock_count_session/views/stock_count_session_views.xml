@@ -83,6 +83,7 @@
                 <button name="action_use_sage_suggestion" type="object" string="Usar sugerencia de Sage"
                         icon="fa-check" invisible="scan_type != 'unknown' or not sage_suggestion_product_id"/>
                 <field name="is_new_lot" readonly="1" optional="show"/>
+                <field name="found_in_search" readonly="1" optional="show"/>
                 <field name="location_id" readonly="1"/>
                 <field name="message" readonly="1" optional="show"/>
                 <field name="raw_code" readonly="1" optional="hide"/>

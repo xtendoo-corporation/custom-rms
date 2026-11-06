@@ -68,6 +68,12 @@ class RmsStockCountScan(models.Model):
     tracking = fields.Selection(related="product_id.tracking", string="Seguimiento")
     lot_id = fields.Many2one("stock.lot", string="Nº de serie / lote en Odoo")
     lot_name = fields.Char(string="Nº de serie / lote")
+    serial_normalized = fields.Char(compute="_compute_serial_normalized", store=True, index=True)
+
+    @api.depends("lot_name", "code", "scan_type")
+    def _compute_serial_normalized(self):
+        for scan in self:
+            scan.serial_normalized = normalize_serial(scan.lot_name or (scan.code if scan.scan_type == "unknown" and not _SONY_PART_RE.fullmatch(scan.code or "") else ""))
     is_new_lot = fields.Boolean(
         string="Nº de serie nuevo",
         help="El número de serie no existía en Odoo: se creará al volcar el recuento.",
@@ -86,29 +92,36 @@ class RmsStockCountScan(models.Model):
         help="Evita duplicar una lectura si la PDA la reenvía tras perder la conexión.",
     )
 
+    found_in_search = fields.Boolean(readonly=True, default=False)
+
     source = fields.Selection([("camera", "Cámara"), ("scanner", "PDA")], default="scanner", readonly=True)
     sage_suggestion_product_id = fields.Many2one(
-        "product.product", compute="_compute_sage_suggestion", store=True,
+        "product.product",
         string="Producto sugerido por Sage",
     )
     sage_suggestion = fields.Char(
-        string="Sugerencia de Sage", compute="_compute_sage_suggestion", store=True,
+        string="Sugerencia de Sage",
     )
 
-    @api.depends("scan_type", "lot_name", "session_id.expected_ids.serial_normalized",
-                 "session_id.expected_ids.product_id", "session_id.expected_ids.model_code",
-                 "session_id.expected_ids.warehouse_code",
-                 "session_id.expected_ids.state_hint")
     def _compute_sage_suggestion(self):
+        by_session = {}
+        for session in self.session_id:
+            serials = self.filtered(lambda s: s.session_id == session and s.scan_type == 'unknown').mapped('serial_normalized')
+            lines = self.env['rms.sage.stock.line'].sudo().search(session._sage_scope_domain() + [('serial_normalized', 'in', serials)]) if serials else self.env['rms.sage.stock.line']
+            lookup = {}
+            for line in lines:
+                lookup.setdefault(line.serial_normalized, self.env['rms.sage.stock.line'])
+                lookup[line.serial_normalized] |= line
+            by_session[session.id] = lookup
         for scan in self:
             scan.sage_suggestion_product_id = False
             scan.sage_suggestion = False
-            if scan.scan_type != "unknown" or not scan.lot_name:
+            if scan.scan_type != "unknown" or not scan.serial_normalized:
                 continue
-            serial = normalize_serial(scan.lot_name)
-            matches = scan.session_id.expected_ids.filtered(
-                lambda line: line.serial_normalized and line.serial_normalized == serial
-            )
+            serial = scan.serial_normalized
+            matches = by_session[scan.session_id.id].get(serial, self.env['rms.sage.stock.line'])
+            if matches and not scan.lot_name:
+                scan.lot_name = scan.code
             products = matches.product_id
             if len(products) == 1:
                 scan.sage_suggestion_product_id = products
@@ -326,7 +339,7 @@ class RmsStockCountScan(models.Model):
         )
 
     @api.model
-    def scanner_register_batch(self, operator_id, codes, client_uid_prefix=False, source=False):
+    def scanner_register_batch(self, operator_id, codes, client_uid_prefix=False, source=False, search_mode=None):
         """Clasifica la etiqueta completa antes de cambiar el contexto del operario.
 
         El índice original identifica cada lectura aunque el orden de ejecución
@@ -336,8 +349,9 @@ class RmsStockCountScan(models.Model):
         if not operator:
             raise UserError("El operario ya no existe en este recuento.")
         operator._check_counting()
+        self = self.with_context(found_in_search=search_mode) if search_mode is not None else self
         if source == "camera":
-            return self._scanner_register_camera_batch(operator, codes, client_uid_prefix)
+            return self._finish_sage_batch(operator, self.with_context(sage_batch=True)._scanner_register_camera_batch(operator, codes, client_uid_prefix))
         classified = []
         for index, raw_code in enumerate(codes):
             code = clean_code(raw_code)
@@ -347,13 +361,15 @@ class RmsStockCountScan(models.Model):
                 kind == "unknown" and (vals.get("lot_name") or _CAMERA_SERIAL_RE.match(code))
             )
             classified.append((bool(serial), index, raw_code))
-        return [
-            self.scanner_register(
+        results = [
+            self.with_context(sage_batch=True).scanner_register(
                 operator_id, raw_code,
                 "%s:%s" % (client_uid_prefix, index) if client_uid_prefix else False,
             )
             for _serial, index, raw_code in sorted(classified, key=lambda item: (item[0], item[1]))
         ]
+
+        return self._finish_sage_batch(operator, results)
 
     @api.model
     def _scanner_register_camera_batch(self, operator, codes, client_uid_prefix):
@@ -386,7 +402,8 @@ class RmsStockCountScan(models.Model):
         product = self.env["product.product"].browse(list(product_ids))
         sage_serial = False
         if len(product_ids) == 1 and len(candidates) > 1 and product.tracking != "none":
-            expected = operator.session_id.expected_ids.filtered(lambda line: line.product_id == product)
+            expected = self.env['rms.sage.stock.line'].sudo().search(
+                operator.session_id._sage_scope_domain() + [('product_id', '=', product.id)])
             expected_serials = set(expected.mapped("serial_normalized")) - {False, ""}
             matching = {serial for serial in candidates if normalize_serial(serial) in expected_serials}
             if len(matching) == 1:
@@ -415,7 +432,7 @@ class RmsStockCountScan(models.Model):
             elif len(product_ids) > 1:
                 reason = "varios productos en el encuadre"
             elif len(candidates) > 1:
-                reason = "varios números de serie en el encuadre"
+                reason = "Acerca a una sola etiqueta"
             elif product.tracking == "none":
                 reason = "producto sin seguimiento por número de serie"
             else:
@@ -448,7 +465,12 @@ class RmsStockCountScan(models.Model):
             ("session_id", "=", operator.session_id.id),
             ("scan_type", "!=", "location"),
         ])
-        return [scan._scanner_payload() for scan in scans]
+        verdicts = self._sage_verdict([scan.lot_name or '' for scan in scans], operator.session_id,
+                                      [scan.product_id.id for scan in scans])
+        payloads = [scan.with_context(sage_batch=True)._scanner_payload() for scan in scans]
+        for payload, verdict in zip(payloads, verdicts):
+            payload['sage'] = verdict
+        return payloads
 
     @api.model
     def scanner_camera_config(self):
@@ -504,11 +526,15 @@ class RmsStockCountScan(models.Model):
         }
 
     @api.model
-    def scanner_register(self, operator_id, raw_code, client_uid=False):
+    def scanner_register(self, operator_id, raw_code, client_uid=False, search_mode=None):
         """Registra una lectura del escáner. Devuelve {'status', 'scan',
         'state'}; status puede ser ok | location | product_ref | unknown |
         duplicate | empty."""
-        return self._scanner_register(operator_id, raw_code, client_uid)
+        target = self.with_context(found_in_search=search_mode) if search_mode is not None else self
+        result = target._scanner_register(operator_id, raw_code, client_uid)
+        if result.get('scan') and 'sage' in result['scan']:
+            result['sage'] = result['scan']['sage']
+        return result
 
     @api.model
     def _scanner_register(self, operator_id, raw_code, client_uid=False, classification=None):
@@ -525,12 +551,12 @@ class RmsStockCountScan(models.Model):
                 return {
                     "status": "resent",
                     "scan": already._scanner_payload(),
-                    "state": operator._scanner_state(),
+                    "state": operator._scanner_state() if not self.env.context.get("sage_batch") else None,
                 }
 
         code = clean_code(raw_code)
         if not code:
-            return {"status": "empty", "scan": False, "state": operator._scanner_state()}
+            return {"status": "empty", "scan": False, "state": operator._scanner_state() if not self.env.context.get("sage_batch") else None}
 
         vals = dict(classification) if classification is not None else self._classify(operator, code)
 
@@ -544,7 +570,7 @@ class RmsStockCountScan(models.Model):
                     ("operator_id", "=", operator.id),
                     ("scan_type", "=", "serial"),
                     ("product_id", "=", product.id),
-                    ("lot_name", "=", vals["lot_name"]),
+                    ("serial_normalized", "=", normalize_serial(vals["lot_name"])),
                     ("ignored", "=", False),
                 ], limit=1)
                 if previous:
@@ -552,7 +578,7 @@ class RmsStockCountScan(models.Model):
                         "status": "duplicate",
                         "scan": previous._scanner_payload(),
                         "message": "Ya habías escaneado %s." % vals["lot_name"],
-                        "state": operator._scanner_state(),
+                        "state": operator._scanner_state() if not self.env.context.get("sage_batch") else None,
                     }
 
         vals.update({
@@ -561,8 +587,11 @@ class RmsStockCountScan(models.Model):
             "raw_code": raw_code,
             "code": code,
             "client_uid": client_uid or False,
+            "found_in_search": self.env.context.get("found_in_search", operator.search_mode),
         })
         scan = self.create(vals)
+        if not self.env.context.get("sage_batch"):
+            scan._compute_sage_suggestion()
 
         if scan.scan_type == "location":
             operator.current_location_id = scan.location_id
@@ -579,7 +608,7 @@ class RmsStockCountScan(models.Model):
             "status": status,
             "scan": scan._scanner_payload(),
             "message": scan.message,
-            "state": operator._scanner_state(),
+            "state": operator._scanner_state() if not self.env.context.get("sage_batch") else None,
         }
 
     def scanner_delete(self):
@@ -593,7 +622,7 @@ class RmsStockCountScan(models.Model):
 
     def _scanner_payload(self):
         self.ensure_one()
-        return {
+        payload = {
             "id": self.id,
             "code": self.code,
             "type": self.scan_type,
@@ -602,8 +631,84 @@ class RmsStockCountScan(models.Model):
             "is_new_lot": self.is_new_lot,
             "location_name": self.location_id.display_name or "",
             "message": self.message or "",
+            "suggestion_product_id": self.sage_suggestion_product_id.id,
+            "suggestion": self.sage_suggestion or "",
+            "found_in_search": self.found_in_search,
             "time": fields.Datetime.context_timestamp(self, self.scanned_at).strftime("%H:%M:%S"),
         }
+
+        if not self.env.context.get("sage_batch"):
+            payload['sage'] = self._sage_verdict([self.lot_name or ''], self.session_id, self.product_id)[0]
+        return payload
+
+    @api.model
+    def _refresh_sage_suggestions(self, serials):
+        scans = self.search([('scan_type', '=', 'unknown'), ('session_id.state', '=', 'counting'),
+                             ('serial_normalized', 'in', list(serials))])
+        scans._compute_sage_suggestion()
+
+    @api.model
+    def _sage_verdict(self, serials, session, product=False):
+        """Single indexed lookup; deliberately never selects quantity or cost.
+
+        Sage locations from other companies are exposed only as this compact
+        verdict, never as browsable stock records.
+        """
+        session.check_access('read')
+        normalized = [normalize_serial(value) for value in serials]
+        keys = list(set(normalized) - {''})
+        matches = {}
+        if keys:
+            self.env['rms.sage.stock.line'].sudo().flush_model()
+            self.env.cr.execute("""
+                SELECT l.serial_normalized, l.sage_company_code, l.warehouse_code,
+                       COALESCE(w.name, l.warehouse_code), CASE l.state WHEN 'demo' THEN 'Demo' WHEN '2mano' THEN '2Mano' ELSE 'Nuevo' END, l.model_code,
+                       l.product_id, l.company_id, l.brand_categ_id, l.sage_warehouse_id
+                  FROM rms_sage_stock_line l
+                  LEFT JOIN rms_sage_warehouse w ON w.id = l.sage_warehouse_id
+                 WHERE l.is_current AND l.serial_normalized <> ''
+                   AND l.serial_normalized = ANY(%s)
+                 ORDER BY l.id
+            """, (keys,))
+            for row in self.env.cr.fetchall():
+                matches.setdefault(row[0], []).append(row)
+        result = []
+        pid = product.id if product and not isinstance(product, list) and len(product) == 1 else False
+        for index, key in enumerate(normalized):
+            if isinstance(product, list):
+                pid = product[index]
+            rows = matches.get(key, [])
+            if pid and any(row[6] == pid for row in rows):
+                # Sony repite nº de serie entre modelos: con el producto
+                # conocido solo cuentan las líneas Sage de ese producto.
+                rows = [row for row in rows if row[6] == pid]
+            here = any(row[1] == session.sage_company_code and row[7] == session.company_id.id
+                       and row[8] in session.brand_categ_ids.ids and row[9] in session.sage_warehouse_ids.ids for row in rows)
+            # Filas idénticas (mismo archivo cargado dos veces) cuentan una vez.
+            rows = list({(row[1], row[2], row[4], row[5]): row for row in rows}.values())
+            v = ('nos' if not key else 'none' if not rows else 'dup' if len(rows) > 1
+                 else 'here' if here else 'wh' if rows[0][1] == session.sage_company_code else 'co')
+            result.append({'v': v, 'n': len(rows), 'h': [list(row[1:6]) for row in rows[:3]],
+                           'pm': bool(pid and any(row[6] == pid for row in rows))})
+        return result
+
+    @api.model
+    def _finish_sage_batch(self, operator, results):
+        records = self.browse([item['scan']['id'] for item in results if item.get('scan')])
+        records._compute_sage_suggestion()
+        for item in results:
+            if item.get('scan'):
+                item['scan'] = self.browse(item['scan']['id']).with_context(sage_batch=True)._scanner_payload()
+        scans = [item.get('scan') for item in results]
+        # One lookup for all serials; sort each result's matches against its product.
+        verdicts = self._sage_verdict([scan.get('lot_name', '') if scan else '' for scan in scans],
+                                      operator.session_id, [self.browse(scan["id"]).product_id.id if scan else False for scan in scans])
+        for item, verdict in zip(results, verdicts):
+            item.pop('state', None)
+            item['sage'] = verdict
+            if item.get('scan'):
+                item['scan']['sage'] = verdict
+        return {'results': results, 'state': operator.with_context(sage_batch=True)._scanner_state()}
 
     # ------------------------------------------------------------------
     # Revisión: asignar un producto a los códigos sin identificar

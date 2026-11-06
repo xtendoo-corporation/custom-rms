@@ -63,6 +63,9 @@ export class StockCountScan extends Component {
             joinName: "",
             operatorState: null,
             last: null, // {status, message}
+            verdict: null,
+            missing: null,
+            searchMode: false,
             history: [],
             pending: [], // [{uid, code}] lecturas aún no confirmadas por el servidor
             offline: false,
@@ -112,6 +115,8 @@ export class StockCountScan extends Component {
             clearTimeout(this._retryTimer);
             clearInterval(this._refreshTimer);
             clearTimeout(this._searchTimer);
+            clearTimeout(this._verdictTimer);
+            this._audio?.close().catch(() => {});
         });
     }
 
@@ -164,6 +169,7 @@ export class StockCountScan extends Component {
     }
 
     async join(name) {
+        this._unlockAudio();
         name = (name || "").trim();
         if (!name) {
             this.notification.add("Escribe tu nombre para empezar.", { type: "warning" });
@@ -204,6 +210,7 @@ export class StockCountScan extends Component {
 
     _applyState(operatorState) {
         this.state.operatorState = operatorState;
+        this.state.searchMode = Boolean(operatorState.operator.search_mode);
         this._mergeHistory(operatorState.recent || []);
         if (operatorState.session.state !== "counting") {
             this.state.step = "finished";
@@ -236,6 +243,7 @@ export class StockCountScan extends Component {
     // ------------------------------------------------------------------
 
     setInputMode(mode) {
+        this._unlockAudio();
         this.state.inputMode = mode;
         storageSet(MODE_KEY, mode);
     }
@@ -380,7 +388,7 @@ export class StockCountScan extends Component {
         if (!code || this.state.step !== "scan") {
             return;
         }
-        this.state.pending.push({ uid: newUid(), code, ...extra });
+        this.state.pending.push({ uid: newUid(), code, search_mode: this.state.searchMode, ...extra });
         this._saveQueue();
         this._flushQueue();
     }
@@ -401,7 +409,7 @@ export class StockCountScan extends Component {
                         "rms.stock.count.scan",
                         item.codes ? "scanner_register_batch" : "scanner_register",
                         [op.id, item.codes || item.code, item.uid],
-                        item.codes ? { source: "camera" } : {}
+                        item.codes ? { source: "camera", search_mode: Boolean(item.search_mode) } : { search_mode: Boolean(item.search_mode) }
                     );
                 } catch (error) {
                     if (error && error.data && error.data.message) {
@@ -421,14 +429,26 @@ export class StockCountScan extends Component {
                 this.state.offline = false;
                 this.state.pending.shift();
                 this._saveQueue();
-                const results = item.codes ? result : [result];
+                const results = item.codes ? (result.results || result) : [result];
+                if (result.state) { this._applyState(result.state); }
                 for (const reading of results) {
-                    this._applyState(reading.state);
+                    if (reading.state) { this._applyState(reading.state); }
                     this._showResult(reading, false);
                 }
-                const feedback = results.find((reading) => reading.status === "unknown") ||
-                    results.find((reading) => reading.status === "ok") || results[results.length - 1];
-                if (feedback) { this._feedback(feedback.status); }
+                const feedback = results.find((r) => r.scan?.suggestion_product_id) ||
+                    results.find((r) => r.scan?.lot_name && r.sage?.v && r.sage.v !== "nos" && !["ignored", "unknown"].includes(r.status)) ||
+                    results.find((r) => r.status === "duplicate") ||
+                    results.find((r) => r.status === "unknown") ||
+                    results.find((r) => r.status === "ok") || results[results.length - 1];
+                if (feedback) {
+                    this._setVerdict(this.verdictFor(feedback));
+                    this._feedback(this.verdictKind(feedback), feedback.status);
+                }
+                const unresolvedSerials = results.filter((r) => r.status === "unknown" &&
+                    r.scan?.lot_name && !r.scan?.suggestion_product_id && (!r.sage || !r.sage.n));
+                if (item.codes && unresolvedSerials.length > 1) {
+                    this._setVerdict({ kind: "unknown", text: "Acerca a una sola etiqueta", detail: "" });
+                }
                 const first = results.find((reading) => reading.scan && reading.scan.id);
                 const snapshotTask = this._snapshotTasks.get(item.uid);
                 this._snapshotTasks.delete(item.uid);
@@ -449,59 +469,114 @@ export class StockCountScan extends Component {
     _mergeHistory(scans) {
         const byId = new Map(this.state.history.map((scan) => [scan.id, scan]));
         for (const scan of scans) {
-            if (scan.id && scan.type !== "location") { byId.set(scan.id, scan); }
+            if (scan.id && scan.type !== "location") {
+                const previous = byId.get(scan.id) || {};
+                byId.set(scan.id, { ...previous, ...scan, sage: scan.sage || previous.sage });
+            }
         }
         this.state.history = [...byId.values()].sort((a, b) => b.id - a.id);
     }
 
     _showResult(result, feedback = true) {
         const scan = result.scan || {};
-        this._mergeHistory(result.scan ? [scan] : []);
+        this._mergeHistory(result.scan ? [{ ...scan, sage: result.sage || scan.sage }] : []);
         this.state.last = {
             status: result.status,
             message: result.message || scan.message || "",
             code: scan.code || "",
         };
-        if (feedback) { this._feedback(result.status); }
+        this._setVerdict(this.verdictFor(result));
+        if (feedback) { this._feedback(this.verdictKind(result), result.status); }
     }
 
-    _feedback(status) {
-        const patterns = {
-            ok: { vibrate: 60, tones: [[1000, 0.1]] },
-            resent: { vibrate: 0, tones: [] },
-            location: { vibrate: 60, tones: [[700, 0.08], [900, 0.08]] },
-            product_ref: { vibrate: 60, tones: [[700, 0.12]] },
-            duplicate: { vibrate: [80, 60, 80], tones: [[400, 0.1], [400, 0.1]] },
-            unknown: { vibrate: [200, 80, 200], tones: [[250, 0.35]] },
-            ignored: { vibrate: 30, tones: [[500, 0.05]] },
-            error: { vibrate: [200, 80, 200], tones: [[250, 0.35]] },
-        };
-        const pattern = patterns[status] || patterns.ok;
-        if (navigator.vibrate && pattern.vibrate) {
-            navigator.vibrate(pattern.vibrate);
-        }
-        if (!pattern.tones.length) {
-            return;
-        }
+    _unlockAudio() {
         try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            const ctx = new AudioCtx();
+            if (!this._audio && AudioCtx) { this._audio = new AudioCtx(); }
+            this._audio?.resume().catch(() => {});
+            // A silent oscillator primes audio in the actual iOS user gesture.
+            if (this._audio) {
+                const osc = this._audio.createOscillator();
+                const gain = this._audio.createGain();
+                gain.gain.value = 0;
+                osc.connect(gain); gain.connect(this._audio.destination);
+                osc.start(); osc.stop(this._audio.currentTime + 0.01);
+            }
+        } catch { /* Audio is optional. */ }
+    }
+
+    _feedback(kind, status) {
+        if (status === "resent") { return; }
+        const tones = {
+            here: [[1200, 0.09]], wh: [[650, 0.1], [650, 0.1]],
+            co: [[650, 0.1], [650, 0.1]], dup: [[650, 0.1], [650, 0.1]],
+            none: [[240, 0.35]], unknown: [[240, 0.35]],
+            duplicate: [[900, 0.025]], nos: [[1000, 0.08]],
+        }[kind] || [[1000, 0.08]];
+        try {
+            const ctx = this._audio;
+            if (!ctx || ctx.state !== "running") { return; }
             let t = ctx.currentTime;
-            for (const [freq, duration] of pattern.tones) {
+            for (const [freq, duration] of tones) {
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
+                osc.connect(gain); gain.connect(ctx.destination);
                 osc.frequency.value = freq;
-                gain.gain.setValueAtTime(0.2, t);
-                osc.start(t);
-                osc.stop(t + duration);
-                t += duration + 0.05;
+                gain.gain.setValueAtTime(0.16, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+                osc.start(t); osc.stop(t + duration);
+                t += duration + 0.07;
             }
-            setTimeout(() => ctx.close(), (t - ctx.currentTime) * 1000 + 100);
-        } catch {
-            // sin audio disponible: no es crítico
-        }
+        } catch { /* Keep counting even without audio. */ }
+    }
+
+    verdictKind(result) {
+        if (result.status === "duplicate") { return "duplicate"; }
+        if (result.status === "unknown" || result.scan?.type === "unknown") { return "unknown"; }
+        return (result.sage || result.scan?.sage)?.v || "nos";
+    }
+
+    verdictFor(result) {
+        const scan = result.scan || {};
+        const sage = result.sage || scan.sage || {};
+        const kind = this.verdictKind(result);
+        const hits = (sage.h || []).slice(0, 3);
+        const stateName = (value) => ({ nuevo: "Nuevo", demo: "Demo", "2mano": "2ª mano" }[value] || value || "");
+        const hitLabel = (h) => `${h[1]} ${h[2] || ""} ${stateName(h[3])}`.trim();
+        const first = hits[0] || [];
+        const suggestion = scan.suggestion || result.suggestion || "";
+        let text = result.message || scan.message || "";
+        let detail = "";
+        if (kind === "duplicate") { text = "Ya leído"; }
+        else if (kind === "unknown") { text = suggestion ? `¿Qué producto es? Sage propone: ${suggestion}` : "¿Qué producto es?"; }
+        else if (kind === "here") { text = `En Sage aquí (${first[2] || first[1] || "esta zona"}) · ${stateName(first[3])}`; }
+        else if (kind === "wh") { text = `Sage lo tiene en ${first[2] || first[1]} · ${stateName(first[3])}`; detail = "Déjalo donde está"; }
+        else if (kind === "co") { text = `Sage lo tiene en otra empresa: ${{ "01": "RMS", "02": "Espacio", "03": "RJB" }[first[0]] || first[0]}`; detail = "Déjalo donde está"; }
+        else if (kind === "none") { text = "No está en Sage"; detail = "Déjalo donde está"; }
+        else if (kind === "dup") { text = `Duplicado en Sage: ${hits.map(hitLabel).join(" y ")}`; }
+        return { kind, text, detail, scanId: scan.id, suggestionId: scan.suggestion_product_id || result.suggestion_product_id };
+    }
+
+    _setVerdict(verdict) {
+        clearTimeout(this._verdictTimer);
+        this.state.verdict = verdict;
+        this._verdictTimer = setTimeout(() => {
+            // Suggestions remain actionable without pausing the camera.
+            if (!this.state.verdict?.suggestionId) { this.state.verdict = null; }
+        }, 2200);
+    }
+
+    verdictIcon(kind) {
+        return { here: "✓", wh: "⚠", co: "⚠", none: "✕", dup: "⇄", unknown: "?", duplicate: "ℹ", nos: "•" }[kind] || "•";
+    }
+
+    async useSuggestion() {
+        const verdict = this.state.verdict;
+        if (!verdict?.scanId || !verdict.suggestionId) { return; }
+        await this.orm.call("rms.stock.count.scan", "action_use_sage_suggestion", [[verdict.scanId]]);
+        this.state.verdict = null;
+        this.state.history = await this.orm.call("rms.stock.count.scan", "scanner_history", [this.state.operatorState.operator.id]);
+        await this._refresh();
     }
 
     // ------------------------------------------------------------------
@@ -588,8 +663,16 @@ export class StockCountScan extends Component {
             return;
         }
         const op = this.state.operatorState.operator;
-        await this.orm.call("rms.stock.count.operator", "scanner_finish", [[op.id]]);
+        this.state.missing = await this.orm.call("rms.stock.count.operator", "scanner_finish", [[op.id]]);
+        this.state.searchMode = false;
         this.state.step = "finished";
+    }
+
+    async startSearch() {
+        const operatorState = await this.orm.call("rms.stock.count.operator", "scanner_start_search", [[this.state.operatorState.operator.id]]);
+        this._applyState(operatorState);
+        this.state.searchMode = true;
+        this.state.step = "scan";
     }
 
     async backToSession() {

@@ -6,6 +6,7 @@ from io import BytesIO
 from openpyxl import Workbook
 
 from odoo.tests import TransactionCase, tagged
+from odoo.exceptions import UserError
 
 
 @tagged('post_install', '-at_install')
@@ -24,7 +25,11 @@ class TestSageExpected(TransactionCase):
         joined = Operator.scanner_join(cls.session.id, 'Sage test')
         cls.operator = Operator.browse(joined['operator']['id'])
         cls.Scan = cls.env['rms.stock.count.scan']
-        cls.Expected = cls.env['rms.stock.count.expected']
+        cls.Expected = cls.env['rms.sage.stock.line']
+        cls.brand = cls.env['product.category'].create({'name': 'RMSTEST Sage Brand'})
+        cls.whs = cls.env['rms.sage.warehouse'].search([('sage_company_code', '=', '01')])
+        cls.session.write({'brand_categ_ids': [(6, 0, cls.brand.ids)], 'sage_warehouse_ids': [(6, 0, cls.whs.ids)]})
+        cls.snapshot = cls.env['rms.sage.snapshot'].create({'name': 'Test additional', 'brand_categ_id': cls.brand.id})
         Product = cls.env['product.product']
         cls.dwm = Product.create({
             'name': 'RMSTEST DWM', 'default_code': 'DWM-02N/33',
@@ -64,11 +69,11 @@ class TestSageExpected(TransactionCase):
         workbook.save(stream)
         workbook.close()
         wizard = self.env['rms.stock.count.sage.import'].create({
-            'session_id': self.session.id, 'filename': 'sage_valoracion_sony_ejemplo.xlsx',
+            'brand_categ_id': self.brand.id, 'mode': 'replace', 'allow_duplicate': True, 'filename': 'sage_valoracion_sony_ejemplo.xlsx',
             'file_data': base64.b64encode(stream.getvalue()),
         })
         wizard.action_import()
-        return self.session.expected_ids
+        return self.session._sage_lines()
 
     def test_import_hierarchical_sage_rows_and_replace(self):
         expected = self._import_fixture()
@@ -94,12 +99,12 @@ class TestSageExpected(TransactionCase):
             'location_id': self.session.location_id.id,
         })
         other_line = self.Expected.create({
-            'session_id': other_session.id, 'warehouse_code': 'AL1', 'article_code': 'UNRESOLVED',
+            'snapshot_id': self.snapshot.id, 'warehouse_code': 'AL1', 'article_code': 'UNRESOLVED',
             'model_code': 'UNRESOLVED', 'quantity': 4,
         })
         again = self._import_fixture()
         self.assertEqual(len(again), 5)
-        self.assertFalse(self.Expected.browse(old_ids).exists())
+        self.assertFalse(any(self.Expected.browse(old_ids).mapped("is_current")))
         self.assertTrue(other_line.exists())
 
     def test_sage_suggestion_assigns_serial_and_learns_frame_part(self):
@@ -107,7 +112,7 @@ class TestSageExpected(TransactionCase):
         results = self.Scan.scanner_register_batch(
             self.operator.id, ['P81672643J', 'P81672643J', 'S010040579B'],
             'sage-suggestion-frame', source='camera',
-        )
+        )['results']
         serial = self.Scan.browse(next(
             result['scan']['id'] for result in results
             if result['scan']['lot_name'] == '0040579'
@@ -132,13 +137,14 @@ class TestSageExpected(TransactionCase):
     def test_suggestion_multiple_products_has_text_without_action_candidate(self):
         self._import_fixture()
         self.Expected.create({
-            'session_id': self.session.id, 'article_code': 'WD-850A',
+            'snapshot_id': self.snapshot.id, 'is_current': True, 'sage_warehouse_id': self.whs.filtered(lambda w: w.code == 'A.7').id, 'article_code': 'WD-850A',
             'model_code': 'WD-850A', 'warehouse_code': 'A.7',
             'serial': '00-40579', 'quantity': 1,
         })
+        self.snapshot.line_ids._resolve_products()
         result = self.Scan.scanner_register_batch(
             self.operator.id, ['S010040579B'], 'sage-ambiguous', source='camera',
-        )[0]
+        )['results'][0]
         scan = self.Scan.browse(result['scan']['id'])
         self.assertTrue(scan.sage_suggestion)
         self.assertFalse(scan.sage_suggestion_product_id)
@@ -146,7 +152,7 @@ class TestSageExpected(TransactionCase):
     def test_import_refreshes_suggestions_for_existing_unknown(self):
         result = self.Scan.scanner_register_batch(
             self.operator.id, ['S010040579B'], 'sage-before-import', source='camera',
-        )[0]
+        )['results'][0]
         scan = self.Scan.browse(result['scan']['id'])
         self.assertFalse(scan.sage_suggestion_product_id)
         self._import_fixture()
@@ -163,10 +169,10 @@ class TestSageExpected(TransactionCase):
         workbook.save(stream)
         workbook.close()
         self.env['rms.stock.count.sage.import'].create({
-            'session_id': self.session.id, 'filename': 'sin_series.xlsx',
+            'brand_categ_id': self.brand.id, 'mode': 'replace', 'allow_duplicate': True, 'filename': 'sin_series.xlsx',
             'file_data': base64.b64encode(stream.getvalue()),
         }).action_import()
-        expected = self.session.expected_ids
+        expected = self.session._sage_lines()
         self.assertEqual(len(expected), 2)
         self.assertEqual({line.warehouse_code: line.quantity for line in expected},
                          {'AL1': 5, 'A.7': 2})
@@ -249,12 +255,102 @@ class TestSageExpected(TransactionCase):
         template.product_variant_ids.write({'default_code': 'RMSTEST-SAGE-VARIANTS'})
         for state, variant_value in [('Nuevo', 'Nuevo'), ('Demo', 'Demo'), ('2Mano', '2ª Mano')]:
             line = self.Expected.create({
-                'session_id': self.session.id, 'warehouse_code': 'AL1',
+                'snapshot_id': self.snapshot.id, 'warehouse_code': 'AL1',
                 'article_code': 'RMSTEST-SAGE-VARIANTS',
-                'model_code': 'RMSTEST-SAGE-VARIANTS', 'state_hint': state,
+                'model_code': 'RMSTEST-SAGE-VARIANTS', 'state': {'Nuevo': 'nuevo', 'Demo': 'demo', '2Mano': '2mano'}[state],
                 'serial': '0000001', 'quantity': 1,
             })
+            line._resolve_products()
             expected_variant = template.product_variant_ids.filtered(
                 lambda product: variant_value in product.product_template_attribute_value_ids.mapped('name')
             )
             self.assertEqual(line.product_id, expected_variant)
+
+    def test_live_verdict_and_product_priority(self):
+        self._import_fixture()
+        verdict = self.Scan._sage_verdict(['0040579', 'absent', ''], self.session, self.dwm)
+        self.assertEqual([v['v'] for v in verdict], ['here', 'none', 'nos'])
+        self.assertTrue(verdict[0]['pm'])
+        self.session.sage_warehouse_ids = self.whs.filtered(lambda w: w.code == 'A.7')
+        self.assertEqual(self.Scan._sage_verdict(['0040579'], self.session, self.dwm)[0]['v'], 'wh')
+        other = self.env['rms.sage.snapshot'].create({'name': 'Other Sage company', 'sage_company_code': '02',
+                                                    'brand_categ_id': self.brand.id})
+        self.Expected.create({'snapshot_id': other.id, 'warehouse_code': 'AL1', 'article_code': 'OTHER',
+                              'model_code': 'OTHER', 'serial': 'co-test', 'is_current': True})
+        self.assertEqual(self.Scan._sage_verdict(['co-test'], self.session)[0]['v'], 'co')
+        # Sony repite nº de serie entre modelos distintos: no es un duplicado.
+        other_model = self.Expected.create({'snapshot_id': self.snapshot.id, 'is_current': True,
+                                           'warehouse_code': 'A.2', 'article_code': 'WD-850A',
+                                           'model_code': 'WD-850A', 'serial': '0040579', 'product_id': self.wd.id})
+        self.Expected._update_duplicates()
+        self.assertEqual(other_model.dup_count, 1)
+        verdict = self.Scan._sage_verdict(['0040579'], self.session, self.wd)[0]
+        self.assertNotEqual(verdict['v'], 'dup')
+        self.assertTrue(verdict['pm'])
+        self.assertEqual(verdict['h'][0][4], 'WD-850A')
+        # Mismo modelo y nº de serie en dos almacenes: duplicado de Sage.
+        original = self.Expected.search([('serial_normalized', '=', '40579'), ('product_id', '=', self.dwm.id)], limit=1)
+        duplicate = self.Expected.create({'snapshot_id': self.snapshot.id, 'is_current': True,
+                                         'warehouse_code': 'AL1', 'article_code': original.article_code,
+                                         'model_code': original.model_code, 'serial': '0040579',
+                                         'product_id': self.dwm.id})
+        self.Expected._update_duplicates()
+        self.assertEqual(duplicate.dup_count, 2)
+        self.assertEqual(self.Scan._sage_verdict(['0040579'], self.session, self.dwm)[0]['v'], 'dup')
+        # El mismo archivo cargado dos veces no crea duplicados falsos.
+        twin = self.Expected.create({'snapshot_id': self.snapshot.id, 'is_current': True,
+                                    'warehouse_code': 'AL1', 'article_code': original.article_code,
+                                    'model_code': original.model_code, 'serial': '0040579',
+                                    'product_id': self.dwm.id})
+        self.Expected._update_duplicates()
+        self.assertEqual(twin.dup_count, 2)
+
+    def test_semiblind_close_zone_and_search(self):
+        self._import_fixture()
+        import json
+        state = self.operator._scanner_state()
+        self.assertNotIn('expected_qty', json.dumps(state))
+        with self.assertRaises(UserError):
+            self.operator._scanner_missing()
+        missing = self.operator.scanner_close_zone()
+        self.assertTrue(missing['count'])
+        self.assertNotIn('expected_qty', json.dumps(missing))
+        self.assertNotIn('"quantity":', json.dumps(missing))
+        quantity = [row for row in missing['missing'] if row['count_by_quantity']]
+        self.assertTrue(quantity)
+        self.operator.scanner_start_search()
+        self.operator.current_product_id = self.dwm
+        response = self.Scan.scanner_register(self.operator.id, '0040579')
+        scan = self.Scan.browse(response['scan']['id'])
+        self.assertTrue(scan.found_in_search)
+        unknown = self.Scan.scanner_register_batch(self.operator.id, ['S010040580B'],
+                                                  'search-suggestion', source='camera')['results'][0]
+        suggested = self.Scan.browse(unknown['scan']['id'])
+        self.assertEqual(suggested.scan_type, 'unknown')
+        self.assertTrue(suggested.found_in_search)
+        suggested.action_use_sage_suggestion()
+        self.assertEqual(suggested.scan_type, 'serial')
+        self.assertTrue(suggested.found_in_search)
+        missing = self.operator.scanner_close_zone()
+        self.assertFalse(any('0040579' in row['serials'] for row in missing['missing']))
+
+    def test_legacy_migration_preserves_reconciliation(self):
+        import importlib.util
+        from pathlib import Path
+        from odoo.addons.rms_stock_count_session import __file__ as module_file
+        path = Path(module_file).parent / 'migrations' / '19.0.2.0.0' / 'post-migrate.py'
+        spec = importlib.util.spec_from_file_location('sage_library_migration', path)
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        legacy = self.env['rms.stock.count.expected'].create({
+            'session_id': self.session.id, 'warehouse_code': 'AL1', 'article_code': 'DWM-02N/33',
+            'model_code': 'DWM-02N/33', 'serial': 'legacy-1', 'quantity': 1})
+        cross = self.env['rms.stock.count.sage.line'].create({
+            'session_id': self.session.id, 'expected_id': legacy.id, 'status': 'missing'})
+        migration.migrate_expected(self.env)
+        self.assertTrue(cross.stock_line_id)
+        self.assertEqual(cross.stock_line_id.serial, legacy.serial)
+        self.assertEqual(cross.expected_id, legacy)
+        migrated_id = cross.stock_line_id.id
+        migration.migrate_expected(self.env)
+        self.assertEqual(cross.stock_line_id.id, migrated_id)

@@ -10,7 +10,8 @@
         gap: 0.3rem;
         padding: 0.4rem;
         min-width: 0;
-        white-space: nowrap;
+        white-space: normal;
+        flex-wrap: wrap;
     }
 
     .o_rms_cs_session,
@@ -127,8 +128,8 @@
         }
 
         .o_rms_cs_modes .btn {
-            min-width: 32px;
-            min-height: 32px;
+            min-width: 48px;
+            min-height: 48px;
             padding: 0.3rem 0.45rem;
         }
     }
@@ -155,4 +156,28 @@
             border-left: 1px solid var(--border-color, #dee2e6);
         }
     }
+}
+
+.o_rms_count_scan {
+    .btn { min-height: 48px; min-width: 48px; }
+    .o_rms_cs_session { flex-basis: 100%; font-size: 1rem; overflow-wrap: anywhere; }
+    // Ubicación y producto en una sola línea con "…": partir el texto letra a
+    // letra ocupaba media pantalla en el iPhone.
+    .o_rms_cs_ctx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 30%; min-width: 0; }
+    .o_rms_cs_ctx + .o_rms_cs_ctx { flex-basis: 45%; }
+    .o_rms_cs_verdict { padding: 0.6rem 0.8rem; flex: 0 0 auto; width: 100%; }
+    .o_rms_cs_verdict_text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .o_rms_cs_sage_here { background: #d1e7dd; color: #0f5132; }
+    .o_rms_cs_sage_wh, .o_rms_cs_sage_co { background: #fff3cd; color: #664d03; }
+    .o_rms_cs_sage_none { background: #f8d7da; color: #842029; }
+    .o_rms_cs_sage_dup { background: #e8dafa; color: #593080; }
+    .o_rms_cs_sage_unknown, .o_rms_cs_sage_nos { background: #e9ecef; color: #343a40; }
+    .o_rms_cs_sage_duplicate { background: #cfe2ff; color: #084298; }
+    .o_rms_cs_history_here { border-left: 4px solid #198754; }
+    .o_rms_cs_history_wh, .o_rms_cs_history_co { border-left: 4px solid #d99200; }
+    .o_rms_cs_history_none { border-left: 4px solid #dc3545; }
+    .o_rms_cs_history_dup { border-left: 4px solid #8050ae; }
+    .o_rms_cs_history_unknown { border-left: 4px solid #6c757d; }
+    .o_rms_cs_history_duplicate { border-left: 4px solid #0d6efd; }
+    .o_rms_cs_missing { max-height: 45vh; overflow-y: auto; margin-bottom: 1rem; flex: 0 0 auto; }
 }

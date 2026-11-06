@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Recuento cruzado (varios operarios)',
-    'version': '19.0.1.5.0',
+    'version': '19.0.2.0.0',
     'category': 'Inventory/Inventory',
     'summary': (
         'Varias personas recorren el almacén escaneando con PDA o móvil y '
@@ -29,14 +29,16 @@ Recuento cruzado con varios operarios
     'depends': ['stock', 'web', 'rms_stock_barcode_scan', 'rms_stock_lot_label_print'],
     'external_dependencies': {'python': ['openpyxl']},
     'data': [
-        'security/ir.model.access.csv',
         'security/stock_count_security.xml',
+        'security/ir.model.access.csv',
+        'data/sage_warehouse_data.xml',
         'data/ir_sequence_data.xml',
         'data/rms_scan_rule_data.xml',
         'report/stock_count_cross_report.xml',
         'views/stock_count_session_views.xml',
         'views/scan_rule_views.xml',
         'views/sage_expected_views.xml',
+        'views/sage_library_views.xml',
     ],
     'assets': {
         'rms_stock_count_session.assets_camera': [
