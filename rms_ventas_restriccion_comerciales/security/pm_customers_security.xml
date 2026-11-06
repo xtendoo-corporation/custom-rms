@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Un Product Manager (usuario asignado como Product Manager en una
+         categoría de producto) puede leer la ficha de un cliente de otro
+         comercial, y los contactos de su empresa, si y solo si el cliente
+         tiene una oportunidad abierta (activa y en una etapa que no cierra el
+         acceso: Entregados, Perdido, Eliminados) con un presupuesto no
+         cancelado que lleva un producto de sus categorías. Al pasar la
+         oportunidad a una etapa de cierre, o archivarla, deja de verlo.
+         Solo lectura: no lo convierte en cliente suyo. -->
+    <record id="rule_res_partner_pm_open_opportunities" model="ir.rule">
+        <field name="name">Contactos de oportunidades abiertas con productos del Product Manager</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="domain_force">[('commercial_partner_id.rms_commercial_crm_lead_ids', 'any', [
+            ('active', '=', True),
+            '|', ('stage_id', '=', False), ('stage_id.rms_closes_pm_access', '=', False),
+            ('order_ids', 'any', [('state', '!=', 'cancel'), ('category_product_manager_ids', 'in', [user.id])]),
+        ])]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+</odoo>
