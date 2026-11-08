@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_scan_rule_list" model="ir.ui.view">
+        <field name="name">rms.scan.rule.list</field>
+        <field name="model">rms.scan.rule</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="brand"/>
+                <field name="action"/>
+                <field name="pattern"/>
+                <field name="transform" optional="show"/>
+                <field name="padding" optional="show"/>
+                <field name="example" optional="show"/>
+                <field name="note" optional="hide"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_scan_rule_form" model="ir.ui.view">
+        <field name="name">rms.scan.rule.form</field>
+        <field name="model">rms.scan.rule</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="brand"/>
+                            <field name="action"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="pattern"/>
+                            <field name="transform" invisible="action != 'serial'"/>
+                            <field name="padding" invisible="action != 'serial'"/>
+                            <field name="example"/>
+                        </group>
+                    </group>
+                    <field name="note" placeholder="De dónde sale la regla, qué falta confirmar..."/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_rms_scan_rule" model="ir.actions.act_window">
+        <field name="name">Reglas de lectura de etiquetas</field>
+        <field name="res_model">rms.scan.rule</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'active_test': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Sin reglas</p>
+            <p>
+                Cada fabricante etiqueta a su manera: aquí se indica qué códigos hay que
+                ignorar (transporte, cantidades...) y cómo sacar el número de serie de los
+                que lo llevan con prefijos o codificado.
+            </p>
+        </field>
+    </record>
+
+    <record id="view_rms_product_scan_alias_list" model="ir.ui.view">
+        <field name="name">rms.product.scan.alias.list</field>
+        <field name="model">rms.product.scan.alias</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="product_tmpl_id"/>
+                <field name="code"/>
+                <field name="note"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_rms_product_scan_alias" model="ir.actions.act_window">
+        <field name="name">Códigos alternativos de producto</field>
+        <field name="res_model">rms.product.scan.alias</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Sin códigos alternativos</p>
+            <p>
+                Referencias del fabricante impresas en la caja (part number DiGiCo, model no.
+                Luminex, P-xxxxxxxx Sony, referencia Meyer...) que identifican el producto
+                al escanearlas. Se comparan sin espacios, guiones ni puntos. También se
+                crean solos desde la revisión de un recuento.
+            </p>
+        </field>
+    </record>
+
+    <record id="product_template_form_view_rms_scan_alias" model="ir.ui.view">
+        <field name="name">product.template.form.rms.scan.alias</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <page name="inventory" position="inside">
+                <group string="Códigos alternativos de escaneo" name="rms_scan_alias">
+                    <field name="rms_scan_alias_ids" nolabel="1" colspan="2">
+                        <list editable="bottom">
+                            <field name="code"/>
+                            <field name="note"/>
+                        </list>
+                    </field>
+                </group>
+            </page>
+        </field>
+    </record>
+
+    <menuitem
+        id="menu_rms_scan_rule"
+        name="Reglas de lectura de etiquetas"
+        action="action_rms_scan_rule"
+        parent="stock.menu_stock_config_settings"
+        sequence="30"
+        groups="stock.group_stock_manager"
+    />
+    <menuitem
+        id="menu_rms_product_scan_alias"
+        name="Códigos alternativos de producto"
+        action="action_rms_product_scan_alias"
+        parent="stock.menu_product_in_config_stock"
+        sequence="30"
+        groups="stock.group_stock_user"
+    />
+</odoo>

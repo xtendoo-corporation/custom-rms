@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_stock_count_sage_import_form" model="ir.ui.view">
+        <field name="name">rms.stock.count.sage.import.form</field>
+        <field name="model">rms.stock.count.sage.import</field>
+        <field name="arch" type="xml">
+            <form string="Cargar exportación de Sage">
+                <group>
+                    <field name="company_id"/><field name="sage_company_code"/><field name="scope"/><field name="brand_categ_id" invisible="scope == 'all'" required="scope == 'brand'"/><field name="mode"/><field name="export_date"/><field name="allow_duplicate"/>
+                    <field name="filename" invisible="1"/>
+                    <field name="file_data" filename="filename"/>
+                </group>
+                <p>Selecciona un Excel o CSV «Valoración de stocks» de una empresa Sage. Todas las marcas distribuye el archivo por la marca de cada artículo. Una marca permite cargar una exportación filtrada de esa marca.</p>
+                <p>Reemplazar: retira las versiones vigentes de las marcas presentes en el archivo; las demás marcas se conservan.</p>
+                <p>Añadir: conserva las versiones vigentes y añade las existencias de este archivo.</p>
+                <footer>
+                    <button name="action_import" type="object" string="Cargar exportación" class="btn-primary"/>
+                    <button special="cancel" string="Cancelar"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="view_stock_count_expected_list" model="ir.ui.view">
+        <field name="name">rms.stock.count.expected.list</field>
+        <field name="model">rms.stock.count.expected</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false">
+                <field name="warehouse_code"/>
+                <field name="article_code"/>
+                <field name="model_code"/>
+                <field name="state_hint"/>
+                <field name="serial"/>
+                <field name="quantity" sum="Total"/>
+                <field name="cost" groups="rms_stock_count_session.group_sage_cost"/>
+                <field name="product_id"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_stock_count_sage_line_list" model="ir.ui.view">
+        <field name="name">rms.stock.count.sage.line.list</field>
+        <field name="model">rms.stock.count.sage.line</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false"
+                  decoration-success="status == 'counted'"
+                  decoration-danger="status == 'missing'"
+                  decoration-warning="status in ('wrong_product', 'unexpected')">
+                <field name="status" widget="badge"/>
+                <field name="warehouse_code"/>
+                <field name="article_code"/>
+                <field name="state_hint"/>
+                <field name="product_id"/>
+                <field name="serial"/>
+                <field name="expected_qty" sum="Total Sage"/>
+                <field name="counted_qty" sum="Total contado"/>
+                <field name="counted_product_id"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_stock_count_sage_line_search" model="ir.ui.view">
+        <field name="name">rms.stock.count.sage.line.search</field>
+        <field name="model">rms.stock.count.sage.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="warehouse_code"/>
+                <field name="article_code"/>
+                <field name="product_id"/>
+                <field name="serial"/>
+                <filter name="counted" string="Contado aquí" domain="[('status', '=', 'counted')]"/>
+                <filter name="wrong_product" string="Otro producto" domain="[('status', '=', 'wrong_product')]"/>
+                <filter name="missing" string="No contado" domain="[('status', '=', 'missing')]"/>
+                <filter name="unexpected" string="Sobra" domain="[('status', '=', 'unexpected')]"/>
+                <group>
+                    <filter name="by_status" string="Resultado" context="{'group_by': 'status'}"/>
+                    <filter name="by_warehouse" string="Almacén Sage" context="{'group_by': 'warehouse_code'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="view_stock_count_session_form_sage" model="ir.ui.view">
+        <field name="name">rms.stock.count.session.form.sage</field>
+        <field name="model">rms.stock.count.session</field>
+        <field name="inherit_id" ref="view_stock_count_session_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_sage" groups="stock.group_stock_manager" type="object" class="oe_stat_button" icon="fa-table">
+                    <field name="sage_expected_count" widget="statinfo" string="Cruce Sage"/>
+                </button>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Alcance Sage" name="sage_scope">
+                    <group><field name="sage_company_code"/><field name="brand_categ_ids" widget="many2many_tags"/><field name="sage_warehouse_ids" widget="many2many_tags"/></group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

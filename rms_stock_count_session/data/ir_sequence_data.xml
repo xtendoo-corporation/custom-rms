@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="seq_stock_count_session" model="ir.sequence">
+        <field name="name">Sesión de recuento cruzado</field>
+        <field name="code">rms.stock.count.session</field>
+        <field name="prefix">REC/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

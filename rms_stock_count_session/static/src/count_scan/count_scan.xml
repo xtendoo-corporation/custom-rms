@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_stock_count_session.StockCountScan">
+        <div class="o_rms_count_scan d-flex flex-column h-100">
+
+            <t t-if="state.step === 'loading'">
+                <div class="d-flex align-items-center justify-content-center flex-grow-1">
+                    <div class="spinner-border text-primary" role="status"/>
+                </div>
+            </t>
+
+            <t t-if="state.step === 'error'">
+                <div class="p-4">
+                    <div class="alert alert-danger" t-esc="state.error"/>
+                </div>
+            </t>
+
+            <!-- Entrar al recuento con un nombre de operario -->
+            <t t-if="state.step === 'join'">
+                <div class="p-3 border-bottom">
+                    <h4 class="m-0">Recuento <t t-esc="state.session.name"/></h4>
+                    <div class="text-muted" t-esc="state.session.location_name"/>
+                </div>
+                <div class="p-3 flex-grow-1 overflow-auto">
+                    <t t-if="state.session.state === 'review' or state.session.state === 'done' or state.session.state === 'cancel'">
+                        <div class="alert alert-info">Este recuento ya está cerrado.</div>
+                        <button class="btn btn-secondary" t-on-click="backToSession">Volver al recuento</button>
+                    </t>
+                    <t t-else="">
+                        <label class="form-label fw-bold">¿Quién eres?</label>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control form-control-lg"
+                                   placeholder="Tu nombre"
+                                   t-att-value="state.joinName"
+                                   t-on-input="onJoinNameInput"
+                                   t-on-keydown="onJoinKeydown"/>
+                            <button class="btn btn-primary btn-lg" t-on-click="() => this.join(state.joinName)">
+                                Empezar
+                            </button>
+                        </div>
+                        <t t-if="state.session.operators.length">
+                            <div class="text-muted mb-2">O continúa como:</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button t-foreach="state.session.operators" t-as="op" t-key="op.id"
+                                        class="btn btn-outline-primary"
+                                        t-on-click="() => this.join(op.name)">
+                                    <t t-esc="op.name"/>
+                                    <span class="badge text-bg-secondary ms-1" t-esc="op.scan_count"/>
+                                </button>
+                            </div>
+                        </t>
+                    </t>
+                </div>
+            </t>
+
+            <!-- Escaneo -->
+            <t t-if="state.step === 'scan' and state.operatorState">
+                <t t-set="os" t-value="state.operatorState"/>
+                <div class="o_rms_cs_header border-bottom o_rms_cs_keep_focus">
+                    <a href="#" class="o_rms_cs_session" t-on-click.prevent="changeOperator"
+                       t-att-title="os.session.name + ' · ' + os.operator.name">
+                        <strong t-esc="os.session.name"/>
+                        <span class="text-muted d-block"><t t-esc="os.operator.name"/></span>
+                    </a>
+                    <button class="btn btn-sm btn-light border o_rms_cs_ctx"
+                            t-att-title="os.location ? os.location.name : 'Elegir ubicación'"
+                            t-on-click="() => this.openPanel('location')">
+                        <i class="fa fa-map-marker me-1"/>
+                        <t t-esc="os.location ? os.location.name : 'Ubicación'"/>
+                    </button>
+                    <button class="btn btn-sm btn-light border o_rms_cs_ctx"
+                            t-att-title="os.product ? os.product.name : 'Elegir producto'"
+                            t-on-click="() => this.openPanel('product')">
+                        <i class="fa fa-cube me-1"/>
+                        <t t-esc="os.product ? os.product.name : 'Producto'"/>
+                    </button>
+                    <button t-if="os.product" class="btn btn-sm btn-link px-1 o_rms_cs_clear" title="Quitar producto"
+                            aria-label="Quitar producto" t-on-click="clearProduct"><i class="fa fa-times"/></button>
+                    <div class="btn-group btn-group-sm o_rms_cs_modes" role="group" aria-label="Modo de lectura">
+                        <button class="btn" t-att-class="state.inputMode === 'pda' ? 'btn-primary' : 'btn-outline-primary'"
+                                title="PDA" aria-label="PDA" t-on-click="() => this.setInputMode('pda')">
+                            <i class="fa fa-barcode"/><span class="o_rms_cs_button_label"> PDA</span>
+                        </button>
+                        <button class="btn" t-att-class="state.inputMode === 'camera' ? 'btn-primary' : 'btn-outline-primary'"
+                                title="Cámara" aria-label="Cámara" t-on-click="() => this.setInputMode('camera')">
+                            <i class="fa fa-camera"/><span class="o_rms_cs_button_label"> Cámara</span>
+                        </button>
+                        <button class="btn btn-outline-dark" title="Sin etiqueta" aria-label="Sin etiqueta"
+                                t-on-click="openReplacementLabel">
+                            <i class="fa fa-tag"/><span class="o_rms_cs_button_label"> Sin etiqueta</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div t-if="state.searchMode" class="alert alert-info py-2 mb-0">Modo búsqueda · solo se tacha escaneando</div>
+                <div t-if="state.verdict" class="o_rms_cs_verdict" t-att-class="'o_rms_cs_sage_' + state.verdict.kind" role="status" aria-live="polite">
+                    <div class="o_rms_cs_verdict_text"><strong><t t-esc="verdictIcon(state.verdict.kind)"/> <t t-esc="state.verdict.text"/></strong><div t-if="state.verdict.detail" t-esc="state.verdict.detail"/></div>
+                    <div t-if="state.verdict.suggestionId" class="d-flex gap-2 mt-1 o_rms_cs_keep_focus">
+                        <button class="btn btn-dark flex-grow-1" t-on-click="useSuggestion">Sí, es ese</button>
+                        <button class="btn btn-outline-dark flex-grow-1" t-on-click="() => { this.state.verdict = null; }">No sé</button>
+                    </div>
+                </div>
+                <!-- Panel de búsqueda de producto / ubicación -->
+                <t t-if="state.panel">
+                    <div class="p-2 border-bottom">
+                        <div class="input-group">
+                            <input type="text" class="form-control" autofocus="autofocus"
+                                   t-att-placeholder="state.panel === 'location' ? 'Buscar ubicación...' : 'Buscar producto (nombre, referencia, código)...'"
+                                   t-att-value="state.panelQuery"
+                                   t-on-input="onPanelQueryInput"/>
+                            <button class="btn btn-secondary" t-on-click="closePanel">Cerrar</button>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1 overflow-auto">
+                        <ul class="list-group list-group-flush">
+                            <li t-foreach="state.panelResults" t-as="rec" t-key="rec.id"
+                                class="list-group-item list-group-item-action" style="cursor:pointer"
+                                t-on-click="() => this.pickPanelResult(rec)">
+                                <div t-esc="rec.name"/>
+                                <small t-if="rec.default_code or rec.barcode" class="text-muted">
+                                    <t t-esc="rec.default_code"/> <t t-esc="rec.barcode"/>
+                                </small>
+                                <span t-if="rec.tracking === 'serial'" class="badge text-bg-light border ms-1">nº serie</span>
+                                <span t-if="rec.tracking === 'lot'" class="badge text-bg-light border ms-1">lote</span>
+                            </li>
+                        </ul>
+                    </div>
+                </t>
+
+                <t t-else="">
+                    <div class="o_rms_cs_workspace" t-att-class="state.inputMode === 'camera' ? 'o_rms_cs_camera_mode' : ''">
+                        <div class="o_rms_cs_capture">
+                            <t t-if="state.inputMode === 'camera'">
+                                <div class="o_rms_cs_video_wrap">
+                                    <video t-ref="video" class="o_rms_cs_video" autoplay="autoplay"
+                                           playsinline="playsinline" muted="muted"/>
+                                    <div class="o_rms_cs_scan_rect" t-att-style="scanRectStyle"/>
+                                </div>
+                                <div t-if="state.cameraError" class="alert alert-danger py-2 mt-2 mb-0" t-esc="state.cameraError"/>
+                            </t>
+                            <div class="input-group input-group-sm o_rms_cs_keep_focus mt-2">
+                                <input type="text" t-ref="codeInput" class="form-control"
+                                       autocomplete="off" autocapitalize="off" spellcheck="false"
+                                       t-att-placeholder="state.inputMode === 'pda' ? 'Escanea con el lector...' : 'Escribir código a mano'"
+                                       t-on-keydown="onCodeKeydown" t-on-blur="onCodeBlur"/>
+                                <button class="btn btn-outline-secondary" t-on-click="addTypedCode">Añadir</button>
+                            </div>
+                            <div t-if="state.offline or state.pending.length" class="alert alert-warning py-1 mt-2 mb-0">
+                                <i class="fa fa-wifi me-1"/>
+                                <t t-if="state.offline">Sin conexión. </t>
+                                <t t-esc="state.pending.length"/> lectura(s) pendientes de enviar.
+                            </div>
+                        </div>
+                        <section class="o_rms_cs_readings" aria-label="Equipos leídos">
+                            <div class="o_rms_cs_list_header border-bottom">
+                                <div class="text-truncate">
+                                    <strong>Llevas</strong>
+                                    <span class="badge text-bg-primary ms-1" title="Lecturas realizadas" t-esc="os.operator.scan_count"/>
+                                    <small class="text-muted ms-1"><t t-esc="os.operator.name"/></small>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary o_rms_cs_keep_focus"
+                                        t-att-disabled="!state.history.length" title="Deshacer última lectura"
+                                        t-on-click="() => this.deleteScan(state.history[0].id)">
+                                    <i class="fa fa-undo"/> Deshacer
+                                </button>
+                            </div>
+                            <div class="o_rms_cs_readings_scroll">
+
+                                <div t-if="!state.history.length" class="p-3 text-muted">Aún no hay equipos leídos.</div>
+                                <ul class="list-group list-group-flush">
+                                    <li t-foreach="state.history.filter((s) => s.type !== 'product_ref')" t-as="scan" t-key="scan.id"
+                                        class="list-group-item d-flex align-items-start gap-2 py-2"
+                                        t-att-class="'o_rms_cs_history_' + verdictKind({scan: scan})">
+                                        <span aria-hidden="true" t-esc="verdictIcon(verdictKind({scan: scan}))"/>
+                                        <div class="flex-grow-1 text-break">
+                                            <div class="fw-bold" t-esc="scan.product_name or scan.code"/>
+                                            <div t-if="scan.lot_name" class="fw-bold" t-esc="scan.lot_name"/>
+                                            <div t-if="scan.type === 'unknown'" class="small">
+                                                <strong>Pendiente de revisar: </strong><t t-esc="scan.message"/>
+                                            </div>
+                                            <small t-else="" class="text-muted" t-esc="scan.message"/>
+                                            <div class="small text-muted" t-esc="scan.time"/>
+                                        </div>
+                                        <button class="btn btn-sm btn-link text-danger o_rms_cs_keep_focus"
+                                                title="Borrar lectura" aria-label="Borrar lectura"
+                                                t-on-click="() => this.deleteScan(scan.id)"><i class="fa fa-trash"/></button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </section>
+                    </div>
+                    <div class="o_rms_cs_footer p-2 border-top d-flex gap-2 o_rms_cs_keep_focus">
+                        <button class="btn btn-sm btn-secondary" t-on-click="backToSession">Salir</button>
+                        <button class="btn btn-sm btn-success flex-grow-1" t-on-click="finish">He terminado mi recorrido</button>
+                    </div>
+                </t>
+            </t>
+
+            <t t-if="state.step === 'finished'">
+                <div class="p-4 text-center">
+                    <i class="fa fa-check-circle fa-4x text-success mb-3"/>
+                    <h4>Recorrido terminado</h4>
+                    <div t-if="state.missing" class="text-start o_rms_cs_missing">
+                        <h5>FALTAN <t t-esc="state.missing.count || 0"/> de Sage <t t-esc="state.missing.site"/></h5>
+                        <ul class="list-group mb-3">
+                            <li t-foreach="state.missing.missing || []" t-as="item" t-key="item_index" class="list-group-item">
+                                <strong t-esc="item.model"/>
+                                <div t-if="item.count_by_quantity">contar</div>
+                                <div t-foreach="item.serials || []" t-as="serial" t-key="serial_index" t-esc="serial"/>
+                            </li>
+                        </ul>
+                        <button t-if="state.operatorState and state.operatorState.session.state === 'counting'" class="btn btn-primary w-100 mb-3" t-on-click="startSearch">Ir a buscar</button>
+                    </div>
+                    <p class="text-muted">
+                        Tus lecturas están guardadas. Cuando todos terminen, el responsable pulsa
+                        "Terminar recuento y cruzar" en el recuento.
+                    </p>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <button t-if="state.operatorState and state.operatorState.session.state === 'counting'"
+                                class="btn btn-outline-primary"
+                                t-on-click="() => this.join(state.operatorState.operator.name)">
+                            Seguir escaneando
+                        </button>
+                        <button class="btn btn-primary" t-on-click="backToSession">Volver al recuento</button>
+                    </div>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>

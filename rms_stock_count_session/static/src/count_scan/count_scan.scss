@@ -1,0 +1,183 @@
+.o_rms_count_scan {
+    background-color: var(--o-view-background-color, #fff);
+    min-height: 0;
+    overflow: hidden;
+
+    .o_rms_cs_header {
+        display: flex;
+        align-items: center;
+        flex: 0 0 auto;
+        gap: 0.3rem;
+        padding: 0.4rem;
+        min-width: 0;
+        white-space: normal;
+        flex-wrap: wrap;
+    }
+
+    .o_rms_cs_session,
+    .o_rms_cs_ctx {
+        flex: 1 1 0;
+        min-width: 0;
+        font-size: 0.8rem;
+    }
+
+    .o_rms_cs_modes,
+    .o_rms_cs_clear {
+        flex: 0 0 auto;
+    }
+
+    .o_rms_cs_workspace {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .o_rms_cs_capture {
+        position: sticky;
+        top: 0;
+        flex: 0 0 auto;
+        padding: 0.5rem;
+        background-color: var(--o-view-background-color, #fff);
+        min-width: 0;
+    }
+
+    // The wrapper follows the rendered video's natural aspect ratio. The
+    // percentage rectangle therefore matches the source-frame crop exactly,
+    // including after an orientation change (no object-fit letterboxing).
+    .o_rms_cs_video_wrap {
+        position: relative;
+        width: fit-content;
+        max-width: 100%;
+        margin: 0 auto;
+        background-color: #000;
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+
+    .o_rms_cs_video {
+        display: block;
+        width: auto;
+        height: auto;
+        max-width: 100%;
+        max-height: 35vh;
+        max-height: 35dvh;
+    }
+
+    .o_rms_cs_scan_rect {
+        position: absolute;
+        box-sizing: border-box;
+        border: 2px solid rgba(255, 255, 255, 0.95);
+        border-radius: 0.25rem;
+        pointer-events: none;
+    }
+
+    .o_rms_cs_readings {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 0;
+        min-width: 0;
+        border-top: 1px solid var(--border-color, #dee2e6);
+    }
+
+    .o_rms_cs_list_header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem;
+        padding: 0.4rem 0.5rem;
+        flex: 0 0 auto;
+        font-size: 0.85rem;
+    }
+
+    .o_rms_cs_readings_scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .o_rms_cs_unit {
+        color: #146c43;
+        border-left: 3px solid #198754;
+    }
+
+    .o_rms_cs_review {
+        color: #805400;
+        background-color: #fff8e6;
+        border-left: 3px solid #d99200;
+    }
+
+    .o_rms_cs_last {
+        font-size: 0.85rem;
+    }
+
+    .o_rms_cs_footer {
+        flex: 0 0 auto;
+        // unquote(): libsass de Odoo no entiende max()/env() de CSS y rompería todo el bundle.
+        padding-bottom: unquote("max(0.5rem, env(safe-area-inset-bottom))") !important;
+    }
+
+    @media (max-width: 600px) {
+        .o_rms_cs_button_label {
+            display: none;
+        }
+
+        .o_rms_cs_modes .btn {
+            min-width: 48px;
+            min-height: 48px;
+            padding: 0.3rem 0.45rem;
+        }
+    }
+
+    @media (orientation: landscape) and (min-width: 700px) {
+        .o_rms_cs_workspace.o_rms_cs_camera_mode {
+            flex-direction: row;
+        }
+
+        .o_rms_cs_camera_mode .o_rms_cs_capture {
+            flex: 0 0 46%;
+            align-self: flex-start;
+            max-height: 100%;
+            overflow-y: auto;
+        }
+
+        .o_rms_cs_video {
+            max-height: 45vh;
+            max-height: 45dvh;
+        }
+
+        .o_rms_cs_camera_mode .o_rms_cs_readings {
+            border-top: 0;
+            border-left: 1px solid var(--border-color, #dee2e6);
+        }
+    }
+}
+
+.o_rms_count_scan {
+    .btn { min-height: 48px; min-width: 48px; }
+    .o_rms_cs_session { flex-basis: 100%; font-size: 1rem; overflow-wrap: anywhere; }
+    // Ubicación y producto en una sola línea con "…": partir el texto letra a
+    // letra ocupaba media pantalla en el iPhone.
+    .o_rms_cs_ctx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 30%; min-width: 0; }
+    .o_rms_cs_ctx + .o_rms_cs_ctx { flex-basis: 45%; }
+    .o_rms_cs_verdict { padding: 0.6rem 0.8rem; flex: 0 0 auto; width: 100%; }
+    .o_rms_cs_verdict_text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .o_rms_cs_sage_here { background: #d1e7dd; color: #0f5132; }
+    .o_rms_cs_sage_wh, .o_rms_cs_sage_co { background: #fff3cd; color: #664d03; }
+    .o_rms_cs_sage_none { background: #f8d7da; color: #842029; }
+    .o_rms_cs_sage_dup { background: #e8dafa; color: #593080; }
+    .o_rms_cs_sage_unknown, .o_rms_cs_sage_nos { background: #e9ecef; color: #343a40; }
+    .o_rms_cs_sage_duplicate { background: #cfe2ff; color: #084298; }
+    .o_rms_cs_history_here { border-left: 4px solid #198754; }
+    .o_rms_cs_history_wh, .o_rms_cs_history_co { border-left: 4px solid #d99200; }
+    .o_rms_cs_history_none { border-left: 4px solid #dc3545; }
+    .o_rms_cs_history_dup { border-left: 4px solid #8050ae; }
+    .o_rms_cs_history_unknown { border-left: 4px solid #6c757d; }
+    .o_rms_cs_history_duplicate { border-left: 4px solid #0d6efd; }
+    .o_rms_cs_missing { max-height: 45vh; overflow-y: auto; margin-bottom: 1rem; flex: 0 0 auto; }
+}

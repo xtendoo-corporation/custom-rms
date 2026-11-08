@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+<record id="sage_warehouse_0" model="rms.sage.warehouse"><field name="sage_company_code">01</field><field name="code">AL1</field><field name="name">Madrid</field><field name="company_id" ref="base.main_company"/></record>
+<record id="sage_warehouse_1" model="rms.sage.warehouse"><field name="sage_company_code">01</field><field name="code">A.2</field><field name="name">A.2</field><field name="company_id" ref="base.main_company"/></record>
+<record id="sage_warehouse_2" model="rms.sage.warehouse"><field name="sage_company_code">01</field><field name="code">A.6</field><field name="name">Mallorca</field><field name="company_id" ref="base.main_company"/></record>
+<record id="sage_warehouse_3" model="rms.sage.warehouse"><field name="sage_company_code">01</field><field name="code">A.7</field><field name="name">Sevilla</field><field name="company_id" ref="base.main_company"/></record>
+<record id="sage_warehouse_4" model="rms.sage.warehouse"><field name="sage_company_code">01</field><field name="code">AL5</field><field name="name">Cataluña (Vicente)</field><field name="company_id" ref="base.main_company"/></record>
+<record id="sage_warehouse_5" model="rms.sage.warehouse"><field name="sage_company_code">01</field><field name="code">A.9</field><field name="name">Cataluña (Alex)</field><field name="company_id" ref="base.main_company"/></record>
+<record id="sage_warehouse_6" model="rms.sage.warehouse"><field name="sage_company_code">01</field><field name="code">AL8</field><field name="name">RA Meyer</field><field name="company_id" ref="base.main_company"/></record>
+<record id="sage_warehouse_7" model="rms.sage.warehouse"><field name="sage_company_code">01</field><field name="code">A.8</field><field name="name">RA DiGiCo</field><field name="company_id" ref="base.main_company"/></record>
+<record id="sage_warehouse_8" model="rms.sage.warehouse"><field name="sage_company_code">01</field><field name="code">STM</field><field name="name">SAT Madrid</field><field name="company_id" ref="base.main_company"/></record>
+<record id="sage_warehouse_9" model="rms.sage.warehouse"><field name="sage_company_code">01</field><field name="code">STS</field><field name="name">SAT Sevilla</field><field name="company_id" ref="base.main_company"/></record>
+</odoo>

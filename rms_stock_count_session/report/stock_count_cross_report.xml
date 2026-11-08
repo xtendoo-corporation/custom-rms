@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_stock_count_cross" model="ir.actions.report">
+        <field name="name">Informe de cruce</field>
+        <field name="model">rms.stock.count.session</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">rms_stock_count_session.report_stock_count_cross</field>
+        <field name="report_file">rms_stock_count_session.report_stock_count_cross</field>
+        <field name="print_report_name">'Cruce - %s' % (object.name)</field>
+        <field name="binding_model_id" ref="model_rms_stock_count_session"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_stock_count_cross">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h3>Informe de cruce <t t-esc="o.name"/></h3>
+                        <p>
+                            Ubicación: <strong t-esc="o.location_id.display_name"/> ·
+                            Operarios: <t t-esc="', '.join(o.operator_ids.mapped('name'))"/> ·
+                            Lecturas: <t t-esc="o.scan_count"/>
+                        </p>
+                        <p>
+                            Nadie lo escaneó: <strong t-esc="o.line_missing_count"/> ·
+                            Solo una parte: <strong t-esc="o.line_partial_count"/> ·
+                            Cantidades distintas: <strong t-esc="o.line_qty_diff_count"/> ·
+                            Nuevos (no estaban en Odoo): <strong t-esc="o.line_unexpected_count"/> ·
+                            Coinciden: <strong t-esc="o.line_match_count"/>
+                        </p>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Resultado</th>
+                                    <th>Producto</th>
+                                    <th>Nº serie / lote</th>
+                                    <th>Ubicación</th>
+                                    <th class="text-end">En Odoo</th>
+                                    <th class="text-end">Contado</th>
+                                    <th>Escaneado por</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="o.line_ids" t-as="line">
+                                    <td><span t-field="line.status"/></td>
+                                    <td><span t-field="line.product_id"/></td>
+                                    <td><span t-esc="line.lot_name or ''"/></td>
+                                    <td><span t-field="line.location_id"/></td>
+                                    <td class="text-end"><span t-esc="'%g' % line.expected_qty"/></td>
+                                    <td class="text-end"><span t-esc="'%g' % line.counted_qty"/></td>
+                                    <td>
+                                        <span t-esc="line.qty_by_operator or line.seen_by or '-'"/>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <t t-set="unknown" t-value="o.unknown_scan_ids"/>
+                        <t t-if="unknown">
+                            <h5>Códigos sin identificar</h5>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr><th>Código</th><th>Operario</th><th>Ubicación</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr t-foreach="unknown" t-as="scan">
+                                        <td t-esc="scan.code"/>
+                                        <td t-esc="scan.operator_id.name"/>
+                                        <td t-esc="scan.location_id.display_name"/>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </t>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>
