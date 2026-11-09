@@ -43,7 +43,10 @@ class StockLot(models.Model):
                 continue
             try:
                 barcode = Report.barcode(
-                    "Code128", lot.name, width=600, height=180, humanreadable=0
+                    # Sin margen propio (lo pone la plantilla) y en 5:1 para
+                    # que ocupe casi todo el ancho: barras más gruesas.
+                    "Code128", lot.name, width=1200, height=240, humanreadable=0,
+                    quiet=0,
                 )
                 lot.rms_label_barcode_image = base64.b64encode(barcode)
             except Exception:

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Etiqueta Código de Barras (Número de Serie)',
-    'version': '19.0.1.1.1',
+    'version': '19.0.1.1.2',
     'category': 'Inventory/Inventory',
     'summary': (
         'Genera e imprime una etiqueta de 10x5cm con el código de barras '
