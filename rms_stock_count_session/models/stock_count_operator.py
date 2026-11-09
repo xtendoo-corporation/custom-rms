@@ -20,6 +20,16 @@ class RmsStockCountOperator(models.Model):
     user_id = fields.Many2one(
         "res.users", string="Usuario", default=lambda self: self.env.user, readonly=True,
     )
+    current_state_id = fields.Many2one(
+        "product.state", string="Estado activo", compute="_compute_current_state_id",
+        store=True, readonly=False,
+    )
+
+    @api.depends("session_id")
+    def _compute_current_state_id(self):
+        for operator in self:
+            operator.current_state_id = operator.session_id.default_state_id
+
     search_mode = fields.Boolean(default=False)
     zone_closed = fields.Boolean(default=False)
     done = fields.Boolean(string="Ha terminado")
@@ -120,6 +130,7 @@ class RmsStockCountOperator(models.Model):
                 "done": self.done,
                 "scan_count": self.scan_count,
                 "search_mode": self.search_mode,
+                "current_state_id": self.current_state_id.id,
             },
             "session": {
                 "id": session.id,
@@ -131,6 +142,13 @@ class RmsStockCountOperator(models.Model):
                 "id": self.current_location_id.id,
                 "name": self.current_location_id.display_name,
             } if self.current_location_id else False,
+            "product_states": [
+                {"id": state.id, "name": {"new": "Nuevo", "demo": "Demo", "ex_demo": "Ex-Demo", "second_hand": "2Mano"}[state.code],
+                 "code": state.code}
+                for state in self.env["product.state"].with_context(active_test=False).search([
+                    ("code", "in", ["new", "demo", "ex_demo", "second_hand"]),
+                ]).sorted(key=lambda state: ("new", "demo", "ex_demo", "second_hand").index(state.code))
+            ],
             "product": self._product_payload(self.current_product_id),
             "others": [
                 {"name": op.name, "scan_count": op.scan_count, "done": op.done}
@@ -160,6 +178,19 @@ class RmsStockCountOperator(models.Model):
         self.current_location_id = location
         return self._scanner_state()
 
+    def scanner_set_state(self, state_id):
+        self.ensure_one()
+        self._check_counting()
+        self.current_state_id = self._scanner_product_state(state_id)
+        return self._scanner_state()
+
+    @api.model
+    def _scanner_product_state(self, state_id):
+        state = self.env["product.state"].browse(state_id).exists()
+        if len(state) != 1 or state.code not in ("new", "demo", "ex_demo", "second_hand"):
+            raise UserError("Elige Nuevo, Demo, Ex-Demo o 2Mano.")
+        return state
+
     def scanner_set_product(self, product_id):
         self.ensure_one()
         self._check_counting()
@@ -182,6 +213,7 @@ class RmsStockCountOperator(models.Model):
             "target": "new",
             "context": {
                 "default_count_operator_id": self.id,
+                "default_product_state_id": self.current_state_id.id,
                 "default_product_id": product.id if product and product.tracking != "none" else False,
             },
         }

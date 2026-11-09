@@ -40,6 +40,7 @@ class RmsLotLabelWizard(models.TransientModel):
                 "lot_name": lot.name,
                 "location_id": location.id,
                 "quantity": 1.0,
+                "product_state_id": self.product_state_id.id,
                 "message": "Etiqueta sustituta impresa: %s · %s" % (
                     lot.product_id.display_name, lot.name,
                 ),

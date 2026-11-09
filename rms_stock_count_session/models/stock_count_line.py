@@ -12,9 +12,8 @@ STATUS_SELECTION = [
 
 
 class RmsStockCountLine(models.Model):
-    """Una línea del informe de cruce. Se regenera entera cada vez que se
-    cierra el recuento o se pulsa 'Regenerar cruce'; lo único que se toca a
-    mano es la cantidad final, la ubicación y si se vuelca o no."""
+    """Cruce regenerable que conserva las correcciones de administración
+    mediante una clave de origen estable y los valores editados a mano."""
 
     _name = "rms.stock.count.line"
     _description = "Línea de cruce de recuento"
@@ -24,6 +23,35 @@ class RmsStockCountLine(models.Model):
         "rms.stock.count.session", string="Recuento", required=True, ondelete="cascade", index=True,
     )
     session_state = fields.Selection(related="session_id.state", string="Estado del recuento")
+    reconciliation_key = fields.Char(copy=False, index=True)
+    review_overrides = fields.Json(copy=False, default=dict)
+    company_id = fields.Many2one(
+        "res.company", string="Empresa", default=lambda self: self.env.company,
+    )
+    company_doubtful = fields.Boolean(string="Empresa dudosa")
+    product_state_id = fields.Many2one("product.state", string="Estado del equipo")
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if "company_id" not in vals and vals.get("session_id"):
+                vals["company_id"] = self.env["rms.stock.count.session"].browse(vals["session_id"]).company_id.id
+        return super().create(vals_list)
+
+    def write(self, vals):
+        editable = {"product_id", "company_id", "product_state_id", "location_id", "counted_qty", "to_apply", "company_doubtful"}
+        if not self.env.context.get("reconciliation_generated") and editable.intersection(vals):
+            for line in self:
+                overrides = dict(line.review_overrides or {})
+                overrides.update({key: value for key, value in vals.items() if key in editable})
+                updates = dict(vals, review_overrides=overrides)
+                if "company_id" in vals and "company_doubtful" not in vals:
+                    updates["company_doubtful"] = False
+                    overrides["company_doubtful"] = False
+                super(RmsStockCountLine, line).write(updates)
+            return True
+        return super().write(vals)
+
     product_id = fields.Many2one("product.product", string="Producto", required=True)
     tracking = fields.Selection(related="product_id.tracking", string="Seguimiento")
     lot_id = fields.Many2one("stock.lot", string="Nº de serie / lote en Odoo")

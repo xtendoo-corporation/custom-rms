@@ -65,6 +65,7 @@ class RmsStockCountScan(models.Model):
         string="Tipo", required=True,
     )
     product_id = fields.Many2one("product.product", string="Producto")
+    product_state_id = fields.Many2one("product.state", string="Estado leído")
     tracking = fields.Selection(related="product_id.tracking", string="Seguimiento")
     lot_id = fields.Many2one("stock.lot", string="Nº de serie / lote en Odoo")
     lot_name = fields.Char(string="Nº de serie / lote")
@@ -339,7 +340,7 @@ class RmsStockCountScan(models.Model):
         )
 
     @api.model
-    def scanner_register_batch(self, operator_id, codes, client_uid_prefix=False, source=False, search_mode=None):
+    def scanner_register_batch(self, operator_id, codes, client_uid_prefix=False, source=False, search_mode=None, product_state_id=None):
         """Clasifica la etiqueta completa antes de cambiar el contexto del operario.
 
         El índice original identifica cada lectura aunque el orden de ejecución
@@ -350,6 +351,8 @@ class RmsStockCountScan(models.Model):
             raise UserError("El operario ya no existe en este recuento.")
         operator._check_counting()
         self = self.with_context(found_in_search=search_mode) if search_mode is not None else self
+        state = operator._scanner_product_state(product_state_id) if product_state_id is not None else operator.current_state_id
+        self = self.with_context(scanner_product_state_id=state.id)
         if source == "camera":
             return self._finish_sage_batch(operator, self.with_context(sage_batch=True)._scanner_register_camera_batch(operator, codes, client_uid_prefix))
         classified = []
@@ -526,11 +529,14 @@ class RmsStockCountScan(models.Model):
         }
 
     @api.model
-    def scanner_register(self, operator_id, raw_code, client_uid=False, search_mode=None):
+    def scanner_register(self, operator_id, raw_code, client_uid=False, search_mode=None, product_state_id=None):
         """Registra una lectura del escáner. Devuelve {'status', 'scan',
         'state'}; status puede ser ok | location | product_ref | unknown |
         duplicate | empty."""
         target = self.with_context(found_in_search=search_mode) if search_mode is not None else self
+        if product_state_id is not None:
+            state = self.env["rms.stock.count.operator"]._scanner_product_state(product_state_id)
+            target = target.with_context(scanner_product_state_id=state.id)
         result = target._scanner_register(operator_id, raw_code, client_uid)
         if result.get('scan') and 'sage' in result['scan']:
             result['sage'] = result['scan']['sage']
@@ -584,6 +590,7 @@ class RmsStockCountScan(models.Model):
         vals.update({
             "session_id": operator.session_id.id,
             "operator_id": operator.id,
+            "product_state_id": self.env.context.get("scanner_product_state_id", operator.current_state_id.id),
             "raw_code": raw_code,
             "code": code,
             "client_uid": client_uid or False,
@@ -627,6 +634,8 @@ class RmsStockCountScan(models.Model):
             "code": self.code,
             "type": self.scan_type,
             "product_name": self.product_id.display_name or "",
+            "product_state_id": self.product_state_id.id,
+            "product_state_name": self.product_state_id.name or "",
             "lot_name": self.lot_name or "",
             "is_new_lot": self.is_new_lot,
             "location_name": self.location_id.display_name or "",

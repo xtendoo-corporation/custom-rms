@@ -92,6 +92,15 @@
                     </div>
                 </div>
 
+                <div class="o_rms_cs_states o_rms_cs_keep_focus" role="group" aria-label="Estado para las próximas lecturas">
+                    <button t-foreach="os.product_states" t-as="productState" t-key="productState.id"
+                            class="btn o_rms_cs_state"
+                            t-att-class="'o_rms_cs_state_' + productState.code + (os.operator.current_state_id === productState.id ? ' active' : '')"
+                            t-att-aria-pressed="os.operator.current_state_id === productState.id ? 'true' : 'false'"
+                            t-on-click="() => this.setProductState(productState.id)">
+                        <t t-esc="productState.name"/>
+                    </button>
+                </div>
                 <div t-if="state.searchMode" class="alert alert-info py-2 mb-0">Modo búsqueda · solo se tacha escaneando</div>
                 <div t-if="state.verdict" class="o_rms_cs_verdict" t-att-class="'o_rms_cs_sage_' + state.verdict.kind" role="status" aria-live="polite">
                     <div class="o_rms_cs_verdict_text"><strong><t t-esc="verdictIcon(state.verdict.kind)"/> <t t-esc="state.verdict.text"/></strong><div t-if="state.verdict.detail" t-esc="state.verdict.detail"/></div>
@@ -179,6 +188,7 @@
                                                 <strong>Pendiente de revisar: </strong><t t-esc="scan.message"/>
                                             </div>
                                             <small t-else="" class="text-muted" t-esc="scan.message"/>
+                                            <div class="small"><t t-esc="scan.product_state_name"/></div>
                                             <div class="small text-muted" t-esc="scan.time"/>
                                         </div>
                                         <button class="btn btn-sm btn-link text-danger o_rms_cs_keep_focus"

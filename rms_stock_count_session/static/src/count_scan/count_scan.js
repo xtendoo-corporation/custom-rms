@@ -92,6 +92,9 @@ export class StockCountScan extends Component {
         this._workerRequestId = 0;
         this._snapshotTasks = new Map();
         this._historyGeneration = 0;
+        this._selectedProductState = null;
+        this._stateChangeQueue = Promise.resolve();
+        this._stateChoiceGeneration = 0;
 
         onMounted(() => this._load());
 
@@ -199,6 +202,7 @@ export class StockCountScan extends Component {
             return;
         }
         this._historyGeneration++;
+        this._selectedProductState = null;
         storageSet(this.operatorKey, null);
         clearInterval(this._refreshTimer);
         this.state.operatorState = null;
@@ -209,6 +213,11 @@ export class StockCountScan extends Component {
     }
 
     _applyState(operatorState) {
+        // An older scan/refresh response must not undo the user's newer choice.
+        if (this._selectedProductState?.operatorId === operatorState.operator.id) {
+            operatorState = { ...operatorState, operator: { ...operatorState.operator,
+                current_state_id: this._selectedProductState.stateId } };
+        }
         this.state.operatorState = operatorState;
         this.state.searchMode = Boolean(operatorState.operator.search_mode);
         this._mergeHistory(operatorState.recent || []);
@@ -388,7 +397,8 @@ export class StockCountScan extends Component {
         if (!code || this.state.step !== "scan") {
             return;
         }
-        this.state.pending.push({ uid: newUid(), code, search_mode: this.state.searchMode, ...extra });
+        this.state.pending.push({ uid: newUid(), code, search_mode: this.state.searchMode,
+            product_state_id: this.state.operatorState.operator.current_state_id, ...extra });
         this._saveQueue();
         this._flushQueue();
     }
@@ -409,7 +419,8 @@ export class StockCountScan extends Component {
                         "rms.stock.count.scan",
                         item.codes ? "scanner_register_batch" : "scanner_register",
                         [op.id, item.codes || item.code, item.uid],
-                        item.codes ? { source: "camera", search_mode: Boolean(item.search_mode) } : { search_mode: Boolean(item.search_mode) }
+                        { ...(item.codes ? { source: "camera" } : {}), search_mode: Boolean(item.search_mode),
+                            ...(item.product_state_id ? { product_state_id: item.product_state_id } : {}) }
                     );
                 } catch (error) {
                     if (error && error.data && error.data.message) {
@@ -631,6 +642,31 @@ export class StockCountScan extends Component {
         this.state.panel = null;
     }
 
+    async setProductState(stateId) {
+        const op = this.state.operatorState.operator;
+        const generation = ++this._stateChoiceGeneration;
+        this._selectedProductState = { operatorId: op.id, stateId };
+        this._applyState(this.state.operatorState);
+        // Keep server writes ordered even when several buttons are tapped quickly.
+        const request = this._stateChangeQueue.then(() => this.orm.call(
+            "rms.stock.count.operator", "scanner_set_state", [[op.id], stateId]
+        ));
+        this._stateChangeQueue = request.catch(() => {});
+        try {
+            const operatorState = await request;
+            if (this.state.operatorState?.operator.id === op.id) {
+                this._applyState(operatorState);
+            }
+        } catch {
+            // Keep the explicit choice for subsequent queued readings, which carry
+            // their own state; explain that the server has not saved this default.
+            if (generation === this._stateChoiceGeneration) {
+                this.notification.add("Estado activo en este dispositivo. No se pudo guardar en el servidor; vuelve a pulsarlo cuando haya conexión.",
+                    { type: "warning" });
+            }
+        }
+    }
+
     async clearProduct() {
         const op = this.state.operatorState.operator;
         const operatorState = await this.orm.call(
@@ -644,6 +680,8 @@ export class StockCountScan extends Component {
         const action = await this.orm.call(
             "rms.stock.count.operator", "scanner_replacement_label", [[op.id]]
         );
+        action.context = { ...action.context,
+            default_product_state_id: this.state.operatorState.operator.current_state_id };
         await this.action.doAction(action, {
             onClose: async () => {
                 const operatorState = await this.orm.call(

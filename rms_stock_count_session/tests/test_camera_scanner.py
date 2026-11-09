@@ -415,3 +415,47 @@ class TestCameraScanner(TransactionCase):
             scan.action_assign_product()
         self.assertEqual(scan.scan_type, 'unknown')
         self.assertFalse(scan.lot_name)
+
+    def test_active_state_is_saved_on_each_camera_reading(self):
+        demo = self.env.ref('rms_product_state.state_demo')
+        self.operator.scanner_set_state(demo.id)
+        result = self.Scan.scanner_register_batch(
+            self.operator.id, ['S01-0040002-Z', 'P-81675340-G'],
+            'camera-state-demo', source='camera',
+        )
+        scans = self.Scan.browse([item['scan']['id'] for item in result['results']])
+        self.assertTrue(scans)
+        self.assertEqual(scans.product_state_id, demo)
+        self.assertEqual(result['state']['operator']['current_state_id'], demo.id)
+
+    def test_queued_read_keeps_state_at_capture(self):
+        demo = self.env.ref('rms_product_state.state_demo')
+        new = self.env.ref('rms_product_state.state_new')
+        self.operator.scanner_set_state(new.id)
+        self.operator.scanner_set_product(self.product.id)
+        result = self.Scan.scanner_register(
+            self.operator.id, 'RMSTEST-QUEUED-DEMO', 'queued-demo',
+            product_state_id=demo.id,
+        )
+        self.assertEqual(self.Scan.browse(result['scan']['id']).product_state_id, demo)
+        self.assertEqual(self.operator.current_state_id, new)
+        again = self.Scan.scanner_register(
+            self.operator.id, 'RMSTEST-QUEUED-DEMO', 'queued-demo',
+            product_state_id=new.id,
+        )
+        self.assertEqual(again['status'], 'resent')
+        self.assertEqual(again['scan']['product_state_id'], demo.id)
+
+    def test_new_operator_uses_session_default_and_remembers_selection(self):
+        demo = self.env.ref('rms_product_state.state_demo')
+        second_hand = self.env.ref('rms_product_state.state_second_hand')
+        self.session.default_state_id = demo
+        joined = self.env['rms.stock.count.operator'].scanner_join(self.session.id, 'State operator')
+        operator = self.env['rms.stock.count.operator'].browse(joined['operator']['id'])
+        self.assertEqual(operator.current_state_id, demo)
+        operator.scanner_set_state(second_hand.id)
+        resumed = operator.scanner_join(self.session.id, 'State operator')
+        self.assertEqual(resumed['operator']['current_state_id'], second_hand.id)
+        self.assertEqual(operator.scanner_replacement_label()['context']['default_product_state_id'], second_hand.id)
+        with self.assertRaises(UserError):
+            operator.scanner_set_state(self.env.ref('rms_product_state.state_discontinued').id)

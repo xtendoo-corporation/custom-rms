@@ -110,21 +110,30 @@ class RmsLotLabelWizard(models.TransientModel):
             if too_long:
                 raise UserError("Número de serie demasiado largo: %s" % too_long[0])
 
+    def _replacement_company(self):
+        """Shared products may have shared lots; callers can select an owner."""
+        self.ensure_one()
+        return self.product_id.company_id
+
     def _get_or_create_lots(self, serials):
         Lot = self.env["stock.lot"]
         lots = Lot.browse()
-        company = self.env.company
+        company = self._replacement_company()
         for serial in serials:
-            lot = Lot.search([
+            companies = [company.id, False] if company else self.env.companies.ids + [False]
+            matches = Lot.search([
                 ("product_id", "=", self.product_id.id),
                 ("name", "=", serial),
-                ("company_id", "in", [company.id, False]),
-            ], limit=1)
+                ("company_id", "in", companies),
+            ])
+            if len(matches) > 1:
+                raise UserError("El número de serie %s existe en varias empresas. Selecciona únicamente la empresa propietaria antes de imprimir." % serial)
+            lot = matches
             if not lot:
                 vals = {
                     "product_id": self.product_id.id,
                     "name": serial,
-                    "company_id": company.id,
+                    "company_id": company.id or False,
                 }
                 if self.product_state_id:
                     vals["product_state_id"] = self.product_state_id.id

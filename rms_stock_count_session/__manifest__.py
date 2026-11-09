@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Recuento cruzado (varios operarios)',
-    'version': '19.0.2.1.0',
+    'version': '19.0.2.2.0',
     'category': 'Inventory/Inventory',
     'summary': (
         'Varias personas recorren el almacén escaneando con PDA o móvil y '
@@ -26,7 +26,7 @@ Recuento cruzado con varios operarios
     'website': 'https://xtendoo.es',
     'license': 'LGPL-3',
     # rms_stock_lot_label_print: etiqueta sustituta desde el escáner.
-    'depends': ['stock', 'web', 'rms_stock_barcode_scan', 'rms_stock_lot_label_print'],
+    'depends': ['stock', 'web', 'rms_stock_barcode_scan', 'rms_stock_lot_label_print', 'rms_product_state'],
     'external_dependencies': {'python': ['openpyxl']},
     'data': [
         'security/stock_count_security.xml',

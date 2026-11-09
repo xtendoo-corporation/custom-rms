@@ -22,7 +22,10 @@
                        decoration-warning="status in ('partial', 'qty_diff')"
                        decoration-info="status == 'unexpected'"
                        decoration-success="status == 'match'"/>
-                <field name="product_id" readonly="1"/>
+                <field name="product_id" readonly="session_state != 'review'"/>
+                <field name="company_id" readonly="session_state != 'review'" options="{'no_create': True}"/>
+                <field name="company_doubtful" readonly="session_state != 'review'"/>
+                <field name="product_state_id" readonly="session_state != 'review'" options="{'no_create': True}"/>
                 <field name="lot_name" readonly="1"/>
                 <field name="location_id" readonly="session_state != 'review'"
                        options="{'no_create': True}"/>
@@ -78,6 +81,7 @@
                 <field name="code" readonly="1"/>
                 <field name="product_id" readonly="scan_type != 'unknown'" options="{'no_create': True}"/>
                 <field name="lot_name" readonly="1"/>
+                <field name="product_state_id" readonly="1"/>
                 <field name="sage_suggestion" readonly="1" optional="show"/>
                 <field name="sage_suggestion_product_id" column_invisible="True"/>
                 <button name="action_use_sage_suggestion" type="object" string="Usar sugerencia de Sage"
@@ -168,6 +172,8 @@
                     <button name="action_apply_to_inventory" type="object" string="Volcar a Inventario físico"
                             class="btn-primary" invisible="state != 'review'"
                             confirm="Las líneas marcadas como 'Volcar' pasarán a Inventario físico como cantidad contada (sin aplicar el ajuste). ¿Continuar?"/>
+                    <button name="action_assign_company_from_sage" type="object" string="Asignar empresa según Sage"
+                            invisible="state != 'review'"/>
                     <button name="action_rebuild" type="object" string="Regenerar cruce"
                             invisible="state != 'review'"/>
                     <button name="action_reopen" type="object" string="Reabrir escaneo"
@@ -219,6 +225,8 @@
                                    readonly="state != 'draft'"/>
                         </group>
                         <group>
+                            <field name="default_state_id" readonly="state not in ('draft', 'counting')"/>
+                            <field name="counting_date" readonly="state == 'done'"/>
                             <field name="date_start"/>
                             <field name="date_review"/>
                             <field name="date_done" invisible="not date_done"/>
@@ -245,6 +253,7 @@
                                     <field name="user_id"/>
                                     <field name="current_location_id"/>
                                     <field name="current_product_id"/>
+                                    <field name="current_state_id"/>
                                     <field name="scan_count"/>
                                     <field name="done"/>
                                 </list>

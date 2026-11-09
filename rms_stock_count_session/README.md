@@ -142,3 +142,29 @@ diferencias quedan pendientes en Inventario físico para revisarlas y pulsar
   navegadores sin `BarcodeDetector` (Safari/iOS).
 - La cámara necesita HTTPS. El modo **PDA** funciona con cualquier lector en
   modo teclado que envíe Enter al final.
+
+
+### Estado del equipo y empresa en la revisión
+
+La sesión propone Nuevo como estado inicial. Cada operario puede seleccionar
+Nuevo, Demo, Ex-Demo o 2Mano para las siguientes lecturas, incluida la cámara.
+El cruce propone el estado más leído; los empates se resuelven con la última
+lectura. El estado informativo de Sage no modifica esta elección. En revisión
+se pueden corregir producto, estado y empresa. Regenerar conserva estas
+correcciones, así como ubicación, cantidad y selección para volcar.
+
+«Asignar empresa según Sage» compara producto y número de serie normalizado
+con las exportaciones vigentes. Una única empresa se asigna; varias marcan
+«Empresa dudosa». La administración resuelve la duda seleccionando la empresa, o desmarcando
+«Empresa dudosa» si confirma la empresa ya propuesta.
+Las líneas sin empresa o con duda bloquean el volcado.
+
+El volcado se realiza en cada empresa. Para una empresa distinta de la sesión,
+se busca su almacén con el mismo sufijo numérico (RMS7 → ET7 → RJB7) y Stock
+o la sububicación con la misma ruta relativa. Si no hay un destino único,
+se muestra un error. Los lotes nuevos pertenecen a la empresa de la línea;
+las etiquetas sustitutas de productos compartidos crean lotes compartidos,
+sin atribuirles la empresa activa del operario. El estado final de la línea se
+escribe directamente en el lote. La fecha de recuento se guarda como fecha de
+inventario del quant; vacía usa la fecha actual. El ajuste sigue pendiente de
+aplicar desde Inventario físico.
