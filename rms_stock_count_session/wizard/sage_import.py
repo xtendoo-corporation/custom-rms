@@ -160,10 +160,13 @@ class StockCountSageImport(models.TransientModel):
         message = '\n'.join(summary)
         # Keep the per-brand summary available after the notification disappears.
         snapshots.write({'import_summary': message})
-        action = {'type': 'ir.actions.act_window', 'res_model': 'rms.sage.snapshot', 'view_mode': 'list,form',
+        # 'views' es obligatorio: la acción 'next' de la notificación la abre
+        # el cliente tal cual y Odoo 19 falla sin ella ("action.views is undefined").
+        action = {'type': 'ir.actions.act_window', 'name': 'Carpeta Sage', 'res_model': 'rms.sage.snapshot',
+                  'view_mode': 'list,form', 'views': [(False, 'list'), (False, 'form')],
                   'domain': [('id', 'in', snapshots.ids)]}
         if len(snapshots) == 1:
-            action.update(res_id=snapshots.id, view_mode='form')
+            action.update(res_id=snapshots.id, view_mode='form', views=[(False, 'form')])
             return action
         return {'type': 'ir.actions.client', 'tag': 'display_notification',
                 'params': {'title': 'Carga de Sage completada', 'message': message,

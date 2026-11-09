@@ -136,7 +136,10 @@ class TestSageFullCompanyImport(TransactionCase):
         self.assertEqual(wizard.mode, 'replace')
         self.assertEqual(wizard.scope, 'all')
         self.assertFalse(wizard.brand_categ_id)
-        wizard.action_import()
+        result = wizard.action_import()
+        # El cliente abre 'next' tal cual: sin 'views' Odoo 19 da
+        # "action.views is undefined" tras una carga correcta.
+        self.assertEqual(result['params']['next']['views'], [(False, 'list'), (False, 'form')])
         snapshots = self._snapshots(self._fixture())
         self.assertEqual(len(snapshots), 4)
         self.assertEqual(len(set(snapshots.mapped('file_hash'))), 1)
