@@ -2,7 +2,7 @@
 
 Convierte el número de serie de una pieza (cuando el producto no trae
 código de barras de fábrica) en un código de barras Code128 imprimible en
-una etiqueta de **10x5 cm**, lista para pegar en la pieza y escanear
+una etiqueta de **50x29 mm** (cinta continua Brother de 29 mm), lista para pegar en la pieza y escanear
 después con lector físico o con la cámara del móvil
 (`rms_stock_barcode_scan`).
 
@@ -44,7 +44,7 @@ serie para ese producto y este módulo no tiene nada que imprimir.
    escribe a mano el número de serie que trae la pieza físicamente.
 2. Se guarda.
 3. En el propio formulario del número de serie, menú **Imprimir** →
-   **"Etiqueta código de barras (10x5cm)"**.
+   **"Etiqueta código de barras (50x29 mm)"**.
 4. Se abre la vista previa en PDF con: nombre del producto, el código de
    barras (Code128 del número de serie) y el número de serie en texto
    debajo. Al aceptar la impresión desde el navegador (icono de imprimir
@@ -84,18 +84,18 @@ ampliación de este mismo módulo, no un cambio de planteamiento.
 
 ### Impresora recomendada
 
-Para etiquetas de 10x5 cm sin diseño gráfico complejo, en un almacén, con
-impresión "un clic" vía driver estándar:
+Etiqueta de 50x29 mm con Code128 (elegida por Dirección el 9-nov-2026):
 
-- **Zebra ZD230d / GC420d** (térmica directa, USB): opción recomendada.
-  Sin coste de tinta/tóner (térmica directa), driver oficial para
-  Windows/macOS, muy extendida en almacenes, soporta 10x5cm sin problema,
-  y si en el futuro se quiere pasar a impresión en red sin diálogo del
-  navegador, este mismo modelo soporta ZPL y una IoT Box de Odoo.
-- **Alternativa más económica: Brother QL-1100**. Usa rollos continuos
-  DK de hasta 103mm de ancho (corta a la medida de la etiqueta), driver
-  Windows/macOS estándar, buena opción si el volumen de etiquetado es
-  bajo/medio.
+- **Brother QL-820NWBc** (térmica directa, 300 ppp, USB/WiFi/Bluetooth,
+  AirPrint para imprimir desde iPhone). Ancho máximo 62 mm.
+- **Rollos:** cinta continua de 29 mm cortada a 50 mm de largo:
+  **DK-22210** (papel) o **DK-22211** (film plástico, resistente al agua y
+  de -20 a 80 °C; para equipos que salen a eventos).
+- **Driver:** tamaño de papel "29 mm x 50 mm" (o el personalizado
+  equivalente), orientación horizontal y escala **100 %**. El PDF de Odoo
+  ya tiene el tamaño exacto de la etiqueta.
+- **Resolución:** hace falta 300 ppp. A 203 ppp los números de serie
+  largos (unos 18 caracteres o más) no se leen en este tamaño.
 
 ## Diseño de la etiqueta: cómo editarlo más adelante
 

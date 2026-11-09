@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!--
-        Etiqueta 10x5 cm: referencia del producto en grande (lo que se busca
-        en la estantería), descripción, código de barras Code128 del número
-        de serie (lo que se escanea) y el número de serie en texto. Si el
-        número de serie no es "Nuevo" se marca el estado (DEMO, 2ª MANO...),
-        y si es una etiqueta sustituta, una línea al pie lo indica.
+        Etiqueta 50x29 mm (cinta continua Brother de 29 mm cortada a 50 mm):
+        referencia del producto (lo que se busca en la estantería), estado si
+        no es "Nuevo" (DEMO, 2ª MANO...), descripción, código de barras
+        Code128 del número de serie (lo que se escanea) y el número de serie
+        en texto. Si es una etiqueta sustituta, una línea al pie lo indica.
 
-        Maquetación con tabla y alturas fijas: wkhtmltopdf no entiende flex,
-        y el salto de página solo va entre etiquetas (si no, salen pegatinas
-        en blanco en la impresora).
+        Maquetación con tabla y anchos en %: wkhtmltopdf no entiende flex y
+        reduce las medidas en mm. El salto de página solo va entre etiquetas
+        (si no, salen pegatinas en blanco en la impresora).
     -->
     <template id="report_lot_label_10x5_document">
         <t t-call="web.html_container">
@@ -17,49 +17,46 @@
             <t t-foreach="labels" t-as="label">
                 <t t-set="o" t-value="label[0]"/>
                 <t t-set="state" t-value="o.product_state_id if 'product_state_id' in o._fields else False"/>
-                <div t-att-style="'width:100%;height:45mm;overflow:hidden;font-family:Arial, sans-serif;'
+                <div t-att-style="'width:100%;overflow:hidden;font-family:Arial, sans-serif;line-height:1.05;'
                                   + ('' if label_last else 'page-break-after:always;')">
-                    <table style="width:100%;height:45mm;border-collapse:collapse;table-layout:fixed;">
-                        <tr style="height:9mm;">
-                            <td style="font-size:22px;font-weight:bold;white-space:nowrap;overflow:hidden;vertical-align:top;">
+                    <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+                        <tr>
+                            <td style="font-size:15px;font-weight:bold;white-space:nowrap;overflow:hidden;vertical-align:top;">
                                 <t t-esc="o.product_id.default_code or o.product_id.name"/>
                             </td>
                             <td t-if="state and state.code != 'new'"
-                                style="width:26mm;text-align:right;vertical-align:top;">
-                                <span style="font-size:14px;font-weight:bold;border:2px solid #000;
-                                             padding:0 4px;text-transform:uppercase;white-space:nowrap;">
+                                style="width:30%;text-align:right;vertical-align:top;">
+                                <span style="font-size:10px;font-weight:bold;border:1.5px solid #000;
+                                             padding:0 2px;text-transform:uppercase;white-space:nowrap;">
                                     <t t-esc="state.name"/>
                                 </span>
                             </td>
                         </tr>
-                        <tr style="height:5mm;">
-                            <td colspan="2" style="font-size:11px;white-space:nowrap;overflow:hidden;vertical-align:top;">
+                        <tr>
+                            <td colspan="2" style="font-size:8px;white-space:nowrap;overflow:hidden;padding-bottom:2px;">
                                 <t t-esc="o.product_id.name"/>
                             </td>
                         </tr>
-                        <tr style="height:21mm;">
-                            <td colspan="2" style="text-align:center;vertical-align:middle;">
+                        <tr>
+                            <td colspan="2" style="text-align:center;">
                                 <img t-if="o.rms_label_barcode_image"
                                      t-att-src="image_data_uri(o.rms_label_barcode_image)"
-                                     style="width:88%;height:20mm;"/>
-                                <div t-if="not o.rms_label_barcode_image" style="font-size:11px;color:#b00;">
+                                     style="width:94%;height:13mm;"/>
+                                <div t-if="not o.rms_label_barcode_image" style="font-size:8px;color:#b00;">
                                     No se pudo generar el código de barras.
                                 </div>
                             </td>
                         </tr>
-                        <tr style="height:7mm;">
-                            <td colspan="2" style="text-align:center;font-size:17px;font-weight:bold;
-                                                   letter-spacing:1px;vertical-align:middle;">
+                        <tr>
+                            <td colspan="2" style="text-align:center;font-size:11px;font-weight:bold;white-space:nowrap;overflow:hidden;">
                                 S/N: <t t-esc="o.name"/>
                             </td>
                         </tr>
-                        <tr style="height:3mm;">
-                            <td colspan="2" style="font-size:8px;text-align:center;color:#333;vertical-align:bottom;">
-                                <t t-if="o.rms_replacement_label">
-                                    Etiqueta sustituta <t t-esc="o.company_id.name or env.company.name"/>
-                                    <t t-if="o.rms_label_printed_date">
-                                        - <t t-esc="context_timestamp(o.rms_label_printed_date).strftime('%d/%m/%Y')"/>
-                                    </t>
+                        <tr t-if="o.rms_replacement_label">
+                            <td colspan="2" style="font-size:6px;text-align:center;color:#333;white-space:nowrap;overflow:hidden;">
+                                Etiqueta sustituta <t t-esc="o.company_id.name or env.company.name"/>
+                                <t t-if="o.rms_label_printed_date">
+                                    - <t t-esc="context_timestamp(o.rms_label_printed_date).strftime('%d/%m/%Y')"/>
                                 </t>
                             </td>
                         </tr>
