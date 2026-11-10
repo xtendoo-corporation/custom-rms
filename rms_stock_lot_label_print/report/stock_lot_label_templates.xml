@@ -2,7 +2,7 @@
 <odoo>
     <!--
         Etiqueta 50x29 mm (cinta continua Brother de 29 mm cortada a 50 mm):
-        referencia del producto (lo que se busca en la estantería), estado si
+        modelo del producto en grande (lo que se busca en la estantería), estado si
         no es "Nuevo" (DEMO, 2ª MANO...), descripción, código de barras
         Code128 del número de serie (lo que se escanea) y el número de serie
         en texto. Si es una etiqueta sustituta, una línea al pie lo indica.
@@ -20,12 +20,18 @@
             <t t-foreach="labels" t-as="label">
                 <t t-set="o" t-value="label[0]"/>
                 <t t-set="state" t-value="o.product_state_id if 'product_state_id' in o._fields else False"/>
+                <!-- En grande el modelo: lo que hay antes del primer " - " del
+                     nombre (p. ej. "UPA-1P - Caja compacta..."); debajo, en
+                     pequeño, la referencia y el resto de la descripción. -->
+                <t t-set="name_parts" t-value="(o.product_id.name or '').split(' - ', 1)"/>
+                <t t-set="model" t-value="name_parts[0].strip() or o.product_id.default_code or ''"/>
+                <t t-set="detail" t-value="' · '.join(x for x in [o.product_id.default_code or '', name_parts[1].strip() if len(name_parts) &gt; 1 else ''] if x)"/>
                 <div t-att-style="'width:100%;overflow:hidden;font-family:Arial, sans-serif;line-height:1.05;'
                                   + ('' if label_last else 'page-break-after:always;')">
                     <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
                         <tr>
                             <td style="font-size:15px;font-weight:bold;white-space:nowrap;overflow:hidden;vertical-align:top;">
-                                <t t-esc="o.product_id.default_code or o.product_id.name"/>
+                                <t t-esc="model"/>
                             </td>
                             <td t-if="state and state.code != 'new'"
                                 style="width:30%;text-align:right;vertical-align:top;">
@@ -37,7 +43,7 @@
                         </tr>
                         <tr>
                             <td colspan="2" style="font-size:8px;white-space:nowrap;overflow:hidden;padding-bottom:2px;">
-                                <t t-esc="o.product_id.name"/>
+                                <t t-esc="detail"/>
                             </td>
                         </tr>
                         <tr>
