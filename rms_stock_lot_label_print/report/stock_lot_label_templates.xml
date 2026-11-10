@@ -14,6 +14,9 @@
     <template id="report_lot_label_10x5_document">
         <t t-call="web.html_container">
             <t t-set="labels" t-value="[(o, n) for o in docs for n in range(copies or 1)]"/>
+            <!-- Sin div.article, Odoo manda el HTML sin <meta charset> a
+                 wkhtmltopdf y los acentos salen mal ("2Âª MANO"). -->
+            <div class="article">
             <t t-foreach="labels" t-as="label">
                 <t t-set="o" t-value="label[0]"/>
                 <t t-set="state" t-value="o.product_state_id if 'product_state_id' in o._fields else False"/>
@@ -63,6 +66,7 @@
                     </table>
                 </div>
             </t>
+            </div>
         </t>
     </template>
 </odoo>
