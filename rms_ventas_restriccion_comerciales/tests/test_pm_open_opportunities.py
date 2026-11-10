@@ -109,6 +109,35 @@ class TestProductManagerOpenOpportunities(TransactionCase):
         self.order.state = 'cancel'
         self.assertFalse(self._visible(self.alex))
 
+    def test_pm_sees_customer_of_quotation_without_opportunity(self):
+        customer = self.env['res.partner'].create({
+            'name': 'Cliente sin oportunidad', 'is_company': True, 'user_id': self.salvador.id,
+        })
+        contact = self.env['res.partner'].create({'name': 'Contacto sin oportunidad', 'parent_id': customer.id})
+        partners = customer | contact
+        self.assertFalse(self._visible(self.alex, partners))
+        order = self.env['sale.order'].create({
+            'partner_id': customer.id, 'user_id': self.salvador.id,
+            'order_line': [(0, 0, {'product_id': self.product.id})],
+        })
+        self.assertEqual(self._visible(self.alex, partners), partners)
+        self.assertEqual(self._visible(self.manu, partners), partners)
+        # Un comercial que no es Product Manager sigue sin verlo.
+        self.assertFalse(self._visible(self.otro, partners))
+        # Sin productos de sus categorías, o cancelado, deja de verlo.
+        order.order_line.product_id = self.other_product
+        self.assertFalse(self._visible(self.alex, partners))
+        order.order_line.product_id = self.product
+        self.assertTrue(self._visible(self.alex, partners))
+        order.state = 'cancel'
+        self.assertFalse(self._visible(self.alex, partners))
+
+    def test_quotation_of_closed_opportunity_does_not_grant_access(self):
+        # Un presupuesto con oportunidad no cuenta como «sin oportunidad»: al
+        # cerrar la oportunidad se pierde el acceso igual que antes.
+        self.lead.stage_id = self.stage_closed
+        self.assertFalse(self._visible(self.alex))
+
     def test_chatter_works_after_losing_access(self):
         self.order.message_subscribe(partner_ids=self.agt.ids)
         self.lead.stage_id = self.stage_closed
