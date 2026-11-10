@@ -48,8 +48,46 @@ class TestReplacementLabel(TransactionCase):
         html = html.decode()
         self.assertEqual(html.count("S/N: 18175801"), 2)
         self.assertIn("RMSTEST-LEOPARD", html)
-        self.assertIn("Etiqueta sustituta", html)
+        self.assertNotIn("Etiqueta sustituta", html)
         self.assertIn(self.demo.name, html)
+
+    def _landscape_pdf(self):
+        """PDF apaisado de 50x29 mm como el que genera wkhtmltopdf."""
+        import io
+        from reportlab.lib.units import mm
+        from reportlab.pdfgen import canvas
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=(50 * mm, 29 * mm))
+        c.drawString(2 * mm, 10 * mm, "ROT-1")
+        c.showPage()
+        c.save()
+        return buf.getvalue()
+
+    def _rendered_pages(self, report_ref):
+        """Pasa un PDF apaisado por _render_qweb_pdf sin ejecutar wkhtmltopdf
+        (en los tests no hay servidor web y wkhtmltopdf se queda colgado)."""
+        import io
+        from unittest.mock import patch
+        from odoo.addons.base.models.ir_actions_report import IrActionsReport
+        from odoo.tools.pdf import PdfFileReader
+        with patch.object(IrActionsReport, "_render_qweb_pdf", lambda *a, **k: (self._landscape_pdf(), "pdf")):
+            pdf, _type = self.env["ir.actions.report"]._render_qweb_pdf(report_ref, [1])
+        reader = PdfFileReader(io.BytesIO(pdf), strict=False)
+        return [reader.getPage(i) for i in range(reader.getNumPages())]
+
+    def test_pdf_page_is_rotated_portrait(self):
+        """La etiqueta sale girada: vertical 29 x 50 mm para la cinta de 29 mm."""
+        pages = self._rendered_pages("rms_stock_lot_label_print.action_report_lot_label_10x5")
+        self.assertEqual(len(pages), 1)
+        self.assertEqual(int(pages[0].get("/Rotate", 0)) % 360, 90)
+        box = pages[0].mediabox
+        # Contenido apaisado 50x29; girado 90 grados se ve vertical 29x50.
+        self.assertAlmostEqual(float(box.width) / 72 * 25.4, 50, delta=1)
+        self.assertAlmostEqual(float(box.height) / 72 * 25.4, 29, delta=1)
+
+    def test_other_reports_are_not_rotated(self):
+        pages = self._rendered_pages("stock.action_report_delivery")
+        self.assertEqual(int(pages[0].get("/Rotate", 0)) % 360, 0)
 
     def test_box_with_several_serials_reuses_existing(self):
         existing = self.env["stock.lot"].create({"product_id": self.leopard.id, "name": "A-1"})
