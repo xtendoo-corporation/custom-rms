@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_sandbox_marker.SandboxMarker">
+        <!-- Ninguno de los dos recibe clics: no tapan botones. -->
+        <div class="o_rms_sandbox_frame" aria-hidden="true"/>
+        <div class="o_rms_sandbox_label" role="status">
+            SANDBOX · PRUEBAS <span class="o_rms_sandbox_db" t-esc="dbName"/>
+        </div>
+    </t>
+</templates>
