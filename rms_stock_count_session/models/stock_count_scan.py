@@ -722,12 +722,30 @@ class RmsStockCountScan(models.Model):
             "suggestion": self.sage_suggestion or "",
             "found_in_search": self.found_in_search,
             "time": fields.Datetime.context_timestamp(self, self.scanned_at).strftime("%H:%M:%S"),
+            "also_in": self._counted_elsewhere(),
         }
 
         if not self.env.context.get("sage_batch"):
             payload['sage'] = self._sage_verdict([self.lot_name or ''], self.session_id, self.product_id,
                                                  [self.product_state_id.code])[0]
         return payload
+
+    def _counted_elsewhere(self):
+        """Nombre del otro recuento (no cancelado) en el que ya se leyó esta
+        misma unidad, para no contarla dos veces entre días o naves."""
+        self.ensure_one()
+        if self.scan_type != "serial" or not self.serial_normalized:
+            return ""
+        other = self.sudo().search([
+            ("id", "!=", self.id),
+            ("session_id", "!=", self.session_id.id),
+            ("session_id.state", "!=", "cancel"),
+            ("scan_type", "=", "serial"),
+            ("ignored", "=", False),
+            ("serial_normalized", "=", self.serial_normalized),
+            ("product_id", "=", self.product_id.id),
+        ], order="scanned_at, id", limit=1)
+        return other.session_id.name or ""
 
     @api.model
     def _refresh_sage_suggestions(self, serials):

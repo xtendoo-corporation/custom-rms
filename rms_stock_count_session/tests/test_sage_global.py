@@ -196,6 +196,48 @@ class TestSageGlobalChecklist(TransactionCase):
         line = self.env['rms.sage.stock.line'].search([('serial', '=', 'NAMESER-1')])
         self.assertEqual(line.article_name, 'Caja autoamplificada de prueba')
 
+    def _second_operator(self):
+        warehouse = self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)], limit=1)
+        other = self.env['rms.stock.count.session'].create({'location_id': warehouse.lot_stock_id.id})
+        Operator = self.env['rms.stock.count.operator']
+        return other, Operator.browse(Operator.scanner_join(other.id, 'Otro día')['operator']['id'])
+
+    def test_checklist_view_counts_across_sessions(self):
+        read = self._sage('CHK-1', self.galaxy, state='nuevo')
+        unread = self._sage('CHK-2', self.galaxy)
+        wrong_state = self._sage('CHK-3', self.galaxy, state='demo')
+        self.operator.current_product_id = False
+        self.operator.scanner_set_state(self.env.ref('rms_product_state.state_new').id)
+        self._scan('CHK-1')
+        self._scan('CHK-3')
+        other, operator2 = self._second_operator()
+        second = self.Scan.scanner_register(operator2.id, 'CHK-1')
+        self.assertEqual(second['scan']['also_in'], self.session.name)
+        self.env.flush_all()
+        Checklist = self.env['rms.sage.checklist']
+        rows = {row.sage_line_id: row for row in Checklist.search(
+            [('sage_line_id', 'in', (read | unread | wrong_state).ids)])}
+        self.assertTrue(rows[read].counted)
+        self.assertEqual(rows[read].session_count, 2)
+        self.assertTrue(rows[read].multi_session)
+        self.assertFalse(rows[read].state_mismatch)
+        self.assertFalse(rows[unread].counted)
+        self.assertTrue(rows[wrong_state].state_mismatch)
+        # Un recuento cancelado deja de contar.
+        other.state = 'cancel'
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(Checklist.search([('sage_line_id', '=', read.id)]).session_count, 1)
+
+    def test_checklist_extra_lists_serials_not_in_sage(self):
+        self._sage('EXT-IN', self.galaxy)
+        self.operator.current_product_id = self.galaxy
+        self._scan('EXT-IN')
+        self._scan('EXT-NOT-IN-SAGE')
+        self.env.flush_all()
+        extra = self.env['rms.sage.checklist.extra'].search([('session_id', '=', self.session.id)])
+        self.assertEqual(extra.mapped('lot_name'), ['EXT-NOT-IN-SAGE'])
+
     def test_replaced_snapshot_lines_are_ignored(self):
         line = self._sage('OLD-1', self.galaxy)
         line.is_current = False

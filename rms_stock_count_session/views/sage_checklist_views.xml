@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Caso 3: checklist global de Sage (solo lectura, siempre al día). -->
+    <record id="view_sage_checklist_list" model="ir.ui.view">
+        <field name="name">rms.sage.checklist.list</field>
+        <field name="model">rms.sage.checklist</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false"
+                  decoration-success="counted and not state_mismatch and not multi_session"
+                  decoration-warning="state_mismatch or multi_session"
+                  decoration-muted="not counted">
+                <field name="sage_company_code"/>
+                <field name="sage_warehouse_id" optional="show"/>
+                <field name="warehouse_code"/>
+                <field name="brand_categ_id" optional="show"/>
+                <field name="article_code"/>
+                <field name="article_name" optional="show"/>
+                <field name="product_id" optional="hide"/>
+                <field name="serial"/>
+                <field name="sage_state"/>
+                <field name="counted"/>
+                <field name="counted_qty" sum="Leídos" optional="show"/>
+                <field name="pending_qty" sum="Faltan" optional="show"/>
+                <field name="physical_state_id"/>
+                <field name="state_mismatch" optional="show"/>
+                <field name="session_count" optional="show"/>
+                <field name="first_session_id" optional="show"/>
+                <field name="first_scanned_at" optional="hide"/>
+                <field name="multi_session" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_sage_checklist_search" model="ir.ui.view">
+        <field name="name">rms.sage.checklist.search</field>
+        <field name="model">rms.sage.checklist</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="serial"/>
+                <field name="article_code"/>
+                <field name="article_name"/>
+                <field name="product_id"/>
+                <field name="brand_categ_id"/>
+                <filter name="not_counted" string="No leídos" domain="[('counted', '=', False)]"/>
+                <filter name="counted" string="Leídos" domain="[('counted', '=', True)]"/>
+                <filter name="mismatch" string="Estado distinto" domain="[('state_mismatch', '=', True)]"/>
+                <filter name="multi" string="En varios recuentos" domain="[('multi_session', '=', True)]"/>
+                <separator/>
+                <filter name="rms" string="RMS (01)" domain="[('sage_company_code', '=', '01')]"/>
+                <filter name="espacio" string="Espacio (02)" domain="[('sage_company_code', '=', '02')]"/>
+                <filter name="rjb" string="RJB (03)" domain="[('sage_company_code', '=', '03')]"/>
+                <group>
+                    <filter name="by_company" string="Empresa" context="{'group_by': 'sage_company_code'}"/>
+                    <filter name="by_warehouse" string="Almacén" context="{'group_by': 'warehouse_code'}"/>
+                    <filter name="by_brand" string="Marca" context="{'group_by': 'brand_categ_id'}"/>
+                    <filter name="by_article" string="Artículo" context="{'group_by': 'article_code'}"/>
+                    <filter name="by_counted" string="Leído" context="{'group_by': 'counted'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_sage_checklist" model="ir.actions.act_window">
+        <field name="name">Checklist Sage</field>
+        <field name="res_model">rms.sage.checklist</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_by_company': 1, 'search_default_by_warehouse': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Aún no hay exportaciones de Sage cargadas.</p>
+            <p>Cada fila es un nº de serie de Sage. Se pone como leído en cuanto alguien lo escanea en
+               cualquier recuento. Filtra "No leídos" para el informe de regularización en Sage
+               (se puede exportar a Excel).</p>
+        </field>
+    </record>
+
+    <record id="view_sage_checklist_extra_list" model="ir.ui.view">
+        <field name="name">rms.sage.checklist.extra.list</field>
+        <field name="model">rms.sage.checklist.extra</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false">
+                <field name="scanned_at"/>
+                <field name="session_id"/>
+                <field name="operator_id"/>
+                <field name="location_id"/>
+                <field name="code"/>
+                <field name="lot_name"/>
+                <field name="product_id"/>
+                <field name="product_state_id"/>
+                <field name="scan_type"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_sage_checklist_extra_search" model="ir.ui.view">
+        <field name="name">rms.sage.checklist.extra.search</field>
+        <field name="model">rms.sage.checklist.extra</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="lot_name"/>
+                <field name="product_id"/>
+                <field name="session_id"/>
+                <filter name="no_product" string="Sin producto" domain="[('product_id', '=', False)]"/>
+                <group>
+                    <filter name="by_session" string="Recuento" context="{'group_by': 'session_id'}"/>
+                    <filter name="by_product" string="Producto" context="{'group_by': 'product_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_sage_checklist_extra" model="ir.actions.act_window">
+        <field name="name">Altas (no están en Sage)</field>
+        <field name="res_model">rms.sage.checklist.extra</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Todo lo leído está en Sage.</p>
+            <p>Equipos escaneados cuyo nº de serie no aparece en ninguna exportación vigente de Sage:
+               hay que darlos de alta o investigarlos.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_sage_checklist" name="Checklist Sage" parent="menu_sage_root"
+              action="action_sage_checklist" sequence="15" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_checklist_extra" name="Altas (no están en Sage)" parent="menu_sage_root"
+              action="action_sage_checklist_extra" sequence="16" groups="stock.group_stock_manager"/>
+</odoo>

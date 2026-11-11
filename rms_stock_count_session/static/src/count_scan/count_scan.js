@@ -519,7 +519,7 @@ export class StockCountScan extends Component {
     _feedback(kind, status) {
         if (status === "resent") { return; }
         const tones = {
-            here: [[1200, 0.09]], ok: [[1200, 0.09]], est: [[650, 0.1], [650, 0.1]], wh: [[650, 0.1], [650, 0.1]],
+            here: [[1200, 0.09]], ok: [[1200, 0.09]], est: [[650, 0.1], [650, 0.1]], twice: [[650, 0.1], [650, 0.1]], wh: [[650, 0.1], [650, 0.1]],
             co: [[650, 0.1], [650, 0.1]], dup: [[650, 0.1], [650, 0.1]],
             none: [[240, 0.35]], unknown: [[240, 0.35]],
             duplicate: [[900, 0.025]], nos: [[1000, 0.08]],
@@ -544,6 +544,7 @@ export class StockCountScan extends Component {
     verdictKind(result) {
         if (result.status === "duplicate") { return "duplicate"; }
         if (result.status === "unknown" || result.scan?.type === "unknown") { return "unknown"; }
+        if (result.scan?.also_in) { return "twice"; }
         return (result.sage || result.scan?.sage)?.v || "nos";
     }
 
@@ -561,6 +562,7 @@ export class StockCountScan extends Component {
         let text = result.message || scan.message || "";
         let detail = "";
         if (kind === "duplicate") { text = "Ya leído"; }
+        else if (kind === "twice") { text = `Ya contado en ${scan.also_in}`; detail = `${scan.product_name || ""} · no lo cuentes dos veces; si está bien, Administración lo revisa`; }
         else if (kind === "unknown") { text = suggestion ? `¿Qué producto es? Sage propone: ${suggestion}` : (scan.message || result.message || "¿Qué producto es?"); }
         else if (kind === "ok") { text = `En Sage: ${companyName(first[0])} · ${whName(first)} · ${stateName(first[3])}`; detail = scan.product_name || first[4] || ""; }
         else if (kind === "est") { text = `Estado distinto: Sage dice ${stateName(first[3])}, has marcado ${sage.st || "otro"}`; detail = `${scan.product_name || first[4] || ""} · ${companyName(first[0])} · ${whName(first)}. Si es correcto, pulsa el estado y vuelve a leerlo; si no, lo revisa Administración`; }
@@ -582,7 +584,7 @@ export class StockCountScan extends Component {
     }
 
     verdictIcon(kind) {
-        return { here: "✓", ok: "✓", est: "⚠", wh: "⚠", co: "⚠", none: "✕", dup: "⇄", unknown: "?", duplicate: "ℹ", nos: "•" }[kind] || "•";
+        return { here: "✓", ok: "✓", est: "⚠", twice: "⚠", wh: "⚠", co: "⚠", none: "✕", dup: "⇄", unknown: "?", duplicate: "ℹ", nos: "•" }[kind] || "•";
     }
 
     async useSuggestion() {

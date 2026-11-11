@@ -7,3 +7,4 @@ from . import sage_expected
 from . import sage_library
 from . import stock_count_scan
 from . import stock_count_line
+from . import sage_checklist

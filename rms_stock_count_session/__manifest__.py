@@ -40,6 +40,7 @@ Recuento cruzado con varios operarios
         'views/scan_rule_views.xml',
         'views/sage_expected_views.xml',
         'views/sage_library_views.xml',
+        'views/sage_checklist_views.xml',
     ],
     'assets': {
         'rms_stock_count_session.assets_camera': [
