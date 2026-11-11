@@ -238,6 +238,17 @@ class TestSageGlobalChecklist(TransactionCase):
         extra = self.env['rms.sage.checklist.extra'].search([('session_id', '=', self.session.id)])
         self.assertEqual(extra.mapped('lot_name'), ['EXT-NOT-IN-SAGE'])
 
+    def test_atlas_sn_prefix_matches_both_ways(self):
+        self._sage('SNDH700912472001557', self.galaxy)
+        self._sage('DH800000000000001', self.leopard, article='GLOBAL-ART2')
+        self.operator.current_product_id = False
+        with_sn = self.Scan.browse(self._scan('DH700912472001557')['scan']['id'])
+        self.assertEqual(with_sn.product_id, self.galaxy)
+        without_sn = self.Scan.browse(self._scan('S/N: DH800000000000001')['scan']['id'])
+        self.assertEqual(without_sn.product_id, self.leopard)
+        verdict = self.Scan._sage_verdict(['DH700912472001557'], self.session, self.galaxy, ['new'])[0]
+        self.assertEqual(verdict['v'], 'ok')
+
     def test_replaced_snapshot_lines_are_ignored(self):
         line = self._sage('OLD-1', self.galaxy)
         line.is_current = False

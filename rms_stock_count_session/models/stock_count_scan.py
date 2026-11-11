@@ -9,7 +9,7 @@ from odoo.exceptions import UserError
 from odoo.tools import SQL
 
 from .scan_rule import normalize_code
-from .sage_expected import normalize_serial
+from .sage_expected import normalize_serial, serial_alternatives
 
 # Estado de Odoo (product.state.code) -> estado de Sage (prefijo del artículo,
 # tal como lo devuelve el veredicto). Ex-Demo no existe en Sage: siempre
@@ -209,6 +209,9 @@ class RmsStockCountScan(models.Model):
             return None
         Line = self.env["rms.sage.stock.line"].sudo()
         lines = Line.search([("is_current", "=", True), ("serial_normalized", "=", key)])
+        if not lines:
+            lines = Line.search([("is_current", "=", True),
+                                 ("serial_normalized", "in", serial_alternatives(key))])
         if not lines:
             return None
         products = lines.product_id
@@ -763,6 +766,7 @@ class RmsStockCountScan(models.Model):
         session.check_access('read')
         normalized = [normalize_serial(value) for value in serials]
         keys = list(set(normalized) - {''})
+        keys += [alt for key in keys for alt in serial_alternatives(key)]
         matches = {}
         if keys:
             self.env['rms.sage.stock.line'].sudo().flush_model()
@@ -784,6 +788,8 @@ class RmsStockCountScan(models.Model):
             if isinstance(product, list):
                 pid = product[index]
             rows = matches.get(key, [])
+            if not rows:
+                rows = [row for alt in serial_alternatives(key) for row in matches.get(alt, [])]
             if pid and any(row[6] == pid for row in rows):
                 # Sony repite nº de serie entre modelos: con el producto
                 # conocido solo cuentan las líneas Sage de ese producto.

@@ -13,6 +13,18 @@ def normalize_serial(value):
     return (compact.lstrip('0') or '0') if compact else ''
 
 
+def serial_alternatives(key):
+    """Otras formas del mismo nº de serie ya normalizado, por si la etiqueta
+    y Sage no coinciden: AtlasIED guarda "SN" delante en Sage y no siempre en
+    la etiqueta (y al revés; "S/N:" se normaliza también a "SN")."""
+    if not key:
+        return []
+    if key.startswith('SN') and len(key) > 4:
+        rest = key[2:].lstrip('0') or '0'
+        return [rest]
+    return ['SN' + key]
+
+
 def sage_article_parts(article):
     article = article.strip()
     state = 'Nuevo'
@@ -176,16 +188,21 @@ class StockCountSession(models.Model):
                     serial_products.add(scan.product_id.id)
             remaining = {key: (1.0 if key[1] and key[0] in serial_products else max(qtys.values()))
                          for key, qtys in per_operator.items()}
+            # Índices por nº de serie y por producto: sin recorrer 'remaining'
+            # entero por cada línea de Sage (cuadrático con miles de líneas).
+            by_serial, by_product = {}, {}
+            for rkey in remaining:
+                by_serial.setdefault(rkey[1], []).append(rkey)
+                by_product.setdefault(rkey[0], []).append(rkey)
             vals = []
             for expected in session._sage_lines().sorted(key=lambda e: (not bool(e.serial), e.id)):
                 serial = expected.serial_normalized or ''
                 key = (expected.product_id.id, serial)
                 matches = [key] if expected.product_id and remaining.get(key, 0) > 0 else []
                 if not matches and serial:
-                    matches = [k for k, qty in remaining.items() if k[1] == serial and qty > 0]
+                    matches = [k for k in by_serial.get(serial, []) if remaining[k] > 0]
                 if not serial and expected.product_id:
-                    matches = [k for k, qty in remaining.items()
-                               if k[0] == expected.product_id.id and qty > 0]
+                    matches = [k for k in by_product.get(expected.product_id.id, []) if remaining[k] > 0]
                 counted = 0
                 counted_product = False
                 for matched in matches:

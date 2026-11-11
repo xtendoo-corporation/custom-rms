@@ -246,12 +246,18 @@ class RmsStockCountOperator(models.Model):
         lines = session._sage_lines()
         # Reserve exact product matches before allocating unmatched serials.
         lines = lines.sorted(key=lambda line: (line.product_id.id, line.serial_normalized) not in seen)
+        # Índice por nº de serie: evita recorrer 'seen' en cada línea (cuadrático).
+        seen_by_serial = {}
+        for item in seen:
+            seen_by_serial.setdefault(item[1], set()).add(item)
         for line in lines:
             if line.serial_normalized:
                 key = (line.product_id.id, line.serial_normalized)
-                match = key if key in seen else next((k for k in seen if k[1] == line.serial_normalized), None)
+                bucket = seen_by_serial.get(line.serial_normalized)
+                match = key if key in seen else (next(iter(bucket)) if bucket else None)
                 if match:
                     seen.remove(match)
+                    seen_by_serial[match[1]].discard(match)
                     continue
             elif line.product_id.id in counted_products:
                 continue
