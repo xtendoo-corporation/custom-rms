@@ -2,7 +2,7 @@
 $rms-sandbox-red: #c40000;
 $rms-sandbox-red-dark: #8a0000;
 $rms-sandbox-yellow: #ffd400;
-$rms-sandbox-bg: #ffe3e3;
+$rms-sandbox-bg: #fffafa; // casi blanco
 
 body.o_rms_sandbox {
     // Barra de menú con rayas rojas.
@@ -25,7 +25,7 @@ body.o_rms_sandbox {
         }
     }
 
-    // Las capas de encima, transparentes: el fondo rosado se ve detrás.
+    // Las capas de encima, transparentes: el fondo se ve detrás.
     .o_action_manager > .o_action,
     .o_content,
     .o_form_view .o_form_sheet_bg,
@@ -36,7 +36,7 @@ body.o_rms_sandbox {
         background-image: none !important;
     }
 
-    // Fondo rosado detrás de las vistas (sin marca de agua).
+    // Fondo casi blanco detrás de las vistas (sin marca de agua).
     .o_action_manager {
         background-color: $rms-sandbox-bg !important;
     }
