@@ -25,7 +25,7 @@ body.o_rms_sandbox {
         }
     }
 
-    // Las capas de encima, transparentes: la marca de agua se pinta una sola vez.
+    // Las capas de encima, transparentes: el fondo rosado se ve detrás.
     .o_action_manager > .o_action,
     .o_content,
     .o_form_view .o_form_sheet_bg,
@@ -36,11 +36,9 @@ body.o_rms_sandbox {
         background-image: none !important;
     }
 
-    // Fondo con marca de agua detrás de las vistas.
+    // Fondo rosado detrás de las vistas (sin marca de agua).
     .o_action_manager {
         background-color: $rms-sandbox-bg !important;
-        background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='220'%3E%3Ctext x='20' y='150' transform='rotate(-22 180 110)' font-family='Arial, sans-serif' font-size='54' font-weight='700' fill='%23c40000' fill-opacity='0.16'%3ESANDBOX%3C/text%3E%3C/svg%3E") !important;
-        background-repeat: repeat !important;
     }
     .o_list_renderer .o_list_table {
         // Las filas siguen legibles, pero dejan ver el fondo.
