@@ -177,7 +177,7 @@ class StockCountSageImport(models.TransientModel):
         self.ensure_one()
         headers = None
         self.parse_warnings = False
-        article = warehouse = ''
+        article = warehouse = article_name = ''
         price = 0
         group = None
         result = []
@@ -203,7 +203,8 @@ class StockCountSageImport(models.TransientModel):
                 model_cache[group['article']] = article_parts(self.env, group['article'], prefixes)
             model, state = model_cache[group['article']]
             base = {'session_id': self.session_id.id, 'warehouse_code': group['warehouse'],
-                    'article_code': group['article'], 'model_code': model,
+                    'article_code': group['article'], 'article_name': group.get('name') or False,
+                    'model_code': model,
                     'state_hint': state, 'cost': group['price']}
             real = [(s, q) for s, q in group['lots'] if s.upper().replace(' ', '') not in ('S/N', 'SN')]
             generic_qty = sum(q for s, q in group['lots'] if s.upper().replace(' ', '') in ('S/N', 'SN'))
@@ -268,11 +269,12 @@ class StockCountSageImport(models.TransientModel):
                 group = None
                 if art:
                     article = art
+                    article_name = text('Nombre artículo')
                     price = number(cell('Precio'))
                 if wh:
                     warehouse = wh
                 if article and warehouse and warehouse != '000' and qty not in (None, '') and number(qty):
-                    group = {'article': article, 'warehouse': warehouse, 'quantity': number(qty),
+                    group = {'article': article, 'name': article_name, 'warehouse': warehouse, 'quantity': number(qty),
                              'price': number(cell('Precio') if cell('Precio') is not None else price), 'lots': []}
             if serial and group:
                 group['lots'].append((serial, number(qty if qty is not None else 1)))

@@ -7,7 +7,7 @@
         <form create="false" edit="false"><sheet><group><field name="name"/><field name="sage_company_code"/><field name="company_id"/><field name="brand_categ_id"/><field name="export_date"/><field name="state"/><field name="uploaded_by"/><field name="filename"/><field name="attachment" filename="filename" groups="stock.group_stock_manager"/><field name="file_hash"/><field name="line_count"/><field name="unit_count"/><field name="unmatched_count"/><field name="total_cost" groups="rms_stock_count_session.group_sage_cost"/></group><field name="import_summary"/><field name="quality_warnings"/><field name="line_ids" readonly="1"/></sheet></form>
     </field></record>
     <record id="view_sage_stock_line_list" model="ir.ui.view"><field name="name">rms.sage.stock.line.list</field><field name="model">rms.sage.stock.line</field><field name="arch" type="xml">
-        <list create="false" edit="false" delete="false" decoration-warning="match_state != 'ok'" decoration-danger="dup_count &gt; 1"><field name="sage_company_code"/><field name="brand_categ_id"/><field name="warehouse_code"/><field name="article_code"/><field name="model_code"/><field name="state"/><field name="serial"/><field name="quantity"/><field name="cost" groups="rms_stock_count_session.group_sage_cost"/><field name="product_id"/><field name="match_state"/><field name="dup_count"/><button name="action_assign_product" type="object" string="Asignar" icon="fa-link" groups="stock.group_stock_manager"/></list>
+        <list create="false" edit="false" delete="false" decoration-warning="match_state != 'ok'" decoration-danger="dup_count &gt; 1"><header><button name="action_prepare_products" type="object" string="Preparar productos" class="btn-primary" display="always" groups="stock.group_stock_manager"/></header><field name="sage_company_code"/><field name="brand_categ_id"/><field name="warehouse_code"/><field name="article_code"/><field name="article_name" optional="show"/><field name="model_code"/><field name="state"/><field name="serial"/><field name="quantity"/><field name="cost" groups="rms_stock_count_session.group_sage_cost"/><field name="product_id"/><field name="match_state"/><field name="dup_count"/><button name="action_assign_product" type="object" string="Asignar" icon="fa-link" groups="stock.group_stock_manager"/></list>
     </field></record>
     <record id="view_sage_stock_line_search" model="ir.ui.view"><field name="name">rms.sage.stock.line.search</field><field name="model">rms.sage.stock.line</field><field name="arch" type="xml"><search><field name="article_code"/><field name="serial"/><field name="model_code"/><field name="product_id"/><field name="brand_categ_id"/><filter name="duplicates" string="Duplicados" domain="[('dup_count', '&gt;', 1)]"/><filter name="unmatched" string="Sin producto" domain="[('match_state', '!=', 'ok')]"/><group><filter name="by_article" string="Artículo" context="{'group_by':'article_code'}"/><filter name="by_brand" string="Marca" context="{'group_by':'brand_categ_id'}"/><filter name="by_warehouse" string="Almacén" context="{'group_by':'warehouse_code'}"/></group></search></field></record>
     <record id="view_sage_warehouse_list" model="ir.ui.view"><field name="name">rms.sage.warehouse.list</field><field name="model">rms.sage.warehouse</field><field name="arch" type="xml"><list editable="bottom"><field name="sage_company_code"/><field name="code"/><field name="name"/><field name="company_id"/><field name="location_id"/></list></field></record>
@@ -32,4 +32,24 @@
     <menuitem id="menu_sage_unmatched" name="Artículos sin producto" parent="menu_sage_root" action="action_sage_unmatched" sequence="40" groups="stock.group_stock_manager"/>
     <menuitem id="menu_sage_warehouses" name="Almacenes Sage" parent="menu_sage_root" action="action_sage_warehouses" sequence="50" groups="stock.group_stock_manager"/>
     <menuitem id="menu_sage_brand_prefixes" name="Prefijos de marcas" parent="menu_sage_root" action="action_sage_brand_prefixes" sequence="60" groups="stock.group_stock_manager"/>
+    <record id="view_sage_product_prepare_form" model="ir.ui.view">
+        <field name="name">rms.sage.product.prepare.form</field>
+        <field name="model">rms.sage.product.prepare</field>
+        <field name="arch" type="xml">
+            <form string="Preparar productos desde Sage">
+                <p class="text-muted">
+                    Para que el checklist ponga en verde un nº de serie, su artículo de Sage tiene que
+                    tener producto en Odoo y ese producto debe seguirse por nº de serie. Se trabaja con
+                    las líneas que hayas seleccionado (si no seleccionas ninguna: todas las que no tienen producto).
+                </p>
+                <field name="preview" readonly="1" nolabel="1"/>
+                <field name="line_ids" invisible="1"/>
+                <footer>
+                    <button name="action_create_products" type="object" string="Crear o asignar productos" class="btn-primary"/>
+                    <button name="action_enable_serial_tracking" type="object" string="Activar seguimiento por nº de serie" class="btn-secondary"/>
+                    <button string="Cancelar" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
 </odoo>

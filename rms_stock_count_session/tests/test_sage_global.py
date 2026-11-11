@@ -138,6 +138,64 @@ class TestSageGlobalChecklist(TransactionCase):
         third = self._scan('FIX-1')
         self.assertEqual(third['status'], 'duplicate')
 
+    def _prepare(self, lines):
+        action = lines.action_prepare_products()
+        return self.env['rms.sage.product.prepare'].with_context(action['context']).create({})
+
+    def test_prepare_creates_products_grouping_state_variants(self):
+        new = self._sage('NEWP-1', False, article='0912345678')
+        new.article_name = 'LINA - Line array compacto'
+        demo = self._sage('NEWP-2', False, article='D-0912345678', state='demo')
+        demo.model_code = '0912345678'
+        new.model_code = '0912345678'
+        wizard = self._prepare(new | demo)
+        self.assertIn('se crearán como productos nuevos: 1', wizard.preview)
+        wizard.action_create_products()
+        product = self.env['product.template'].search([('default_code', '=', '0912345678')])
+        self.assertEqual(len(product), 1)
+        self.assertEqual(product.name, 'LINA - Line array compacto')
+        self.assertEqual(product.tracking, 'serial')
+        self.assertTrue(product.is_storable)
+        self.assertEqual(product.categ_id, self.brand)
+        self.assertEqual((new | demo).mapped('product_id.product_tmpl_id'), product)
+        self.assertEqual(set((new | demo).mapped('match_state')), {'ok'})
+        # Ya se reconoce con la pistola
+        self.operator.current_product_id = False
+        scan = self.Scan.browse(self._scan('NEWP-2')['scan']['id'])
+        self.assertEqual(scan.scan_type, 'serial')
+        self.assertEqual(scan.product_id.product_tmpl_id, product)
+
+    def test_prepare_assigns_existing_reference(self):
+        self.galaxy.default_code = 'GLX-REF-1'
+        line = self._sage('ASG-1', False, article='GLX-REF-1')
+        self._prepare(line).action_create_products()
+        self.assertEqual(line.product_id, self.galaxy)
+        self.assertEqual(self.env['product.template'].search_count([('default_code', '=', 'GLX-REF-1')]), 1)
+
+    def test_enable_serial_tracking_skips_products_with_stock(self):
+        plain = self.env['product.product'].create({'name': 'GLOBAL PLAIN', 'categ_id': self.brand.id,
+                                                    'is_storable': True, 'tracking': 'none'})
+        stocked = self.env['product.product'].create({'name': 'GLOBAL STOCKED', 'categ_id': self.brand.id,
+                                                      'is_storable': True, 'tracking': 'none'})
+        warehouse = self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)], limit=1)
+        self.env['stock.quant']._update_available_quantity(stocked, warehouse.lot_stock_id, 2)
+        lines = self._sage('TRK-1', plain) | self._sage('TRK-2', stocked)
+        self._prepare(lines).action_enable_serial_tracking()
+        self.assertEqual(plain.tracking, 'serial')
+        self.assertEqual(stocked.tracking, 'none')
+
+    def test_import_keeps_article_name(self):
+        import base64
+        raw = ('Almacén;Artículo;Nombre artículo;Lotes;Unidades\n'
+               'AL1;NAMETEST-ART;Caja autoamplificada de prueba;;1\n'
+               ';;;NAMESER-1;1\n').encode()
+        self.env['rms.stock.count.sage.import'].create({
+            'scope': 'brand', 'brand_categ_id': self.brand.id, 'filename': 'nombres.csv',
+            'file_data': base64.b64encode(raw), 'sage_company_code': '03',
+        }).action_import()
+        line = self.env['rms.sage.stock.line'].search([('serial', '=', 'NAMESER-1')])
+        self.assertEqual(line.article_name, 'Caja autoamplificada de prueba')
+
     def test_replaced_snapshot_lines_are_ignored(self):
         line = self._sage('OLD-1', self.galaxy)
         line.is_current = False

@@ -133,6 +133,7 @@ class SageStockLine(models.Model):
     warehouse_code = fields.Char(required=True)
     sage_warehouse_id = fields.Many2one('rms.sage.warehouse', index=True)
     article_code = fields.Char(required=True, index=True)
+    article_name = fields.Char(string='Nombre en Sage')
     article_normalized = fields.Char(compute='_compute_normalized', store=True, index=True)
     model_code = fields.Char(required=True)
     model_normalized = fields.Char(compute='_compute_normalized', store=True)
