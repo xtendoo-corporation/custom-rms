@@ -1,0 +1,104 @@
+// Marca de sandbox. Sin max()/min()/env(): libsass de Odoo no los admite.
+$rms-sandbox-red: #c40000;
+$rms-sandbox-red-dark: #8a0000;
+$rms-sandbox-yellow: #ffd400;
+$rms-sandbox-bg: #fffafa; // casi blanco
+
+body.o_rms_sandbox {
+    // Barra de menú con rayas rojas.
+    .o_main_navbar {
+        background-color: $rms-sandbox-red !important;
+        background-image: repeating-linear-gradient(-45deg, $rms-sandbox-red 0, $rms-sandbox-red 18px,
+            $rms-sandbox-red-dark 18px, $rms-sandbox-red-dark 36px) !important;
+        border-bottom: 4px solid $rms-sandbox-yellow !important;
+
+        // Cada entrada del menú trae su propio fondo morado: transparente.
+        .o_nav_entry,
+        .dropdown-toggle,
+        .o_menu_toggle,
+        .o_menu_brand {
+            background-color: transparent !important;
+        }
+        .o_nav_entry:hover,
+        .dropdown-toggle:hover {
+            background-color: rgba(0, 0, 0, 0.25) !important;
+        }
+    }
+
+    // Las capas de encima, transparentes: el fondo se ve detrás.
+    .o_action_manager > .o_action,
+    .o_content,
+    .o_form_view .o_form_sheet_bg,
+    .o_kanban_renderer,
+    .o_list_renderer,
+    .o_control_panel {
+        background-color: transparent !important;
+        background-image: none !important;
+    }
+
+    // Fondo casi blanco detrás de las vistas (sin marca de agua).
+    .o_action_manager {
+        background-color: $rms-sandbox-bg !important;
+    }
+    .o_list_renderer .o_list_table {
+        // Las filas siguen legibles, pero dejan ver el fondo.
+        background-color: rgba(255, 255, 255, 0.82) !important;
+    }
+}
+
+// Marco rojo alrededor de la pantalla: no recibe clics.
+.o_rms_sandbox_frame {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    border: 6px solid $rms-sandbox-red;
+    pointer-events: none;
+    z-index: 1090;
+}
+
+// Etiqueta fija abajo en el centro (arriba taparía el menú); no recibe clics.
+.o_rms_sandbox_label {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1091;
+    pointer-events: none;
+    padding: 2px 14px;
+    border: 2px solid $rms-sandbox-red-dark;
+    border-radius: 4px;
+    background: $rms-sandbox-yellow;
+    color: #000;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+
+    .o_rms_sandbox_db {
+        font-weight: 600;
+        font-size: 11px;
+        margin-left: 6px;
+    }
+}
+
+// En el escáner del recuento la etiqueta taparía los botones de abajo: ahí
+// ya avisan las rayas de la barra de menú y el marco rojo.
+body.o_rms_sandbox:has(.o_rms_count_scan) .o_rms_sandbox_label {
+    display: none;
+}
+
+// En el móvil, más pequeña y sin el nombre de la base de datos.
+@media (max-width: 767.98px) {
+    .o_rms_sandbox_label {
+        font-size: 12px;
+        padding: 1px 10px;
+        opacity: 0.92;
+
+        .o_rms_sandbox_db {
+            display: none;
+        }
+    }
+}
