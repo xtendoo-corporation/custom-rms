@@ -107,6 +107,14 @@ class StockCountSession(models.Model):
     sage_company_code = fields.Selection([('01', 'RMS'), ('02', 'Espacio'), ('03', 'RJB')], default='01', required=True)
     brand_categ_ids = fields.Many2many('product.category', string='Marcas Sage', domain="[('parent_id', '=', False)]")
     sage_warehouse_ids = fields.Many2many('rms.sage.warehouse', string='Almacenes Sage')
+    sage_mode = fields.Selection([
+        ('global', 'Checklist global de Sage'),
+        ('scope', 'Solo empresa, marcas y almacenes de este recuento'),
+    ], string='Comparar con Sage', default='global', required=True,
+        help="Checklist global: cada nº de serie se busca en todo Sage (las 3 "
+             "empresas y todos los almacenes) y se pone en verde si está, "
+             "diga donde diga. Alcance: solo cuenta como 'aquí' lo de la "
+             "empresa, marcas y almacenes elegidos.")
 
     @api.onchange('location_id', 'company_id', 'sage_company_code')
     def _onchange_sage_scope(self):

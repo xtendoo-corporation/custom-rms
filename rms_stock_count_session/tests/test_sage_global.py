@@ -92,6 +92,52 @@ class TestSageGlobalChecklist(TransactionCase):
         scan = self.Scan.browse(self._scan('NOT-IN-SAGE-9')['scan']['id'])
         self.assertEqual(scan.scan_type, 'unknown')
 
+    def test_global_verdict_green_anywhere_with_details(self):
+        self._sage('VER-1', self.galaxy, article='0907600102', warehouse='AL1', state='2mano')
+        verdict = self.Scan._sage_verdict(['VER-1'], self.session, self.galaxy, ['second_hand'])[0]
+        self.assertEqual(verdict['v'], 'ok')
+        self.assertEqual(verdict['h'][0][0], '02')       # empresa Sage
+        self.assertEqual(verdict['h'][0][1], 'AL1')      # almacén
+        self.assertEqual(verdict['h'][0][3], '2Mano')    # estado Sage
+        self.assertEqual(verdict['h'][0][4], '0907600102')  # modelo
+
+    def test_global_verdict_state_mismatch_is_amber(self):
+        self._sage('VER-2', self.galaxy, state='demo')
+        verdict = self.Scan._sage_verdict(['VER-2'], self.session, self.galaxy, ['new'])[0]
+        self.assertEqual(verdict['v'], 'est')
+        self.assertEqual(verdict['st'], 'Nuevo')
+        exdemo = self.Scan._sage_verdict(['VER-2'], self.session, self.galaxy, ['ex_demo'])[0]
+        self.assertEqual(exdemo['v'], 'est')  # Ex-Demo no existe en Sage
+
+    def test_global_verdict_duplicate_and_absent(self):
+        self._sage('VER-3', self.galaxy, warehouse='AL1')
+        self._sage('VER-3', self.galaxy, warehouse='A.7')
+        verdicts = self.Scan._sage_verdict(['VER-3', 'NOPE-3'], self.session, [self.galaxy.id, False], ['new', 'new'])
+        self.assertEqual([v['v'] for v in verdicts], ['dup', 'none'])
+
+    def test_scan_payload_carries_global_verdict(self):
+        self._sage('VER-4', self.galaxy)
+        self.operator.current_product_id = False
+        result = self._scan('VER-4')
+        self.assertEqual(result['sage']['v'], 'ok')
+
+    def test_rescan_with_corrected_state_updates_reading(self):
+        self._sage('FIX-1', self.galaxy, state='2mano')
+        self.operator.current_product_id = False
+        new = self.env.ref('rms_product_state.state_new')
+        used = self.env.ref('rms_product_state.state_second_hand')
+        self.operator.scanner_set_state(new.id)
+        first = self._scan('FIX-1')
+        self.assertEqual(first['sage']['v'], 'est')
+        self.operator.scanner_set_state(used.id)
+        second = self._scan('FIX-1')
+        self.assertEqual(second['status'], 'ok')
+        self.assertEqual(second['scan']['id'], first['scan']['id'])
+        self.assertEqual(self.Scan.browse(first['scan']['id']).product_state_id, used)
+        self.assertEqual(second['sage']['v'], 'ok')
+        third = self._scan('FIX-1')
+        self.assertEqual(third['status'], 'duplicate')
+
     def test_replaced_snapshot_lines_are_ignored(self):
         line = self._sage('OLD-1', self.galaxy)
         line.is_current = False

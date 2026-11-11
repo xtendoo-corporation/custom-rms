@@ -11,6 +11,13 @@ from odoo.tools import SQL
 from .scan_rule import normalize_code
 from .sage_expected import normalize_serial
 
+# Estado de Odoo (product.state.code) -> estado de Sage (prefijo del artículo,
+# tal como lo devuelve el veredicto). Ex-Demo no existe en Sage: siempre
+# discrepa y lo decide Administración.
+SAGE_STATE_BY_CODE = {'new': 'Nuevo', 'demo': 'Demo', 'second_hand': '2Mano', 'ex_demo': 'Ex-Demo'}
+SAGE_STATE_LABEL = {'new': 'Nuevo', 'demo': 'Demo', 'second_hand': '2ª mano', 'ex_demo': 'Ex-Demo',
+                    'discontinued': 'Desuso'}
+
 # Prefijos que algunos fabricantes imprimen dentro del propio código de
 # barras del número de serie ("S/N: 12345", "SN 12345", "SERIAL NO. 12345").
 # "S/N" se quita siempre; "SN"/"SERIAL" solo si van seguidos de separador,
@@ -522,7 +529,8 @@ class RmsStockCountScan(models.Model):
             ("scan_type", "!=", "location"),
         ])
         verdicts = self._sage_verdict([scan.lot_name or '' for scan in scans], operator.session_id,
-                                      [scan.product_id.id for scan in scans])
+                                      [scan.product_id.id for scan in scans],
+                                      [scan.product_state_id.code for scan in scans])
         payloads = [scan.with_context(sage_batch=True)._scanner_payload() for scan in scans]
         for payload, verdict in zip(payloads, verdicts):
             payload['sage'] = verdict
@@ -632,6 +640,23 @@ class RmsStockCountScan(models.Model):
                     ("serial_normalized", "=", normalize_serial(vals["lot_name"])),
                     ("ignored", "=", False),
                 ], limit=1)
+                chosen_state = self.env["product.state"].browse(
+                    self.env.context.get("scanner_product_state_id", operator.current_state_id.id))
+                if previous and chosen_state and previous.product_state_id != chosen_state:
+                    # Ha visto el aviso, ha corregido el estado y vuelve a
+                    # leerlo: se corrige la lectura en vez de ignorarla.
+                    old_name = previous.product_state_id.name or "sin estado"
+                    previous.write({
+                        "product_state_id": chosen_state.id,
+                        "message": "%s (estado corregido: %s → %s)" % (
+                            previous.message or vals["lot_name"], old_name, chosen_state.name),
+                    })
+                    return {
+                        "status": "ok",
+                        "scan": previous._scanner_payload(),
+                        "message": "Estado corregido a %s." % chosen_state.name,
+                        "state": operator._scanner_state() if not self.env.context.get("sage_batch") else None,
+                    }
                 if previous:
                     return {
                         "status": "duplicate",
@@ -700,7 +725,8 @@ class RmsStockCountScan(models.Model):
         }
 
         if not self.env.context.get("sage_batch"):
-            payload['sage'] = self._sage_verdict([self.lot_name or ''], self.session_id, self.product_id)[0]
+            payload['sage'] = self._sage_verdict([self.lot_name or ''], self.session_id, self.product_id,
+                                                 [self.product_state_id.code])[0]
         return payload
 
     @api.model
@@ -710,7 +736,7 @@ class RmsStockCountScan(models.Model):
         scans._compute_sage_suggestion()
 
     @api.model
-    def _sage_verdict(self, serials, session, product=False):
+    def _sage_verdict(self, serials, session, product=False, states=None):
         """Single indexed lookup; deliberately never selects quantity or cost.
 
         Sage locations from other companies are exposed only as this compact
@@ -748,10 +774,18 @@ class RmsStockCountScan(models.Model):
                        and row[8] in session.brand_categ_ids.ids and row[9] in session.sage_warehouse_ids.ids for row in rows)
             # Filas idénticas (mismo archivo cargado dos veces) cuentan una vez.
             rows = list({(row[1], row[2], row[4], row[5]): row for row in rows}.values())
-            v = ('nos' if not key else 'none' if not rows else 'dup' if len(rows) > 1
-                 else 'here' if here else 'wh' if rows[0][1] == session.sage_company_code else 'co')
+            if session.sage_mode == 'global':
+                # Checklist global: estar en Sage (cualquier empresa/almacén) es
+                # verde, salvo que el estado elegido no coincida con Sage.
+                chosen = SAGE_STATE_BY_CODE.get(states[index] if states else None)
+                v = ('nos' if not key else 'none' if not rows else 'dup' if len(rows) > 1
+                     else 'est' if chosen and chosen != rows[0][4] else 'ok')
+            else:
+                v = ('nos' if not key else 'none' if not rows else 'dup' if len(rows) > 1
+                     else 'here' if here else 'wh' if rows[0][1] == session.sage_company_code else 'co')
             result.append({'v': v, 'n': len(rows), 'h': [list(row[1:6]) for row in rows[:3]],
-                           'pm': bool(pid and any(row[6] == pid for row in rows))})
+                           'pm': bool(pid and any(row[6] == pid for row in rows)),
+                           'st': SAGE_STATE_LABEL.get(states[index]) if states and states[index] else ''})
         return result
 
     @api.model
@@ -763,8 +797,10 @@ class RmsStockCountScan(models.Model):
                 item['scan'] = self.browse(item['scan']['id']).with_context(sage_batch=True)._scanner_payload()
         scans = [item.get('scan') for item in results]
         # One lookup for all serials; sort each result's matches against its product.
+        records = [self.browse(scan["id"]) if scan else self.browse() for scan in scans]
         verdicts = self._sage_verdict([scan.get('lot_name', '') if scan else '' for scan in scans],
-                                      operator.session_id, [self.browse(scan["id"]).product_id.id if scan else False for scan in scans])
+                                      operator.session_id, [rec.product_id.id for rec in records],
+                                      [rec.product_state_id.code for rec in records])
         for item, verdict in zip(results, verdicts):
             item.pop('state', None)
             item['sage'] = verdict

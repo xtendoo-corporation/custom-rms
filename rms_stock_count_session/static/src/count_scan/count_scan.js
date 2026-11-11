@@ -519,7 +519,7 @@ export class StockCountScan extends Component {
     _feedback(kind, status) {
         if (status === "resent") { return; }
         const tones = {
-            here: [[1200, 0.09]], wh: [[650, 0.1], [650, 0.1]],
+            here: [[1200, 0.09]], ok: [[1200, 0.09]], est: [[650, 0.1], [650, 0.1]], wh: [[650, 0.1], [650, 0.1]],
             co: [[650, 0.1], [650, 0.1]], dup: [[650, 0.1], [650, 0.1]],
             none: [[240, 0.35]], unknown: [[240, 0.35]],
             duplicate: [[900, 0.025]], nos: [[1000, 0.08]],
@@ -552,19 +552,23 @@ export class StockCountScan extends Component {
         const sage = result.sage || scan.sage || {};
         const kind = this.verdictKind(result);
         const hits = (sage.h || []).slice(0, 3);
-        const stateName = (value) => ({ nuevo: "Nuevo", demo: "Demo", "2mano": "2ª mano" }[value] || value || "");
+        const stateName = (value) => ({ nuevo: "Nuevo", demo: "Demo", "2mano": "2ª mano", Nuevo: "Nuevo", Demo: "Demo", "2Mano": "2ª mano" }[value] || value || "");
+        const companyName = (code) => ({ "01": "RMS", "02": "Espacio", "03": "RJB" }[code] || code || "");
+        const whName = (h) => (h[2] && h[2] !== h[1] ? `${h[2]} (${h[1]})` : h[1] || "");
         const hitLabel = (h) => `${h[1]} ${h[2] || ""} ${stateName(h[3])}`.trim();
         const first = hits[0] || [];
         const suggestion = scan.suggestion || result.suggestion || "";
         let text = result.message || scan.message || "";
         let detail = "";
         if (kind === "duplicate") { text = "Ya leído"; }
-        else if (kind === "unknown") { text = suggestion ? `¿Qué producto es? Sage propone: ${suggestion}` : "¿Qué producto es?"; }
+        else if (kind === "unknown") { text = suggestion ? `¿Qué producto es? Sage propone: ${suggestion}` : (scan.message || result.message || "¿Qué producto es?"); }
+        else if (kind === "ok") { text = `En Sage: ${companyName(first[0])} · ${whName(first)} · ${stateName(first[3])}`; detail = scan.product_name || first[4] || ""; }
+        else if (kind === "est") { text = `Estado distinto: Sage dice ${stateName(first[3])}, has marcado ${sage.st || "otro"}`; detail = `${scan.product_name || first[4] || ""} · ${companyName(first[0])} · ${whName(first)}. Si es correcto, pulsa el estado y vuelve a leerlo; si no, lo revisa Administración`; }
         else if (kind === "here") { text = `En Sage aquí (${first[2] || first[1] || "esta zona"}) · ${stateName(first[3])}`; }
         else if (kind === "wh") { text = `Sage lo tiene en ${first[2] || first[1]} · ${stateName(first[3])}`; detail = "Déjalo donde está"; }
         else if (kind === "co") { text = `Sage lo tiene en otra empresa: ${{ "01": "RMS", "02": "Espacio", "03": "RJB" }[first[0]] || first[0]}`; detail = "Déjalo donde está"; }
-        else if (kind === "none") { text = "No está en Sage"; detail = "Déjalo donde está"; }
-        else if (kind === "dup") { text = `Duplicado en Sage: ${hits.map(hitLabel).join(" y ")}`; }
+        else if (kind === "none") { text = "No está en Sage"; detail = this.state.operatorState?.session?.sage_mode === "global" ? "Se dará de alta en la revisión" : "Déjalo donde está"; }
+        else if (kind === "dup") { text = `Duplicado en Sage: ${hits.map((h) => `${companyName(h[0])} ${hitLabel(h)}`).join(" y ")}`; detail = "Avísalo a Administración"; }
         return { kind, text, detail, scanId: scan.id, suggestionId: scan.suggestion_product_id || result.suggestion_product_id };
     }
 
@@ -578,7 +582,7 @@ export class StockCountScan extends Component {
     }
 
     verdictIcon(kind) {
-        return { here: "✓", wh: "⚠", co: "⚠", none: "✕", dup: "⇄", unknown: "?", duplicate: "ℹ", nos: "•" }[kind] || "•";
+        return { here: "✓", ok: "✓", est: "⚠", wh: "⚠", co: "⚠", none: "✕", dup: "⇄", unknown: "?", duplicate: "ℹ", nos: "•" }[kind] || "•";
     }
 
     async useSuggestion() {

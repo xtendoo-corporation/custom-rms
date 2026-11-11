@@ -268,6 +268,7 @@ class TestSageExpected(TransactionCase):
 
     def test_live_verdict_and_product_priority(self):
         self._import_fixture()
+        self.session.sage_mode = 'scope'
         verdict = self.Scan._sage_verdict(['0040579', 'absent', ''], self.session, self.dwm)
         self.assertEqual([v['v'] for v in verdict], ['here', 'none', 'nos'])
         self.assertTrue(verdict[0]['pm'])

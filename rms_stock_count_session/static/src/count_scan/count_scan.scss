@@ -167,8 +167,8 @@
     .o_rms_cs_ctx + .o_rms_cs_ctx { flex-basis: 45%; }
     .o_rms_cs_verdict { padding: 0.6rem 0.8rem; flex: 0 0 auto; width: 100%; }
     .o_rms_cs_verdict_text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-    .o_rms_cs_sage_here { background: #d1e7dd; color: #0f5132; }
-    .o_rms_cs_sage_wh, .o_rms_cs_sage_co { background: #fff3cd; color: #664d03; }
+    .o_rms_cs_sage_here, .o_rms_cs_sage_ok { background: #d1e7dd; color: #0f5132; }
+    .o_rms_cs_sage_wh, .o_rms_cs_sage_co, .o_rms_cs_sage_est { background: #fff3cd; color: #664d03; }
     .o_rms_cs_sage_none { background: #f8d7da; color: #842029; }
     .o_rms_cs_sage_dup { background: #e8dafa; color: #593080; }
     .o_rms_cs_sage_unknown, .o_rms_cs_sage_nos { background: #e9ecef; color: #343a40; }

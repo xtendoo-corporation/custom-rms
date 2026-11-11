@@ -88,7 +88,8 @@
             </xpath>
             <xpath expr="//notebook" position="inside">
                 <page string="Alcance Sage" name="sage_scope">
-                    <group><field name="sage_company_code"/><field name="brand_categ_ids" widget="many2many_tags"/><field name="sage_warehouse_ids" widget="many2many_tags"/></group>
+                    <group><field name="sage_mode" widget="radio"/></group>
+                    <group string="Zona que se recorre (para la lista de FALTAN)"><field name="sage_company_code"/><field name="brand_categ_ids" widget="many2many_tags"/><field name="sage_warehouse_ids" widget="many2many_tags"/></group>
                 </page>
             </xpath>
         </field>

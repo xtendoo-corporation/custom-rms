@@ -137,6 +137,7 @@ class RmsStockCountOperator(models.Model):
                 "name": session.name,
                 "state": session.state,
                 "location_name": session.location_id.display_name,
+                "sage_mode": session.sage_mode,
             },
             "location": {
                 "id": self.current_location_id.id,
