@@ -192,6 +192,51 @@ class RmsStockCountScan(models.Model):
         return Lot.search([("id", "in", ids), ("company_id", "in", company_ids)])
 
     @api.model
+    def _classify_from_sage(self, operator, serial, base, brand_note=""):
+        """El nº de serie no existe aún en Odoo: se busca en la carpeta de
+        Sage (las 3 empresas). Si Sage lo tiene en un único producto, la
+        lectura es ese producto con un nº de serie nuevo, sin tener que leer
+        antes el código del producto. Devuelve None si Sage no lo tiene."""
+        key = normalize_serial(serial)
+        if not key:
+            return None
+        Line = self.env["rms.sage.stock.line"].sudo()
+        lines = Line.search([("is_current", "=", True), ("serial_normalized", "=", key)])
+        if not lines:
+            return None
+        products = lines.product_id
+        current = operator.current_product_id
+        if current and current in products:
+            # Sony repite nº de serie entre modelos: manda el producto elegido.
+            products = current
+        if not products:
+            articles = ", ".join(sorted(set(lines.mapped("article_code"))))
+            return dict(
+                base, scan_type="unknown", lot_name=serial, quantity=0.0,
+                message="En Sage es %s, pero ese artículo no tiene producto en Odoo: "
+                        "asígnalo en Inventario Sage > Artículos sin producto." % articles,
+            )
+        if len(products) > 1:
+            return dict(
+                base, scan_type="unknown", lot_name=serial, quantity=0.0,
+                message="Según Sage, el nº de serie %s es de varios productos (%s): "
+                        "escanea antes el código del producto." % (
+                            serial, ", ".join(products.mapped("display_name"))),
+            )
+        product = products
+        if product.tracking == "none":
+            return dict(
+                base, scan_type="unknown", lot_name=serial, product_id=product.id, quantity=0.0,
+                message="En Sage es %s, pero en Odoo ese producto no se sigue por nº de "
+                        "serie: actívalo en el producto." % product.display_name,
+            )
+        return dict(
+            base, scan_type="serial", product_id=product.id, lot_name=serial,
+            is_new_lot=True, quantity=1.0,
+            message="%s · %s (según Sage)%s" % (product.display_name, serial, brand_note),
+        )
+
+    @api.model
     def _pick_variant(self, variants, current):
         """rms_product_import crea una variante por "Estado" (Nuevo, Demo,
         2ª Mano...) con la misma referencia. Al escanear esa referencia se
@@ -317,6 +362,14 @@ class RmsStockCountScan(models.Model):
                             serial, ", ".join(lots.mapped("product_id.display_name"))
                         ),
             )
+
+        # Pistola o teclado: un único código elegido por el operario, se fía de
+        # Sage. La cámara lee todo el encuadre (kits con varios nº de serie) y
+        # mantiene su regla estricta: sugerencia de Sage a confirmar.
+        if not camera:
+            sage_result = self._classify_from_sage(operator, serial, base, brand_note)
+            if sage_result:
+                return sage_result
 
         if camera:
             return dict(base, scan_type="unknown", lot_name=serial, quantity=0.0,
