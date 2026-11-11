@@ -64,6 +64,52 @@ class TestMoveProductState(TransactionCase):
         self.assertEqual(line.product_state_id, self.demo)
         self.assertEqual(self.lot.product_state_id, self.demo)
 
+    def test_changing_lot_by_code_keeps_new_lot_state(self):
+        """El escáner cambia el nº de serie de una línea con write (sin
+        onchange): el estado del nº de serie anterior no se copia al nuevo."""
+        used = self.env['stock.lot'].create({
+            'name': 'PRESERVE-USED', 'product_id': self.product.id,
+            'company_id': self.env.company.id, 'product_state_id': self.second_hand.id,
+        })
+        self.env['stock.quant']._update_available_quantity(self.product, self.stock, 1, lot_id=used)
+        move = self.env['stock.move'].create({
+            'product_id': self.product.id, 'product_uom_qty': 1,
+            'product_uom': self.product.uom_id.id,
+            'location_id': self.stock.id, 'location_dest_id': self.destination.id,
+            'company_id': self.env.company.id,
+        })
+        move._action_confirm()
+        line = self.env['stock.move.line'].create({
+            'move_id': move.id, 'product_id': self.product.id,
+            'product_uom_id': self.product.uom_id.id, 'quantity': 1,
+            'location_id': self.stock.id, 'location_dest_id': self.destination.id,
+            'company_id': self.env.company.id, 'lot_id': self.lot.id,
+        })
+        self.assertEqual(line.product_state_id, self.demo)
+        line.write({'lot_id': used.id})
+        self.assertEqual(line.product_state_id, self.second_hand)
+        move.picked = True
+        move._action_done()
+        self.assertEqual(used.product_state_id, self.second_hand)
+        self.assertEqual(self.lot.product_state_id, self.demo)
+
+    def test_explicit_state_in_same_write_wins(self):
+        move = self.env['stock.move'].create({
+            'product_id': self.product.id, 'product_uom_qty': 1,
+            'product_uom': self.product.uom_id.id,
+            'location_id': self.stock.id, 'location_dest_id': self.destination.id,
+            'company_id': self.env.company.id,
+        })
+        move._action_confirm()
+        line = self.env['stock.move.line'].create({
+            'move_id': move.id, 'product_id': self.product.id,
+            'product_uom_id': self.product.uom_id.id, 'quantity': 1,
+            'location_id': self.stock.id, 'location_dest_id': self.destination.id,
+            'company_id': self.env.company.id,
+        })
+        line.write({'lot_id': self.lot.id, 'product_state_id': self.second_hand.id})
+        self.assertEqual(line.product_state_id, self.second_hand)
+
     def test_line_without_state_does_not_touch_lot(self):
         self._move(self.stock, self.destination, lot_id=self.lot.id,
                    product_state_id=False)
