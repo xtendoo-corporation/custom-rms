@@ -3,3 +3,7 @@ from . import product
 from . import sale_order
 from . import ir_ui_menu
 from . import sale_order_line
+from . import crm_lead
+from . import res_partner
+from . import res_users
+from . import crm_stage

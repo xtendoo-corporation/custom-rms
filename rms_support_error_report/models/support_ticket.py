@@ -405,6 +405,11 @@ class RmsSupportTicket(models.Model):
                     self._notify_support_channel()
             except Exception:
                 _logger.exception("Error notificando la incidencia %s", self.name)
+            try:
+                with self.env.cr.savepoint():
+                    self._notify_support_email()
+            except Exception:
+                _logger.exception("Error notificando por correo la incidencia %s", self.name)
 
     def _run_ai_analysis(self):
         api_key = self._get_api_key()
@@ -701,6 +706,48 @@ class RmsSupportTicket(models.Model):
             )
         html += Markup("<p><i>Informe generado por IA: revísalo antes de aplicar ningún cambio.</i></p>")
         return html
+
+    def _notify_support_email(self):
+        self.ensure_one()
+        recipients = self.env["ir.config_parameter"].sudo().get_param(
+            "rms_support_error_report.notify_email", ""
+        )
+        addresses = [address.strip() for address in (recipients or "").split(",")
+                     if address.strip()]
+        if not addresses:
+            return
+
+        body = Markup(
+            "<p>Notificada por: %s</p><p>Tipo de error: %s</p>"
+            "<p>Mensaje: %s</p>"
+        ) % (self.user_id.name or "", self.error_type or "", (self.error_message or "")[:500])
+        if self.state == "analyzed":
+            body += Markup(
+                "<p>Clasificación: %s · Gravedad: %s · Módulo: %s</p>"
+                "<p>Resumen: %s</p>"
+            ) % (
+                dict(CLASSIFICATION_SELECTION).get(self.ai_classification, ""),
+                dict(SEVERITY_SELECTION).get(self.ai_severity, ""),
+                self.ai_module or "-", self.ai_summary or "",
+            )
+        else:
+            body += Markup("<p>No se ha podido generar el informe de la IA: %s</p>") % (
+                self.ai_error or "",
+            )
+        body += Markup('<p><a href="%s">Ver incidencia %s</a></p>') % (
+            self.get_base_url() + "/odoo/rms.support.ticket/%s" % self.id, self.name,
+        )
+        values = {
+            "email_to": ",".join(addresses),
+            "auto_delete": True,
+            "subject": "Nueva incidencia %s: %s" % (
+                self.name, self.ai_summary or (self.error_message or "")[:120] or self.error_type,
+            ),
+            "body_html": body,
+        }
+        if self.env.company.email_formatted:
+            values["email_from"] = self.env.company.email_formatted
+        self.env["mail.mail"].sudo().create(values)
 
     def _notify_support_channel(self):
         channel = self.env.ref("rms_support_error_report.channel_support_error_report", raise_if_not_found=False)
