@@ -1,3 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
-<path fill-rule="evenodd" d="M25 3a22 22 0 1 0 0 44 22 22 0 0 0 0-44Zm0 12a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" fill="#F86126"/><path d="m7 12 8-8 9 12-8 8Zm28-8 8 8-9 12-8-8ZM4 35l8 8 12-9-8-8Zm31 8 8-8-9-9-8 8Z" fill="#962B48"/>
+  <path fill="#144496" d="M5 28v-6a18 18 0 0 1 36 0v9h-6v-9a12 12 0 0 0-24 0v6H5Z"/>
+  <rect x="3" y="22" width="11" height="17" rx="4" fill="#144496"/>
+  <path fill="#144496" d="M32 24h7a4 4 0 0 1 4 4v8c0 7-6 10-13 10h-8v-6h8c5 0 7-2 7-5h-5V24Z"/>
+  <path fill="#1AD3BB" d="M29 17h15a4 4 0 0 1 4 4v12a4 4 0 0 1-4 4h-7l-8 6v-6a4 4 0 0 1-4-4V21a4 4 0 0 1 4-4Z"/>
+  <rect x="34" y="21" width="5" height="9" rx="2" fill="#144496"/>
+  <circle cx="36.5" cy="33" r="2.5" fill="#144496"/>
 </svg>
