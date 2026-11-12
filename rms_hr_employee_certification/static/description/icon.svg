@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg_rms_hr_employee_certification" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#C05471"/>
+      <stop offset="100%" stop-color="#BB4565"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg_rms_hr_employee_certification)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M294 354H140V142h210v72M183 199h94M183 249h60"/><circle cx="315" cy="305" r="40"/><path d="m291 339-10 43 34-17 34 17-10-43M327 225a83 83 0 0 1 56 52m0-38v38h-38"/>
+  </g>
+</svg>

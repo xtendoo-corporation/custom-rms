@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg_rms_stock_lot_label_print" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CC7032"/>
+      <stop offset="100%" stop-color="#C86420"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg_rms_stock_lot_label_print)"/>
+<g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M188 194V132H324V194 M176 310H140V204H372V310H336 M184 278H328V380H184Z"/>
+  <path d="M218 311V346 M256 311V346 M294 311V346" stroke-width="16"/>
+</g>
+</svg>

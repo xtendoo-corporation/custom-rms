@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg_rms_chatter_hide_send_message" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#606E7F"/>
+      <stop offset="100%" stop-color="#526174"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg_rms_chatter_hide_send_message)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M280 143H161a29 29 0 0 0-29 29v139a29 29 0 0 0 29 29h24v42l57-42h52M183 207h64M183 259h36"/><path d="m263 298 87-87 32 32-87 87-42 10Z"/>
+  </g>
+</svg>

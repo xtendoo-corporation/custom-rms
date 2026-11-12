@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg_rms_customer_equipment_map" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#298D77"/>
+      <stop offset="100%" stop-color="#16836B"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg_rms_customer_equipment_map)"/>
+<g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M136 214 211 186 286 214 376 184V350L286 380 211 352 136 380Z M211 186V352 M286 298V380"/>
+</g>
+<path d="M286 124C250 124 226 149 226 180C226 222 286 282 286 282S346 222 346 180C346 149 322 124 286 124Z" fill="#FFFFFF"/>
+<circle cx="286" cy="180" r="20" fill="#FFD166"/>
+</svg>

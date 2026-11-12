@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg_rms_sale_category_product_manager" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3670ED"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg_rms_sale_category_product_manager)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M250 366H130V138h148v104m-108-52h68m-68 54h48m-48 54h32m76-20h32v-38"/><circle cx="336" cy="274" r="28"/><path d="M286 378v-16a50 50 0 0 1 100 0v16z"/>
+  </g>
+</svg>

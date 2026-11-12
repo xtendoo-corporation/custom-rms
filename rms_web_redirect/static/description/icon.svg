@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Ventana con flecha hacia un sitio externo</title>
+  <defs>
+    <linearGradient id="webRedirectBackground" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1C89B4"/>
+      <stop offset="100%" stop-color="#087FAD"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#webRedirectBackground)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"><path d="M386 266v96a24 24 0 0 1-24 24H150a24 24 0 0 1-24-24V150a24 24 0 0 1 24-24h96M126 192h120M250 262l136-136M298 126h88v88"/></g>
+</svg>

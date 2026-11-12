@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg_rms_hr_expense_ai_email" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#C05471"/>
+      <stop offset="100%" stop-color="#BB4565"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg_rms_hr_expense_ai_email)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M187 245V137h137v108M222 184h67M222 224h46M137 249v117h238V249M137 249l119 81 119-81"/><path d="m365 128 7 20 20 7-20 7-7 20-7-20-20-7 20-7Z" fill="#FFD166" stroke="none"/>
+  </g>
+</svg>

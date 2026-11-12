@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>CLUB: letras geométricas, estrella y acceso externo</title>
+  <defs>
+    <linearGradient id="clubBackground" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1C89B4"/>
+      <stop offset="100%" stop-color="#087FAD"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#clubBackground)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"><path d="M170 246h-20a24 24 0 0 0-24 24v56a24 24 0 0 0 24 24h20M208 246v104h38M272 246v83a21 21 0 0 0 42 0v-83M350 350V246h12a24 26 0 0 1 0 52h-12 12a24 26 0 0 1 0 52h-12M330 182l56-56M338 126h48v48"/></g><path d="m190 126 9 23 25 9-25 9-9 23-9-23-25-9 25-9Z" fill="#FFD166"/>
+</svg>

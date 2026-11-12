@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg_rms_comerciales_tasks_shortcut" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3670ED"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg_rms_comerciales_tasks_shortcut)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M280 376H154V150h44m64 0h44v104"/><rect x="198" y="126" width="64" height="48" rx="12"/><path d="m182 226 18 18 34-36m-52 90h56"/><circle cx="338" cy="300" r="24"/><path d="M294 382v-10a44 44 0 0 1 88 0v10z"/>
+  </g>
+</svg>

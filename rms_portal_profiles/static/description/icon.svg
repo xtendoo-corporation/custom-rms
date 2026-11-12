@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Portal: perfiles con acceso protegido</title>
+  <defs>
+    <linearGradient id="portalProfilesBackground" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1C89B4"/>
+      <stop offset="100%" stop-color="#087FAD"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#portalProfilesBackground)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"><path d="M240 386h-90a24 24 0 0 1-24-24V150a24 24 0 0 1 24-24h212a24 24 0 0 1 24 24v86M126 192h260"/><circle cx="228" cy="256" r="28"/><path d="M174 344v-8a54 40 0 0 1 108 0M316 320v-22a24 24 0 0 1 48 0v22"/></g><rect x="294" y="320" width="92" height="66" rx="14" fill="#FFFFFF"/>
+</svg>

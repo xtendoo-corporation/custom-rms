@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg_rms_mail_server" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#606E7F"/>
+      <stop offset="100%" stop-color="#526174"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg_rms_mail_server)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M271 157H136v189h120M136 163l118 90 40-31"/><path d="m324 233 58 23v54q0 47-58 75-58-28-58-75v-54Z"/><path d="m300 306 17 17 33-37"/>
+  </g>
+</svg>
