@@ -1,15 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_product_state" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#CC7032"/>
-      <stop offset="100%" stop-color="#C86420"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_product_state)"/>
-<g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M150 179 256 128 362 179 362 282 256 332 150 282Z M150 179 256 230 362 179 M256 230V332 M207 153 313 204"/>
-</g>
-<rect x="164" y="350" width="184" height="40" rx="20" fill="#FFFFFF"/>
-<circle cx="256" cy="370" r="20" fill="#FFD166"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<path d="M7 8h24a4 4 0 0 1 4 4v23a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4Z" fill="#FBB945"/>
+<path d="M15 8h8v13l-4-3-4 3V8ZM14 29h29a4 4 0 0 1 4 4v9a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4v-9a4 4 0 0 1 4-4Z" fill="#985184"/>
+<circle cx="19" cy="37.5" r="3" fill="#FBB945"/><circle cx="29" cy="37.5" r="3" fill="#FBB945"/><circle cx="39" cy="37.5" r="5" fill="#1AD3BB"/>
 </svg>

@@ -1,12 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <title>Sala IN: letras geométricas y acceso externo</title>
-  <defs>
-    <linearGradient id="salaInBackground" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#1C89B4"/>
-      <stop offset="100%" stop-color="#087FAD"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#salaInBackground)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"><path d="M148 230h52M174 230v126M148 356h52M246 356V230l110 126V230"/><path d="m330 182 56-56M338 126h48v48"/></g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<path fill="#1AD3BB" d="M6 10h28l12 13v17a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4Z"/>
+<path fill="#005E7A" d="M8 19h7v18H8Zm12 0h6l8 10V19h6v18h-6l-8-10v10h-6Z"/>
+<path fill="#005E7A" d="M35 4h10a3 3 0 0 1 3 3v10h-5v-5l-9 9-4-4 9-8h-4Z"/>
 </svg>

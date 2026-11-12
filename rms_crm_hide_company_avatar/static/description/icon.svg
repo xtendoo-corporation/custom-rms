@@ -1,13 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_crm_hide_company_avatar" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3670ED"/>
-      <stop offset="100%" stop-color="#2563EB"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_crm_hide_company_avatar)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="126" y="150" width="260" height="212" rx="24"/><rect x="158" y="186" width="68" height="68" rx="16"/><path d="M264 198h86m-86 48h60m-166 70h192"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<rect x="3" y="8" width="44" height="34" rx="4" fill="#985184"/>
+<path d="M7 8h24v34H7a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4Z" fill="#FC868B"/>
+<rect x="9" y="16" width="15" height="6" rx="3" fill="#962B48"/>
+<rect x="9" y="28" width="15" height="6" rx="3" fill="#962B48"/>
+<path d="M35 15h6v20h-6Z" fill="#FC868B"/>
 </svg>

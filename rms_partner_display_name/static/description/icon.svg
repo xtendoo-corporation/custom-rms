@@ -1,13 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_partner_display_name" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3670ED"/>
-      <stop offset="100%" stop-color="#2563EB"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_partner_display_name)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="256" cy="184" r="46"/><path d="M178 310v-12a78 54 0 0 1 156 0v12zM162 374h188"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<circle cx="18" cy="14" r="9" fill="#2EBCFA"/>
+<path d="M3 42v-8a15 15 0 0 1 30 0v8Z" fill="#144496"/>
+<rect x="18" y="28" width="30" height="18" rx="4" fill="#FBB945"/>
+<rect x="24" y="34" width="18" height="6" rx="3" fill="#144496"/>
 </svg>

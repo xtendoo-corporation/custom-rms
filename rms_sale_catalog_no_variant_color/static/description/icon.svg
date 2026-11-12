@@ -1,13 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_sale_catalog_no_variant_color" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3670ED"/>
-      <stop offset="100%" stop-color="#2563EB"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_sale_catalog_no_variant_color)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="130" y="130" width="104" height="104" rx="18"/><rect x="278" y="130" width="104" height="104" rx="18"/><rect x="130" y="278" width="104" height="104" rx="18"/><rect x="278" y="278" width="104" height="104" rx="18"/><path d="M166 182h32m116 0h32M166 330h32m116 0h32"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<rect x="3" y="5" width="31" height="36" rx="4" fill="#1A6F66"/>
+<rect x="16" y="13" width="31" height="33" rx="4" fill="#1AD3BB"/>
+<rect x="22" y="19" width="8" height="8" rx="2" fill="#1A6F66"/>
+<rect x="34" y="19" width="8" height="8" rx="2" fill="#1A6F66"/>
+<rect x="22" y="32" width="8" height="8" rx="2" fill="#1A6F66"/>
+<rect x="34" y="32" width="8" height="8" rx="2" fill="#1A6F66"/>
 </svg>

@@ -1,12 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <title>Portal: catálogo de productos</title>
-  <defs>
-    <linearGradient id="portalCatalogBackground" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#1C89B4"/>
-      <stop offset="100%" stop-color="#087FAD"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#portalCatalogBackground)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"><rect x="126" y="126" width="260" height="260" rx="24"/><path d="M126 192h260"/></g><g fill="#FFFFFF"><rect x="170" y="228" width="62" height="54" rx="10"/><rect x="280" y="228" width="62" height="54" rx="10"/><rect x="170" y="306" width="62" height="42" rx="10"/><rect x="280" y="306" width="62" height="42" rx="10"/></g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<path fill="#FBB945" d="M6 6h17v38H6a4 4 0 0 1-4-4V10a4 4 0 0 1 4-4Z"/>
+<path fill="#985184" d="M23 6h21a4 4 0 0 1 4 4v30a4 4 0 0 1-4 4H23Z"/>
+<path fill="#F86126" d="M18 6h7v38h-7Z"/>
+<rect fill="#FBB945" x="30" y="13" width="11" height="11" rx="3"/>
+<rect fill="#FBB945" x="30" y="28" width="11" height="9" rx="3"/>
+<path fill="#985184" d="M8 13h7v11H8Z"/>
 </svg>

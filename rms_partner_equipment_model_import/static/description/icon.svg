@@ -1,17 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_partner_equipment_model_import" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#298D77"/>
-      <stop offset="100%" stop-color="#16836B"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_partner_equipment_model_import)"/>
-<g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M136 238V140H232V194 M180 140V172"/>
-  <path d="M132 286H244 M212 254 244 286 212 318 M180 286V372H280"/>
-  <rect x="286" y="178" width="94" height="202" rx="18"/>
-  <circle cx="333" cy="306" r="23" stroke-width="20"/>
-</g>
-<circle cx="333" cy="226" r="12" fill="#FFFFFF"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<rect x="3" y="17" width="24" height="27" rx="4" fill="#1AD3BB"/>
+<path d="M8 22h5v5H8zM17 22h5v5h-5zM8 31h5v5H8zM17 31h5v13h-5z" fill="#1A6F66"/>
+<rect x="25" y="10" width="22" height="36" rx="4" fill="#1A6F66"/>
+<circle cx="36" cy="20" r="3" fill="#1AD3BB"/><circle cx="36" cy="35" r="7" fill="#1AD3BB"/>
+<path d="M7 4h14a4 4 0 0 1 4 4v2h6L21 21 11 10h6V9H7a2.5 2.5 0 0 1 0-5Z" fill="#FBB945"/>
 </svg>

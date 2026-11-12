@@ -1,18 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_global_equipment_map" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#298D77"/>
-      <stop offset="100%" stop-color="#16836B"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_global_equipment_map)"/>
-<g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="256" cy="264" r="118"/>
-  <path d="M140 264H372 M256 146C198 204 198 324 256 382 M256 146C314 204 314 324 256 382" stroke-width="22"/>
-</g>
-<path d="M178 120C148 120 130 140 130 165C130 197 178 240 178 240S226 197 226 165C226 140 208 120 178 120Z" fill="#FFFFFF"/>
-<path d="M342 218C314 218 296 238 296 262C296 292 342 334 342 334S388 292 388 262C388 238 370 218 342 218Z" fill="#FFFFFF"/>
-<circle cx="178" cy="165" r="16" fill="#FFD166"/>
-<circle cx="342" cy="262" r="16" fill="#FFD166"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<circle cx="24" cy="26" r="20" fill="#144496"/>
+<path d="M7 16h9l4 7-4 7H5a20 20 0 0 1 2-14ZM20 39l5-9h7l6 10a20 20 0 0 1-18 5v-6ZM20 7l7 9-5 6h-7l-4-11a20 20 0 0 1 9-4Z" fill="#2EBCFA"/>
+<path d="M48 12c0 7-9 15-9 15s-9-8-9-15a9 9 0 0 1 18 0ZM19 28c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z" fill="#FC868B"/>
+<circle cx="39" cy="12" r="3" fill="#144496"/><circle cx="11" cy="28" r="3" fill="#144496"/>
 </svg>

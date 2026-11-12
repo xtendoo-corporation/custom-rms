@@ -1,12 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <title>Entregar proyecto: carpeta aprobada sobre una mano</title>
-  <defs>
-    <linearGradient id="portalProjectsBackground" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#1C89B4"/>
-      <stop offset="100%" stop-color="#087FAD"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#portalProjectsBackground)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"><path d="M158 272V148h76l24 30h96v94a18 18 0 0 1-18 18H176a18 18 0 0 1-18-18Z"/><path d="m226 230 22 22 42-42"/><path d="m126 334 46-22 64 30h66l66-30a13 13 0 0 1 16 20l-64 46H204l-78-30"/></g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<path fill="#FBB945" d="M8 6h11l5 6h15a4 4 0 0 1 4 4v18H4V10a4 4 0 0 1 4-4Z"/>
+<path fill="#985184" d="M4 18h39v16H8a4 4 0 0 1-4-4Z"/>
+<path fill="#1AD3BB" d="M2 35h10l5 4h13l12-8a4 4 0 0 1 5 6L33 47H16L2 42Z"/>
+<path fill="#FBB945" d="m21 24 4 4 9-10 4 4-13 14-8-8Z"/>
 </svg>

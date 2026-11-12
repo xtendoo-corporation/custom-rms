@@ -1,15 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_product_import" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#CC7032"/>
-      <stop offset="100%" stop-color="#C86420"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_product_import)"/>
-<g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M130 130H246V246H130Z M188 130V246 M130 188H246" stroke-width="24"/>
-  <path d="M282 172H364V242 M334 214 364 244 386 214"/>
-  <path d="M222 298 302 260 382 298V348L302 386 222 348Z M222 298 302 336 382 298 M302 336V386" stroke-width="24"/>
-</g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<rect x="3" y="5" width="23" height="26" rx="4" fill="#144496"/>
+<path d="M8 10h5v5H8zM16 10h5v5h-5zM8 19h5v5H8zM16 19h5v5h-5z" fill="#2EBCFA"/>
+<rect x="22" y="25" width="25" height="21" rx="4" fill="#2EBCFA"/>
+<path d="M31 25h7v10l-3.5-2-3.5 2V25Z" fill="#144496"/>
+<path d="M30 5h7v7h9L33.5 24 21 12h9V5Z" fill="#FBB945"/>
 </svg>

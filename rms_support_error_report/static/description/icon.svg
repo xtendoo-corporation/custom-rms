@@ -1,13 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_support_error_report" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#7162C5"/>
-      <stop offset="100%" stop-color="#6554C0"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_support_error_report)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <path d="m256 140 128 225H128Z"/><path d="M256 222v64"/><circle cx="256" cy="326" r="15" fill="#FFFFFF" stroke="none"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<path fill-rule="evenodd" d="M25 3a22 22 0 1 0 0 44 22 22 0 0 0 0-44Zm0 12a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" fill="#F86126"/><path d="m7 12 8-8 9 12-8 8Zm28-8 8 8-9 12-8-8ZM4 35l8 8 12-9-8-8Zm31 8 8-8-9-9-8 8Z" fill="#962B48"/>
 </svg>

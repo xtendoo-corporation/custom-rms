@@ -1,13 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_custom_knowledge" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#7162C5"/>
-      <stop offset="100%" stop-color="#6554C0"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_custom_knowledge)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M134 225v-63h94l29 32h121v31M256 269q-54-37-122-19v116q68-18 122 19 54-37 122-19V250q-68-18-122 19Zm0 0v116"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<path d="M3 8h15l6 6h19a4 4 0 0 1 4 4v24H7a4 4 0 0 1-4-4Z" fill="#FBB945"/><path d="M7 18h11c5 0 7 3 7 3s2-3 7-3h11v24H32c-5 0-7 4-7 4s-2-4-7-4H7Z" fill="#1A6F66"/><path d="M25 21s2-3 7-3h11v24H32c-5 0-7 4-7 4Z" fill="#1AD3BB"/><path d="M12 25h8v4h-8zm0 8h8v4h-8zm18-8h8v4h-8zm0 8h8v4h-8z" fill="#fff"/>
 </svg>

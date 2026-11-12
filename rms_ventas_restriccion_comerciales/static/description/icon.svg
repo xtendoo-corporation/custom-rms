@@ -1,13 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_ventas_restriccion_comerciales" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3670ED"/>
-      <stop offset="100%" stop-color="#2563EB"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_ventas_restriccion_comerciales)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M220 350h-90V144h160v44m-122 4h48m-48 52h32"/><path d="m294 208 88 32v62c0 40-36 68-88 82-52-14-88-42-88-82v-62z"/><rect x="264" y="286" width="60" height="48" rx="9"/><path d="M274 286v-20a20 20 0 0 1 40 0v20"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<path d="M25 4 46 12v13c0 10-10 17-21 21C14 42 4 35 4 25V12Z" fill="#1AD3BB"/>
+<path d="M25 4 46 12v13c0 10-10 17-21 21Z" fill="#1A6F66"/>
+<path d="M16 24v-5a9 9 0 0 1 18 0v5h-5v-5a4 4 0 0 0-8 0v5Z" fill="#FBB945"/>
+<rect x="13" y="23" width="24" height="15" rx="3" fill="#FBB945"/>
 </svg>

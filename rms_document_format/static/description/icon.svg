@@ -1,13 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_document_format" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3670ED"/>
-      <stop offset="100%" stop-color="#2563EB"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_document_format)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M164 126h122l62 62v198H164z"/><path d="M286 126v62h62"/><rect x="204" y="224" width="104" height="44" rx="6" fill="#FFFFFF" stroke="none"/><path d="M204 306h104m-104 40h58"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<path d="M10 4h23l11 11v27a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4Z" fill="#985184"/>
+<path d="M33 4v11h11Z" fill="#FC868B"/>
+<rect x="12" y="12" width="15" height="8" rx="2" fill="#FBB945"/>
+<rect x="12" y="25" width="9" height="15" rx="2" fill="#FC868B"/>
+<rect x="26" y="25" width="12" height="5" rx="2" fill="#FBB945"/>
+<rect x="26" y="35" width="12" height="5" rx="2" fill="#FBB945"/>
 </svg>

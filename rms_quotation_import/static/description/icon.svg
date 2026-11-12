@@ -1,13 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg_rms_quotation_import" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3670ED"/>
-      <stop offset="100%" stop-color="#2563EB"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg_rms_quotation_import)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M280 130h60l42 44v208H234v-70m46-182v58h102M278 274h60m-60 50h60"/><rect x="126" y="154" width="92" height="84" rx="12"/><path d="M172 154v84m-46-42h92m-92 90h138m-34-34 34 34-34 34"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 50 50">
+<path d="M20 4h16l10 10v28a4 4 0 0 1-4 4H20a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4Z" fill="#144496"/>
+<path d="M36 4v10h10Z" fill="#2EBCFA"/>
+<rect x="26" y="34" width="14" height="5" rx="2.5" fill="#2EBCFA"/>
+<path d="M2 21h17V11l17 16-17 16V32H6a4 4 0 0 1-4-4Z" fill="#FBB945"/>
 </svg>
