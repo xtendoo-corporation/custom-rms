@@ -25,3 +25,6 @@ access_rms_sage_brand_prefix_manager,rms.sage.brand.prefix.manager,model_rms_sag
 access_rms_sage_product_prepare_manager,rms.sage.product.prepare.manager,model_rms_sage_product_prepare,stock.group_stock_manager,1,1,1,1
 access_rms_sage_checklist_manager,rms.sage.checklist.manager,model_rms_sage_checklist,stock.group_stock_manager,1,0,0,0
 access_rms_sage_checklist_extra_manager,rms.sage.checklist.extra.manager,model_rms_sage_checklist_extra,stock.group_stock_manager,1,0,0,0
+access_rms_sage_article_user,rms.sage.article.user,model_rms_sage_article,stock.group_stock_user,1,0,0,0
+access_rms_sage_article_manager,rms.sage.article.manager,model_rms_sage_article,stock.group_stock_manager,1,1,1,1
+access_rms_sage_article_import_manager,rms.sage.article.import.manager,model_rms_sage_article_import,stock.group_stock_manager,1,1,1,1

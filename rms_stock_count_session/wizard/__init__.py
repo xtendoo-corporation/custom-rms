@@ -5,3 +5,5 @@ from . import replacement_label_wizard
 from . import sage_import
 
 from . import sage_product_prepare
+
+from . import sage_article_import

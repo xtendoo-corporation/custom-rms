@@ -67,7 +67,15 @@ class SageProductPrepare(models.TransientModel):
         created = assigned = skipped = 0
         resolved = self.env['rms.sage.stock.line']
         unknown_brand = False
-        for key, lines in self._groups(self.line_ids).items():
+        groups = self._groups(self.line_ids)
+        Article = self.env['rms.sage.article'].sudo()
+        all_codes = set()
+        for lines in groups.values():
+            all_codes.update(filter(None, lines.mapped('model_code') + lines.mapped('article_code')))
+        master_brands = Article._brands_by_article(all_codes)
+        master_names = {article.code_normalized: article.name for article in Article.search(
+            [('code_normalized', 'in', [normalize_code(code) for code in all_codes])]) if article.name}
+        for key, lines in groups.items():
             model = (lines[0].model_code or lines[0].article_code).strip()
             found = self._existing_product(model)
             if len(found) > 1:
@@ -75,7 +83,10 @@ class SageProductPrepare(models.TransientModel):
                 continue
             template = found
             if not template:
-                brand = lines.brand_categ_id[:1]
+                # La marca del maestro de Sage manda; si no está, la de la carga.
+                codes = [normalize_code(model)] + [normalize_code(c) for c in lines.mapped('article_code')]
+                brand_id = next((master_brands[c] for c in codes if c in master_brands), False)
+                brand = self.env['product.category'].browse(brand_id) if brand_id else lines.brand_categ_id[:1]
                 if not brand:
                     if not unknown_brand:
                         unknown_brand = self.env['product.category'].search(
@@ -83,7 +94,8 @@ class SageProductPrepare(models.TransientModel):
                         ) or self.env['product.category'].create({'name': 'Sin marca'})
                     brand = unknown_brand
                 has_serials = any(line.serial_normalized and line.quantity == 1 for line in lines)
-                name = next((line.article_name for line in lines if line.article_name), False) or model
+                name = (next((master_names[c] for c in codes if c in master_names), False)
+                        or next((line.article_name for line in lines if line.article_name), False) or model)
                 template = self.env['product.template'].create({
                     'name': name, 'default_code': model, 'categ_id': brand.id,
                     'type': 'consu', 'is_storable': True,

@@ -11,3 +11,5 @@ from . import test_sage_library
 from . import test_company_state_review
 
 from . import test_sage_global
+
+from . import test_sage_article

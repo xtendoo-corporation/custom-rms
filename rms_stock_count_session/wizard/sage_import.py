@@ -116,6 +116,11 @@ class StockCountSageImport(models.TransientModel):
                              if not mapping.brand_categ_id.parent_id}
             for prefix, brands in learned.items():
                 prefix_brands[prefix] = min(brands, key=lambda brand: (-brands[brand], brand))
+        # Marca según el maestro de artículos de Sage (si se ha cargado).
+        master_brands = {}
+        if self.scope == 'all':
+            master_brands = self.env['rms.sage.article'].sudo()._brands_by_article(
+                {val['article_code'] for val in vals})
         grouped = defaultdict(list)
         unknown = False
         warehouses = self.env['rms.sage.warehouse'].search([
@@ -125,7 +130,9 @@ class StockCountSageImport(models.TransientModel):
             match = resolved[(val['article_code'], val['model_code'], val['state'])]
             val.update(match, sage_warehouse_id=wh_map.get(val['warehouse_code'], False))
             brand = self.brand_categ_id.id if self.scope == 'brand' else (
-                product_brands.get(match['product_id']) or prefix_brands.get(article_prefix(val['article_code'])))
+                product_brands.get(match['product_id'])
+                or master_brands.get(normalize_code(val['article_code']))
+                or prefix_brands.get(article_prefix(val['article_code'])))
             if not brand:
                 if not unknown:
                     Category = self.env['product.category'].sudo()
