@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Marca visual de Sandbox',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.2.0',
     'category': 'Hidden/Tools',
     'summary': 'Deja clarísimo que se está en la base de pruebas (sandbox).',
     'description': """
@@ -15,7 +15,7 @@ producción nunca se ve aunque se instalara por error.
 Qué muestra (para todos los usuarios):
 
 - Barra de menú con rayas rojas.
-- Fondo rosado con la marca de agua "SANDBOX" repetida.
+- Fondo casi blanco detrás de las vistas.
 - Marco rojo alrededor de toda la pantalla (no tapa ni bloquea botones).
 - Etiqueta fija "SANDBOX · PRUEBAS" arriba en el centro.
     """,
