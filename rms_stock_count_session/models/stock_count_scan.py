@@ -43,6 +43,9 @@ def is_valid_gtin(code):
 
 def clean_code(raw):
     code = _CONTROL_RE.sub("", raw or "").strip()
+    # Lector con teclado inglés en un ordenador en español: el "-" llega como
+    # "'" (EASN0'0005). Ningún nº de serie ni referencia lleva apóstrofo.
+    code = code.replace("'", "-")
     code = _AIM_PREFIX_RE.sub("", code)
     code = _SERIAL_PREFIX_RE.sub("", code).strip()
     return code
