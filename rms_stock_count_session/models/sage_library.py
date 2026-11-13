@@ -84,23 +84,39 @@ class SageSnapshot(models.Model):
             snapshot.unmatched_count = len(snapshot.line_ids.filtered(lambda l: l.match_state != 'ok'))
             snapshot.total_cost = sum(l.quantity * l.cost for l in snapshot.line_ids)
 
-    def action_activate(self, mode='add', products_resolved=False):
+    def action_activate(self, mode='add', products_resolved=False, whole_company=False):
+        """whole_company: el archivo es la empresa completa (todas las marcas).
+        Al reemplazar, además de las marcas del archivo, se retiran las marcas
+        que venían DEL MISMO archivo anterior y ya no aparecen (p. ej. "Sin
+        marca" cuando el maestro de artículos da la marca real). Las marcas
+        cargadas aparte con su propio archivo no se tocan."""
         self.check_access('write')
         if any(snapshot.state != 'draft' for snapshot in self):
             raise UserError('Solo se puede activar una exportación en borrador.')
         Line = self.env['rms.sage.stock.line']
         affected = set(self.line_ids.mapped('serial_normalized'))
+        retired = self.browse()
         for snapshot in self.sorted(key=lambda snapshot: (snapshot.company_id.id, snapshot.sage_company_code, snapshot.brand_categ_id.id)):
             self.env.cr.execute('SELECT pg_advisory_xact_lock(hashtext(%s))',
                 ['rms.sage:%s:%s:%s' % (snapshot.company_id.id, snapshot.sage_company_code, snapshot.brand_categ_id.id)])
             if mode == 'replace':
-                old = self.search([('id', 'not in', self.ids), ('state', '=', 'current'),
+                retired |= self.search([('id', 'not in', self.ids), ('state', '=', 'current'),
                     ('company_id', '=', snapshot.company_id.id),
                     ('sage_company_code', '=', snapshot.sage_company_code),
                     ('brand_categ_id', '=', snapshot.brand_categ_id.id)])
-                affected.update(old.line_ids.mapped('serial_normalized'))
-                old.line_ids.write({'is_current': False, 'dup_count': 0})
-                old.write({'state': 'replaced'})
+        if mode == 'replace' and whole_company:
+            # El archivo anterior (de las marcas sustituidas) o el mismo archivo
+            # cargado de nuevo.
+            hashes = [digest for digest in set(retired.mapped('file_hash') + self.mapped('file_hash')) if digest]
+            if hashes:
+                retired |= self.search([('id', 'not in', self.ids), ('state', '=', 'current'),
+                    ('company_id', 'in', self.company_id.ids),
+                    ('sage_company_code', 'in', list(set(self.mapped('sage_company_code')))),
+                    ('file_hash', 'in', hashes)])
+        if retired:
+            affected.update(retired.line_ids.mapped('serial_normalized'))
+            retired.line_ids.write({'is_current': False, 'dup_count': 0})
+            retired.write({'state': 'replaced'})
         if not products_resolved:
             self.line_ids._resolve_products()
         self.line_ids.write({'is_current': True})

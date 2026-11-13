@@ -110,3 +110,48 @@ class TestSageArticleMaster(TransactionCase):
         self.assertEqual(template.categ_id, self.meyer)
         self.assertEqual(template.name, 'LYON-M Linear Line Array')
         self.assertEqual(template.tracking, 'serial')
+
+    def _stock_csv(self, serial, article='0933800104'):
+        return ('Almacén;Artículo;Nombre artículo;Lotes;Unidades\n'
+                '000;%s;LYON-M;;\n'
+                'AL1;;;;1,00\n'
+                ';;;%s;1,00\n' % (article, serial)).encode('utf-8')
+
+    def _load_stock(self, raw, **values):
+        vals = {'filename': 'empresa.csv', 'file_data': base64.b64encode(raw), 'allow_duplicate': True}
+        vals.update(values)
+        return self.env['rms.stock.count.sage.import'].create(vals).action_import()
+
+    def test_full_company_reload_retires_brands_from_same_file(self):
+        raw = self._stock_csv('MSTEST-RL-1')
+        self._load_stock(raw)  # sin maestro: el código numérico de Meyer queda "Sin marca"
+        Line = self.env['rms.sage.stock.line']
+        first = Line.search([('serial', '=', 'MSTEST-RL-1'), ('is_current', '=', True)])
+        self.assertEqual(first.brand_categ_id.name, 'Sin marca')
+        self._load_master(self._master_rows())
+        self._load_stock(raw)
+        current = Line.search([('serial', '=', 'MSTEST-RL-1'), ('is_current', '=', True)])
+        self.assertEqual(len(current), 1, 'La versión vieja de "Sin marca" no debe seguir vigente')
+        self.assertEqual(current.brand_categ_id, self.meyer)
+        self.assertEqual(first.snapshot_id.state, 'replaced')
+
+    def test_full_company_reload_keeps_brand_loaded_from_its_own_file(self):
+        other = self.env['product.category'].create({'name': 'Otra marca test'})
+        self._load_stock(self._stock_csv('MSTEST-OWN-1', 'OWN-ART-1'), filename='otra.csv',
+                         scope='brand', brand_categ_id=other.id)
+        self._load_master(self._master_rows())
+        self._load_stock(self._stock_csv('MSTEST-OWN-2'))
+        self._load_stock(self._stock_csv('MSTEST-OWN-3'))
+        Line = self.env['rms.sage.stock.line']
+        self.assertTrue(Line.search([('serial', '=', 'MSTEST-OWN-1'), ('is_current', '=', True)]))
+        self.assertFalse(Line.search([('serial', '=', 'MSTEST-OWN-2'), ('is_current', '=', True)]))
+
+    def test_snapshot_file_is_stored_without_text_index(self):
+        raw = self._stock_csv('MSTEST-IX-1')
+        self._load_stock(raw, filename='indice.csv')
+        snapshot = self.env['rms.sage.stock.line'].search([('serial', '=', 'MSTEST-IX-1')]).snapshot_id
+        attachment = self.env['ir.attachment'].sudo().search([
+            ('res_model', '=', 'rms.sage.snapshot'), ('res_field', '=', 'attachment'), ('res_id', '=', snapshot.id)])
+        self.assertEqual(len(attachment), 1)
+        self.assertFalse(attachment.index_content)
+        self.assertEqual(base64.b64decode(snapshot.attachment), raw)

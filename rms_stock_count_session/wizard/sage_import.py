@@ -149,8 +149,18 @@ class StockCountSageImport(models.TransientModel):
             {'name': self.filename or 'Exportación Sage', 'company_id': self.company_id.id,
              'sage_company_code': self.sage_company_code, 'brand_categ_id': brand,
              'export_date': self.export_date, 'filename': self.filename,
-             'attachment': self.file_data, 'file_hash': digest} for brand in sorted(grouped)])
-        # Binary attachment storage deduplicates the identical file content.
+             'file_hash': digest} for brand in sorted(grouped)])
+        # El archivo se guarda una vez por marca (el almacenamiento lo deduplica),
+        # pero SIN indexar su texto: indexar el CSV completo ~40 veces agotaba la
+        # memoria del proceso de Odoo (MemoryError, 13-nov).
+        self.env['ir.attachment'].sudo().create([{
+            'name': self.filename or 'Exportación Sage', 'res_model': snapshot._name, 'res_field': 'attachment',
+            'res_id': snapshot.id, 'raw': raw,
+            # 'application/csv' (no 'text/csv'): Odoo solo indexa los tipos text/*.
+            'mimetype': 'application/csv' if not raw.startswith(b'PK') else
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        } for snapshot in snapshots])
+        snapshots.invalidate_recordset(['attachment'])
         summary = []
         for snapshot in snapshots:
             values = grouped[snapshot.brand_categ_id.id]
@@ -161,7 +171,7 @@ class StockCountSageImport(models.TransientModel):
             summary.append('%s: %s líneas, %s unidades, %s números de serie, %s sin producto.' % (
                 snapshot.brand_categ_id.name, len(values), sum(val['quantity'] for val in values),
                 sum(bool(val.get('serial')) for val in values), sum(val['match_state'] != 'ok' for val in values)))
-        snapshots.action_activate(self.mode, products_resolved=True)
+        snapshots.action_activate(self.mode, products_resolved=True, whole_company=self.scope == 'all')
         for snapshot in snapshots:
             snapshot.quality_warnings = '\n'.join(filter(None, [snapshot.quality_warnings, self.parse_warnings]))
         message = '\n'.join(summary)
