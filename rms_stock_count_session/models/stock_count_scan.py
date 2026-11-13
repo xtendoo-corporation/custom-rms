@@ -214,9 +214,9 @@ class RmsStockCountScan(models.Model):
         if not key:
             return None
         Line = self.env["rms.sage.stock.line"].sudo()
-        lines = Line.search([("is_current", "=", True), ("stock_kind", "=", "stock"), ("serial_normalized", "=", key)])
+        lines = Line.search([("is_current", "=", True), ("stock_kind", "=", "stock"), ("quantity", ">", 0), ("serial_normalized", "=", key)])
         if not lines:
-            lines = Line.search([("is_current", "=", True), ("stock_kind", "=", "stock"),
+            lines = Line.search([("is_current", "=", True), ("stock_kind", "=", "stock"), ("quantity", ">", 0),
                                  ("serial_normalized", "in", serial_alternatives(key))])
         if not lines:
             return None
@@ -797,7 +797,7 @@ class RmsStockCountScan(models.Model):
                        COALESCE(l.in_deposit, FALSE)
                   FROM rms_sage_stock_line l
                   LEFT JOIN rms_sage_warehouse w ON w.id = l.sage_warehouse_id
-                 WHERE l.is_current AND l.stock_kind = 'stock' AND l.serial_normalized <> ''
+                 WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0 AND l.serial_normalized <> ''
                    AND l.serial_normalized = ANY(%s)
                  ORDER BY l.id
             """, (keys,))

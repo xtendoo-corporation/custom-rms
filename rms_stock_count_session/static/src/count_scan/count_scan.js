@@ -614,7 +614,7 @@ export class StockCountScan extends Component {
         else if (kind === "wh") { text = `Sage lo tiene en ${first[2] || first[1]} · ${stateName(first[3])}`; detail = "Déjalo donde está"; }
         else if (kind === "co") { text = `Sage lo tiene en otra empresa: ${{ "01": "RMS", "02": "Espacio", "03": "RJB" }[first[0]] || first[0]}`; detail = "Déjalo donde está"; }
         else if (kind === "none") { text = "No está en Sage"; detail = this.state.operatorState?.session?.sage_mode === "global" ? "Se dará de alta en la revisión" : "Déjalo donde está"; }
-        else if (kind === "dup") { text = `Duplicado en Sage: ${hits.map((h) => `${companyName(h[0])} ${hitLabel(h)}`).join(" y ")}`; detail = "Avísalo a Administración"; }
+        else if (kind === "dup") { text = `Duplicado en Sage: ${hits.map((h) => `${companyName(h[0])} · ${whName(h)} · ${stateName(h[3])}`).join(" y ")}`; detail = "Avísalo a Administración"; }
         return { kind, text, detail, scanId: scan.id, suggestionId: scan.suggestion_product_id || result.suggestion_product_id };
     }
 

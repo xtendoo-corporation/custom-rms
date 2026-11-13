@@ -205,11 +205,11 @@ class SageStockLine(models.Model):
             (SELECT serial_normalized, COALESCE(model_normalized, '') AS model,
                     count(DISTINCT COALESCE(sage_company_code, '') || '|' || COALESCE(warehouse_code, '') || '|' || COALESCE(state, '')) AS n
                FROM rms_sage_stock_line
-              WHERE is_current AND serial_normalized <> '' AND stock_kind = 'stock' GROUP BY 1, 2) AS d
-            WHERE l.is_current AND l.stock_kind = 'stock' AND l.serial_normalized = d.serial_normalized
+              WHERE is_current AND serial_normalized <> '' AND stock_kind = 'stock' AND quantity > 0 GROUP BY 1, 2) AS d
+            WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0 AND l.serial_normalized = d.serial_normalized
               AND COALESCE(l.model_normalized, '') = d.model''')
         # Los depósitos no son "otra ubicación": no cuentan como duplicado.
-        self.env.cr.execute("UPDATE rms_sage_stock_line SET dup_count = 0 WHERE stock_kind = 'deposit' AND dup_count <> 0")
+        self.env.cr.execute("UPDATE rms_sage_stock_line SET dup_count = 0 WHERE (stock_kind = 'deposit' OR quantity <= 0) AND dup_count <> 0")
         self.invalidate_model(['dup_count'])
 
     @api.model

@@ -155,7 +155,7 @@ class StockCountSession(models.Model):
     def _sage_scope_domain(self):
         self.ensure_one()
         # Solo existencias: los depósitos de venta se cargan aparte para descontar.
-        return [('is_current', '=', True), ('stock_kind', '=', 'stock'), ('company_id', '=', self.company_id.id),
+        return [('is_current', '=', True), ('stock_kind', '=', 'stock'), ('quantity', '>', 0), ('company_id', '=', self.company_id.id),
                 ('sage_company_code', '=', self.sage_company_code),
                 ('brand_categ_id', 'in', self.brand_categ_ids.ids),
                 ('sage_warehouse_id', 'in', self.sage_warehouse_ids.ids)]

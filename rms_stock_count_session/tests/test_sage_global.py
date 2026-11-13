@@ -132,6 +132,19 @@ class TestSageGlobalChecklist(TransactionCase):
         self.assertEqual(verdict['h'][0][3], '2Mano')    # estado Sage
         self.assertEqual(verdict['h'][0][4], '0907600102')  # modelo
 
+    def test_negative_sage_line_is_not_a_duplicate(self):
+        # Galileo 23341574: +1 Demo en A.7 y -1 Nuevo en AL1 (salió con otro artículo).
+        self._sage('NEG-1', self.galaxy, article='0923700102-DEMO', warehouse='A.7', state='demo')
+        negative = self._sage('NEG-1', self.galaxy, article='0923700102', warehouse='AL1', state='nuevo')
+        negative.quantity = -1
+        self.env['rms.sage.stock.line']._update_duplicates()
+        self.assertEqual(negative.dup_count, 0)
+        verdict = self.Scan._sage_verdict(['NEG-1'], self.session, self.galaxy, ['new'])[0]
+        self.assertEqual(verdict['v'], 'est')
+        self.assertEqual([h[1] for h in verdict['h']], ['A.7'])
+        self.assertFalse(self.env['rms.sage.checklist'].search([('serial_normalized', '=', 'NEG1'), ('warehouse_code', '=', 'AL1')])
+                         if 'serial_normalized' in self.env['rms.sage.checklist']._fields else False)
+
     def test_global_verdict_state_mismatch_is_amber(self):
         self._sage('VER-2', self.galaxy, state='demo')
         verdict = self.Scan._sage_verdict(['VER-2'], self.session, self.galaxy, ['new'])[0]

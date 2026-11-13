@@ -94,7 +94,7 @@ class SageChecklist(models.Model):
                        AND (l.product_id IS NULL OR sc.product_id = l.product_id)
               ) s ON TRUE
               LEFT JOIN product_state ps ON ps.id = s.last_state_id
-             WHERE l.is_current AND l.stock_kind = 'stock' AND COALESCE(l.serial_normalized, '') <> ''
+             WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0 AND COALESCE(l.serial_normalized, '') <> ''
             )""" % (self._table, _VALID_SCANS))
 
 
