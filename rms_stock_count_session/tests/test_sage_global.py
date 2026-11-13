@@ -2,6 +2,7 @@
 """Caso 3: checklist global de Sage. Un nº de serie que aún no existe en
 Odoo se identifica por lo que dice la carpeta de Sage."""
 
+from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -131,6 +132,24 @@ class TestSageGlobalChecklist(TransactionCase):
         self.assertEqual(verdict['h'][0][1], 'AL1')      # almacén
         self.assertEqual(verdict['h'][0][3], '2Mano')    # estado Sage
         self.assertEqual(verdict['h'][0][4], '0907600102')  # modelo
+
+    def test_change_state_of_a_reading_afterwards(self):
+        # Se escanea todo seguido como Nuevo y luego se corrige la línea a Demo.
+        self._sage('ROW-1', self.galaxy, state='demo')
+        self.operator.current_product_id = False
+        self.operator.scanner_set_state(self.env.ref('rms_product_state.state_new').id)
+        result = self._scan('ROW-1')
+        self.assertEqual(result['scan']['sage']['v'], 'est')
+        scan = self.Scan.browse(result['scan']['id'])
+        demo = self.env.ref('rms_product_state.state_demo')
+        payload = scan.scanner_change_state(demo.id)
+        self.assertEqual(scan.product_state_id, demo)
+        self.assertEqual(payload['product_state_id'], demo.id)
+        self.assertEqual(payload['sage']['v'], 'ok')
+        # El estado activo para las siguientes lecturas no cambia.
+        self.assertEqual(self.operator.current_state_id, self.env.ref('rms_product_state.state_new'))
+        with self.assertRaises(UserError):
+            scan.scanner_change_state(self.env.ref('rms_product_state.state_new').id + 99999)
 
     def test_negative_sage_line_is_not_a_duplicate(self):
         # Galileo 23341574: +1 Demo en A.7 y -1 Nuevo en AL1 (salió con otro artículo).

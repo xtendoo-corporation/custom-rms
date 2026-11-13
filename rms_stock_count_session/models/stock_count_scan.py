@@ -728,6 +728,16 @@ class RmsStockCountScan(models.Model):
         self.unlink()
         return operators[:1]._scanner_state() if len(operators) == 1 else True
 
+    def scanner_change_state(self, state_id):
+        """Cambia el estado de una lectura ya hecha: se escanea seguido con un
+        estado y después se corrige línea a línea el que se ve físicamente."""
+        self.ensure_one()
+        self.operator_id._check_counting()
+        state = self.env["rms.stock.count.operator"]._scanner_product_state(state_id)
+        if self.product_state_id != state:
+            self.write({"product_state_id": state.id})
+        return self._scanner_payload()
+
     def _scanner_payload(self):
         self.ensure_one()
         payload = {

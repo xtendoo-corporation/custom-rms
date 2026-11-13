@@ -193,8 +193,17 @@
                                                 <strong>Pendiente de revisar: </strong><t t-esc="scan.message"/>
                                             </div>
                                             <small t-else="" class="text-muted" t-esc="scan.message"/>
-                                            <div class="small"><t t-esc="scan.product_state_name"/></div>
+                                            <div t-if="!['serial', 'product'].includes(scan.type)" class="small"><t t-esc="scan.product_state_name"/></div>
                                             <div class="small text-muted" t-esc="scan.time"/>
+                                        </div>
+                                        <div t-if="['serial', 'product'].includes(scan.type) and state.operatorState"
+                                             class="o_rms_cs_keep_focus o_rms_cs_row_state">
+                                            <select class="form-select form-select-sm" aria-label="Estado de esta lectura"
+                                                    t-on-change="(ev) => this.changeScanState(scan.id, ev.target.value)">
+                                                <option t-foreach="state.operatorState.product_states" t-as="rowState" t-key="rowState.id"
+                                                        t-att-value="rowState.id" t-att-selected="rowState.id === scan.product_state_id"
+                                                        t-esc="rowState.name"/>
+                                            </select>
                                         </div>
                                         <button class="btn btn-sm btn-link text-danger o_rms_cs_keep_focus"
                                                 title="Borrar lectura" aria-label="Borrar lectura"

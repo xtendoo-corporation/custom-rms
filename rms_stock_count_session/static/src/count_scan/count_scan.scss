@@ -208,3 +208,11 @@
     .o_rms_cs_state_ex_demo { color: #854d0e; &.active { background: #854d0e; color: #fff; } }
     .o_rms_cs_state_second_hand { color: #6b21a8; &.active { background: #6b21a8; color: #fff; } }
 }
+
+// Estado de cada lectura, editable desde la lista "Llevas".
+.o_rms_cs_row_state {
+    flex: 0 0 auto;
+    min-width: 7.5rem;
+    align-self: center;
+    select { font-weight: 600; }
+}

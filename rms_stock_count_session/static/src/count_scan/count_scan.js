@@ -655,6 +655,24 @@ export class StockCountScan extends Component {
         }
     }
 
+    async changeScanState(scanId, stateId) {
+        try {
+            const payload = await this.orm.call(
+                "rms.stock.count.scan", "scanner_change_state", [[scanId], parseInt(stateId, 10)]
+            );
+            const index = this.state.history.findIndex((scan) => scan.id === scanId);
+            if (index >= 0) {
+                this.state.history[index] = payload;
+            }
+        } catch {
+            this.notification.add("No se pudo cambiar el estado. Comprueba la conexión y vuelve a intentarlo.",
+                { type: "warning" });
+        }
+        if (this.state.inputMode === "pda") {
+            this._focusInput();
+        }
+    }
+
     openPanel(panel) {
         this.state.panel = panel;
         this.state.panelQuery = "";
