@@ -87,6 +87,29 @@ class TestSageGlobalChecklist(TransactionCase):
         self.assertEqual(scan.scan_type, 'unknown')
         self.assertIn('no se sigue por nº de serie', scan.message)
 
+    def test_unknown_product_barcode_never_becomes_serial(self):
+        # Caja Sound Devices: nº de serie (en Sage) y UPC del producto (no en Odoo).
+        self._sage('AA0625052008', self.galaxy)
+        self.operator.current_product_id = False
+        first = self.Scan.browse(self._scan('AA0625052008')['scan']['id'])
+        self.assertEqual(first.product_id, self.galaxy)
+        self.assertEqual(self.operator.current_product_id, self.galaxy)
+        upc = self.Scan.browse(self._scan('850032705400')['scan']['id'])
+        self.assertTrue(upc.ignored)
+        self.assertFalse(upc.is_new_lot)
+        self.assertFalse(upc.lot_name)
+        self.assertIn('no es un nº de serie', upc.message)
+        # Sin producto actual: pendiente, pero tampoco como nº de serie.
+        self.operator.current_product_id = False
+        alone = self.Scan.browse(self._scan('850032705400')['scan']['id'])
+        self.assertEqual(alone.scan_type, 'unknown')
+        self.assertFalse(alone.lot_name)
+        # Un nº de serie numérico que SÍ está en Sage sigue contando aunque parezca un UPC.
+        self._sage('850032705400', self.galaxy, article='GLOBAL-NUM')
+        numeric = self.Scan.browse(self._scan('850032705400')['scan']['id'])
+        self.assertEqual(numeric.scan_type, 'serial')
+        self.assertEqual(numeric.lot_name, '850032705400')
+
     def test_serial_not_in_sage_stays_unknown(self):
         self.operator.current_product_id = False
         scan = self.Scan.browse(self._scan('NOT-IN-SAGE-9')['scan']['id'])

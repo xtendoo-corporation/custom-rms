@@ -8,7 +8,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
-from .scan_rule import normalize_code
+from .scan_rule import _gtin_check_digit, normalize_code
 from .sage_expected import normalize_serial, serial_alternatives
 
 # Estado de Odoo (product.state.code) -> estado de Sage (prefijo del artículo,
@@ -33,6 +33,12 @@ _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 _SONY_PART_RE = re.compile(r"^P-?\d{8}-?[0-9A-Z]$", re.IGNORECASE)
 _SSCC_RE = re.compile(r"^(?:\(00\)|00)\d{18}$")
 _CAMERA_SERIAL_RE = re.compile(r"^S\d{2}-?\d{7}", re.IGNORECASE)
+
+
+def is_valid_gtin(code):
+    """EAN-8, UPC-A, EAN-13 o GTIN-14 con dígito de control correcto."""
+    return (bool(code) and code.isdigit() and len(code) in (8, 12, 13, 14)
+            and _gtin_check_digit(code[:-1]) == code[-1])
 
 
 def clean_code(raw):
@@ -386,6 +392,20 @@ class RmsStockCountScan(models.Model):
                         message="sin producto en el encuadre")
 
         current = operator.current_product_id
+        # Un UPC/EAN de producto que Odoo no conoce (p. ej. la caja de Sound
+        # Devices) nunca es un nº de serie nuevo. Tras leer el nº de serie de
+        # esa misma caja es solo ruido: se ignora sin dejar nada que revisar.
+        if not rule_match and is_valid_gtin(code):
+            if current:
+                return dict(
+                    base, scan_type="ignored", ignored=True, quantity=0.0,
+                    message="Código de barras del producto (%s), no es un nº de serie: no cuenta." % code,
+                )
+            return dict(
+                base, scan_type="unknown", quantity=0.0,
+                message="Código de barras de producto (UPC/EAN) que Odoo no conoce: no es un nº de "
+                        "serie. Escanea el nº de serie del equipo.",
+            )
         if current and current.tracking != "none":
             return dict(
                 base, scan_type="serial", product_id=current.id, lot_name=serial,
