@@ -2,6 +2,8 @@
 
 from odoo import fields, models
 
+from ..models.stock_count_scan import label_print_action
+
 
 class RmsLotLabelWizard(models.TransientModel):
     _inherit = "rms.lot.label.wizard"
@@ -47,3 +49,10 @@ class RmsLotLabelWizard(models.TransientModel):
             })
         operator.current_product_id = self.product_id
         return res
+
+    def action_create_and_print(self):
+        """Desde el escáner: cuadro de impresión directo en vez de pestaña."""
+        action = super().action_create_and_print()
+        if self.count_operator_id and isinstance(action, dict) and action.get("type") == "ir.actions.act_url":
+            return label_print_action(action["url"], close=True)
+        return action

@@ -379,8 +379,8 @@ class TestSageGlobalChecklist(TransactionCase):
         self.assertEqual(scan.lot_id, lot)
         self.assertFalse(scan.is_new_lot)
         self.assertTrue(lot.rms_replacement_label)
-        self.assertEqual(action['type'], 'ir.actions.act_url')
-        self.assertIn('/report/pdf/rms_stock_lot_label_print.report_lot_label_10x5_document/%d?' % lot.id, action['url'])
+        self.assertEqual(action['tag'], 'rms_print_label')
+        self.assertIn('/report/pdf/rms_stock_lot_label_print.report_lot_label_10x5_document/%d?' % lot.id, action['params']['url'])
         # Reimprimir: mismo lote, ninguna lectura más.
         scan.scanner_print_label()
         self.assertEqual(self.env['stock.lot'].search_count([('product_id', '=', self.galaxy.id), ('name', '=', 'LBLR-1')]), 1)
@@ -421,7 +421,7 @@ class TestSageGlobalChecklist(TransactionCase):
         self.assertEqual(scan.product_state_id, self.env.ref('rms_product_state.state_demo'))
         self.assertEqual(result['scan']['sage']['v'], 'ok')
         self.assertTrue(scan.lot_id)
-        self.assertEqual(result['action']['type'], 'ir.actions.act_url')
+        self.assertEqual(result['action']['tag'], 'rms_print_label')
         # Otra vez el mismo: no cuenta doble.
         again = self.operator.scanner_sage_print_and_count(line.id)
         self.assertEqual(again['scan']['id'], scan.id)

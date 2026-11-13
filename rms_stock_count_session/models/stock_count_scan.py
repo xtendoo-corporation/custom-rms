@@ -37,6 +37,11 @@ _SSCC_RE = re.compile(r"^(?:\(00\)|00)\d{18}$")
 _CAMERA_SERIAL_RE = re.compile(r"^S\d{2}-?\d{7}", re.IGNORECASE)
 
 
+def label_print_action(url, close=False):
+    """Acción de cliente del escáner que imprime la etiqueta (ver print_label.js)."""
+    return {"type": "ir.actions.client", "tag": "rms_print_label", "params": {"url": url, "close": close}}
+
+
 def is_valid_gtin(code):
     """EAN-8, UPC-A, EAN-13 o GTIN-14 con dígito de control correcto."""
     return (bool(code) and code.isdigit() and len(code) in (8, 12, 13, 14)
@@ -737,14 +742,12 @@ class RmsStockCountScan(models.Model):
 
     @api.model
     def _label_url_action(self, lots, copies=1):
-        """Etiqueta en una pestaña nueva (se ve e imprime sin descargarla)."""
+        """Etiqueta lista para imprimir: el escáner la carga por detrás y abre
+        directamente el cuadro de impresión (rms_print_label); en el iPad, o
+        si el navegador no deja, en una pestaña nueva."""
         options = json.dumps({"copies": max(int(copies or 1), 1)}, separators=(",", ":"))
-        return {
-            "type": "ir.actions.act_url",
-            "url": "/report/pdf/%s/%s?options=%s" % (
-                self.LABEL_REPORT, ",".join(str(lot_id) for lot_id in lots.ids), quote(options)),
-            "target": "new",
-        }
+        return label_print_action("/report/pdf/%s/%s?options=%s" % (
+            self.LABEL_REPORT, ",".join(str(lot_id) for lot_id in lots.ids), quote(options)))
 
     def scanner_print_label(self, copies=1):
         """Etiqueta sustituta de una lectura ya hecha (nº de serie y producto
