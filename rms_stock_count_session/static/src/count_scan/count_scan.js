@@ -709,11 +709,14 @@ export class StockCountScan extends Component {
         if (!name) {
             return "Sin producto";
         }
-        const ref = name.match(/^\[([^\]]+)\]/);
-        if (ref) {
+        const ref = name.match(/^\[([^\]]+)\]\s*/);
+        // Referencias solo numéricas (Meyer 09.237.001.02, EAN de Sony) no dicen
+        // nada en el almacén: entonces el nombre ("GALILEO GALAXY 408").
+        if (ref && /[A-Za-z]/.test(ref[1])) {
             return ref[1];
         }
-        return name.split(" - ")[0].trim();
+        const rest = (ref ? name.slice(ref[0].length) : name).split(" - ")[0].split(",")[0].trim();
+        return rest || (ref ? ref[1] : name);
     }
 
     // Motivo corto de la línea; vacío si está todo bien (verde).
