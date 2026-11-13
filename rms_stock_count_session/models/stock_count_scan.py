@@ -2,7 +2,9 @@
 
 import base64
 import binascii
+import json
 import re
+from urllib.parse import quote
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
@@ -731,6 +733,43 @@ class RmsStockCountScan(models.Model):
         self.unlink()
         return operators[:1]._scanner_state() if len(operators) == 1 else True
 
+    LABEL_REPORT = "rms_stock_lot_label_print.report_lot_label_10x5_document"
+
+    @api.model
+    def _label_url_action(self, lots, copies=1):
+        """Etiqueta en una pestaña nueva (se ve e imprime sin descargarla)."""
+        options = json.dumps({"copies": max(int(copies or 1), 1)}, separators=(",", ":"))
+        return {
+            "type": "ir.actions.act_url",
+            "url": "/report/pdf/%s/%s?options=%s" % (
+                self.LABEL_REPORT, ",".join(str(lot_id) for lot_id in lots.ids), quote(options)),
+            "target": "new",
+        }
+
+    def scanner_print_label(self, copies=1):
+        """Etiqueta sustituta de una lectura ya hecha (nº de serie y producto
+        conocidos): da de alta el nº de serie en Odoo si hace falta, lo enlaza
+        a la lectura y devuelve la etiqueta. No crea otra lectura."""
+        self.ensure_one()
+        self.operator_id._check_counting()
+        serial = self.lot_id.name or self.lot_name
+        if self.scan_type != "serial" or not self.product_id or not serial:
+            raise UserError("Solo se puede imprimir la etiqueta de un equipo con producto y nº de serie.")
+        if self.product_id.tracking == "none":
+            raise UserError("%s no se sigue por nº de serie: actívalo en el producto." % self.product_id.display_name)
+        wizard = self.env["rms.lot.label.wizard"].create({
+            "product_id": self.product_id.id,
+            "serial_text": serial,
+            "serial_confirm": serial,
+            "reason": "no_label",
+            "product_state_id": self.product_state_id.id or False,
+            "copies": max(int(copies or 1), 1),
+        })
+        lot = wizard._get_or_create_lots([serial])
+        if self.lot_id != lot:
+            self.write({"lot_id": lot.id, "is_new_lot": False})
+        return self._label_url_action(lot, copies)
+
     def scanner_change_state(self, state_id):
         """Cambia el estado de una lectura ya hecha: se escanea seguido con un
         estado y después se corrige línea a línea el que se ve físicamente."""
@@ -807,7 +846,7 @@ class RmsStockCountScan(models.Model):
                 SELECT l.serial_normalized, l.sage_company_code, l.warehouse_code,
                        COALESCE(w.name, l.warehouse_code), CASE l.state WHEN 'demo' THEN 'Demo' WHEN '2mano' THEN '2Mano' ELSE 'Nuevo' END, l.model_code,
                        l.product_id, l.company_id, l.brand_categ_id, l.sage_warehouse_id,
-                       COALESCE(l.in_deposit, FALSE)
+                       COALESCE(l.in_deposit, FALSE), l.article_code, l.article_name
                   FROM rms_sage_stock_line l
                   LEFT JOIN rms_sage_warehouse w ON w.id = l.sage_warehouse_id
                  WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0 AND l.serial_normalized <> ''
@@ -843,6 +882,8 @@ class RmsStockCountScan(models.Model):
                      else 'dep' if rows[0][10]
                      else 'here' if here else 'wh' if rows[0][1] == session.sage_company_code else 'co')
             result.append({'v': v, 'n': len(rows), 'h': [list(row[1:6]) for row in rows[:3]],
+                           # Artículo y nombre de Sage (para ver "Sage: ..." junto al de Odoo).
+                           'sa': rows[0][11] or '' if rows else '', 'sn': rows[0][12] or '' if rows else '',
                            'pm': bool(pid and any(row[6] == pid for row in rows)),
                            'st': SAGE_STATE_LABEL.get(states[index]) if states and states[index] else ''})
         return result

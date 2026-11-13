@@ -90,6 +90,10 @@
                                 t-on-click="openReplacementLabel">
                             <i class="fa fa-tag"/><span class="o_rms_cs_button_label">Sin etiqueta</span>
                         </button>
+                        <button class="btn" title="Buscar en Sage un equipo sin pegatina (p. ej. mesa en flycase)"
+                                aria-label="Buscar en Sage" t-on-click="() => this.openPanel('sage')">
+                            <i class="fa fa-search"/><span class="o_rms_cs_button_label">Buscar en Sage</span>
+                        </button>
                     </div>
                 </div>
 
@@ -142,13 +146,54 @@
                     <div class="p-2 border-bottom">
                         <div class="input-group">
                             <input type="text" class="form-control" autofocus="autofocus"
-                                   t-att-placeholder="state.panel === 'location' ? 'Buscar ubicación...' : 'Buscar producto (nombre, referencia, código)...'"
+                                   t-att-placeholder="state.panel === 'location' ? 'Buscar ubicación...' : state.panel === 'sage' ? 'Modelo, nombre, artículo o últimos dígitos del nº de serie...' : 'Buscar producto (nombre, referencia, código)...'"
                                    t-att-value="state.panelQuery"
                                    t-on-input="onPanelQueryInput"/>
                             <button class="btn btn-secondary" t-on-click="closePanel">Cerrar</button>
                         </div>
                     </div>
-                    <div class="flex-grow-1 overflow-auto">
+                    <div t-if="state.panel === 'sage'" class="flex-grow-1 overflow-auto o_rms_cs_sage_panel">
+                        <div class="px-2 py-1 small text-muted">
+                            Equipos de Sage de este almacén que aún no se han contado. Elige el que tienes delante:
+                            se cuenta y se imprime su etiqueta.
+                        </div>
+                        <div t-if="state.sagePick" class="o_rms_cs_sage_pick">
+                            <div class="fw-bold"><t t-esc="state.sagePick.product_name or state.sagePick.name"/></div>
+                            <div class="small">Sage: <t t-esc="state.sagePick.article"/><t t-if="state.sagePick.name"> · <t t-esc="state.sagePick.name"/></t> · <t t-esc="state.sagePick.site"/></div>
+                            <div class="o_rms_cs_sage_pick_row">
+                                <span class="o_rms_cs_row_serial" t-esc="state.sagePick.serial"/>
+                                <select class="form-select form-select-sm" aria-label="Estado"
+                                        t-on-change="(ev) => { this.state.sagePickStateId = parseInt(ev.target.value, 10); }">
+                                    <option t-foreach="os.product_states" t-as="pickState" t-key="pickState.id"
+                                            t-att-value="pickState.id" t-att-selected="pickState.id === state.sagePickStateId"
+                                            t-esc="pickState.name"/>
+                                </select>
+                                <button class="btn btn-success" t-on-click="sagePrintAndCount">
+                                    <i class="fa fa-print"/> Imprimir y contar</button>
+                                <button class="btn btn-outline-secondary" t-on-click="() => { this.state.sagePick = null; }">Otro</button>
+                            </div>
+                            <div t-if="!state.sagePick.product_id" class="small text-warning">
+                                Este artículo aún no tiene producto en Odoo: se creará con su nombre de Sage.</div>
+                        </div>
+                        <ul class="list-group list-group-flush">
+                            <li t-foreach="state.panelResults" t-as="rec" t-key="rec.id"
+                                class="list-group-item list-group-item-action o_rms_cs_sage_item" style="cursor:pointer"
+                                t-att-class="state.sagePick and state.sagePick.id === rec.id ? 'active' : ''"
+                                t-on-click="() => this.pickSageLine(rec)">
+                                <div class="fw-bold" t-esc="rec.name or rec.model"/>
+                                <div class="small">
+                                    <span class="o_rms_cs_row_serial" t-esc="rec.serial"/> ·
+                                    <t t-esc="rec.article"/> · <t t-esc="rec.state_name"/> · <t t-esc="rec.site"/>
+                                </div>
+                            </li>
+                        </ul>
+                        <div t-if="!state.panelResults.length" class="p-3 text-muted">Nada pendiente con esa búsqueda.</div>
+                        <div class="p-2">
+                            <button class="btn btn-outline-primary w-100" t-on-click="sageNotInList">
+                                <i class="fa fa-tag"/> No está en la lista: escribir nº de serie</button>
+                        </div>
+                    </div>
+                    <div t-else="" class="flex-grow-1 overflow-auto">
                         <ul class="list-group list-group-flush">
                             <li t-foreach="state.panelResults" t-as="rec" t-key="rec.id"
                                 class="list-group-item list-group-item-action" style="cursor:pointer"
@@ -220,12 +265,19 @@
                                             </div>
                                             <div t-if="state.expandedId === scan.id" class="o_rms_cs_row_detail o_rms_cs_keep_focus">
                                                 <t t-set="full" t-value="verdictFor({scan: scan})"/>
-                                                <div class="fw-bold" t-esc="scan.product_name or scan.code"/>
+                                                <div t-if="scan.product_name"><span class="text-muted">Odoo:</span> <b t-esc="scan.product_name"/></div>
+                                                <div t-else="" class="fw-bold" t-esc="scan.code"/>
+                                                <div t-if="scan.sage and (scan.sage.sa or scan.sage.sn)">
+                                                    <span class="text-muted">Sage:</span> <t t-esc="scan.sage.sa"/><t t-if="scan.sage.sn"> · <t t-esc="scan.sage.sn"/></t>
+                                                </div>
                                                 <div t-if="full.text"><t t-esc="full.text"/><t t-if="full.detail"> · <t t-esc="full.detail"/></t></div>
                                                 <div t-if="scan.type === 'unknown'"><strong>Pendiente de revisar: </strong><t t-esc="scan.message"/></div>
                                                 <div t-elif="scan.message and scan.message !== full.text" class="text-muted" t-esc="scan.message"/>
                                                 <div class="o_rms_cs_row_actions">
                                                     <span class="text-muted">Leído a las <t t-esc="scan.time"/> · código <t t-esc="scan.code"/></span>
+                                                    <button t-if="scan.type === 'serial' and scan.product_name and (scan.lot_name or scan.code)"
+                                                            class="btn btn-sm btn-outline-primary" title="Imprimir la etiqueta de este equipo"
+                                                            t-on-click="() => this.printScanLabel(scan.id)"><i class="fa fa-print"/> Imprimir etiqueta</button>
                                                     <button class="btn btn-sm btn-outline-danger" title="Borrar lectura"
                                                             t-on-click="() => this.deleteScan(scan.id)"><i class="fa fa-trash"/> Borrar</button>
                                                 </div>

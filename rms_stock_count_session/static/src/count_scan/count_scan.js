@@ -77,11 +77,13 @@ export class StockCountScan extends Component {
             offline: false,
             inputMode: storageGet(MODE_KEY) === "camera" ? "camera" : "pda",
             cameraError: null,
-            panel: null, // null | "product" | "location"
+            panel: null, // null | "product" | "location" | "sage"
             panelQuery: "",
             panelResults: [],
             progress: null, // marcador: {site, has_sage, counted, pending, not_in_sage, review}
             expandedId: null, // lectura desplegada en la lista compacta
+            sagePick: null, // fila de "Buscar en Sage" elegida (mesa sin pegatina)
+            sagePickStateId: null,
         });
 
         this._sending = false;
@@ -104,7 +106,14 @@ export class StockCountScan extends Component {
         this._stateChangeQueue = Promise.resolve();
         this._stateChoiceGeneration = 0;
 
-        onMounted(() => this._load());
+        // Pistola lista desde el primer momento: si el foco no está en un campo
+        // de texto (se tocó una línea, un botón...), lo que "teclee" la pistola
+        // se lleva a la casilla de lectura en vez de perderse.
+        this._onGlobalKeydown = (ev) => this._redirectScannerKey(ev);
+        onMounted(() => {
+            window.addEventListener("keydown", this._onGlobalKeydown, true);
+            this._load();
+        });
 
         useEffect(
             () => {
@@ -122,6 +131,7 @@ export class StockCountScan extends Component {
         );
 
         onWillUnmount(() => {
+            window.removeEventListener("keydown", this._onGlobalKeydown, true);
             this._stopCamera();
             clearTimeout(this._retryTimer);
             clearInterval(this._refreshTimer);
@@ -291,6 +301,47 @@ export class StockCountScan extends Component {
         this._unlockAudio();
         this.state.inputMode = mode;
         storageSet(MODE_KEY, mode);
+    }
+
+    _redirectScannerKey(ev) {
+        if (this.state.step !== "scan" || this.state.inputMode !== "pda" || this.state.panel) {
+            return;
+        }
+        if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.isComposing) {
+            return;
+        }
+        const input = this.inputRef.el;
+        const target = ev.target;
+        if (!input || target === input) {
+            return;
+        }
+        // Escribiendo en otro campo (nombre, buscadores) o con un diálogo abierto
+        // (asistente de etiqueta): no se toca.
+        if (target && target.closest && (target.closest("input, textarea, [contenteditable='true'], .modal"))) {
+            return;
+        }
+        if (document.querySelector(".modal.show, .o_dialog")) {
+            return;
+        }
+        if (ev.key === "Enter") {
+            if (input.value) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                this._resetBurst();
+                const code = input.value;
+                input.value = "";
+                this._enqueue(code);
+            }
+            return;
+        }
+        if (ev.key.length !== 1) {
+            return;
+        }
+        ev.preventDefault();
+        ev.stopPropagation();
+        input.focus();
+        input.value += ev.key;
+        this.onCodeInput({ target: input });
     }
 
     _focusInput() {
@@ -758,6 +809,19 @@ export class StockCountScan extends Component {
         }
     }
 
+    async printScanLabel(scanId) {
+        try {
+            const action = await this.orm.call("rms.stock.count.scan", "scanner_print_label", [[scanId]]);
+            await this.action.doAction(action);
+        } catch (error) {
+            this.notification.add((error.data && error.data.message) || "No se pudo imprimir la etiqueta.",
+                { type: "warning" });
+        }
+        if (this.state.inputMode === "pda") {
+            this._focusInput();
+        }
+    }
+
     async changeScanState(scanId, stateId) {
         try {
             const payload = await this.orm.call(
@@ -781,11 +845,49 @@ export class StockCountScan extends Component {
         this.state.panel = panel;
         this.state.panelQuery = "";
         this.state.panelResults = [];
+        this.state.sagePick = null;
         this._search();
     }
 
     closePanel() {
         this.state.panel = null;
+        this.state.sagePick = null;
+    }
+
+    // "Buscar en Sage": mesa en flycase sin pegatina. Se elige de la lista de
+    // lo que falta por contar en este almacén y se cuenta + imprime la etiqueta.
+    pickSageLine(rec) {
+        const code = { nuevo: "new", demo: "demo", "2mano": "second_hand" }[rec.state] || "new";
+        const productState = (this.state.operatorState.product_states || []).find((st) => st.code === code);
+        this.state.sagePick = rec;
+        this.state.sagePickStateId = productState ? productState.id : null;
+    }
+
+    async sagePrintAndCount() {
+        const rec = this.state.sagePick;
+        const op = this.state.operatorState.operator;
+        if (!rec) {
+            return;
+        }
+        try {
+            const result = await this.orm.call("rms.stock.count.operator", "scanner_sage_print_and_count",
+                [[op.id], rec.id, this.state.sagePickStateId || false]);
+            this._mergeHistory([result.scan]);
+            this._applyState(result.state);
+            this.state.panel = null;
+            this.state.sagePick = null;
+            this._scheduleProgress(0);
+            this._feedback("ok", result.status);
+            await this.action.doAction(result.action);
+        } catch (error) {
+            this.notification.add((error.data && error.data.message) || "No se pudo contar ni imprimir.",
+                { type: "warning" });
+        }
+    }
+
+    async sageNotInList() {
+        this.closePanel();
+        await this.openReplacementLabel();
     }
 
     onPanelQueryInput(ev) {
@@ -796,9 +898,8 @@ export class StockCountScan extends Component {
 
     async _search() {
         const op = this.state.operatorState.operator;
-        const method = this.state.panel === "location"
-            ? "scanner_search_locations"
-            : "scanner_search_products";
+        const method = this.state.panel === "location" ? "scanner_search_locations"
+            : this.state.panel === "sage" ? "scanner_sage_search" : "scanner_search_products";
         this.state.panelResults = await this.orm.call(
             "rms.stock.count.operator", method, [[op.id], this.state.panelQuery]
         );
@@ -860,6 +961,9 @@ export class StockCountScan extends Component {
                     "rms.stock.count.operator", "scanner_state", [[op.id]]
                 );
                 this._applyState(operatorState);
+                if (this.state.inputMode === "pda") {
+                    this._focusInput();
+                }
             },
         });
     }

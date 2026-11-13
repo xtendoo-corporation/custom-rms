@@ -402,3 +402,21 @@ $rms-info-bg: #e3edff;
 @keyframes o_rms_cs_flash_bad { from { background-color: #f5a3ab; } }
 @keyframes o_rms_cs_flash_dup { from { background-color: #d2b8f2; } }
 @keyframes o_rms_cs_flash_grey { from { background-color: #d3d7db; } }
+
+// "Buscar en Sage": mesas en flycase sin pegatina.
+.o_rms_cs_sage_pick {
+    margin: 0.25rem 0.5rem 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border: 2px solid #198754;
+    border-radius: 0.4rem;
+    background: #e3f4ea;
+}
+.o_rms_cs_sage_pick_row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 0.35rem;
+    > * { margin: 0 0.4rem 0.25rem 0; }
+    select { width: auto; min-width: 7rem; }
+}
+.o_rms_cs_sage_item.active { background: #e3f4ea; color: inherit; border-color: #198754; }

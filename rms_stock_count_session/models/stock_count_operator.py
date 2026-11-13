@@ -2,6 +2,9 @@
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import SQL
+
+from .scan_rule import normalize_code
 
 
 class RmsStockCountOperator(models.Model):
@@ -234,6 +237,93 @@ class RmsStockCountOperator(models.Model):
             mine=self.scan_count,
         )
         return result
+
+    _SAGE_STATE_TO_ODOO = {"nuevo": "new", "demo": "demo", "2mano": "second_hand"}
+    _SAGE_STATE_NAME = {"nuevo": "Nuevo", "demo": "Demo", "2mano": "2Mano"}
+
+    def scanner_sage_search(self, query="", limit=40):
+        """Equipos de Sage del almacén donde se cuenta que AÚN no se han
+        contado (para mesas en flycase sin pegatina): se buscan por modelo,
+        nombre, artículo o los últimos dígitos del nº de serie."""
+        self.ensure_one()
+        self.session_id.check_access("read")
+        warehouses = self._progress_warehouses()
+        where = [SQL("l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0"),
+                 SQL("COALESCE(l.serial_normalized, '') <> '' AND NOT COALESCE(l.in_deposit, FALSE)")]
+        if warehouses:
+            where.append(SQL("l.sage_warehouse_id = ANY(%s)", warehouses.ids))
+        else:
+            where.append(SQL("l.company_id = %s", self.session_id.company_id.id))
+        for word in (query or "").split():
+            key = normalize_code(word)
+            if not key:
+                continue
+            where.append(SQL(
+                "(l.serial_normalized LIKE %s OR regexp_replace(upper(COALESCE(l.article_code, '') || ' ' || "
+                "COALESCE(l.article_name, '') || ' ' || COALESCE(l.model_code, '')), '[^0-9A-Z]', '', 'g') LIKE %s)",
+                "%" + key.lstrip("0") + "%", "%" + key + "%"))
+        self.env["rms.sage.stock.line"].sudo().flush_model()
+        self.env["rms.stock.count.scan"].flush_model()
+        self.env.cr.execute(SQL("""
+            SELECT l.id, l.article_code, l.article_name, l.model_code, l.serial, l.state,
+                   l.sage_company_code, l.warehouse_code, l.product_id
+              FROM rms_sage_stock_line l
+             WHERE %s
+               AND NOT EXISTS (
+                   SELECT 1 FROM rms_stock_count_scan sc
+                     JOIN rms_stock_count_session ss ON ss.id = sc.session_id
+                    WHERE sc.serial_normalized = l.serial_normalized
+                      AND sc.scan_type = 'serial' AND ss.state <> 'cancel'
+                      AND NOT COALESCE(sc.ignored, FALSE)
+                      AND (l.product_id IS NULL OR sc.product_id = l.product_id))
+             ORDER BY l.article_code, l.serial_normalized
+             LIMIT %s""", SQL(" AND ").join(where), max(1, min(int(limit or 40), 100))))
+        rows = self.env.cr.fetchall()
+        products = {p.id: p for p in self.env["product.product"].browse({r[8] for r in rows if r[8]}).exists()}
+        return [{
+            "id": r[0], "article": r[1] or "", "name": r[2] or "", "model": r[3] or "", "serial": r[4] or "",
+            "state": r[5] or "nuevo", "state_name": self._SAGE_STATE_NAME.get(r[5], "Nuevo"),
+            "site": "%s %s" % ({"01": "RMS", "02": "Espacio", "03": "RJB"}.get(r[6], r[6] or ""), r[7] or ""),
+            "product_id": r[8] or False,
+            "product_name": products[r[8]].display_name if r[8] in products else "",
+        } for r in rows]
+
+    def scanner_sage_print_and_count(self, line_id, state_id=False):
+        """Mesa sin pegatina elegida en la lista de Sage: se cuenta como si se
+        hubiera escaneado su nº de serie (con el estado de Sage salvo que se
+        elija otro) y se imprime su etiqueta en el mismo paso."""
+        self.ensure_one()
+        self._check_counting()
+        line = self.env["rms.sage.stock.line"].sudo().browse(line_id).exists()
+        if not line or not line.is_current or line.stock_kind != "stock" or not line.serial:
+            raise UserError("Ese equipo ya no está en la exportación de Sage vigente.")
+        if not line.product_id:
+            if not self.env.user.has_group("stock.group_stock_manager"):
+                raise UserError("El artículo %s de Sage no tiene producto en Odoo: asígnalo en "
+                                "Inventario Sage > Artículos sin producto." % line.article_code)
+            self.env["rms.sage.product.prepare"].create({"line_ids": [(6, 0, line.ids)]}).action_create_products()
+            line.invalidate_recordset(["product_id"])
+            if not line.product_id:
+                raise UserError("No se pudo crear el producto de %s: asígnalo en Artículos sin producto." % line.article_code)
+        product = line.product_id
+        if product.tracking == "none":
+            raise UserError("%s no se sigue por nº de serie en Odoo: actívalo en el producto." % product.display_name)
+        state = (self._scanner_product_state(state_id) if state_id else
+                 self.env["product.state"].search([("code", "=", self._SAGE_STATE_TO_ODOO.get(line.state, "new"))], limit=1))
+        location = self.current_location_id or self.session_id.location_id
+        Scan = self.env["rms.stock.count.scan"]
+        lot = self.env["stock.lot"].search([("product_id", "=", product.id), ("name", "=", line.serial)], limit=1)
+        classification = {
+            "location_id": location.id, "scan_type": "serial", "product_id": product.id,
+            "lot_id": lot.id or False, "lot_name": line.serial, "is_new_lot": not lot, "quantity": 1.0,
+            "message": "Contado desde la lista de Sage (sin pegatina): %s · %s" % (product.display_name, line.serial),
+        }
+        result = Scan.with_context(scanner_product_state_id=state.id)._scanner_register(
+            self.id, line.serial, classification=classification)
+        scan = Scan.browse(result["scan"]["id"])
+        action = scan.scanner_print_label()
+        return {"status": result["status"], "scan": scan._scanner_payload(), "action": action,
+                "state": self._scanner_state()}
 
     def scanner_set_location(self, location_id):
         self.ensure_one()

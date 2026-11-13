@@ -365,3 +365,65 @@ class TestSageGlobalChecklist(TransactionCase):
         self.operator.current_product_id = False
         scan = self.Scan.browse(self._scan('OLD-1')['scan']['id'])
         self.assertEqual(scan.scan_type, 'unknown')
+
+    # --- Flujo: etiqueta desde la lectura, "Buscar en Sage", nombres Sage/Odoo ---
+
+    def test_print_label_from_reading_links_lot_without_new_scan(self):
+        self._sage('LBLR-1', self.galaxy, article='GAL-ART', state='nuevo')
+        self.operator.current_product_id = False
+        scan = self.Scan.browse(self._scan('LBLR-1')['scan']['id'])
+        before = self.Scan.search_count([('session_id', '=', self.session.id)])
+        action = scan.scanner_print_label()
+        lot = self.env['stock.lot'].search([('product_id', '=', self.galaxy.id), ('name', '=', 'LBLR-1')])
+        self.assertEqual(len(lot), 1)
+        self.assertEqual(scan.lot_id, lot)
+        self.assertFalse(scan.is_new_lot)
+        self.assertTrue(lot.rms_replacement_label)
+        self.assertEqual(action['type'], 'ir.actions.act_url')
+        self.assertIn('/report/pdf/rms_stock_lot_label_print.report_lot_label_10x5_document/%d?' % lot.id, action['url'])
+        # Reimprimir: mismo lote, ninguna lectura más.
+        scan.scanner_print_label()
+        self.assertEqual(self.env['stock.lot'].search_count([('product_id', '=', self.galaxy.id), ('name', '=', 'LBLR-1')]), 1)
+        self.assertEqual(self.Scan.search_count([('session_id', '=', self.session.id)]), before)
+
+    def test_reading_payload_carries_sage_article_and_name(self):
+        line = self._sage('NAME-1', self.galaxy, article='0923700102')
+        line.article_name = 'GALILEO GALAXY 408 (Sage)'
+        self.operator.current_product_id = False
+        payload = self._scan('NAME-1')['scan']
+        self.assertEqual(payload['sage']['sa'], '0923700102')
+        self.assertEqual(payload['sage']['sn'], 'GALILEO GALAXY 408 (Sage)')
+
+    def test_sage_search_lists_only_pending_and_filters(self):
+        line1 = self._sage('SRCH-0001', self.galaxy, article='MESA-SD12')
+        line1.article_name = 'Consola SD12 en flycase'
+        self._sage('SRCH-0002', self.galaxy, article='MESA-SD12')
+        negative = self._sage('SRCH-0003', self.galaxy, article='MESA-SD12')
+        negative.quantity = -1
+        self.operator.current_product_id = False
+        self._scan('SRCH-0001')
+        found = self.operator.scanner_sage_search('sd12')
+        serials = [r['serial'] for r in found]
+        self.assertIn('SRCH-0002', serials)
+        self.assertNotIn('SRCH-0001', serials)   # ya contado
+        self.assertNotIn('SRCH-0003', serials)   # negativo en Sage
+        self.assertEqual([r['serial'] for r in self.operator.scanner_sage_search('0002')], ['SRCH-0002'])
+        self.assertEqual(self.operator.scanner_sage_search('flycase'), [])  # el contado no vuelve a salir
+        self.assertFalse(self.operator.scanner_sage_search('NOEXISTEZZZ'))
+
+    def test_sage_print_and_count_creates_green_reading_with_sage_state(self):
+        line = self._sage('PAC-1', self.galaxy, article='MESA-PAC', state='demo')
+        self.operator.scanner_set_state(self.env.ref('rms_product_state.state_new').id)
+        result = self.operator.scanner_sage_print_and_count(line.id)
+        scan = self.Scan.browse(result['scan']['id'])
+        self.assertEqual(scan.scan_type, 'serial')
+        self.assertEqual(scan.product_id, self.galaxy)
+        self.assertEqual(scan.product_state_id, self.env.ref('rms_product_state.state_demo'))
+        self.assertEqual(result['scan']['sage']['v'], 'ok')
+        self.assertTrue(scan.lot_id)
+        self.assertEqual(result['action']['type'], 'ir.actions.act_url')
+        # Otra vez el mismo: no cuenta doble.
+        again = self.operator.scanner_sage_print_and_count(line.id)
+        self.assertEqual(again['scan']['id'], scan.id)
+        self.assertEqual(self.Scan.search_count([('session_id', '=', self.session.id), ('lot_name', '=', 'PAC-1')]), 1)
+        self.assertFalse(self.operator.scanner_sage_search('MESA-PAC'))
