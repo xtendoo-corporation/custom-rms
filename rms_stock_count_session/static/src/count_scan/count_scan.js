@@ -7,6 +7,11 @@ import { Component, onMounted, onWillUnmount, useEffect, useRef, useState } from
 
 const WORKER_URL = "/rms_stock_count_session/static/lib/zxing-wasm/zxing_worker.js";
 const RESCAN_COOLDOWN_MS = 2000;
+// Lector sin Enter: ráfaga de >= 4 caracteres con < 45 ms entre teclas y
+// 160 ms de pausa al final = una lectura completa.
+const BURST_GAP_MS = 45;
+const BURST_PAUSE_MS = 160;
+const BURST_MIN_CHARS = 4;
 const DETECT_INTERVAL_MS = 350;
 const RETRY_MS = 4000;
 const REFRESH_MS = 15000;
@@ -271,9 +276,46 @@ export class StockCountScan extends Component {
             return;
         }
         ev.preventDefault();
+        this._resetBurst();
         const code = ev.target.value;
         ev.target.value = "";
         this._enqueue(code);
+    }
+
+    // Lectores configurados SIN sufijo Enter (p. ej. Honeywell de fábrica):
+    // el lector "teclea" el código entero en pocos milisegundos y una persona
+    // no. Una ráfaga rápida seguida de una pausa se envía sola como lectura.
+    onCodeInput(ev) {
+        const input = ev.target;
+        const now = performance.now();
+        const burst = this._burst;
+        if (!burst || now - burst.last > BURST_GAP_MS) {
+            this._burst = { start: now, last: now, chars: 1, from: Math.max(0, input.value.length - 1) };
+        } else {
+            burst.last = now;
+            burst.chars += 1;
+        }
+        clearTimeout(this._burstTimer);
+        this._burstTimer = setTimeout(() => this._flushBurst(input), BURST_PAUSE_MS);
+    }
+
+    _flushBurst(input) {
+        const burst = this._burst;
+        this._resetBurst();
+        if (!burst || !input || burst.chars < BURST_MIN_CHARS) {
+            return;
+        }
+        if ((burst.last - burst.start) / (burst.chars - 1) > BURST_GAP_MS) {
+            return;
+        }
+        const code = input.value.slice(burst.from);
+        input.value = input.value.slice(0, burst.from);
+        this._enqueue(code);
+    }
+
+    _resetBurst() {
+        clearTimeout(this._burstTimer);
+        this._burst = null;
     }
 
     addTypedCode() {
@@ -281,6 +323,7 @@ export class StockCountScan extends Component {
         if (!input) {
             return;
         }
+        this._resetBurst();
         const code = input.value;
         input.value = "";
         this._enqueue(code);

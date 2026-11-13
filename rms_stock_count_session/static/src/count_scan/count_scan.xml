@@ -151,7 +151,7 @@
                                 <input type="text" t-ref="codeInput" class="form-control"
                                        autocomplete="off" autocapitalize="off" spellcheck="false"
                                        t-att-placeholder="state.inputMode === 'pda' ? 'Escanea con el lector...' : 'Escribir código a mano'"
-                                       t-on-keydown="onCodeKeydown" t-on-blur="onCodeBlur"/>
+                                       t-on-keydown="onCodeKeydown" t-on-input="onCodeInput" t-on-blur="onCodeBlur"/>
                                 <button class="btn btn-outline-secondary" t-on-click="addTypedCode">Añadir</button>
                             </div>
                             <div t-if="state.offline or state.pending.length" class="alert alert-warning py-1 mt-2 mb-0">
