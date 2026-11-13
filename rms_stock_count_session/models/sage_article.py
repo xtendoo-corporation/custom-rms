@@ -42,7 +42,8 @@ class SageArticle(models.Model):
             code = (article.code or '').strip().upper()
             article.code_normalized = normalize_code(code)
             article.state_prefix = ('2mano' if code.startswith('2M-') else
-                                    'demo' if code.startswith('D-') else 'nuevo')
+                                    'demo' if code.startswith(('D-', 'DEMO-')) or re.search(r'[-. ]DEMO$', code)
+                                    else 'nuevo')
 
     @api.model
     def _brand_categories(self, brand_names, create=True):

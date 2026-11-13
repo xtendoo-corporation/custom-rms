@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Existencias de Sage conservadas como referencia, sin modificar stock Odoo."""
+import re
 from collections import defaultdict
 
 from odoo import api, fields, models
@@ -32,6 +33,12 @@ def sage_article_parts(article):
         state, article = '2Mano', article[3:]
     elif article.upper().startswith('D-'):
         state, article = 'Demo', article[2:]
+    # Algunas demos de Meyer llevan "DEMO" delante o detrás en vez de "D-":
+    # DEMO-0928700117 (ULTRA-X40), 0923700102-DEMO (Galileo Galaxy 408).
+    elif article.upper().startswith('DEMO-'):
+        state, article = 'Demo', article[5:]
+    elif re.search(r'[-. ]DEMO$', article, re.IGNORECASE):
+        state, article = 'Demo', article[:-5]
     # Sage antepone la marca al modelo. No cortar WD-850A ni DWM-02N.
     brands = ('SONY', 'DIGICO', 'MEYER', 'LUMINEX', 'AUVITRAN', 'ATLASIED',
               'WILLIAMS', 'SOUNDDEVICES', 'SENNHEISER', 'SHURE', 'YAMAHA',

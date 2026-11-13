@@ -87,6 +87,14 @@ class TestSageGlobalChecklist(TransactionCase):
         self.assertEqual(scan.scan_type, 'unknown')
         self.assertIn('no se sigue por nº de serie', scan.message)
 
+    def test_demo_written_before_or_after_the_model(self):
+        from ..models.sage_expected import sage_article_parts
+        self.assertEqual(sage_article_parts('0923700102-DEMO'), ('0923700102', 'Demo'))
+        self.assertEqual(sage_article_parts('DEMO-0928700117'), ('0928700117', 'Demo'))
+        self.assertEqual(sage_article_parts('D-0923700102'), ('0923700102', 'Demo'))
+        self.assertEqual(sage_article_parts('0923700102'), ('0923700102', 'Nuevo'))
+        self.assertEqual(sage_article_parts('DEMOLEDOR-1'), ('DEMOLEDOR-1', 'Nuevo'))
+
     def test_unknown_product_barcode_never_becomes_serial(self):
         # Caja Sound Devices: nº de serie (en Sage) y UPC del producto (no en Odoo).
         self._sage('AA0625052008', self.galaxy)

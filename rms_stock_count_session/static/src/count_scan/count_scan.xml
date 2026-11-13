@@ -102,7 +102,9 @@
                     </button>
                 </div>
                 <div t-if="state.searchMode" class="alert alert-info py-2 mb-0">Modo búsqueda · solo se tacha escaneando</div>
-                <div t-if="state.verdict" class="o_rms_cs_verdict" t-att-class="'o_rms_cs_sage_' + state.verdict.kind" role="status" aria-live="polite">
+                <!-- Con la pistola el resultado ya sale coloreado en "Llevas": el aviso
+                     solo se muestra si pide una decisión (sugerencias de la cámara). -->
+                <div t-if="state.verdict and (state.verdict.suggestionId or state.inputMode !== 'pda')" class="o_rms_cs_verdict" t-att-class="'o_rms_cs_sage_' + state.verdict.kind" role="status" aria-live="polite">
                     <div class="o_rms_cs_verdict_text"><strong><t t-esc="verdictIcon(state.verdict.kind)"/> <t t-esc="state.verdict.text"/></strong><div t-if="state.verdict.detail" t-esc="state.verdict.detail"/></div>
                     <div t-if="state.verdict.suggestionId" class="d-flex gap-2 mt-1 o_rms_cs_keep_focus">
                         <button class="btn btn-dark flex-grow-1" t-on-click="useSuggestion">Sí, es ese</button>
@@ -184,6 +186,9 @@
                                         <div class="flex-grow-1 text-break">
                                             <div class="fw-bold" t-esc="scan.product_name or scan.code"/>
                                             <div t-if="scan.lot_name" class="fw-bold" t-esc="scan.lot_name"/>
+                                            <t t-set="sageKind" t-value="verdictKind({scan: scan})"/>
+                                            <div t-if="!['unknown', 'nos'].includes(sageKind)" class="small fw-bold"
+                                                 t-esc="verdictFor({scan: scan}).text"/>
                                             <div t-if="scan.type === 'unknown'" class="small">
                                                 <strong>Pendiente de revisar: </strong><t t-esc="scan.message"/>
                                             </div>
