@@ -12,7 +12,12 @@ class ReportLotLabel(models.AbstractModel):
 
     @api.model
     def _get_report_values(self, docids, data=None):
-        copies = max(int((data or {}).get("copies") or 1), 1)
+        data = data or {}
+        copies = max(int(data.get("copies") or 1), 1)
+        # Si llegan datos (copias) Odoo puede no mandar los ids en la URL:
+        # se toman de los datos o del contexto para no imprimir en blanco.
+        docids = docids or data.get("doc_ids") or data.get("context", {}).get("active_ids") \
+            or self.env.context.get("active_ids") or []
         return {
             "doc_ids": docids,
             "doc_model": "stock.lot",

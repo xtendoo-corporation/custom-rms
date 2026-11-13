@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import json
 import re
+from urllib.parse import quote
 
 from markupsafe import Markup, escape
 
@@ -152,11 +154,18 @@ class RmsLotLabelWizard(models.TransientModel):
         self._check_input(serials)
         lots = self._get_or_create_lots(serials)
         self._after_lots_created(lots)
-        # config=False: la etiqueta no usa el diseño de documentos de la
-        # compañía, así que no hay que abrir su asistente de configuración.
-        return self.env.ref("rms_stock_lot_label_print.action_report_lot_label_10x5").report_action(
-            lots, data={"copies": max(self.copies, 1)}, config=False
-        )
+        # El PDF se abre en una pestaña nueva (se ve y se imprime desde ahí,
+        # sin descargarlo) con los números de serie en la dirección: con
+        # report_action + data Odoo no los manda y la etiqueta salía en blanco.
+        report = self.env.ref("rms_stock_lot_label_print.action_report_lot_label_10x5")
+        options = json.dumps({"copies": max(self.copies, 1)}, separators=(",", ":"))
+        return {
+            "type": "ir.actions.act_url",
+            "url": "/report/pdf/%s/%s?options=%s" % (
+                report.report_name, ",".join(str(lot_id) for lot_id in lots.ids), quote(options)),
+            "target": "new",
+            "close": True,
+        }
 
     def _after_lots_created(self, lots):
         """Gancho para otros módulos (p. ej. el recuento cruzado registra

@@ -35,6 +35,10 @@
                      pequeño, la referencia y el resto de la descripción. -->
                 <t t-set="name_parts" t-value="(o.product_id.name or '').split(' - ', 1)"/>
                 <t t-set="model" t-value="name_parts[0].strip() or o.product_id.default_code or ''"/>
+                <t t-set="show_state" t-value="bool(state and state.code != 'new')"/>
+                <!-- El modelo se reduce si es largo (hay menos sitio si va el estado). -->
+                <t t-set="model_len" t-value="len(model) + (5 if show_state else 0)"/>
+                <t t-set="model_size" t-value="'14pt' if model_len &lt;= 13 else ('12pt' if model_len &lt;= 16 else '10pt')"/>
                 <!-- El S/N se reduce si es largo, para que quepa entero. -->
                 <t t-set="sn_len" t-value="len(o.name or '')"/>
                 <t t-set="sn_size" t-value="'11pt' if sn_len &lt;= 15 else ('9.5pt' if sn_len &lt;= 18 else '8pt')"/>
@@ -48,10 +52,13 @@
                             <td style="vertical-align:middle;padding:0;">
                                 <table style="width:47mm;border-collapse:collapse;table-layout:fixed;">
                                     <tr>
-                                        <td style="font-size:14pt;line-height:1.05;font-weight:bold;white-space:nowrap;overflow:hidden;padding:0;">
+                                        <!-- Sin recuadro de estado (Nuevo) el modelo ocupa todo el ancho:
+                                             con table-layout fixed se quedaba en media etiqueta ("GALAXY 8"). -->
+                                        <td t-att-colspan="None if show_state else 2"
+                                            t-attf-style="font-size:{{ model_size }};line-height:1.05;font-weight:bold;white-space:nowrap;overflow:hidden;padding:0;">
                                             <t t-esc="model"/>
                                         </td>
-                                        <td t-if="state and state.code != 'new'"
+                                        <td t-if="show_state"
                                             style="width:15mm;text-align:right;vertical-align:middle;padding:0;">
                                             <span style="font-size:8pt;font-weight:bold;border:0.35mm solid #000;
                                                          padding:0 0.6mm;text-transform:uppercase;white-space:nowrap;">

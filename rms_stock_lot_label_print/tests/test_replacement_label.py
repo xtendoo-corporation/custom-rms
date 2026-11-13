@@ -39,8 +39,17 @@ class TestReplacementLabel(TransactionCase):
         self.assertEqual(lot.rms_replacement_reason, "no_label")
         self.assertEqual(lot.product_state_id, self.demo)
         self.assertTrue(lot.rms_label_printed_date)
-        self.assertEqual(action["type"], "ir.actions.report")
-        self.assertEqual(action["data"], {"copies": 2})
+        # Se abre en una pestaña (sin descargar) con el nº de serie en la URL.
+        self.assertEqual(action["type"], "ir.actions.act_url")
+        self.assertEqual(action["target"], "new")
+        self.assertTrue(action["close"])
+        self.assertIn("/report/pdf/rms_stock_lot_label_print.report_lot_label_10x5_document/%d?" % lot.id, action["url"])
+        self.assertIn("copies", action["url"])
+        # Sin ids en la llamada (como hacía Odoo con report_action + data) ya no sale en blanco.
+        html_no_ids, _type = self.env["ir.actions.report"].with_context(active_ids=lot.ids)._render_qweb_html(
+            "rms_stock_lot_label_print.action_report_lot_label_10x5", None, data={"copies": 1},
+        )
+        self.assertIn("S/N: 18175801", html_no_ids.decode())
 
         html, _type = self.env["ir.actions.report"]._render_qweb_html(
             "rms_stock_lot_label_print.action_report_lot_label_10x5", lot.ids, data={"copies": 2},
