@@ -77,7 +77,11 @@ class SageProductPrepare(models.TransientModel):
             [('code_normalized', 'in', [normalize_code(code) for code in all_codes])]) if article.name}
         for key, lines in groups.items():
             model = (lines[0].model_code or lines[0].article_code).strip()
-            found = self._existing_product(model)
+            # Primero los enlaces ya hechos (fusiones, alias): la demo o la 2ª
+            # mano de un modelo enlazado no debe crear otro producto.
+            linked = Map.search([('article_code', 'in', [normalize_code(model)] + [
+                normalize_code(c) for c in lines.mapped('article_code')])]).product_tmpl_id.filtered('active')
+            found = linked[:1] if len(linked) == 1 else self._existing_product(model)
             if len(found) > 1:
                 skipped += 1
                 continue

@@ -235,6 +235,17 @@ class TestSageGlobalChecklist(TransactionCase):
         self.assertEqual(line.product_id, self.galaxy)
         self.assertEqual(self.env['product.template'].search_count([('default_code', '=', 'GLX-REF-1')]), 1)
 
+    def test_prepare_uses_existing_alias_before_creating(self):
+        # MQ-RACK (Sage) ya enlazado a X-MQ-RACK (Odoo): su demo no crea otro producto.
+        self.galaxy.default_code = 'X-ALIAS-RACK'
+        self.env['rms.sage.article.map'].create({'article_code': 'ALIASRACK',
+                                                 'product_tmpl_id': self.galaxy.product_tmpl_id.id})
+        demo = self._sage('ALIAS-1', False, article='D-ALIAS-RACK', state='demo')
+        demo.model_code = 'ALIAS-RACK'
+        self._prepare(demo).action_create_products()
+        self.assertEqual(demo.product_id, self.galaxy)
+        self.assertFalse(self.env['product.template'].search([('default_code', '=', 'ALIAS-RACK')]))
+
     def test_enable_serial_tracking_skips_products_with_stock(self):
         plain = self.env['product.product'].create({'name': 'GLOBAL PLAIN', 'categ_id': self.brand.id,
                                                     'is_storable': True, 'tracking': 'none'})
