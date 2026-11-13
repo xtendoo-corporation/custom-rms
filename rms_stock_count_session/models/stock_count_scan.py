@@ -208,9 +208,9 @@ class RmsStockCountScan(models.Model):
         if not key:
             return None
         Line = self.env["rms.sage.stock.line"].sudo()
-        lines = Line.search([("is_current", "=", True), ("serial_normalized", "=", key)])
+        lines = Line.search([("is_current", "=", True), ("stock_kind", "=", "stock"), ("serial_normalized", "=", key)])
         if not lines:
-            lines = Line.search([("is_current", "=", True),
+            lines = Line.search([("is_current", "=", True), ("stock_kind", "=", "stock"),
                                  ("serial_normalized", "in", serial_alternatives(key))])
         if not lines:
             return None
@@ -773,10 +773,11 @@ class RmsStockCountScan(models.Model):
             self.env.cr.execute("""
                 SELECT l.serial_normalized, l.sage_company_code, l.warehouse_code,
                        COALESCE(w.name, l.warehouse_code), CASE l.state WHEN 'demo' THEN 'Demo' WHEN '2mano' THEN '2Mano' ELSE 'Nuevo' END, l.model_code,
-                       l.product_id, l.company_id, l.brand_categ_id, l.sage_warehouse_id
+                       l.product_id, l.company_id, l.brand_categ_id, l.sage_warehouse_id,
+                       COALESCE(l.in_deposit, FALSE)
                   FROM rms_sage_stock_line l
                   LEFT JOIN rms_sage_warehouse w ON w.id = l.sage_warehouse_id
-                 WHERE l.is_current AND l.serial_normalized <> ''
+                 WHERE l.is_current AND l.stock_kind = 'stock' AND l.serial_normalized <> ''
                    AND l.serial_normalized = ANY(%s)
                  ORDER BY l.id
             """, (keys,))
@@ -803,9 +804,10 @@ class RmsStockCountScan(models.Model):
                 # verde, salvo que el estado elegido no coincida con Sage.
                 chosen = SAGE_STATE_BY_CODE.get(states[index] if states else None)
                 v = ('nos' if not key else 'none' if not rows else 'dup' if len(rows) > 1
-                     else 'est' if chosen and chosen != rows[0][4] else 'ok')
+                     else 'dep' if rows[0][10] else 'est' if chosen and chosen != rows[0][4] else 'ok')
             else:
                 v = ('nos' if not key else 'none' if not rows else 'dup' if len(rows) > 1
+                     else 'dep' if rows[0][10]
                      else 'here' if here else 'wh' if rows[0][1] == session.sage_company_code else 'co')
             result.append({'v': v, 'n': len(rows), 'h': [list(row[1:6]) for row in rows[:3]],
                            'pm': bool(pid and any(row[6] == pid for row in rows)),

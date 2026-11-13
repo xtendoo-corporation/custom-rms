@@ -147,13 +147,16 @@ class StockCountSession(models.Model):
 
     def _sage_scope_domain(self):
         self.ensure_one()
-        return [('is_current', '=', True), ('company_id', '=', self.company_id.id),
+        # Solo existencias: los depósitos de venta se cargan aparte para descontar.
+        return [('is_current', '=', True), ('stock_kind', '=', 'stock'), ('company_id', '=', self.company_id.id),
                 ('sage_company_code', '=', self.sage_company_code),
                 ('brand_categ_id', 'in', self.brand_categ_ids.ids),
                 ('sage_warehouse_id', 'in', self.sage_warehouse_ids.ids)]
 
     def _sage_lines(self):
-        return self.env['rms.sage.stock.line'].sudo().search(self._sage_scope_domain())
+        """Lo que se espera encontrar en la zona: sin lo que Sage tiene en
+        depósito en casa de un cliente."""
+        return self.env['rms.sage.stock.line'].sudo().search(self._sage_scope_domain() + [('in_deposit', '=', False)])
 
     expected_ids = fields.One2many('rms.stock.count.expected', 'session_id', string='Exportación Sage')
     sage_line_ids = fields.One2many('rms.stock.count.sage.line', 'session_id', string='Cruce Sage')

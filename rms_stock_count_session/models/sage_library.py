@@ -42,6 +42,9 @@ def article_parts(env, article, prefixes=None):
     return model, state
 
 
+STOCK_KINDS = [('stock', 'Existencias'), ('deposit', 'Depósitos de venta')]
+
+
 class SageWarehouse(models.Model):
     _name = 'rms.sage.warehouse'
     _description = 'Almacén de Sage'
@@ -66,6 +69,9 @@ class SageSnapshot(models.Model):
     attachment = fields.Binary(attachment=True, groups='stock.group_stock_manager')
     filename = fields.Char()
     file_hash = fields.Char(index=True)
+    # La Valoración de Sage (existencias) INCLUYE lo que está en depósito en
+    # clientes; los "Depósitos de venta" se cargan aparte para descontarlo.
+    stock_kind = fields.Selection(STOCK_KINDS, string='Tipo', required=True, default='stock', index=True)
     state = fields.Selection([('draft', 'Borrador'), ('current', 'Vigente'), ('replaced', 'Reemplazada')], default='draft', required=True, index=True)
     uploaded_by = fields.Many2one('res.users', default=lambda self: self.env.user, readonly=True)
     line_ids = fields.One2many('rms.sage.stock.line', 'snapshot_id')
@@ -103,6 +109,7 @@ class SageSnapshot(models.Model):
                 retired |= self.search([('id', 'not in', self.ids), ('state', '=', 'current'),
                     ('company_id', '=', snapshot.company_id.id),
                     ('sage_company_code', '=', snapshot.sage_company_code),
+                    ('stock_kind', '=', snapshot.stock_kind),
                     ('brand_categ_id', '=', snapshot.brand_categ_id.id)])
         if mode == 'replace' and whole_company:
             # El archivo anterior (de las marcas sustituidas) o el mismo archivo
@@ -112,16 +119,18 @@ class SageSnapshot(models.Model):
                 retired |= self.search([('id', 'not in', self.ids), ('state', '=', 'current'),
                     ('company_id', 'in', self.company_id.ids),
                     ('sage_company_code', 'in', list(set(self.mapped('sage_company_code')))),
+                    ('stock_kind', 'in', list(set(self.mapped('stock_kind')))),
                     ('file_hash', 'in', hashes)])
         if retired:
             affected.update(retired.line_ids.mapped('serial_normalized'))
-            retired.line_ids.write({'is_current': False, 'dup_count': 0})
+            retired.line_ids.write({'is_current': False, 'dup_count': 0, 'in_deposit': False})
             retired.write({'state': 'replaced'})
         if not products_resolved:
             self.line_ids._resolve_products()
         self.line_ids.write({'is_current': True})
         self.write({'state': 'current'})
         Line._update_duplicates()
+        Line._update_deposits()
         for snapshot in self:
             warnings = []
             if any(line.dup_count > 1 for line in snapshot.line_ids):
@@ -129,7 +138,8 @@ class SageSnapshot(models.Model):
             if snapshot.unmatched_count:
                 warnings.append('%s líneas sin producto resuelto.' % snapshot.unmatched_count)
             if any(line.quantity < 0 for line in snapshot.line_ids):
-                warnings.append('Hay existencias negativas.')
+                warnings.append('Hay depósitos negativos.' if snapshot.stock_kind == 'deposit'
+                                else 'Hay existencias negativas.')
             snapshot.quality_warnings = '\n'.join(warnings)
         refresh = getattr(self.env['rms.stock.count.scan'], '_refresh_sage_suggestions', None)
         if refresh:
@@ -146,6 +156,9 @@ class SageStockLine(models.Model):
     company_id = fields.Many2one(related='snapshot_id.company_id', store=True, index=True)
     sage_company_code = fields.Selection(related='snapshot_id.sage_company_code', store=True, index=True)
     brand_categ_id = fields.Many2one(related='snapshot_id.brand_categ_id', store=True, index=True)
+    stock_kind = fields.Selection(related='snapshot_id.stock_kind', store=True, index=True, string='Tipo')
+    in_deposit = fields.Boolean(string='En depósito en cliente', default=False, index=True,
+                                help='Sage lo cuenta en existencias pero está en un depósito de venta (en casa de un cliente).')
     warehouse_code = fields.Char(required=True)
     sage_warehouse_id = fields.Many2one('rms.sage.warehouse', index=True)
     article_code = fields.Char(required=True, index=True)
@@ -192,10 +205,29 @@ class SageStockLine(models.Model):
             (SELECT serial_normalized, COALESCE(model_normalized, '') AS model,
                     count(DISTINCT COALESCE(sage_company_code, '') || '|' || COALESCE(warehouse_code, '') || '|' || COALESCE(state, '')) AS n
                FROM rms_sage_stock_line
-              WHERE is_current AND serial_normalized <> '' GROUP BY 1, 2) AS d
-            WHERE l.is_current AND l.serial_normalized = d.serial_normalized
+              WHERE is_current AND serial_normalized <> '' AND stock_kind = 'stock' GROUP BY 1, 2) AS d
+            WHERE l.is_current AND l.stock_kind = 'stock' AND l.serial_normalized = d.serial_normalized
               AND COALESCE(l.model_normalized, '') = d.model''')
+        # Los depósitos no son "otra ubicación": no cuentan como duplicado.
+        self.env.cr.execute("UPDATE rms_sage_stock_line SET dup_count = 0 WHERE stock_kind = 'deposit' AND dup_count <> 0")
         self.invalidate_model(['dup_count'])
+
+    @api.model
+    def _update_deposits(self):
+        """Marca las existencias vigentes que Sage tiene en un depósito de venta
+        (mismo nº de serie y modelo, misma empresa Sage, cantidad positiva)."""
+        self.flush_model()
+        self.env.cr.execute('''UPDATE rms_sage_stock_line AS l SET in_deposit = (d.serial_normalized IS NOT NULL)
+            FROM rms_sage_stock_line AS l2
+            LEFT JOIN (SELECT DISTINCT sage_company_code, serial_normalized, COALESCE(model_normalized, '') AS model
+                         FROM rms_sage_stock_line
+                        WHERE is_current AND stock_kind = 'deposit' AND quantity > 0 AND serial_normalized <> '') AS d
+              ON d.sage_company_code = l2.sage_company_code AND d.serial_normalized = l2.serial_normalized
+             AND d.model = COALESCE(l2.model_normalized, '')
+            WHERE l.id = l2.id AND l.is_current AND l.stock_kind = 'stock'
+              AND l.in_deposit IS DISTINCT FROM (d.serial_normalized IS NOT NULL)''')
+        self.env.cr.execute("UPDATE rms_sage_stock_line SET in_deposit = false WHERE in_deposit AND (NOT is_current OR stock_kind <> 'stock')")
+        self.invalidate_model(['in_deposit'])
 
     @api.model
     def _resolve_article_values(self, articles, company_id):

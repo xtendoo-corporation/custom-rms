@@ -27,6 +27,7 @@
                 <field name="first_session_id" optional="show"/>
                 <field name="first_scanned_at" optional="hide"/>
                 <field name="multi_session" column_invisible="1"/>
+                <field name="in_deposit" optional="show"/>
             </list>
         </field>
     </record>
@@ -45,6 +46,9 @@
                 <filter name="counted" string="Leídos" domain="[('counted', '=', True)]"/>
                 <filter name="mismatch" string="Estado distinto" domain="[('state_mismatch', '=', True)]"/>
                 <filter name="multi" string="En varios recuentos" domain="[('multi_session', '=', True)]"/>
+                <separator/>
+                <filter name="in_warehouse" string="En la nave" domain="[('in_deposit', '=', False)]"/>
+                <filter name="in_deposit" string="En depósito en cliente" domain="[('in_deposit', '=', True)]"/>
                 <separator/>
                 <filter name="rms" string="RMS (01)" domain="[('sage_company_code', '=', '01')]"/>
                 <filter name="espacio" string="Espacio (02)" domain="[('sage_company_code', '=', '02')]"/>

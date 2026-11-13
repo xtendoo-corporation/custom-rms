@@ -56,6 +56,7 @@ class SageChecklist(models.Model):
     physical_state_id = fields.Many2one('product.state', string='Estado físico', readonly=True)
     state_mismatch = fields.Boolean(string='Estado distinto', readonly=True)
     multi_session = fields.Boolean(string='En varios recuentos', readonly=True)
+    in_deposit = fields.Boolean(string='En depósito en cliente', readonly=True)
 
     def init(self):
         tools.drop_view_if_exists(self.env.cr, self._table)
@@ -67,7 +68,9 @@ class SageChecklist(models.Model):
                    l.article_name, l.model_code, l.state AS sage_state, l.serial, l.product_id,
                    COALESCE(s.scan_count, 0) > 0 AS counted,
                    CASE WHEN COALESCE(s.scan_count, 0) > 0 THEN 1 ELSE 0 END AS counted_qty,
-                   CASE WHEN COALESCE(s.scan_count, 0) > 0 THEN 0 ELSE 1 END AS pending_qty,
+                   -- Lo que Sage tiene en depósito en un cliente no falta en la nave.
+                   CASE WHEN COALESCE(s.scan_count, 0) > 0 OR COALESCE(l.in_deposit, FALSE) THEN 0 ELSE 1 END AS pending_qty,
+                   COALESCE(l.in_deposit, FALSE) AS in_deposit,
                    COALESCE(s.session_count, 0) AS session_count,
                    COALESCE(s.scan_count, 0) AS scan_count,
                    s.first_scan_id, s.first_session_id, s.first_scanned_at,
@@ -91,7 +94,7 @@ class SageChecklist(models.Model):
                        AND (l.product_id IS NULL OR sc.product_id = l.product_id)
               ) s ON TRUE
               LEFT JOIN product_state ps ON ps.id = s.last_state_id
-             WHERE l.is_current AND COALESCE(l.serial_normalized, '') <> ''
+             WHERE l.is_current AND l.stock_kind = 'stock' AND COALESCE(l.serial_normalized, '') <> ''
             )""" % (self._table, _VALID_SCANS))
 
 

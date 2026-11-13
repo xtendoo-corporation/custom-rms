@@ -13,7 +13,7 @@ from odoo.exceptions import AccessError, UserError
 from ..models.sage_expected import normalize_serial
 from ..models.scan_rule import normalize_code
 
-from ..models.sage_library import SAGE_COMPANIES, article_parts, article_prefix
+from ..models.sage_library import SAGE_COMPANIES, STOCK_KINDS, article_parts, article_prefix
 
 
 class StockCountSageImport(models.TransientModel):
@@ -27,6 +27,9 @@ class StockCountSageImport(models.TransientModel):
                               ('brand', 'Una marca')], required=True, default='all')
     brand_categ_id = fields.Many2one('product.category', domain="[('parent_id', '=', False)]")
     mode = fields.Selection([('add', 'Añadir archivos'), ('replace', 'Reemplazar versión')], required=True, default='replace')
+    stock_kind = fields.Selection(STOCK_KINDS, string='Tipo de exportación', required=True, default='stock',
+                                  help='Existencias: Valoración de stocks (incluye lo que está en depósito en clientes). '
+                                       'Depósitos de venta: lo que está en casa de clientes; se descuenta de la nave.')
     export_date = fields.Date(required=True, default=fields.Date.context_today)
     file_data = fields.Binary(string='Excel o CSV Valoración de stocks', required=True)
     filename = fields.Char(string='Nombre de archivo')
@@ -141,7 +144,7 @@ class StockCountSageImport(models.TransientModel):
                         unknown = Category.create({'name': 'Sin marca'})
                 brand = unknown.id
             grouped[brand].append(val)
-        domain = [('file_hash', '=', digest), ('company_id', '=', self.company_id.id),
+        domain = [('file_hash', '=', digest), ('company_id', '=', self.company_id.id), ('stock_kind', '=', self.stock_kind),
                   ('sage_company_code', '=', self.sage_company_code), ('brand_categ_id', 'in', list(grouped))]
         if not self.allow_duplicate and Snapshot.search_count(domain):
             raise UserError('Este archivo ya se cargó. Activa «Cargar aunque ya se haya cargado» para continuar.')
@@ -149,7 +152,7 @@ class StockCountSageImport(models.TransientModel):
             {'name': self.filename or 'Exportación Sage', 'company_id': self.company_id.id,
              'sage_company_code': self.sage_company_code, 'brand_categ_id': brand,
              'export_date': self.export_date, 'filename': self.filename,
-             'file_hash': digest} for brand in sorted(grouped)])
+             'file_hash': digest, 'stock_kind': self.stock_kind} for brand in sorted(grouped)])
         # El archivo se guarda una vez por marca (el almacenamiento lo deduplica),
         # pero SIN indexar su texto: indexar el CSV completo ~40 veces agotaba la
         # memoria del proceso de Odoo (MemoryError, 13-nov).

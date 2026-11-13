@@ -375,6 +375,7 @@ class RmsStockCountSession(models.Model):
             for line in session.line_ids.filtered("lot_name"):
                 matches = Sage.search([
                     ("is_current", "=", True),
+                    ("stock_kind", "=", "stock"),
                     ("serial_normalized", "=", self._normalize_serial(line.lot_name)),
                     ("product_id", "=", line.product_id.id),
                 ])
