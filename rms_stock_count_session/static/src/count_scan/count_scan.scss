@@ -173,12 +173,18 @@
     .o_rms_cs_sage_dup { background: #e8dafa; color: #593080; }
     .o_rms_cs_sage_unknown, .o_rms_cs_sage_nos { background: #e9ecef; color: #343a40; }
     .o_rms_cs_sage_duplicate { background: #cfe2ff; color: #084298; }
-    .o_rms_cs_history_here { border-left: 4px solid #198754; }
-    .o_rms_cs_history_wh, .o_rms_cs_history_co { border-left: 4px solid #d99200; }
-    .o_rms_cs_history_none { border-left: 4px solid #dc3545; }
-    .o_rms_cs_history_dup { border-left: 4px solid #8050ae; }
-    .o_rms_cs_history_unknown { border-left: 4px solid #6c757d; }
-    .o_rms_cs_history_duplicate { border-left: 4px solid #0d6efd; }
+    // Cada línea de "Llevas" coloreada según Sage (fondo claro + borde fuerte).
+    .list-group-item.o_rms_cs_history_here, .list-group-item.o_rms_cs_history_ok {
+        background: #e3f4ea; border-left: 6px solid #198754; }
+    .list-group-item.o_rms_cs_history_wh, .list-group-item.o_rms_cs_history_co,
+    .list-group-item.o_rms_cs_history_est, .list-group-item.o_rms_cs_history_dep,
+    .list-group-item.o_rms_cs_history_twice {
+        background: #fff6d9; border-left: 6px solid #d99200; }
+    .list-group-item.o_rms_cs_history_none { background: #fbe3e5; border-left: 6px solid #dc3545; }
+    .list-group-item.o_rms_cs_history_dup { background: #efe6fb; border-left: 6px solid #8050ae; }
+    .list-group-item.o_rms_cs_history_unknown, .list-group-item.o_rms_cs_history_nos {
+        background: #f1f3f5; border-left: 6px solid #6c757d; }
+    .list-group-item.o_rms_cs_history_duplicate { background: #e3edff; border-left: 6px solid #0d6efd; }
     .o_rms_cs_missing { max-height: 45vh; overflow-y: auto; margin-bottom: 1rem; flex: 0 0 auto; }
 }
 
