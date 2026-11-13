@@ -7,6 +7,7 @@ import { Component, onMounted, onWillUnmount, useEffect, useRef, useState } from
 
 const WORKER_URL = "/rms_stock_count_session/static/lib/zxing-wasm/zxing_worker.js";
 const RESCAN_COOLDOWN_MS = 2000;
+const PROGRESS_DEBOUNCE_MS = 700;
 // Lector sin Enter: ráfaga de >= 4 caracteres con < 45 ms entre teclas y
 // 160 ms de pausa al final = una lectura completa.
 const BURST_GAP_MS = 45;
@@ -79,6 +80,8 @@ export class StockCountScan extends Component {
             panel: null, // null | "product" | "location"
             panelQuery: "",
             panelResults: [],
+            progress: null, // marcador: {site, has_sage, counted, pending, not_in_sage, review}
+            expandedId: null, // lectura desplegada en la lista compacta
         });
 
         this._sending = false;
@@ -124,6 +127,7 @@ export class StockCountScan extends Component {
             clearInterval(this._refreshTimer);
             clearTimeout(this._searchTimer);
             clearTimeout(this._verdictTimer);
+            clearTimeout(this._progressTimer);
             this._audio?.close().catch(() => {});
         });
     }
@@ -194,8 +198,33 @@ export class StockCountScan extends Component {
         this.state.pending = this._loadQueue();
         this.state.step = "scan";
         this._flushQueue();
+        this._scheduleProgress(0);
         clearInterval(this._refreshTimer);
         this._refreshTimer = setInterval(() => this._refresh(), REFRESH_MS);
+    }
+
+    // Marcador de avance: se pide al servidor con un pequeño retraso para
+    // agrupar las lecturas seguidas de la pistola en una sola consulta.
+    _scheduleProgress(delay = PROGRESS_DEBOUNCE_MS) {
+        clearTimeout(this._progressTimer);
+        this._progressTimer = setTimeout(() => this._loadProgress(), delay);
+    }
+
+    async _loadProgress() {
+        const op = this.state.operatorState?.operator;
+        if (!op || this.state.step !== "scan") {
+            return;
+        }
+        try {
+            const progress = await this.orm.silent.call(
+                "rms.stock.count.operator", "scanner_progress", [[op.id]]
+            );
+            if (this.state.operatorState?.operator.id === op.id) {
+                this.state.progress = progress;
+            }
+        } catch {
+            // El marcador es informativo: sin conexión se queda el último valor.
+        }
     }
 
     changeOperator() {
@@ -247,6 +276,8 @@ export class StockCountScan extends Component {
             if (!isCurrent()) { return; }
             this._applyState(operatorState);
             this.state.offline = false;
+            // Otros operarios también cuentan: el marcador se pone al día.
+            this._scheduleProgress(0);
         } catch {
             if (isCurrent()) { this.state.offline = true; }
         }
@@ -503,6 +534,7 @@ export class StockCountScan extends Component {
                 if (item.codes && unresolvedSerials.length > 1) {
                     this._setVerdict({ kind: "unknown", text: "Acerca a una sola etiqueta", detail: "" });
                 }
+                this._scheduleProgress();
                 const first = results.find((reading) => reading.scan && reading.scan.id);
                 const snapshotTask = this._snapshotTasks.get(item.uid);
                 this._snapshotTasks.delete(item.uid);
@@ -650,8 +682,76 @@ export class StockCountScan extends Component {
             "rms.stock.count.scan", "scanner_delete", [[scanId]]
         );
         this.state.history = this.state.history.filter((scan) => scan.id !== scanId);
+        if (this.state.expandedId === scanId) {
+            this.state.expandedId = null;
+        }
         if (operatorState && operatorState.operator) {
             this._applyState(operatorState);
+        }
+        this._scheduleProgress(0);
+        if (this.state.inputMode === "pda") {
+            this._focusInput();
+        }
+    }
+
+    // Lista compacta: tocar una lectura muestra su detalle (y la papelera).
+    toggleRow(scanId) {
+        this.state.expandedId = this.state.expandedId === scanId ? null : scanId;
+        if (this.state.inputMode === "pda") {
+            this._focusInput();
+        }
+    }
+
+    // Modelo corto de una lectura: la referencia entre corchetes del nombre
+    // ("[A20-HH] Astral..." -> "A20-HH"), o el nombre hasta " - ".
+    shortModel(scan) {
+        const name = scan.product_name || "";
+        if (!name) {
+            return "Sin producto";
+        }
+        const ref = name.match(/^\[([^\]]+)\]/);
+        if (ref) {
+            return ref[1];
+        }
+        return name.split(" - ")[0].trim();
+    }
+
+    // Motivo corto de la línea; vacío si está todo bien (verde).
+    shortReason(scan, kind) {
+        const sage = scan.sage || {};
+        const first = (sage.h || [])[0] || [];
+        const stateName = { nuevo: "Nuevo", demo: "Demo", "2mano": "2ª mano", Nuevo: "Nuevo", Demo: "Demo", "2Mano": "2ª mano" };
+        const message = scan.message || "";
+        switch (kind) {
+            case "ok":
+            case "here":
+                return "";
+            case "est":
+                return `Sage: ${stateName[first[3]] || first[3] || "otro estado"}`;
+            case "dep":
+                return "En depósito en cliente";
+            case "dup":
+                return "Duplicado en Sage";
+            case "twice":
+                return `Ya contado en ${scan.also_in}`;
+            case "wh":
+                return `Sage: ${first[2] || first[1] || "otro almacén"}`;
+            case "co":
+                return "Sage: otra empresa";
+            case "none":
+                return "No está en Sage";
+            case "unknown":
+                if (scan.suggestion) {
+                    return `¿${scan.suggestion}?`;
+                }
+                return /varios productos/i.test(message) ? "Elige producto" :
+                    /no se sigue por n/i.test(message) ? "Sin nº de serie en Odoo" :
+                    /código de barras de producto|UPC/i.test(message) ? "Código de producto" : "Elige producto";
+            default:
+                if (scan.type === "ignored") {
+                    return /código de barras del producto/i.test(message) ? "Código de producto, no cuenta" : "Ignorado";
+                }
+                return scan.type === "product" ? "+1" : "";
         }
     }
 
@@ -664,6 +764,7 @@ export class StockCountScan extends Component {
             if (index >= 0) {
                 this.state.history[index] = payload;
             }
+            this._scheduleProgress(0);
         } catch {
             this.notification.add("No se pudo cambiar el estado. Comprueba la conexión y vuelve a intentarlo.",
                 { type: "warning" });

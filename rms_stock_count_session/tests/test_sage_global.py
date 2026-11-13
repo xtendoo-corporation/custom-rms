@@ -88,6 +88,35 @@ class TestSageGlobalChecklist(TransactionCase):
         self.assertEqual(scan.scan_type, 'unknown')
         self.assertIn('no se sigue por nº de serie', scan.message)
 
+    def test_scanner_progress_counts_the_linked_sage_warehouse(self):
+        wh = self.env['rms.sage.warehouse'].create({
+            'code': 'TPRG', 'name': 'Prueba progreso', 'sage_company_code': '02',
+            'location_id': self.session.location_id.id})
+        counted = self._sage('PRG-1', self.galaxy)
+        pending = self._sage('PRG-2', self.galaxy)
+        demo = self._sage('PRG-3', self.galaxy, state='demo')
+        deposit = self._sage('PRG-4', self.galaxy)
+        negative = self._sage('PRG-5', self.galaxy)
+        (counted | pending | demo | deposit | negative).write({'sage_warehouse_id': wh.id})
+        deposit.in_deposit = True
+        negative.quantity = -1
+        self._sage('PRG-6', self.galaxy, warehouse='OTRO')  # otro almacén: no cuenta
+        self.operator.current_product_id = False
+        self.operator.scanner_set_state(self.env.ref('rms_product_state.state_new').id)
+        self._scan('PRG-1')            # verde
+        self._scan('PRG-3')            # ámbar: Sage dice Demo
+        self.operator.current_product_id = False
+        self._scan('NOT-IN-SAGE-PRG')  # pendiente (sin producto)
+        self.operator.current_product_id = self.galaxy
+        self._scan('NEW-PRG-9')        # nº de serie nuevo: no está en Sage
+        progress = self.operator.scanner_progress()
+        self.assertTrue(progress['has_sage'])
+        self.assertIn('TPRG', progress['site'])
+        self.assertEqual((progress['total'], progress['counted'], progress['pending']), (3, 2, 1))
+        self.assertEqual(progress['not_in_sage'], 1)
+        self.assertEqual(progress['review'], 2)
+        self.assertEqual(progress['mine'], self.operator.scan_count)
+
     def test_apostrophe_from_english_keyboard_is_a_hyphen(self):
         self._sage('EASN0-0005', self.galaxy)
         self.operator.current_product_id = False

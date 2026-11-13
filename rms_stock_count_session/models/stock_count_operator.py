@@ -170,6 +170,71 @@ class RmsStockCountOperator(models.Model):
             "tracking": product.tracking,
         }
 
+    # Veredictos que piden revisar algo (ámbar) en el marcador del escáner.
+    _REVIEW_VERDICTS = ("est", "dep", "dup", "wh", "co")
+
+    def _progress_warehouses(self):
+        """Almacenes Sage enlazados a la ubicación donde se cuenta (la del
+        operario o la del recuento): la misma, una de dentro o una de fuera."""
+        self.ensure_one()
+        location = self.current_location_id or self.session_id.location_id
+        if not location:
+            return self.env["rms.sage.warehouse"]
+        path = location.parent_path or ""
+        warehouses = self.env["rms.sage.warehouse"].sudo().search([("location_id", "!=", False)])
+        return warehouses.filtered(lambda w: w.location_id.parent_path and (
+            w.location_id.parent_path.startswith(path) or path.startswith(w.location_id.parent_path)))
+
+    def scanner_progress(self):
+        """Marcador fijo del escáner: avance del almacén Sage donde se cuenta
+        (contados / faltan, sin lo que Sage tiene en depósito en clientes) y
+        lo que este recuento ha encontrado fuera de Sage o para revisar."""
+        self.ensure_one()
+        session = self.session_id
+        session.check_access("read")
+        warehouses = self._progress_warehouses()
+        result = {
+            "site": " + ".join(
+                "%s (%s)" % (w.name, w.code) if w.name != w.code else w.code for w in warehouses[:3]),
+            "has_sage": bool(warehouses),
+            "total": 0, "counted": 0, "pending": 0,
+        }
+        if warehouses:
+            self.env["rms.sage.stock.line"].sudo().flush_model()
+            self.env["rms.stock.count.scan"].flush_model()
+            self.env.cr.execute("""
+                SELECT count(*),
+                       count(*) FILTER (WHERE EXISTS (
+                           SELECT 1 FROM rms_stock_count_scan sc
+                             JOIN rms_stock_count_session ss ON ss.id = sc.session_id
+                            WHERE sc.serial_normalized = l.serial_normalized
+                              AND sc.scan_type = 'serial'
+                              AND ss.state <> 'cancel'
+                              AND NOT COALESCE(sc.ignored, FALSE)
+                              AND (l.product_id IS NULL OR sc.product_id = l.product_id)))
+                  FROM rms_sage_stock_line l
+                 WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0
+                   AND COALESCE(l.serial_normalized, '') <> ''
+                   AND NOT COALESCE(l.in_deposit, FALSE)
+                   AND l.sage_warehouse_id = ANY(%s)
+            """, (warehouses.ids,))
+            total, counted = self.env.cr.fetchone()
+            result.update(total=total, counted=counted, pending=total - counted)
+        Scan = self.env["rms.stock.count.scan"]
+        scans = Scan.search([("session_id", "=", session.id), ("ignored", "=", False),
+                             ("scan_type", "in", ("serial", "unknown"))])
+        serials = scans.filtered(lambda s: s.scan_type == "serial" and s.lot_name)
+        verdicts = Scan._sage_verdict([s.lot_name for s in serials], session, [s.product_id.id for s in serials],
+                                      [s.product_state_id.code for s in serials]) if serials else []
+        kinds = [v.get("v") for v in verdicts]
+        result.update(
+            not_in_sage=kinds.count("none"),
+            review=sum(kinds.count(kind) for kind in self._REVIEW_VERDICTS)
+            + len(scans.filtered(lambda s: s.scan_type == "unknown")),
+            mine=self.scan_count,
+        )
+        return result
+
     def scanner_set_location(self, location_id):
         self.ensure_one()
         self._check_counting()
