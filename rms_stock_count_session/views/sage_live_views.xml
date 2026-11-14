@@ -87,4 +87,16 @@
               action="action_sage_serial_moves" sequence="17" groups="stock.group_stock_manager"/>
     <menuitem id="menu_sage_sync_runs" name="Sincronizaciones de Sage" parent="menu_sage_root"
               action="action_sage_sync_runs" sequence="70" groups="stock.group_stock_manager"/>
+
+    <!-- La app "Inventario Sage" abría action_stock_count_session, que también está
+         en el menú de Inventario: Odoo mostraba la barra de Inventario y no se veían
+         los menús de Sage. Acción propia para "Recuentos" (se redefine aquí el menú
+         de sage_library_views.xml, que se carga antes). -->
+    <record id="action_sage_counts" model="ir.actions.act_window">
+        <field name="name">Recuentos</field>
+        <field name="res_model">rms.stock.count.session</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_open': 1}</field>
+    </record>
+    <menuitem id="menu_sage_counts" name="Recuentos" parent="menu_sage_root" action="action_sage_counts" sequence="10"/>
 </odoo>
