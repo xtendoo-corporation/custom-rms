@@ -110,6 +110,11 @@ def article_names(sage, year_db):
     return {txt(r['CODIGO']): txt(r['NOMBRE']) for r in sage.rows("SELECT CODIGO, NOMBRE FROM [%s].dbo.articulo" % year_db)}
 
 
+def is_no_serial(lot):
+    """Sage usa "SN" / "S/N" como lote de las unidades sin nº de serie."""
+    return txt(lot).upper().replace('/', '').replace(' ', '') in ('', 'SN', 'SINSERIE', 'NODESERIE')
+
+
 def stock_rows(sage, lotes_db, year_db, company, names):
     """Existencias de una empresa como las da 'Valoración de stocks':
     nº de serie (stocklotes) + resto sin serie (stocks2 menos lo que tiene serie)."""
@@ -119,6 +124,8 @@ def stock_rows(sage, lotes_db, year_db, company, names):
         "HAVING SUM(UNIDADES) <> 0" % lotes_db, (company,))
     rows, serial_units = [], {}
     for r in serial:
+        if is_no_serial(r['LOTE']):
+            continue  # "SN": unidades sin nº de serie, van con el stock del artículo
         key = (txt(r['ALMACEN']), txt(r['ARTICULO']))
         serial_units[key] = serial_units.get(key, 0) + num(r['U'])
         rows.append({'warehouse_code': key[0], 'article_code': key[1], 'article_name': names.get(key[1], ''),
@@ -154,19 +161,32 @@ def partner_names(sage, year_db, header, partner_col, partner_table, company, do
     pcols = sage.columns(year_db, partner_table)
     if not ({'NUMERO', partner_col} <= hcols and {'CODIGO', 'NOMBRE'} <= pcols):
         return {}
-    letra = 'RTRIM(h.LETRA)' if 'LETRA' in hcols else "''"
-    emp = "AND RTRIM(h.EMPRESA) = ?" if 'EMPRESA' in hcols else ''
+    letra = 'LTRIM(RTRIM(h.LETRA))' if 'LETRA' in hcols else "''"
+    emp = "AND LTRIM(RTRIM(h.EMPRESA)) = ?" if 'EMPRESA' in hcols else ''
     out = {}
-    numbers = sorted({n for _l, n in docs})
-    for start in range(0, len(numbers), 500):
-        chunk = numbers[start:start + 500]
-        marks = ','.join('?' * len(chunk))
-        params = ((company,) if emp else ()) + tuple(chunk)
-        for r in sage.rows(
-                "SELECT %s AS LETRA, RTRIM(h.NUMERO) AS NUMERO, p.NOMBRE AS NOMBRE FROM [%s].dbo.[%s] h "
-                "LEFT JOIN [%s].dbo.[%s] p ON RTRIM(p.CODIGO) = RTRIM(h.%s) WHERE 1=1 %s AND RTRIM(h.NUMERO) IN (%s)"
-                % (letra, year_db, header, year_db, partner_table, partner_col, emp, marks), params):
-            out[(txt(r['LETRA']), txt(r['NUMERO']))] = txt(r['NOMBRE'])
+    # El nº de documento lleva espacios delante ("       884") y un depósito
+    # de otro año tiene su cabecera en la base de ese año (2025FT...).
+    pending = {(txt(l), txt(n)) for l, n in docs}
+    year = int(year_db[:4]) if year_db[:4].isdigit() else 0
+    for db in [year_db] + (['%d%s' % (y, year_db[4:]) for y in range(year - 1, year - 6, -1)] if year else []):
+        if not pending:
+            break
+        if db != year_db and not sage.columns(db, header):
+            continue
+        numbers = sorted({n for _l, n in pending})
+        for start in range(0, len(numbers), 500):
+            chunk = numbers[start:start + 500]
+            marks = ','.join('?' * len(chunk))
+            params = ((company,) if emp else ()) + tuple(chunk)
+            for r in sage.rows(
+                    "SELECT %s AS LETRA, LTRIM(RTRIM(h.NUMERO)) AS NUMERO, p.NOMBRE AS NOMBRE FROM [%s].dbo.[%s] h "
+                    "LEFT JOIN [%s].dbo.[%s] p ON LTRIM(RTRIM(p.CODIGO)) = LTRIM(RTRIM(h.%s)) "
+                    "WHERE 1=1 %s AND LTRIM(RTRIM(h.NUMERO)) IN (%s)"
+                    % (letra, db, header, db, partner_table, partner_col, emp, marks), params):
+                key = (txt(r['LETRA']), txt(r['NUMERO']))
+                if key in pending:
+                    out[key] = txt(r['NOMBRE'])
+        pending -= set(out)
     return out
 
 
@@ -190,7 +210,7 @@ def deposit_rows(sage, lotes_db, year_db, company, names):
         item['u'] += num(r['UNIDADES'])
         if num(r['UNIDADES']) > 0 and (item['last'] is None or (r['FECHA'] or dt.datetime.min) >= item['last'][0]):
             item['last'] = (r['FECHA'] or dt.datetime.min, txt(r['LETRA']), txt(r['NUMERO']))
-    open_items = {k: v for k, v in acc.items() if v['u'] > 0 and k[2]}
+    open_items = {k: v for k, v in acc.items() if v['u'] > 0 and k[2] and not is_no_serial(k[2])}
     docs = {(v['last'][1], v['last'][2]) for v in open_items.values() if v['last']}
     partners = partner_names(sage, year_db, 'c_albdep', 'CLIENTE', 'clientes', company, docs)
     rows = []
@@ -211,7 +231,7 @@ def move_rows(sage, lotes_db, year_db, table, since, companies):
     for col in ('LETRA', 'NUMERO', 'LINIA', 'FECHA', 'UNIDADES', 'MODIFIED', 'GUID_ID', from_col, to_col):
         if col and col in cols:
             pick.append(col)
-    where = "RTRIM(EMPRESA) IN (%s) AND LOTE IS NOT NULL AND RTRIM(LOTE) <> ''" % ','.join('?' * len(companies))
+    where = "RTRIM(EMPRESA) IN (%s) AND LOTE IS NOT NULL AND RTRIM(LOTE) <> '' AND UPPER(REPLACE(REPLACE(LOTE, '/', ''), ' ', '')) <> 'SN'" % ','.join('?' * len(companies))
     params = list(companies)
     if since and 'MODIFIED' in cols:
         where += " AND MODIFIED > ?"
