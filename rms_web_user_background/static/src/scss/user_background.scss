@@ -1,0 +1,5 @@
+body.rms-user-background .o_grid_apps_menu[data-theme] {
+    --app-menu-background: var(--rms-user-background-image) center / cover no-repeat;
+    --app-menu-text-color: #fff;
+    --app-menu-text-shadow: 0 0 3px rgba(0, 0, 0, .9), 0 1px 2px rgba(0, 0, 0, .8);
+}

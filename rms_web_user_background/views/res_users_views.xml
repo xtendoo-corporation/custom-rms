@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_form_simple_modif_background" model="ir.ui.view">
+        <field name="name">res.users.preferences.background</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='other_preferences']" position="after">
+                <group string="Fondo de pantalla" groups="base.group_user">
+                    <field name="rms_background_image" widget="image"
+                           help="Se muestra en el menú de aplicaciones. Déjalo vacío para usar el fondo por defecto."/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
