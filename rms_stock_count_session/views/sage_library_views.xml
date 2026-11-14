@@ -27,7 +27,16 @@
         <field name="name">Prefijos de marcas Sage</field><field name="res_model">rms.sage.brand.prefix</field><field name="view_mode">list</field>
     </record>
     <menuitem id="menu_sage_root" name="Inventario Sage" sequence="25" groups="stock.group_stock_user"/>
-    <menuitem id="menu_sage_counts" name="Recuentos" parent="menu_sage_root" action="action_stock_count_session" sequence="10"/>
+    <!-- Acción propia: si la app "Inventario Sage" abría action_stock_count_session
+         (también en el menú de Inventario), Odoo mostraba la barra de menús de
+         Inventario y no se veían los menús de Sage. -->
+    <record id="action_sage_counts" model="ir.actions.act_window">
+        <field name="name">Recuentos</field>
+        <field name="res_model">rms.stock.count.session</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_open': 1}</field>
+    </record>
+    <menuitem id="menu_sage_counts" name="Recuentos" parent="menu_sage_root" action="action_sage_counts" sequence="10"/>
     <menuitem id="menu_sage_folder" name="Carpeta Sage" parent="menu_sage_root" action="action_sage_snapshots" sequence="20" groups="stock.group_stock_manager"/>
     <menuitem id="menu_sage_upload" name="Cargar exportación" parent="menu_sage_root" action="action_sage_import" sequence="21" groups="stock.group_stock_manager"/>
     <menuitem id="menu_sage_stock" name="Existencias Sage" parent="menu_sage_root" action="action_sage_stock" sequence="30" groups="stock.group_stock_manager"/>
