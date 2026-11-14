@@ -144,9 +144,8 @@ class StockCountSageImport(models.TransientModel):
                 {val['article_code'] for val in vals})
         grouped = defaultdict(list)
         unknown = False
-        warehouses = self.env['rms.sage.warehouse'].search([
-            ('company_id', '=', self.company_id.id), ('sage_company_code', '=', self.sage_company_code)])
-        wh_map = {warehouse.code: warehouse.id for warehouse in warehouses}
+        # Los alias (AL7 = A.7) se enlazan al almacén principal.
+        wh_map = self.env['rms.sage.warehouse']._code_map(self.company_id.id, self.sage_company_code)
         for val in vals:
             match = resolved[(val['article_code'], val['model_code'], val['state'])]
             val.update(match, sage_warehouse_id=wh_map.get(val['warehouse_code'], False))

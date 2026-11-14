@@ -17,3 +17,5 @@ from . import test_sage_article
 from . import test_sage_deposits
 
 from . import test_sage_live
+
+from . import test_sage_sites

@@ -99,4 +99,17 @@
         <field name="context">{'search_default_open': 1}</field>
     </record>
     <menuitem id="menu_sage_counts" name="Recuentos" parent="menu_sage_root" action="action_sage_counts" sequence="10"/>
+
+    <!-- Almacenes Sage: alias (AL7 = A.7) y nave física (nº del almacén de Odoo). -->
+    <record id="view_sage_warehouse_list_alias" model="ir.ui.view">
+        <field name="name">rms.sage.warehouse.list.alias</field>
+        <field name="model">rms.sage.warehouse</field>
+        <field name="inherit_id" ref="view_sage_warehouse_list"/>
+        <field name="arch" type="xml">
+            <field name="location_id" position="after">
+                <field name="alias_of_id" options="{'no_create': True}"/>
+                <field name="site_number" readonly="1"/>
+            </field>
+        </field>
+    </record>
 </odoo>

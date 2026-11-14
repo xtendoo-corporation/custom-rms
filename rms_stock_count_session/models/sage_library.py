@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Biblioteca versionada de exportaciones; no modifica existencias de Odoo."""
+import re
 from collections import defaultdict
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
@@ -54,7 +55,138 @@ class SageWarehouse(models.Model):
     name = fields.Char(required=True)
     company_id = fields.Many2one('res.company', required=True, default=lambda self: self.env.company)
     location_id = fields.Many2one('stock.location', domain="[('usage', '=', 'internal')]", check_company=True)
+    # Sage usa a veces dos códigos para el mismo almacén (A.7 y AL7 = Sevilla):
+    # el alias apunta al principal y las líneas se enlazan al principal.
+    alias_of_id = fields.Many2one('rms.sage.warehouse', string='Mismo almacén que', index=True,
+                                  domain="[('sage_company_code', '=', sage_company_code), ('alias_of_id', '=', False)]",
+                                  help='Código alternativo de Sage para el mismo almacén (AL7 = A.7).')
+    # Nave física = nº del almacén de Odoo (RMS7 / ET7 / RJB7 -> 7): junta las
+    # 3 empresas que comparten nave en el marcador y en "Buscar en Sage".
+    site_number = fields.Integer(string='Nave', compute='_compute_site_number', store=True, index=True)
+    auto_created = fields.Boolean(readonly=True, copy=False)
+    auto_linked = fields.Boolean(readonly=True, copy=False)
+    auto_previous_location_id = fields.Many2one('stock.location', readonly=True, copy=False)
     _code_unique = models.Constraint('UNIQUE(sage_company_code, code)', 'Ya existe ese almacén en la empresa Sage.')
+
+    # Enlace confirmado por el usuario (3-nov-2026): código Sage -> nº de almacén Odoo.
+    DEFAULT_LINKS = {'AL1': 1, 'AL2': 2, 'AL3': 3, 'A.9': 4, 'AL5': 5, 'A.6': 6, 'A.7': 7}
+    DEFAULT_ALIASES = {'AL7': 'A.7', 'AL9': 'A.9', 'A22': 'AL2'}
+    SITE_NAMES = {1: 'Madrid', 2: 'Nave 22', 3: 'Alfaomega', 4: 'Cataluña (Alex)', 5: 'Cataluña (Vicente)',
+                  6: 'Mallorca', 7: 'Sevilla'}
+    DOUBTFUL = ('A.4', 'ALB', 'ALD', 'A.1', 'A.2', 'A.3', 'A.8', 'AL8', 'STM', 'STS')
+    ODOO_PREFIX = {'01': 'RMS', '02': 'ET', '03': 'RJB'}
+
+    @api.depends('location_id', 'alias_of_id.location_id')
+    def _compute_site_number(self):
+        for warehouse in self:
+            code = ((warehouse.alias_of_id or warehouse).location_id.warehouse_id.code or '').strip()
+            digits = re.search(r'(\d+)$', code)
+            warehouse.site_number = int(digits.group(1)) if digits else 0
+
+    def _main(self):
+        return self.alias_of_id or self
+
+    @api.model
+    def _code_map(self, company_id, sage_company_code):
+        """{código Sage: id del almacén principal} (los alias van al principal)."""
+        return {w.code: w._main().id for w in self.sudo().search([
+            ('company_id', '=', company_id), ('sage_company_code', '=', sage_company_code)])}
+
+    @api.model
+    def _relink_lines(self):
+        """Vuelve a enlazar las líneas de Sage vigentes con su almacén principal."""
+        self.flush_model()
+        self.env['rms.sage.stock.line'].flush_model()
+        self.env.cr.execute('''
+            UPDATE rms_sage_stock_line l SET sage_warehouse_id = COALESCE(w.alias_of_id, w.id)
+              FROM rms_sage_warehouse w
+             WHERE w.company_id = l.company_id AND w.sage_company_code = l.sage_company_code
+               AND w.code = l.warehouse_code
+               AND l.sage_warehouse_id IS DISTINCT FROM COALESCE(w.alias_of_id, w.id)''')
+        count = self.env.cr.rowcount
+        self.env['rms.sage.stock.line'].invalidate_model(['sage_warehouse_id'])
+        return count
+
+    @api.model
+    def _setup_default_links(self):
+        """Da de alta y enlaza los almacenes Sage de las 3 empresas con los de
+        Odoo (RMS1..7 / ET1..7 / RJB1..7), los alias (AL7 = A.7...) y los
+        almacenes dudosos sin enlazar. Idempotente; se deshace con
+        _undo_default_links(). Devuelve un resumen."""
+        Warehouse = self.env['stock.warehouse'].sudo().with_context(active_test=False)
+        Line = self.env['rms.sage.stock.line'].sudo()
+        me = self.sudo()
+        summary = {'created': [], 'linked': [], 'unchanged': [], 'aliases': [], 'doubtful': [],
+                   'missing_odoo': [], 'relinked_lines': 0}
+        for sage_code, prefix in self.ODOO_PREFIX.items():
+            for code, number in self.DEFAULT_LINKS.items():
+                odoo_code = '%s%d' % (prefix, number)
+                wh = Warehouse.search([('code', '=', odoo_code)], limit=1)
+                label = '%s %s -> %s' % (sage_code, code, odoo_code)
+                if not wh:
+                    summary['missing_odoo'].append(label)
+                    continue
+                location = wh.lot_stock_id
+                rec = me.search([('sage_company_code', '=', sage_code), ('code', '=', code)])
+                if not rec:
+                    me.create({'sage_company_code': sage_code, 'code': code, 'name': self.SITE_NAMES[number],
+                               'company_id': wh.company_id.id, 'location_id': location.id, 'auto_created': True})
+                    summary['created'].append(label)
+                elif rec.location_id != location or rec.company_id != wh.company_id or rec.alias_of_id:
+                    vals = {'location_id': location.id, 'company_id': wh.company_id.id, 'alias_of_id': False}
+                    if not rec.auto_linked:
+                        vals.update(auto_linked=True, auto_previous_location_id=rec.location_id.id)
+                    rec.write(vals)
+                    summary['linked'].append(label)
+                else:
+                    summary['unchanged'].append(label)
+            for alias, main_code in self.DEFAULT_ALIASES.items():
+                main = me.search([('sage_company_code', '=', sage_code), ('code', '=', main_code)])
+                if not main:
+                    continue
+                rec = me.search([('sage_company_code', '=', sage_code), ('code', '=', alias)])
+                label = '%s %s = %s' % (sage_code, alias, main_code)
+                if not rec:
+                    me.create({'sage_company_code': sage_code, 'code': alias, 'name': main.name,
+                               'company_id': main.company_id.id, 'alias_of_id': main.id, 'auto_created': True})
+                    summary['aliases'].append(label + ' (nuevo)')
+                elif rec.alias_of_id != main:
+                    vals = {'alias_of_id': main.id, 'company_id': main.company_id.id, 'location_id': False}
+                    if not rec.auto_linked:
+                        vals.update(auto_linked=True, auto_previous_location_id=rec.location_id.id)
+                    rec.write(vals)
+                    summary['aliases'].append(label)
+            # Dudosos: se dan de alta si aparecen en las líneas de Sage, sin enlazar.
+            present = Line.read_group([('is_current', '=', True), ('sage_company_code', '=', sage_code),
+                                       ('warehouse_code', 'in', list(self.DOUBTFUL))],
+                                      ['company_id'], ['warehouse_code', 'company_id'], lazy=False)
+            for group in present:
+                code = group['warehouse_code']
+                rec = me.search([('sage_company_code', '=', sage_code), ('code', '=', code)])
+                if not rec and group['company_id']:
+                    me.create({'sage_company_code': sage_code, 'code': code,
+                               'name': '%s — dudoso, pendiente Administración' % code,
+                               'company_id': group['company_id'][0], 'auto_created': True})
+                summary['doubtful'].append('%s %s (%d líneas)' % (sage_code, code, group['__count']))
+        summary['relinked_lines'] = self._relink_lines()
+        self.env['rms.sage.stock.line'].sudo()._update_duplicates()
+        return summary
+
+    @api.model
+    def _undo_default_links(self):
+        """Deshace _setup_default_links: borra lo que creó y devuelve los
+        enlaces que cambió a como estaban."""
+        me = self.sudo()
+        changed = me.search([('auto_linked', '=', True)])
+        for rec in changed:
+            rec.write({'location_id': rec.auto_previous_location_id.id, 'alias_of_id': False,
+                       'auto_linked': False, 'auto_previous_location_id': False})
+        created = me.search([('auto_created', '=', True)])
+        removed = len(created)
+        created.unlink()
+        relinked = self._relink_lines()
+        self.env['rms.sage.stock.line'].sudo()._update_duplicates()
+        return {'restored': len(changed), 'removed': removed, 'relinked_lines': relinked}
 
 
 class SageSnapshot(models.Model):
@@ -205,7 +337,7 @@ class SageStockLine(models.Model):
         # de serie entre modelos distintos (eso no es un duplicado).
         self.env.cr.execute('''UPDATE rms_sage_stock_line AS l SET dup_count = d.n FROM
             (SELECT serial_normalized, COALESCE(model_normalized, '') AS model,
-                    count(DISTINCT COALESCE(sage_company_code, '') || '|' || COALESCE(warehouse_code, '') || '|' || COALESCE(state, '')) AS n
+                    count(DISTINCT COALESCE(sage_company_code, '') || '|' || COALESCE(sage_warehouse_id::text, warehouse_code, '') || '|' || COALESCE(state, '')) AS n
                FROM rms_sage_stock_line
               WHERE is_current AND serial_normalized <> '' AND stock_kind = 'stock' AND quantity > 0 GROUP BY 1, 2) AS d
             WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0 AND l.serial_normalized = d.serial_normalized
@@ -308,7 +440,7 @@ class SageStockLine(models.Model):
         for line in self:
             groups[line.company_id.id].append(line)
         warehouses = self.env['rms.sage.warehouse'].search([('sage_company_code', 'in', self.mapped('sage_company_code'))])
-        wh_map = {(w.company_id.id, w.sage_company_code, w.code): w.id for w in warehouses}
+        wh_map = {(w.company_id.id, w.sage_company_code, w.code): w._main().id for w in warehouses}
         for company, lines in groups.items():
             keys = {(line.article_code, line.model_code, line.state) for line in lines}
             resolved = self._resolve_article_values(keys, company)

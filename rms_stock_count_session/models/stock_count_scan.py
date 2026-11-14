@@ -859,7 +859,7 @@ class RmsStockCountScan(models.Model):
         if keys:
             self.env['rms.sage.stock.line'].sudo().flush_model()
             self.env.cr.execute("""
-                SELECT l.serial_normalized, l.sage_company_code, l.warehouse_code,
+                SELECT l.serial_normalized, l.sage_company_code, COALESCE(w.code, l.warehouse_code),
                        COALESCE(w.name, l.warehouse_code), CASE l.state WHEN 'demo' THEN 'Demo' WHEN '2mano' THEN '2Mano' ELSE 'Nuevo' END, l.model_code,
                        l.product_id, l.company_id, l.brand_categ_id, l.sage_warehouse_id,
                        COALESCE(l.in_deposit, FALSE), l.article_code, l.article_name

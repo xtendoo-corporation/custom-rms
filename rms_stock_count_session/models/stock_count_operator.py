@@ -184,9 +184,15 @@ class RmsStockCountOperator(models.Model):
         if not location:
             return self.env["rms.sage.warehouse"]
         path = location.parent_path or ""
-        warehouses = self.env["rms.sage.warehouse"].sudo().search([("location_id", "!=", False)])
-        return warehouses.filtered(lambda w: w.location_id.parent_path and (
+        Warehouse = self.env["rms.sage.warehouse"].sudo()
+        warehouses = Warehouse.search([("location_id", "!=", False), ("alias_of_id", "=", False)])
+        found = warehouses.filtered(lambda w: w.location_id.parent_path and (
             w.location_id.parent_path.startswith(path) or path.startswith(w.location_id.parent_path)))
+        # Misma nave física, las 3 empresas: RMS7 / ET7 / RJB7 = Sevilla.
+        sites = set(found.mapped("site_number")) - {0}
+        if sites:
+            found |= warehouses.filtered(lambda w: w.site_number in sites)
+        return found
 
     def scanner_progress(self):
         """Marcador fijo del escáner: avance del almacén Sage donde se cuenta
@@ -196,9 +202,12 @@ class RmsStockCountOperator(models.Model):
         session = self.session_id
         session.check_access("read")
         warehouses = self._progress_warehouses()
+        # Un nombre por nave (las 3 empresas de Sevilla son "Sevilla (A.7)").
+        names = list(dict.fromkeys(
+            "%s (%s)" % (w.name, w.code) if w.name != w.code else w.code
+            for w in warehouses.sorted(lambda w: (w.sage_company_code, w.code))))
         result = {
-            "site": " + ".join(
-                "%s (%s)" % (w.name, w.code) if w.name != w.code else w.code for w in warehouses[:3]),
+            "site": " + ".join(names[:3]) + (" + %d más" % (len(names) - 3) if len(names) > 3 else ""),
             "has_sage": bool(warehouses),
             "total": 0, "counted": 0, "pending": 0,
         }
@@ -266,8 +275,9 @@ class RmsStockCountOperator(models.Model):
         self.env["rms.stock.count.scan"].flush_model()
         self.env.cr.execute(SQL("""
             SELECT l.id, l.article_code, l.article_name, l.model_code, l.serial, l.state,
-                   l.sage_company_code, l.warehouse_code, l.product_id
+                   l.sage_company_code, COALESCE(w.code, l.warehouse_code), l.product_id
               FROM rms_sage_stock_line l
+              LEFT JOIN rms_sage_warehouse w ON w.id = l.sage_warehouse_id
              WHERE %s
                AND NOT EXISTS (
                    SELECT 1 FROM rms_stock_count_scan sc
