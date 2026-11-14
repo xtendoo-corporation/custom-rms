@@ -563,7 +563,7 @@ class RmsStockCountScan(models.Model):
         ])
         verdicts = self._sage_verdict([scan.lot_name or '' for scan in scans], operator.session_id,
                                       [scan.product_id.id for scan in scans],
-                                      [scan.product_state_id.code for scan in scans])
+                                      [scan.product_state_id.code for scan in scans], operator=operator)
         payloads = [scan.with_context(sage_batch=True)._scanner_payload() for scan in scans]
         moved = scans._moved_after_labels()
         for scan, payload, verdict in zip(scans, payloads, verdicts):
@@ -817,7 +817,7 @@ class RmsStockCountScan(models.Model):
 
         if not self.env.context.get("sage_batch"):
             payload['sage'] = self._sage_verdict([self.lot_name or ''], self.session_id, self.product_id,
-                                                 [self.product_state_id.code])[0]
+                                                 [self.product_state_id.code], operator=self.operator_id)[0]
             payload['moved_after'] = self._moved_after_labels().get(self.id, '')
         return payload
 
@@ -845,7 +845,7 @@ class RmsStockCountScan(models.Model):
         scans._compute_sage_suggestion()
 
     @api.model
-    def _sage_verdict(self, serials, session, product=False, states=None):
+    def _sage_verdict(self, serials, session, product=False, states=None, operator=None):
         """Single indexed lookup; deliberately never selects quantity or cost.
 
         Sage locations from other companies are exposed only as this compact
@@ -862,7 +862,7 @@ class RmsStockCountScan(models.Model):
                 SELECT l.serial_normalized, l.sage_company_code, COALESCE(w.code, l.warehouse_code),
                        COALESCE(w.name, l.warehouse_code), CASE l.state WHEN 'demo' THEN 'Demo' WHEN '2mano' THEN '2Mano' ELSE 'Nuevo' END, l.model_code,
                        l.product_id, l.company_id, l.brand_categ_id, l.sage_warehouse_id,
-                       COALESCE(l.in_deposit, FALSE), l.article_code, l.article_name
+                       COALESCE(l.in_deposit, FALSE), l.article_code, l.article_name, COALESCE(w.site_number, 0)
                   FROM rms_sage_stock_line l
                   LEFT JOIN rms_sage_warehouse w ON w.id = l.sage_warehouse_id
                  WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0 AND l.serial_normalized <> ''
@@ -871,6 +871,11 @@ class RmsStockCountScan(models.Model):
             """, (keys,))
             for row in self.env.cr.fetchall():
                 matches.setdefault(row[0], []).append(row)
+        # Nave física donde se cuenta (Sevilla = 7): un equipo que Sage solo
+        # tiene en otra nave (o en un almacén dudoso) sale en ámbar "wh".
+        sites = set()
+        if operator and session.sage_mode == 'global':
+            sites = set(operator.sudo()._progress_warehouses().mapped('site_number')) - {0}
         result = []
         pid = product.id if product and not isinstance(product, list) and len(product) == 1 else False
         for index, key in enumerate(normalized):
@@ -891,8 +896,10 @@ class RmsStockCountScan(models.Model):
                 # Checklist global: estar en Sage (cualquier empresa/almacén) es
                 # verde, salvo que el estado elegido no coincida con Sage.
                 chosen = SAGE_STATE_BY_CODE.get(states[index] if states else None)
+                elsewhere = bool(sites and rows and rows[0][13] not in sites)
                 v = ('nos' if not key else 'none' if not rows else 'dup' if len(rows) > 1
-                     else 'dep' if rows[0][10] else 'est' if chosen and chosen != rows[0][4] else 'ok')
+                     else 'dep' if rows[0][10] else 'wh' if elsewhere
+                     else 'est' if chosen and chosen != rows[0][4] else 'ok')
             else:
                 v = ('nos' if not key else 'none' if not rows else 'dup' if len(rows) > 1
                      else 'dep' if rows[0][10]
@@ -916,7 +923,7 @@ class RmsStockCountScan(models.Model):
         records = [self.browse(scan["id"]) if scan else self.browse() for scan in scans]
         verdicts = self._sage_verdict([scan.get('lot_name', '') if scan else '' for scan in scans],
                                       operator.session_id, [rec.product_id.id for rec in records],
-                                      [rec.product_state_id.code for rec in records])
+                                      [rec.product_state_id.code for rec in records], operator=operator)
         for item, verdict in zip(results, verdicts):
             item.pop('state', None)
             item['sage'] = verdict

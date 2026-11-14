@@ -94,6 +94,13 @@ class TestSageSites(TransactionCase):
         self.assertEqual(operator.scanner_progress()['counted'], 1)
         found = operator.scanner_sage_search('SITE-P')
         self.assertEqual({r['serial'] for r in found}, {'SITE-P-01', 'SITE-P-03'})
+        # Un equipo que Sage tiene en Madrid, leído en Sevilla: ámbar "otra nave".
+        madrid = self.Scan.scanner_register(operator.id, 'SITE-P-MAD')
+        self.assertEqual(madrid['scan']['sage']['v'], 'wh')
+        self.assertEqual(madrid['scan']['sage']['h'][0][1], 'AL1')
+        self.assertEqual(self.Scan.browse(madrid['scan']['id']).scanner_change_state(
+            self.env.ref('rms_product_state.state_new').id)['sage']['v'], 'wh')
+        self.assertEqual(operator.scanner_progress()['review'], 1)
 
     def test_doubtful_warehouse_is_registered_but_not_linked(self):
         self._line('02', 'SITE-D-1', warehouse='A.4')

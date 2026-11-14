@@ -694,7 +694,12 @@ export class StockCountScan extends Component {
         else if (kind === "est") { text = `Estado distinto: Sage dice ${stateName(first[3])}, has marcado ${sage.st || "otro"}`; detail = `${scan.product_name || first[4] || ""} · ${companyName(first[0])} · ${whName(first)}. Si es correcto, pulsa el estado y vuelve a leerlo; si no, lo revisa Administración`; }
         else if (kind === "dep") { text = "Sage lo tiene en depósito en un cliente"; detail = `${scan.product_name || first[4] || ""} · ${companyName(first[0])} · ${whName(first)} · ${stateName(first[3])}. Apártalo y avisa a Administración`; }
         else if (kind === "here") { text = `En Sage aquí (${first[2] || first[1] || "esta zona"}) · ${stateName(first[3])}`; }
-        else if (kind === "wh") { text = `Sage lo tiene en ${first[2] || first[1]} · ${stateName(first[3])}`; detail = "Déjalo donde está"; }
+        else if (kind === "wh") {
+            const global = this.state.operatorState?.session?.sage_mode === "global";
+            text = global ? `Sage lo tiene en otra nave: ${companyName(first[0])} · ${whName(first)} · ${stateName(first[3])}`
+                : `Sage lo tiene en ${first[2] || first[1]} · ${stateName(first[3])}`;
+            detail = global ? "Cuéntalo aquí: queda en la lista de traspasos para Administración" : "Déjalo donde está";
+        }
         else if (kind === "co") { text = `Sage lo tiene en otra empresa: ${{ "01": "RMS", "02": "Espacio", "03": "RJB" }[first[0]] || first[0]}`; detail = "Déjalo donde está"; }
         else if (kind === "none") { text = "No está en Sage"; detail = this.state.operatorState?.session?.sage_mode === "global" ? "Se dará de alta en la revisión" : "Déjalo donde está"; }
         else if (kind === "dup") { text = `Duplicado en Sage: ${hits.map((h) => `${companyName(h[0])} · ${whName(h)} · ${stateName(h[3])}`).join(" y ")}`; detail = "Avísalo a Administración"; }
@@ -789,7 +794,7 @@ export class StockCountScan extends Component {
             case "twice":
                 return `Ya contado en ${scan.also_in}`;
             case "wh":
-                return `Sage: ${first[2] || first[1] || "otro almacén"}`;
+                return `Sage lo tiene en ${first[2] || first[1] || "otro almacén"}`;
             case "co":
                 return "Sage: otra empresa";
             case "none":

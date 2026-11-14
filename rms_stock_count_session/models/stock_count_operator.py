@@ -237,7 +237,7 @@ class RmsStockCountOperator(models.Model):
                              ("scan_type", "in", ("serial", "unknown"))])
         serials = scans.filtered(lambda s: s.scan_type == "serial" and s.lot_name)
         verdicts = Scan._sage_verdict([s.lot_name for s in serials], session, [s.product_id.id for s in serials],
-                                      [s.product_state_id.code for s in serials]) if serials else []
+                                      [s.product_state_id.code for s in serials], operator=self) if serials else []
         kinds = [v.get("v") for v in verdicts]
         result.update(
             not_in_sage=kinds.count("none"),
