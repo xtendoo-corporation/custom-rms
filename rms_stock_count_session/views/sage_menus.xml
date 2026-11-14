@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Barra de "Inventario Sage" agrupada (14-nov, a petición del usuario):
+            Recuentos | Checklist ▾ | Sage ▾ | Configuración ▾
+        Este archivo se carga el último y recoloca los menús definidos en los
+        demás archivos (mismos id). No se toca sage_library_views.xml porque en
+        el servidor lleva el icono de la app (rama de iconos).
+    -->
+    <record id="action_sage_checklist_moved" model="ir.actions.act_window">
+        <field name="name">Movidos en Sage tras el recuento</field>
+        <field name="res_model">rms.sage.checklist</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_moved_after': 1}</field>
+    </record>
+
+    <!-- Recuentos (día a día) -->
+    <menuitem id="menu_sage_counts" name="Recuentos" parent="menu_sage_root" action="action_sage_counts" sequence="10"/>
+
+    <!-- Checklist ▾ -->
+    <menuitem id="menu_sage_group_checklist" name="Checklist" parent="menu_sage_root" sequence="20"
+              groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_checklist" name="Checklist Sage (contado y lo que falta)" parent="menu_sage_group_checklist"
+              action="action_sage_checklist" sequence="10" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_checklist_extra" name="Altas (no están en Sage)" parent="menu_sage_group_checklist"
+              action="action_sage_checklist_extra" sequence="20" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_checklist_moved" name="Movidos en Sage tras el recuento" parent="menu_sage_group_checklist"
+              action="action_sage_checklist_moved" sequence="30" groups="stock.group_stock_manager"/>
+
+    <!-- Sage ▾ (consultar y cargar datos) -->
+    <menuitem id="menu_sage_group_data" name="Sage" parent="menu_sage_root" sequence="30"
+              groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_stock" name="Existencias Sage" parent="menu_sage_group_data"
+              action="action_sage_stock" sequence="10" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_serial_moves" name="Movimientos de Sage" parent="menu_sage_group_data"
+              action="action_sage_serial_moves" sequence="20" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_sync_runs" name="Sincronizaciones (cargas automáticas)" parent="menu_sage_group_data"
+              action="action_sage_sync_runs" sequence="30" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_folder" name="Carpeta Sage (versiones cargadas)" parent="menu_sage_group_data"
+              action="action_sage_snapshots" sequence="40" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_upload" name="Cargar exportación a mano" parent="menu_sage_group_data"
+              action="action_sage_import" sequence="50" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_article_import" name="Cargar maestro de artículos" parent="menu_sage_group_data"
+              action="action_sage_article_import" sequence="60" groups="stock.group_stock_manager"/>
+
+    <!-- Configuración ▾ -->
+    <menuitem id="menu_sage_group_config" name="Configuración" parent="menu_sage_root" sequence="90"
+              groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_unmatched" name="Artículos sin producto" parent="menu_sage_group_config"
+              action="action_sage_unmatched" sequence="10" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_articles" name="Maestro de artículos" parent="menu_sage_group_config"
+              action="action_sage_articles" sequence="20" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_warehouses" name="Almacenes Sage" parent="menu_sage_group_config"
+              action="action_sage_warehouses" sequence="30" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_brand_prefixes" name="Prefijos de marcas" parent="menu_sage_group_config"
+              action="action_sage_brand_prefixes" sequence="40" groups="stock.group_stock_manager"/>
+</odoo>
