@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Formulario estándar de Reparación + datos y botones del SAT -->
+    <record id="view_repair_order_form_sat" model="ir.ui.view">
+        <field name="name">repair.order.form.rms.sat</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="repair.view_repair_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header/button[@name='action_validate']" position="before">
+                <button name="action_rms_register_entry" type="object" string="Registrar entrada" class="oe_highlight"
+                        invisible="rms_in_sat or state == 'cancel' or rms_stage == 'delivered'"
+                        groups="repair_security.group_repair_user"/>
+                <button name="action_rms_send_factory" type="object" string="Enviar a fábrica"
+                        invisible="not rms_in_sat or rms_stage == 'factory' or state == 'cancel'"
+                        groups="repair_security.group_repair_user"/>
+                <button name="action_rms_back_from_factory" type="object" string="Recibido de fábrica" class="oe_highlight"
+                        invisible="rms_stage != 'factory'" groups="repair_security.group_repair_user"/>
+                <button name="action_rms_deliver" type="object" string="Entregar / enviar al cliente"
+                        invisible="not rms_in_sat or rms_stage == 'factory'"
+                        class="oe_highlight" groups="repair_security.group_repair_user"
+                        confirm="El equipo sale del SAT hacia el cliente. ¿Seguir?"/>
+            </xpath>
+            <xpath expr="//header/button[@name='action_create_sale_order']" position="after">
+                <button name="action_rms_add_used_alternative" type="object" string="Añadir alternativa 2ª mano"
+                        invisible="not sale_order_id or rms_parts_choice or state in ('done', 'cancel')"
+                        groups="repair_security.group_repair_user"/>
+                <button name="action_rms_choose_used" type="object" string="Cliente elige 2ª mano"
+                        invisible="not sale_order_id or rms_parts_choice or state in ('done', 'cancel')"
+                        groups="repair_security.group_repair_user"/>
+                <button name="action_rms_choose_new" type="object" string="Cliente elige nuevo"
+                        invisible="not sale_order_id or rms_parts_choice or state in ('done', 'cancel')"
+                        groups="repair_security.group_repair_user"/>
+                <button name="action_rms_print_label" type="object" string="Etiqueta del equipo" invisible="not lot_id"/>
+            </xpath>
+            <xpath expr="//div[hasclass('oe_title')]" position="before">
+                <widget name="web_ribbon" title="Atascada" bg_color="text-bg-danger" invisible="not rms_late"/>
+            </xpath>
+            <xpath expr="//div[hasclass('oe_title')]" position="after">
+                <div class="mb-2">
+                    <field name="rms_stage" widget="statusbar" options="{'clickable': '1'}"
+                           statusbar_visible="received,diagnosis,quoted,accepted,repair,ready,delivered"/>
+                </div>
+            </xpath>
+            <xpath expr="//field[@name='product_id']" position="after">
+                <field name="rms_serial_in" invisible="lot_id or rms_in_sat"
+                       placeholder="Nº de serie (se da de alta al registrar la entrada)"/>
+            </xpath>
+            <xpath expr="//field[@name='schedule_date']" position="before">
+                <field name="rms_site" required="1" readonly="state != 'draft'"/>
+                <field name="rms_entry_way"/>
+            </xpath>
+            <xpath expr="//notebook/page[@name='parts']" position="before">
+                <page string="Entrada SAT" name="rms_sat">
+                    <group>
+                        <group string="Equipo del cliente">
+                            <field name="rms_fault"/>
+                            <field name="rms_accessories" placeholder="Fuente, cables, flight case…"/>
+                            <field name="rms_in_sat"/>
+                            <field name="rms_entry_date"/>
+                            <field name="rms_entry_move_id" groups="stock.group_stock_manager"/>
+                            <field name="rms_exit_move_id" groups="stock.group_stock_manager"/>
+                        </group>
+                        <group string="Tiempos">
+                            <field name="rms_stage_date"/>
+                            <field name="rms_days_stage"/>
+                            <field name="rms_days_total"/>
+                            <field name="rms_late" invisible="1"/>
+                            <field name="rms_parts_choice"/>
+                        </group>
+                        <group string="Fábrica (RA)" invisible="not rms_factory_partner_id">
+                            <field name="rms_factory_partner_id" readonly="1"/>
+                            <field name="rms_rma_number"/>
+                            <field name="rms_factory_sent_date"/>
+                            <field name="rms_factory_back_date"/>
+                            <field name="rms_factory_days"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Kanban por fase del SAT -->
+    <record id="view_repair_order_kanban_sat" model="ir.ui.view">
+        <field name="name">repair.order.kanban.rms.sat</field>
+        <field name="model">repair.order</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="rms_stage" quick_create="false" sample="1" group_create="false"
+                    group_delete="false" group_edit="false" records_draggable="1">
+                <field name="rms_late"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="d-flex justify-content-between">
+                            <field name="name" class="fw-bolder"/>
+                            <span t-if="record.rms_late.raw_value" class="badge text-bg-danger">Atascada</span>
+                        </div>
+                        <field name="partner_id"/>
+                        <div class="text-muted">
+                            <field name="product_id"/>
+                            <span t-if="record.lot_id.raw_value"> · <field name="lot_id"/></span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-1 small">
+                            <field name="rms_site"/>
+                            <span><field name="rms_days_stage"/> d en fase · <field name="rms_days_total"/> d total</span>
+                        </div>
+                        <footer>
+                            <field name="state" widget="label_selection"
+                                   options="{'classes': {'draft': 'info', 'cancel': 'danger', 'done': 'success', 'under_repair': 'secondary'}}"/>
+                            <field name="user_id" widget="many2one_avatar_user" class="ms-auto"/>
+                        </footer>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_repair_order_list_sat" model="ir.ui.view">
+        <field name="name">repair.order.list.rms.sat</field>
+        <field name="model">repair.order</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="rms_late" sample="1">
+                <field name="name"/>
+                <field name="rms_site"/>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="lot_id" optional="show"/>
+                <field name="rms_stage"/>
+                <field name="rms_days_stage"/>
+                <field name="rms_days_total"/>
+                <field name="state" optional="hide"/>
+                <field name="user_id" optional="show"/>
+                <field name="rms_late" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_repair_order_list_factory" model="ir.ui.view">
+        <field name="name">repair.order.list.rms.factory</field>
+        <field name="model">repair.order</field>
+        <field name="priority">60</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="rms_late" create="false">
+                <field name="name"/>
+                <field name="rms_site"/>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="lot_id"/>
+                <field name="rms_factory_partner_id"/>
+                <field name="rms_rma_number"/>
+                <field name="rms_factory_sent_date"/>
+                <field name="rms_factory_days"/>
+                <field name="rms_late" column_invisible="1"/>
+                <button name="action_rms_back_from_factory" type="object" string="Recibido de fábrica"
+                        class="btn-link" groups="repair_security.group_repair_user"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_repair_order_search_sat" model="ir.ui.view">
+        <field name="name">repair.order.search.rms.sat</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="repair.view_repair_order_form_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='product_id']" position="after">
+                <field name="lot_id"/>
+                <field name="rms_rma_number"/>
+                <filter name="rms_open" string="Abiertas en el SAT"
+                        domain="[('rms_stage', 'not in', ('delivered', 'cancel'))]"/>
+                <filter name="rms_madrid" string="Madrid" domain="[('rms_site', '=', 'madrid')]"/>
+                <filter name="rms_sevilla" string="Sevilla" domain="[('rms_site', '=', 'sevilla')]"/>
+                <filter name="rms_factory" string="En fábrica" domain="[('rms_stage', '=', 'factory')]"/>
+                <filter name="rms_group_stage" string="Fase SAT" context="{'group_by': 'rms_stage'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_rms_sat_repairs" model="ir.actions.act_window">
+        <field name="name">Reparaciones SAT</field>
+        <field name="res_model">repair.order</field>
+        <field name="view_mode">kanban,list,form,pivot,graph</field>
+        <field name="view_ids" eval="[Command.clear(),
+            Command.create({'view_mode': 'kanban', 'view_id': ref('view_repair_order_kanban_sat')}),
+            Command.create({'view_mode': 'list', 'view_id': ref('view_repair_order_list_sat')})]"/>
+        <field name="context">{'search_default_rms_open': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Registra el primer equipo que entra en el SAT</p>
+            <p>Indica cliente, equipo, nº de serie, sede, avería y accesorios, y pulsa "Registrar entrada".</p>
+        </field>
+    </record>
+
+    <record id="action_rms_sat_factory" model="ir.actions.act_window">
+        <field name="name">En fábrica</field>
+        <field name="res_model">repair.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_repair_order_list_factory"/>
+        <field name="domain">[('rms_stage', '=', 'factory')]</field>
+    </record>
+
+    <!-- Asistente "Enviar a fábrica" -->
+    <record id="view_rms_repair_factory_wizard" model="ir.ui.view">
+        <field name="name">rms.repair.factory.wizard.form</field>
+        <field name="model">rms.repair.factory.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Enviar a fábrica">
+                <group>
+                    <field name="repair_id" readonly="1"/>
+                    <field name="partner_id"/>
+                    <field name="rma_number"/>
+                    <field name="date"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Enviar" class="btn-primary"/>
+                    <button special="cancel" string="Cancelar"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

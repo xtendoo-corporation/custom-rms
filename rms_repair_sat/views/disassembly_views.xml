@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_disassembly_form" model="ir.ui.view">
+        <field name="name">rms.disassembly.form</field>
+        <field name="model">rms.disassembly</field>
+        <field name="arch" type="xml">
+            <form string="Despiece">
+                <header>
+                    <button name="action_done" type="object" string="Despiezar" class="oe_highlight"
+                            invisible="state != 'draft'"
+                            confirm="El equipo sale del stock y entran las piezas como 2ª mano. ¿Seguir?"/>
+                    <button name="action_load_bom" type="object" string="Cargar plantilla"
+                            invisible="state != 'draft' or not bom_id"/>
+                    <button name="action_save_bom" type="object" string="Guardar como plantilla"
+                            invisible="state != 'draft' or bom_id"/>
+                    <button name="action_print_labels" type="object" string="Imprimir etiquetas"
+                            class="oe_highlight" invisible="state != 'done'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_title"><h1><field name="name"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="product_id" readonly="state != 'draft'"/>
+                            <field name="lot_id" readonly="state != 'draft'" context="{'default_product_id': product_id}"/>
+                            <field name="location_id" readonly="state != 'draft'"/>
+                            <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
+                        </group>
+                        <group>
+                            <field name="bom_id" readonly="state != 'draft'"/>
+                            <field name="cost_total" readonly="state != 'draft'" groups="stock.group_stock_manager"/>
+                            <field name="allocation" readonly="state != 'draft'"/>
+                            <field name="date_done"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Piezas" name="lines">
+                            <field name="line_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="product_id"/>
+                                    <field name="tracking" optional="show"/>
+                                    <field name="quantity"/>
+                                    <field name="serial" optional="show"/>
+                                    <field name="cost_unit" groups="stock.group_stock_manager"/>
+                                    <field name="lot_ids" widget="many2many_tags"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Movimientos" name="moves" invisible="state != 'done'">
+                            <field name="move_ids">
+                                <list>
+                                    <field name="product_id"/>
+                                    <field name="location_id"/>
+                                    <field name="location_dest_id"/>
+                                    <field name="quantity"/>
+                                    <field name="price_unit" groups="stock.group_stock_manager"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_rms_disassembly_list" model="ir.ui.view">
+        <field name="name">rms.disassembly.list</field>
+        <field name="model">rms.disassembly</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="product_id"/>
+                <field name="lot_id"/>
+                <field name="location_id"/>
+                <field name="date_done"/>
+                <field name="state" widget="badge" decoration-success="state == 'done'" decoration-info="state == 'draft'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_disassembly_search" model="ir.ui.view">
+        <field name="name">rms.disassembly.search</field>
+        <field name="model">rms.disassembly</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="product_id"/>
+                <field name="lot_id"/>
+                <filter name="draft" string="Borrador" domain="[('state', '=', 'draft')]"/>
+                <filter name="done" string="Hechos" domain="[('state', '=', 'done')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_rms_disassembly" model="ir.actions.act_window">
+        <field name="name">Despieces</field>
+        <field name="res_model">rms.disassembly</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Despieza un equipo para vender sus piezas de 2ª mano</p>
+            <p>El equipo sale del stock, sus piezas entran con lote propio, estado 2ª mano y el coste repartido.</p>
+        </field>
+    </record>
+
+    <!-- Botón "Despiezar" en la ficha del nº de serie -->
+    <record id="view_production_lot_form_rms_disassembly" model="ir.ui.view">
+        <field name="name">stock.lot.form.rms.disassembly</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_rms_disassemble" type="object" class="oe_stat_button" icon="fa-cubes"
+                        string="Despiezar" groups="repair_security.group_repair_user"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Resguardo de entrada: el PDF estándar de la reparación con avería,
+         accesorios, sede y condiciones. -->
+    <template id="report_repairorder_rms_sat" inherit_id="repair.report_repairorder">
+        <xpath expr="//div[@id='informations']" position="after">
+            <div id="rms_sat_entry" class="row mb-3" t-if="o.rms_site or o.rms_fault or o.rms_accessories">
+                <div class="col-6">
+                    <p t-if="o.rms_site" class="m-0"><strong>Sede SAT:</strong> <span t-field="o.rms_site"/></p>
+                    <p t-if="o.rms_entry_date" class="m-0"><strong>Entrada:</strong> <span t-field="o.rms_entry_date"/></p>
+                    <p t-if="o.rms_entry_way" class="m-0"><strong>Llega:</strong> <span t-field="o.rms_entry_way"/></p>
+                    <p t-if="o.under_warranty" class="m-0"><strong>En garantía</strong></p>
+                </div>
+                <div class="col-6">
+                    <p t-if="o.rms_fault" class="m-0"><strong>Avería indicada:</strong><br/><span t-field="o.rms_fault"/></p>
+                    <p t-if="o.rms_accessories" class="m-0"><strong>Accesorios entregados:</strong><br/><span t-field="o.rms_accessories"/></p>
+                </div>
+            </div>
+        </xpath>
+        <xpath expr="//div[hasclass('page')]" position="inside">
+            <div id="rms_sat_conditions" class="mt-4 small" t-if="o.rms_site">
+                <strong>Condiciones del servicio técnico</strong>
+                <ul class="mb-2">
+                    <li>El diagnóstico y el presupuesto se comunican antes de reparar; no se repara sin aceptación.</li>
+                    <li>Las reparaciones en garantía siguen las condiciones del fabricante.</li>
+                    <li>RMS solo responde de los accesorios indicados en este resguardo.</li>
+                    <li>Conserve este resguardo para recoger el equipo.</li>
+                </ul>
+                <div class="row mt-4">
+                    <div class="col-6">Firma del cliente:</div>
+                    <div class="col-6">Recibido por RMS:</div>
+                </div>
+            </div>
+        </xpath>
+    </template>
+</odoo>

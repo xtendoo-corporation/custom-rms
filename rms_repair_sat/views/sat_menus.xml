@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_rms_sat_root" name="SAT" sequence="164" web_icon="repair,static/description/icon.png"
+              groups="repair_security.group_repair_user"/>
+    <menuitem id="menu_rms_sat_repairs" name="Reparaciones" parent="menu_rms_sat_root" sequence="10"
+              action="action_rms_sat_repairs"/>
+    <menuitem id="menu_rms_sat_factory" name="En fábrica" parent="menu_rms_sat_root" sequence="20"
+              action="action_rms_sat_factory"/>
+    <menuitem id="menu_rms_sat_disassembly" name="Despieces" parent="menu_rms_sat_root" sequence="30"
+              action="action_rms_disassembly"/>
+    <menuitem id="menu_rms_sat_config" name="Configuración" parent="menu_rms_sat_root" sequence="90"
+              groups="repair_security.group_repair_manager"/>
+    <menuitem id="menu_rms_sat_setup" name="Preparar ubicaciones SAT" parent="menu_rms_sat_config" sequence="10"
+              action="action_rms_setup_sat"/>
+    <menuitem id="menu_rms_sat_sage" name="Crear reparaciones desde Sage" parent="menu_rms_sat_config" sequence="20"
+              action="action_rms_repair_sat_sage_import"/>
+    <menuitem id="menu_rms_sat_settings" name="Ajustes" parent="menu_rms_sat_config" sequence="30"
+              action="base_repair_config.action_repair_config_settings"/>
+</odoo>

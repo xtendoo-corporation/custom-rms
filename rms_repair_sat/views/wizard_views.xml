@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_repair_sat_sage_import" model="ir.ui.view">
+        <field name="name">rms.repair.sat.sage.import.form</field>
+        <field name="model">rms.repair.sat.sage.import</field>
+        <field name="arch" type="xml">
+            <form string="Crear reparaciones desde Sage">
+                <field name="available" invisible="1"/>
+                <div class="alert alert-warning" invisible="available">
+                    No está instalado el inventario de Sage: no hay datos que traer.
+                </div>
+                <p invisible="not available">
+                    Crea una reparación abierta por cada equipo que Sage tiene hoy en los almacenes del SAT,
+                    con el cliente "pendiente de asignar". Los que ya tienen reparación abierta no se repiten.
+                </p>
+                <group invisible="not available">
+                    <field name="warehouse_codes"/>
+                    <field name="preview_count"/>
+                    <field name="already_count"/>
+                    <field name="unmatched_count"/>
+                </group>
+                <footer>
+                    <button name="action_import" type="object" string="Crear reparaciones" class="btn-primary"
+                            invisible="not available"/>
+                    <button special="cancel" string="Cerrar"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_rms_repair_sat_sage_import" model="ir.actions.act_window">
+        <field name="name">Crear reparaciones desde Sage</field>
+        <field name="res_model">rms.repair.sat.sage.import</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <record id="action_rms_setup_sat" model="ir.actions.server">
+        <field name="name">Preparar ubicaciones SAT</field>
+        <field name="model_id" ref="stock.model_stock_warehouse"/>
+        <field name="state">code</field>
+        <field name="code">res = env['stock.warehouse']._rms_setup_sat()
+message = 'Creadas: %s. Ya existían: %s. Despiece: %s.' % (
+    ', '.join(res['creadas']) or 'ninguna', ', '.join(res['existentes']) or 'ninguna',
+    ', '.join(res['despiece']) or 'ya estaba')
+action = {'type': 'ir.actions.client', 'tag': 'display_notification',
+          'params': {'title': 'Ubicaciones SAT', 'message': message, 'sticky': True, 'type': 'success'}}</field>
+    </record>
+</odoo>
