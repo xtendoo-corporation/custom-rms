@@ -235,7 +235,9 @@ def move_rows(sage, lotes_db, year_db, table, since, companies):
     params = list(companies)
     if since and 'MODIFIED' in cols:
         where += " AND MODIFIED > ?"
-        params.append(since)
+        # Como fecha real, no como texto: el SQL Server de Sage está en español
+        # (día/mes) y '2026-11-13 14:07:06' en texto da "fuera de intervalo".
+        params.append(dt.datetime.fromisoformat(str(since)[:19]) if isinstance(since, str) else since)
     elif 'FECHA' in cols:
         where += " AND FECHA >= ?"
         params.append(dt.datetime.now() - dt.timedelta(days=int(os.environ.get('FIRST_RUN_DAYS', '45'))))
