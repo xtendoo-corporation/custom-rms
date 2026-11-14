@@ -15,3 +15,5 @@ from . import test_sage_global
 from . import test_sage_article
 
 from . import test_sage_deposits
+
+from . import test_sage_live

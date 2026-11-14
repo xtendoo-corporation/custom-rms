@@ -1,0 +1,4 @@
+# /etc/cron.d/sage-odoo-sync  — Sage en vivo -> Odoo (sandbox). Cada hora a los :20, de 07:20 a 22:20.
+# Evita las 03:00 y las 14:30 (copia de los dashboards); run.sh además sale si esa copia está en marcha.
+# Para pararlo: borrar este archivo (sudo rm /etc/cron.d/sage-odoo-sync).
+20 7-22 * * * 4dm1n /volume1/docker/sage-odoo-sync/run.sh

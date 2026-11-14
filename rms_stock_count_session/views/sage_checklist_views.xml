@@ -28,6 +28,12 @@
                 <field name="first_scanned_at" optional="hide"/>
                 <field name="multi_session" column_invisible="1"/>
                 <field name="in_deposit" optional="show"/>
+                <field name="deposit_partner" optional="show"/>
+                <field name="moved_after_count" optional="show"/>
+                <field name="moved_type" optional="show"/>
+                <field name="moved_date" optional="show"/>
+                <field name="moved_document" optional="hide"/>
+                <field name="moved_partner" optional="show"/>
             </list>
         </field>
     </record>
@@ -49,6 +55,8 @@
                 <separator/>
                 <filter name="in_warehouse" string="En la nave" domain="[('in_deposit', '=', False)]"/>
                 <filter name="in_deposit" string="En depósito en cliente" domain="[('in_deposit', '=', True)]"/>
+                <separator/>
+                <filter name="moved_after" string="Movidos tras el recuento" domain="[('moved_after_count', '=', True)]"/>
                 <separator/>
                 <filter name="rms" string="RMS (01)" domain="[('sage_company_code', '=', '01')]"/>
                 <filter name="espacio" string="Espacio (02)" domain="[('sage_company_code', '=', '02')]"/>
@@ -91,6 +99,10 @@
                 <field name="product_id"/>
                 <field name="product_state_id"/>
                 <field name="scan_type"/>
+                <field name="moved_after_count" optional="show"/>
+                <field name="moved_type" optional="show"/>
+                <field name="moved_date" optional="show"/>
+                <field name="moved_partner" optional="show"/>
             </list>
         </field>
     </record>
@@ -104,6 +116,8 @@
                 <field name="product_id"/>
                 <field name="session_id"/>
                 <filter name="no_product" string="Sin producto" domain="[('product_id', '=', False)]"/>
+                <filter name="moved_after" string="Movidos en Sage tras leerlos" domain="[('moved_after_count', '=', True)]"/>
+                <filter name="real_new" string="Altas reales (sin movimiento en Sage)" domain="[('moved_after_count', '=', False)]"/>
                 <group>
                     <filter name="by_session" string="Recuento" context="{'group_by': 'session_id'}"/>
                     <filter name="by_product" string="Producto" context="{'group_by': 'product_id'}"/>

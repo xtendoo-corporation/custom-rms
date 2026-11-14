@@ -173,6 +173,8 @@ class SageStockLine(models.Model):
     quantity = fields.Float(default=1)
     cost = fields.Float(groups=COST_GROUP)
     product_id = fields.Many2one('product.product', index=True)
+    partner_name = fields.Char(string='Cliente (depósito)',
+                               help='Depósitos de venta llegados por Sage en vivo: cliente que tiene el equipo.')
     product_tmpl_id = fields.Many2one(related='product_id.product_tmpl_id', store=True, index=True)
     match_state = fields.Selection([('ok', 'Resuelto'), ('ambiguo', 'Ambiguo'), ('sin_producto', 'Sin producto')], default='sin_producto', index=True)
     dup_count = fields.Integer(default=0)

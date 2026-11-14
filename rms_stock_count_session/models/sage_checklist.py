@@ -11,6 +11,8 @@ recuentos (menos los cancelados). No guardan nada: siempre al día.
 """
 from odoo import fields, models, tools
 
+from .sage_live import MOVE_TYPES
+
 SAGE_STATES = [('nuevo', 'Nuevo'), ('demo', 'Demo'), ('2mano', '2ª Mano')]
 
 # Lecturas válidas: nº de serie identificado, no ignoradas, de recuentos no
@@ -57,6 +59,12 @@ class SageChecklist(models.Model):
     state_mismatch = fields.Boolean(string='Estado distinto', readonly=True)
     multi_session = fields.Boolean(string='En varios recuentos', readonly=True)
     in_deposit = fields.Boolean(string='En depósito en cliente', readonly=True)
+    deposit_partner = fields.Char(string='Cliente del depósito', readonly=True)
+    moved_after_count = fields.Boolean(string='Movido en Sage tras contarlo', readonly=True)
+    moved_type = fields.Selection(MOVE_TYPES, string='Movimiento posterior', readonly=True)
+    moved_date = fields.Date(string='Fecha del movimiento', readonly=True)
+    moved_document = fields.Char(string='Documento Sage', readonly=True)
+    moved_partner = fields.Char(string='Cliente / proveedor del movimiento', readonly=True)
 
     def init(self):
         tools.drop_view_if_exists(self.env.cr, self._table)
@@ -71,6 +79,10 @@ class SageChecklist(models.Model):
                    -- Lo que Sage tiene en depósito en un cliente no falta en la nave.
                    CASE WHEN COALESCE(s.scan_count, 0) > 0 OR COALESCE(l.in_deposit, FALSE) THEN 0 ELSE 1 END AS pending_qty,
                    COALESCE(l.in_deposit, FALSE) AS in_deposit,
+                   dp.partner_name AS deposit_partner,
+                   mv.move_type IS NOT NULL AS moved_after_count,
+                   mv.move_type AS moved_type, mv.move_date AS moved_date,
+                   mv.document AS moved_document, mv.partner_name AS moved_partner,
                    COALESCE(s.session_count, 0) AS session_count,
                    COALESCE(s.scan_count, 0) AS scan_count,
                    s.first_scan_id, s.first_session_id, s.first_scanned_at,
@@ -94,6 +106,23 @@ class SageChecklist(models.Model):
                        AND (l.product_id IS NULL OR sc.product_id = l.product_id)
               ) s ON TRUE
               LEFT JOIN product_state ps ON ps.id = s.last_state_id
+              -- Último movimiento de Sage (Sage en vivo) desde el día en que se leyó.
+              LEFT JOIN LATERAL (
+                    SELECT m.move_type, m.move_date, m.document, m.partner_name
+                      FROM rms_sage_serial_move m
+                     WHERE s.first_scanned_at IS NOT NULL
+                       AND m.serial_normalized = l.serial_normalized
+                       AND m.move_date >= s.first_scanned_at::date
+                     ORDER BY m.move_date DESC, m.id DESC LIMIT 1
+              ) mv ON TRUE
+              -- Cliente que tiene el equipo según los depósitos de venta.
+              LEFT JOIN LATERAL (
+                    SELECT d.partner_name FROM rms_sage_stock_line d
+                     WHERE l.in_deposit AND d.is_current AND d.stock_kind = 'deposit' AND d.quantity > 0
+                       AND d.sage_company_code = l.sage_company_code
+                       AND d.serial_normalized = l.serial_normalized AND d.partner_name IS NOT NULL
+                     LIMIT 1
+              ) dp ON TRUE
              WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0 AND COALESCE(l.serial_normalized, '') <> ''
             )""" % (self._table, _VALID_SCANS))
 
@@ -116,6 +145,11 @@ class SageChecklistExtra(models.Model):
     location_id = fields.Many2one('stock.location', string='Ubicación', readonly=True)
     product_state_id = fields.Many2one('product.state', string='Estado físico', readonly=True)
     scanned_at = fields.Datetime(string='Fecha', readonly=True)
+    moved_after_count = fields.Boolean(string='Movido en Sage tras contarlo', readonly=True)
+    moved_type = fields.Selection(MOVE_TYPES, string='Movimiento posterior', readonly=True)
+    moved_date = fields.Date(string='Fecha del movimiento', readonly=True)
+    moved_document = fields.Char(string='Documento Sage', readonly=True)
+    moved_partner = fields.Char(string='Cliente / proveedor del movimiento', readonly=True)
 
     def init(self):
         tools.drop_view_if_exists(self.env.cr, self._table)
@@ -124,8 +158,20 @@ class SageChecklistExtra(models.Model):
             WITH scans AS (%s)
             SELECT sc.id AS id, sc.id AS scan_id, sc.session_id, sc.operator_id, sc.product_id,
                    COALESCE(sc.lot_name, sc.code) AS lot_name, sc.code, sc.scan_type,
-                   sc.location_id, sc.product_state_id, sc.scanned_at
+                   sc.location_id, sc.product_state_id, sc.scanned_at,
+                   mv.move_type IS NOT NULL AS moved_after_count,
+                   mv.move_type AS moved_type, mv.move_date AS moved_date,
+                   mv.document AS moved_document, mv.partner_name AS moved_partner
               FROM scans sc
+              -- Si Sage lo vendió o lo dejó en depósito después de leerlo, ya no
+              -- está en las existencias: no es un alta, es un movimiento.
+              LEFT JOIN LATERAL (
+                    SELECT m.move_type, m.move_date, m.document, m.partner_name
+                      FROM rms_sage_serial_move m
+                     WHERE m.serial_normalized = sc.serial_normalized
+                       AND m.move_date >= sc.scanned_at::date
+                     ORDER BY m.move_date DESC, m.id DESC LIMIT 1
+              ) mv ON TRUE
              WHERE sc.scan_type IN ('serial', 'unknown')
                AND NOT EXISTS (
                     SELECT 1 FROM rms_sage_stock_line l

@@ -565,9 +565,21 @@ class RmsStockCountScan(models.Model):
                                       [scan.product_id.id for scan in scans],
                                       [scan.product_state_id.code for scan in scans])
         payloads = [scan.with_context(sage_batch=True)._scanner_payload() for scan in scans]
-        for payload, verdict in zip(payloads, verdicts):
+        moved = scans._moved_after_labels()
+        for scan, payload, verdict in zip(scans, payloads, verdicts):
             payload['sage'] = verdict
+            payload['moved_after'] = moved.get(scan.id, '')
         return payloads
+
+    def _moved_after_labels(self):
+        """{lectura: 'depósito a ACME (14-11-2026)'} si Sage en vivo trae un
+        movimiento de ese nº de serie desde el día en que se leyó."""
+        pairs = [(scan.serial_normalized, scan.scanned_at.date()) for scan in self
+                 if scan.serial_normalized and scan.scanned_at]
+        latest = self.env['rms.sage.serial.move'].sudo()._latest_after(pairs)
+        return {scan.id: latest[(scan.serial_normalized, scan.scanned_at.date())]._label()
+                for scan in self if scan.serial_normalized and scan.scanned_at
+                and (scan.serial_normalized, scan.scanned_at.date()) in latest}
 
     @api.model
     def scanner_camera_config(self):
@@ -806,6 +818,7 @@ class RmsStockCountScan(models.Model):
         if not self.env.context.get("sage_batch"):
             payload['sage'] = self._sage_verdict([self.lot_name or ''], self.session_id, self.product_id,
                                                  [self.product_state_id.code])[0]
+            payload['moved_after'] = self._moved_after_labels().get(self.id, '')
         return payload
 
     def _counted_elsewhere(self):

@@ -271,6 +271,7 @@
                                                     <span class="text-muted">Sage:</span> <t t-esc="scan.sage.sa"/><t t-if="scan.sage.sn"> · <t t-esc="scan.sage.sn"/></t>
                                                 </div>
                                                 <div t-if="full.text"><t t-esc="full.text"/><t t-if="full.detail"> · <t t-esc="full.detail"/></t></div>
+                                                <div t-if="scan.moved_after" class="fw-bold text-warning-emphasis">Sage después: <t t-esc="scan.moved_after"/></div>
                                                 <div t-if="scan.type === 'unknown'"><strong>Pendiente de revisar: </strong><t t-esc="scan.message"/></div>
                                                 <div t-elif="scan.message and scan.message !== full.text" class="text-muted" t-esc="scan.message"/>
                                                 <div class="o_rms_cs_row_actions">

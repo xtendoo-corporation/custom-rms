@@ -52,7 +52,6 @@ class StockCountSageImport(models.TransientModel):
         except (ValueError, binascii.Error) as exc:
             raise UserError('El archivo no es válido.') from exc
         digest = hashlib.sha256(raw).hexdigest()
-        Snapshot = self.env['rms.sage.snapshot']
         workbook = None
         try:
             if (self.filename or '').lower().endswith('.csv') or not raw.startswith(b'PK'):
@@ -77,6 +76,25 @@ class StockCountSageImport(models.TransientModel):
                 workbook.close()
         if not vals:
             raise UserError('La exportación no contiene existencias.')
+        message, snapshots = self._load_values(vals, digest, raw)
+        # 'views' es obligatorio: la acción 'next' de la notificación la abre
+        # el cliente tal cual y Odoo 19 falla sin ella ("action.views is undefined").
+        action = {'type': 'ir.actions.act_window', 'name': 'Carpeta Sage', 'res_model': 'rms.sage.snapshot',
+                  'view_mode': 'list,form', 'views': [(False, 'list'), (False, 'form')],
+                  'domain': [('id', 'in', snapshots.ids)]}
+        if len(snapshots) == 1:
+            action.update(res_id=snapshots.id, view_mode='form', views=[(False, 'form')])
+            return action
+        return {'type': 'ir.actions.client', 'tag': 'display_notification',
+                'params': {'title': 'Carga de Sage completada', 'message': message,
+                           'type': 'success', 'sticky': True, 'next': action}}
+
+    def _load_values(self, vals, digest, raw=None):
+        """Camino común del archivo de Sage y de Sage en vivo (API): resuelve
+        productos y marcas, crea una versión por marca y la activa. Devuelve
+        (resumen, versiones)."""
+        self.ensure_one()
+        Snapshot = self.env['rms.sage.snapshot']
         Line = self.env['rms.sage.stock.line'].sudo().with_context(tracking_disable=True, mail_notrack=True)
         for val in vals:
             val.pop('session_id', None)
@@ -156,12 +174,15 @@ class StockCountSageImport(models.TransientModel):
         # El archivo se guarda una vez por marca (el almacenamiento lo deduplica),
         # pero SIN indexar su texto: indexar el CSV completo ~40 veces agotaba la
         # memoria del proceso de Odoo (MemoryError, 13-nov).
+        if raw is None:  # Sage en vivo: solo un resumen JSON pequeño
+            raw, mimetype = base64.b64decode(self.file_data), 'application/json'
+        else:
+            # 'application/csv' (no 'text/csv'): Odoo solo indexa los tipos text/*.
+            mimetype = ('application/csv' if not raw.startswith(b'PK') else
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         self.env['ir.attachment'].sudo().create([{
             'name': self.filename or 'Exportación Sage', 'res_model': snapshot._name, 'res_field': 'attachment',
-            'res_id': snapshot.id, 'raw': raw,
-            # 'application/csv' (no 'text/csv'): Odoo solo indexa los tipos text/*.
-            'mimetype': 'application/csv' if not raw.startswith(b'PK') else
-                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'res_id': snapshot.id, 'raw': raw, 'mimetype': mimetype,
         } for snapshot in snapshots])
         snapshots.invalidate_recordset(['attachment'])
         summary = []
@@ -180,17 +201,48 @@ class StockCountSageImport(models.TransientModel):
         message = '\n'.join(summary)
         # Keep the per-brand summary available after the notification disappears.
         snapshots.write({'import_summary': message})
-        # 'views' es obligatorio: la acción 'next' de la notificación la abre
-        # el cliente tal cual y Odoo 19 falla sin ella ("action.views is undefined").
-        action = {'type': 'ir.actions.act_window', 'name': 'Carpeta Sage', 'res_model': 'rms.sage.snapshot',
-                  'view_mode': 'list,form', 'views': [(False, 'list'), (False, 'form')],
-                  'domain': [('id', 'in', snapshots.ids)]}
-        if len(snapshots) == 1:
-            action.update(res_id=snapshots.id, view_mode='form', views=[(False, 'form')])
-            return action
-        return {'type': 'ir.actions.client', 'tag': 'display_notification',
-                'params': {'title': 'Carga de Sage completada', 'message': message,
-                           'type': 'success', 'sticky': True, 'next': action}}
+        return message, snapshots
+
+    def _vals_from_api_rows(self, rows):
+        """Filas de Sage en vivo -> mismos valores que el lector del archivo.
+        rows: [{warehouse_code, article_code, article_name, serial, quantity,
+        cost, partner_name}]. Un nº de serie por almacén y artículo; las
+        cantidades sin serie se suman."""
+        self.ensure_one()
+        prefixes = sorted(self.env['product.category'].search([('parent_id', '=', False)]).mapped('name'),
+                          key=len, reverse=True)
+        model_cache = {}
+        result, seen, quantities = [], set(), {}
+        for row in rows:
+            article = str(row.get('article_code') or '').strip()
+            warehouse = str(row.get('warehouse_code') or '').strip()
+            quantity = float(row.get('quantity') or 0)
+            if not article or not warehouse or not quantity:
+                continue
+            if article not in model_cache:
+                model_cache[article] = article_parts(self.env, article, prefixes)
+            model, state = model_cache[article]
+            serial = str(row.get('serial') or '').strip()
+            if serial.upper().replace(' ', '') in ('S/N', 'SN'):
+                serial = ''
+            val = {'warehouse_code': warehouse, 'article_code': article,
+                   'article_name': (str(row.get('article_name') or '').strip() or False),
+                   'model_code': model, 'state_hint': state, 'cost': float(row.get('cost') or 0),
+                   'partner_name': (str(row.get('partner_name') or '').strip() or False),
+                   'quantity': quantity}
+            key = (warehouse, normalize_code(article), normalize_serial(serial))
+            if serial:
+                if key in seen:
+                    continue
+                seen.add(key)
+                val['serial'] = serial
+            elif key in quantities:
+                quantities[key]['quantity'] += quantity
+                continue
+            else:
+                quantities[key] = val
+            result.append(val)
+        return result
 
     def _parse_rows(self, rows):
         """Los totales de artículo son cabeceras; sus lotes son el detalle."""

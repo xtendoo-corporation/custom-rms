@@ -28,3 +28,6 @@ access_rms_sage_checklist_extra_manager,rms.sage.checklist.extra.manager,model_r
 access_rms_sage_article_user,rms.sage.article.user,model_rms_sage_article,stock.group_stock_user,1,0,0,0
 access_rms_sage_article_manager,rms.sage.article.manager,model_rms_sage_article,stock.group_stock_manager,1,1,1,1
 access_rms_sage_article_import_manager,rms.sage.article.import.manager,model_rms_sage_article_import,stock.group_stock_manager,1,1,1,1
+access_rms_sage_serial_move_user,rms.sage.serial.move.user,model_rms_sage_serial_move,stock.group_stock_user,1,0,0,0
+access_rms_sage_serial_move_manager,rms.sage.serial.move.manager,model_rms_sage_serial_move,stock.group_stock_manager,1,1,1,1
+access_rms_sage_sync_run_manager,rms.sage.sync.run.manager,model_rms_sage_sync_run,stock.group_stock_manager,1,1,1,0

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Movimientos de Sage por nº de serie (Sage en vivo) -->
+    <record id="view_rms_sage_serial_move_list" model="ir.ui.view">
+        <field name="name">rms.sage.serial.move.list</field>
+        <field name="model">rms.sage.serial.move</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false">
+                <field name="move_date"/>
+                <field name="move_type"/>
+                <field name="sage_company_code"/>
+                <field name="article_code"/>
+                <field name="product_id" optional="show"/>
+                <field name="serial"/>
+                <field name="quantity" optional="hide"/>
+                <field name="warehouse_from"/>
+                <field name="warehouse_to" optional="show"/>
+                <field name="document"/>
+                <field name="partner_name"/>
+                <field name="sage_table" optional="hide"/>
+                <field name="sage_modified" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_sage_serial_move_search" model="ir.ui.view">
+        <field name="name">rms.sage.serial.move.search</field>
+        <field name="model">rms.sage.serial.move</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="serial"/>
+                <field name="article_code"/>
+                <field name="partner_name"/>
+                <field name="document"/>
+                <filter name="deposits" string="Depósitos" domain="[('move_type', 'in', ('deposit', 'deposit_return'))]"/>
+                <filter name="sales" string="Ventas" domain="[('move_type', '=', 'sale')]"/>
+                <filter name="transfers" string="Traspasos" domain="[('move_type', '=', 'transfer')]"/>
+                <separator/>
+                <filter name="last7" string="Últimos 7 días" domain="[('move_date', '&gt;=', (context_today() - relativedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <group>
+                    <filter name="by_type" string="Tipo" context="{'group_by': 'move_type'}"/>
+                    <filter name="by_company" string="Empresa" context="{'group_by': 'sage_company_code'}"/>
+                    <filter name="by_date" string="Fecha" context="{'group_by': 'move_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_sage_serial_moves" model="ir.actions.act_window">
+        <field name="name">Movimientos de Sage</field>
+        <field name="res_model">rms.sage.serial.move</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_last7': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Aún no han llegado movimientos de Sage</p>
+            <p>Los envía Sage en vivo (el extractor del NAS): ventas, depósitos, traspasos y regularizaciones por número de serie.</p>
+        </field>
+    </record>
+
+    <!-- Registro de sincronizaciones -->
+    <record id="view_rms_sage_sync_run_list" model="ir.ui.view">
+        <field name="name">rms.sage.sync.run.list</field>
+        <field name="model">rms.sage.sync.run</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" decoration-danger="state == 'error'" decoration-muted="state == 'nochange'">
+                <field name="create_date" string="Cuándo"/>
+                <field name="name"/>
+                <field name="kind"/>
+                <field name="sage_company_code"/>
+                <field name="rows"/>
+                <field name="created"/>
+                <field name="updated"/>
+                <field name="duration"/>
+                <field name="state"/>
+                <field name="message" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_sage_sync_runs" model="ir.actions.act_window">
+        <field name="name">Sincronizaciones de Sage</field>
+        <field name="res_model">rms.sage.sync.run</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <menuitem id="menu_sage_serial_moves" name="Movimientos de Sage" parent="menu_sage_root"
+              action="action_sage_serial_moves" sequence="17" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_sage_sync_runs" name="Sincronizaciones de Sage" parent="menu_sage_root"
+              action="action_sage_sync_runs" sequence="70" groups="stock.group_stock_manager"/>
+</odoo>
