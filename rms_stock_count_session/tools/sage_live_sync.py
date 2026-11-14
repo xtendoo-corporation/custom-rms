@@ -342,7 +342,10 @@ def main():
                 log('  -> Odoo: %s' % res)
             else:
                 log('  ERROR: demasiadas filas para una sola versión (%d); no se envía' % len(rows))
-        if args.only in (None, 'deposit'):
+        # Depósitos en vivo desactivados por defecto (SEND_DEPOSITS=1 para activarlos)
+        # hasta validar la regla de "depósito abierto" con Administración.
+        send_deposits = os.environ.get('SEND_DEPOSITS', '0') == '1' or args.only == 'deposit'
+        if args.only in (None, 'deposit') and (send_deposits or args.dry_run):
             deadline.check('depósitos %s' % company)
             rows = deposit_rows(sage, lotes_db, year_db, company, names)
             log('Depósitos abiertos %s: %d nº de serie' % (company, len(rows)))
