@@ -157,17 +157,16 @@ class SageWarehouse(models.Model):
                     rec.write(vals)
                     summary['aliases'].append(label)
             # Dudosos: se dan de alta si aparecen en las líneas de Sage, sin enlazar.
-            present = Line.read_group([('is_current', '=', True), ('sage_company_code', '=', sage_code),
-                                       ('warehouse_code', 'in', list(self.DOUBTFUL))],
-                                      ['company_id'], ['warehouse_code', 'company_id'], lazy=False)
-            for group in present:
-                code = group['warehouse_code']
+            present = Line._read_group([('is_current', '=', True), ('sage_company_code', '=', sage_code),
+                                        ('warehouse_code', 'in', list(self.DOUBTFUL))],
+                                       ['warehouse_code', 'company_id'], ['__count'])
+            for code, company, count in present:
                 rec = me.search([('sage_company_code', '=', sage_code), ('code', '=', code)])
-                if not rec and group['company_id']:
+                if not rec and company:
                     me.create({'sage_company_code': sage_code, 'code': code,
                                'name': '%s — dudoso, pendiente Administración' % code,
-                               'company_id': group['company_id'][0], 'auto_created': True})
-                summary['doubtful'].append('%s %s (%d líneas)' % (sage_code, code, group['__count']))
+                               'company_id': company.id, 'auto_created': True})
+                summary['doubtful'].append('%s %s (%d líneas)' % (sage_code, code, count))
         summary['relinked_lines'] = self._relink_lines()
         self.env['rms.sage.stock.line'].sudo()._update_duplicates()
         return summary

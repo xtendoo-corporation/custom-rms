@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_sage_mismatch_export" model="ir.ui.view">
+        <field name="name">rms.sage.mismatch.export.form</field>
+        <field name="model">rms.sage.mismatch.export</field>
+        <field name="arch" type="xml">
+            <form string="Excel de descuadres">
+                <p invisible="file">
+                    Un solo Excel con una hoja por cada tipo de diferencia entre lo contado y Sage:
+                    no leídos, altas, estado distinto, en depósito, en otra nave, duplicados, negativos
+                    y movidos después de contar. No cambia nada en Odoo ni en Sage.
+                </p>
+                <group invisible="file">
+                    <field name="sage_company_code" placeholder="Las tres empresas"/>
+                    <field name="site_number" placeholder="Todas las naves"/>
+                </group>
+                <div class="alert alert-success" role="alert" invisible="not file">
+                    Excel preparado. Pulsa en el nombre del archivo para descargarlo.
+                </div>
+                <group invisible="not file">
+                    <field name="filename" invisible="1"/>
+                    <field name="file" filename="filename"/>
+                    <field name="summary"/>
+                </group>
+                <footer>
+                    <button name="action_export" type="object" string="Preparar Excel" class="btn-primary"
+                            invisible="file"/>
+                    <button special="cancel" string="Cerrar"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_sage_mismatch_export" model="ir.actions.act_window">
+        <field name="name">Excel de descuadres</field>
+        <field name="res_model">rms.sage.mismatch.export</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_sage_mismatch_export" name="Excel de descuadres (para Administración)"
+              parent="menu_sage_group_checklist" action="action_sage_mismatch_export" sequence="40"
+              groups="stock.group_stock_manager"/>
+</odoo>
