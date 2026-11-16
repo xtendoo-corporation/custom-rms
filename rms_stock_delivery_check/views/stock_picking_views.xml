@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_form_delivery_check" model="ir.ui.view">
+        <field name="name">stock.picking.form.rms.delivery.check</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <field name="rms_check_kind" invisible="1"/>
+                <button name="action_open_delivery_check" type="object" string="Abrir checklist"
+                        class="btn-primary" icon="fa-barcode"
+                        invisible="not rms_check_kind or state in ('draft', 'cancel')"/>
+                <button name="rms_check_reset" type="object" string="Anular checklist"
+                        groups="stock.group_stock_manager"
+                        confirm="Las lecturas quedarán guardadas como deshechas y el albarán se podrá validar a mano. ¿Anular el checklist?"
+                        invisible="rms_check_state in ('none', 'done') or state in ('done', 'cancel')"/>
+            </xpath>
+            <xpath expr="//field[@name='origin']" position="after">
+                <field name="rms_check_state" widget="badge" invisible="not rms_check_kind"
+                       decoration-info="rms_check_state == 'in_progress'"
+                       decoration-warning="rms_check_state == 'pending_admin'"
+                       decoration-success="rms_check_state in ('ready', 'done')"/>
+                <field name="rms_check_progress" invisible="not rms_check_kind or rms_check_state == 'none'"/>
+                <field name="rms_check_partial" invisible="not rms_check_partial"/>
+                <field name="rms_cession_id" invisible="not rms_cession_id"/>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_delivery_scans" type="object" class="oe_stat_button" icon="fa-list-ol"
+                        invisible="not rms_check_kind or rms_check_state == 'none'">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Lecturas</span>
+                        <span class="o_stat_text">del checklist</span>
+                    </div>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_picking_type_form_delivery_check" model="ir.ui.view">
+        <field name="name">stock.picking.type.form.rms.delivery.check</field>
+        <field name="model">stock.picking.type</field>
+        <field name="inherit_id" ref="stock.view_picking_type_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='code']" position="after">
+                <field name="rms_check_required" invisible="code != 'outgoing'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_picking_check_list" model="ir.ui.view">
+        <field name="name">stock.picking.rms.check.list</field>
+        <field name="model">stock.picking</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list string="Salidas con checklist" create="0"
+                  decoration-warning="rms_check_state == 'pending_admin'"
+                  decoration-success="rms_check_state == 'ready'">
+                <field name="name"/>
+                <field name="partner_id" string="Cliente"/>
+                <field name="origin"/>
+                <field name="rms_check_kind"/>
+                <field name="scheduled_date"/>
+                <field name="rms_check_progress"/>
+                <field name="rms_check_state" widget="badge"
+                       decoration-info="rms_check_state == 'in_progress'"
+                       decoration-warning="rms_check_state == 'pending_admin'"
+                       decoration-success="rms_check_state in ('ready', 'done')"/>
+                <field name="state" widget="badge" optional="show"/>
+                <field name="company_id" groups="base.group_multi_company" optional="show"/>
+                <button name="action_open_delivery_check" type="object" string="Abrir checklist"
+                        class="btn-primary" icon="fa-barcode" invisible="state in ('draft', 'cancel')"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_picking_check_search" model="ir.ui.view">
+        <field name="name">stock.picking.rms.check.search</field>
+        <field name="model">stock.picking</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" string="Albarán" filter_domain="['|', ('name', 'ilike', self), ('origin', 'ilike', self)]"/>
+                <field name="partner_id" string="Cliente"/>
+                <filter name="ready_stock" string="Con stock reservado" domain="[('state', '=', 'assigned')]"/>
+                <filter name="in_progress" string="Checklist en curso" domain="[('rms_check_state', '=', 'in_progress')]"/>
+                <filter name="pending_admin" string="Pendiente de administrador" domain="[('rms_check_state', '=', 'pending_admin')]"/>
+                <filter name="to_validate" string="Listo para validar" domain="[('rms_check_state', '=', 'ready')]"/>
+                <separator/>
+                <filter name="sales" string="Salidas a cliente" domain="[('rms_check_kind', '=', 'sale')]"/>
+                <filter name="deposits" string="Depósitos" domain="[('rms_check_kind', 'in', ('deposit_out', 'deposit_return'))]"/>
+                <group>
+                    <filter name="by_partner" string="Cliente" context="{'group_by': 'partner_id'}"/>
+                    <filter name="by_kind" string="Tipo" context="{'group_by': 'rms_check_kind'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_picking_check_pending" model="ir.actions.act_window">
+        <field name="name">Salidas pendientes</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_picking_check_list"/>
+        <field name="search_view_id" ref="view_picking_check_search"/>
+        <field name="domain">[('rms_check_kind', '!=', False), ('state', 'in', ('confirmed', 'waiting', 'assigned')), ('rms_check_state', '!=', 'pending_admin')]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay salidas pendientes de preparar.</p>
+            <p>Aquí aparecen los albaranes de salida y los depósitos que hay que preparar leyendo cada caja con la pistola.</p>
+        </field>
+    </record>
+
+    <record id="action_picking_check_admin" model="ir.actions.act_window">
+        <field name="name">Salidas pendientes de administrador</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_picking_check_list"/>
+        <field name="search_view_id" ref="view_picking_check_search"/>
+        <field name="domain">[('rms_check_state', '=', 'pending_admin'), ('state', 'not in', ('done', 'cancel'))]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Nada pendiente de decidir.</p>
+            <p>Aquí llegan las salidas en las que el operario ha leído algo que necesita tu aprobación o a las que les faltan unidades.</p>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="rule_delivery_scan_company" model="ir.rule">
+        <field name="name">Lecturas de checklist: multiempresa</field>
+        <field name="model_id" ref="model_rms_delivery_scan"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_used_pack_company" model="ir.rule">
+        <field name="name">Paquetes de 2ª mano: multiempresa</field>
+        <field name="model_id" ref="model_rms_used_pack"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_deposit_line_company" model="ir.rule">
+        <field name="name">Líneas de depósito: multiempresa</field>
+        <field name="model_id" ref="model_rms_deposit_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_deposit_unit_company" model="ir.rule">
+        <field name="name">Equipos en depósito: multiempresa</field>
+        <field name="model_id" ref="model_rms_deposit_unit"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

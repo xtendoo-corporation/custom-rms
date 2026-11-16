@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_stock_cession_form_deposit" model="ir.ui.view">
+        <field name="name">stock.cession.form.rms.deposit</field>
+        <field name="model">stock.cession</field>
+        <field name="inherit_id" ref="stock_cession.view_stock_cession_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_confirm']" position="attributes">
+                <attribute name="invisible">state != 'draft' or rms_line_ids</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_confirm']" position="before">
+                <button name="action_rms_prepare_out" type="object" string="Preparar salida con pistola"
+                        class="oe_highlight" icon="fa-barcode"
+                        invisible="state != 'draft' or not rms_line_ids"/>
+                <button name="action_rms_register_return" type="object" string="Registrar vuelta con pistola"
+                        class="oe_highlight" icon="fa-undo"
+                        invisible="rms_deposit_state not in ('out', 'partial') or not rms_unit_ids"/>
+            </xpath>
+            <xpath expr="//field[@name='picking_id']" position="after">
+                <field name="rms_deposit_state" widget="badge"
+                       decoration-info="rms_deposit_state in ('draft', 'preparing')"
+                       decoration-warning="rms_deposit_state in ('out', 'partial')"
+                       decoration-success="rms_deposit_state == 'returned'"/>
+                <field name="rms_out_count" invisible="not rms_unit_ids"/>
+                <field name="rms_days_out" invisible="rms_deposit_state not in ('out', 'partial')"/>
+            </xpath>
+            <xpath expr="//field[@name='product_id']" position="attributes">
+                <attribute name="required">not rms_line_ids</attribute>
+            </xpath>
+            <xpath expr="//page[1]" position="attributes">
+                <attribute name="string">Cesión de un solo producto (sin pistola)</attribute>
+                <attribute name="invisible">rms_line_ids</attribute>
+            </xpath>
+            <xpath expr="//page[1]" position="before">
+                <page string="Equipos del depósito" name="rms_deposit_lines">
+                    <p class="text-muted" invisible="state != 'draft'">
+                        Añade aquí los productos y cantidades que se dejan al cliente. Al pulsar
+                        «Preparar salida con pistola» se leen los nº de serie caja a caja.
+                    </p>
+                    <field name="rms_line_ids" readonly="state != 'draft' or picking_id">
+                        <list editable="bottom">
+                            <field name="product_id"/>
+                            <field name="quantity"/>
+                        </list>
+                    </field>
+                    <separator string="Lo que ha salido y lo que sigue en casa del cliente" invisible="not rms_unit_ids"/>
+                    <field name="rms_unit_ids" readonly="1" invisible="not rms_unit_ids">
+                        <list decoration-warning="state == 'out'" decoration-muted="state == 'returned'">
+                            <field name="product_id"/>
+                            <field name="lot_id"/>
+                            <field name="product_state_id" optional="show"/>
+                            <field name="quantity"/>
+                            <field name="qty_returned"/>
+                            <field name="date_out"/>
+                            <field name="date_return"/>
+                            <field name="days_out"/>
+                            <field name="state" widget="badge" decoration-warning="state == 'out'" decoration-success="state == 'returned'"/>
+                        </list>
+                    </field>
+                    <separator string="Albaranes" invisible="not rms_picking_ids"/>
+                    <field name="rms_picking_ids" readonly="1" invisible="not rms_picking_ids">
+                        <list>
+                            <field name="name"/>
+                            <field name="rms_deposit_role"/>
+                            <field name="date_done"/>
+                            <field name="rms_check_state" widget="badge"/>
+                            <field name="state" widget="badge"/>
+                            <button name="action_open_delivery_check" type="object" string="Abrir checklist"
+                                    icon="fa-barcode" invisible="state in ('draft', 'cancel')"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_stock_cession_list_deposit" model="ir.ui.view">
+        <field name="name">stock.cession.list.rms.deposit</field>
+        <field name="model">stock.cession</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list string="Depósitos en clientes" decoration-warning="rms_deposit_state in ('out', 'partial')"
+                  decoration-muted="rms_deposit_state in ('returned', 'cancel')">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="partner_id" string="Cliente"/>
+                <field name="rms_out_count" sum="Unidades fuera"/>
+                <field name="rms_days_out"/>
+                <field name="rms_deposit_state" widget="badge"
+                       decoration-info="rms_deposit_state in ('draft', 'preparing')"
+                       decoration-warning="rms_deposit_state in ('out', 'partial')"
+                       decoration-success="rms_deposit_state == 'returned'"/>
+                <field name="company_id" groups="base.group_multi_company" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_stock_cession_search_deposit" model="ir.ui.view">
+        <field name="name">stock.cession.search.rms.deposit</field>
+        <field name="model">stock.cession</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="partner_id" string="Cliente"/>
+                <filter name="outside" string="Con material fuera" domain="[('rms_deposit_state', 'in', ('out', 'partial'))]"/>
+                <filter name="drafts" string="Sin salir todavía" domain="[('rms_deposit_state', 'in', ('draft', 'preparing'))]"/>
+                <filter name="returned" string="Devueltos" domain="[('rms_deposit_state', '=', 'returned')]"/>
+                <group>
+                    <filter name="by_partner" string="Cliente" context="{'group_by': 'partner_id'}"/>
+                    <filter name="by_state" string="Situación" context="{'group_by': 'rms_deposit_state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_deposit" model="ir.actions.act_window">
+        <field name="name">Depósitos (salidas y vueltas)</field>
+        <field name="res_model">stock.cession</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_stock_cession_list_deposit"/>
+        <field name="search_view_id" ref="view_stock_cession_search_deposit"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Registra el primer depósito.</p>
+            <p>Un depósito es material que se deja a un cliente (cesión o demo) y que tiene que volver. La salida y la vuelta se leen con la pistola.</p>
+        </field>
+    </record>
+
+    <record id="view_deposit_unit_list" model="ir.ui.view">
+        <field name="name">rms.deposit.unit.list</field>
+        <field name="model">rms.deposit.unit</field>
+        <field name="arch" type="xml">
+            <list string="Equipos en depósito" create="0" edit="0" delete="0"
+                  decoration-danger="state == 'out' and days_out &gt; 30" decoration-muted="state == 'returned'">
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="lot_id"/>
+                <field name="product_state_id" optional="show"/>
+                <field name="quantity" optional="show"/>
+                <field name="qty_returned" optional="hide"/>
+                <field name="date_out"/>
+                <field name="days_out"/>
+                <field name="date_return" optional="hide"/>
+                <field name="cession_id"/>
+                <field name="state" widget="badge" decoration-warning="state == 'out'" decoration-success="state == 'returned'"/>
+                <field name="company_id" groups="base.group_multi_company" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_deposit_unit_search" model="ir.ui.view">
+        <field name="name">rms.deposit.unit.search</field>
+        <field name="model">rms.deposit.unit</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="lot_id" string="Nº de serie"/>
+                <field name="product_id"/>
+                <field name="partner_id"/>
+                <field name="cession_id"/>
+                <filter name="outside" string="En el cliente" domain="[('state', '=', 'out')]"/>
+                <filter name="returned" string="Devueltos" domain="[('state', '=', 'returned')]"/>
+                <separator/>
+                <filter name="old" string="Más de 30 días fuera" domain="[('state', '=', 'out'), ('date_out', '&lt;', (context_today() - relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                <group>
+                    <filter name="by_partner" string="Cliente" context="{'group_by': 'partner_id'}"/>
+                    <filter name="by_product" string="Producto" context="{'group_by': 'product_id'}"/>
+                    <filter name="by_cession" string="Depósito" context="{'group_by': 'cession_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_deposit_unit" model="ir.actions.act_window">
+        <field name="name">Qué hay en casa de los clientes</field>
+        <field name="res_model">rms.deposit.unit</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_outside': 1, 'search_default_by_partner': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay nada en depósito en clientes.</p>
+            <p>Aquí se ve, cliente a cliente, qué equipos siguen fuera y cuántos días llevan.</p>
+        </field>
+    </record>
+</odoo>

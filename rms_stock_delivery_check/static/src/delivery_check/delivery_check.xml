@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="rms_stock_delivery_check.DeliveryCheck">
+        <div class="o_rms_dc o_action d-flex flex-column h-100">
+            <div t-if="state.loading" class="p-4 text-center text-muted">
+                <i class="fa fa-spinner fa-spin me-2"/>Cargando el albarán…
+            </div>
+            <div t-elif="!state.data" class="p-4">
+                <div class="alert alert-danger" t-esc="state.error || 'No se ha podido abrir el checklist.'"/>
+            </div>
+            <t t-else="">
+                <t t-set="data" t-value="state.data"/>
+                <t t-set="c" t-value="data.counters"/>
+                <!-- Barra: qué albarán es y cómo va -->
+                <div class="o_rms_dc_bar">
+                    <button class="btn btn-light o_rms_dc_back" t-on-click="back" title="Volver al albarán">
+                        <i class="fa fa-chevron-left"/>
+                    </button>
+                    <div class="o_rms_dc_title">
+                        <span class="o_rms_dc_name" t-esc="data.picking.name"/>
+                        <span class="o_rms_dc_partner" t-esc="data.picking.partner"/>
+                        <span t-if="data.picking.origin" class="o_rms_dc_origin" t-esc="data.picking.origin"/>
+                    </div>
+                    <span t-attf-class="o_rms_dc_kind o_rms_dc_kind_#{data.picking.kind}" t-esc="data.picking.kind_label"/>
+                    <div class="o_rms_dc_counters">
+                        <span class="o_rms_dc_counter o_rms_dc_c_ok" title="Leídos">
+                            <b><t t-esc="fmt(c.read)"/> de <t t-esc="fmt(c.total)"/></b> leídos
+                        </span>
+                        <span t-attf-class="o_rms_dc_counter #{c.missing ? 'o_rms_dc_c_missing' : 'o_rms_dc_c_zero'}">
+                            <b t-esc="fmt(c.missing)"/> faltan
+                        </span>
+                        <span t-attf-class="o_rms_dc_counter #{c.amber ? 'o_rms_dc_c_amber' : 'o_rms_dc_c_zero'}" title="Los decide el administrador">
+                            <b t-esc="c.amber"/> para administrador
+                        </span>
+                        <span t-attf-class="o_rms_dc_counter #{c.unreviewed ? 'o_rms_dc_c_review' : 'o_rms_dc_c_zero'}" title="Ex-Demo / 2ª mano sin marcar Revisado">
+                            <b t-esc="c.unreviewed"/> sin revisar
+                        </span>
+                        <span t-attf-class="o_rms_dc_counter #{c.blocked ? 'o_rms_dc_c_red' : 'o_rms_dc_c_zero'}" title="Lecturas bloqueadas (no salen)">
+                            <b t-esc="c.blocked"/> bloqueadas
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Lectura -->
+                <div class="o_rms_dc_scanbar" t-if="data.editable">
+                    <input t-ref="codeInput" type="text" class="form-control o_rms_dc_input"
+                           placeholder="Lee con la pistola el nº de serie de la caja (o escríbelo y pulsa Añadir)"
+                           autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="none"
+                           t-on-keydown="onCodeKeydown" t-on-input="onCodeInput"/>
+                    <button class="btn btn-secondary o_rms_dc_add" t-on-click="addTypedCode">Añadir</button>
+                </div>
+                <div t-if="state.error" class="o_rms_dc_error">
+                    <i class="fa fa-exclamation-circle me-2"/><span t-esc="state.error"/>
+                    <button class="btn btn-sm btn-link" t-on-click="() => { state.error = ''; }">Cerrar</button>
+                </div>
+                <div t-if="state.banner and data.editable" t-attf-class="o_rms_dc_banner o_rms_dc_r_#{state.banner.result}">
+                    <i t-attf-class="fa #{icon(state.banner.result)}"/>
+                    <span class="o_rms_dc_banner_code" t-esc="state.banner.code"/>
+                    <span class="o_rms_dc_banner_label" t-esc="state.banner.label"/>
+                    <span class="o_rms_dc_banner_msg" t-if="state.banner.result != 'ok'" t-esc="state.banner.message"/>
+                    <span class="o_rms_dc_banner_msg" t-else="" t-esc="state.banner.product"/>
+                </div>
+
+                <div class="o_rms_dc_body">
+                    <!-- Lista del albarán, por producto -->
+                    <div class="o_rms_dc_groups">
+                        <div t-foreach="data.groups" t-as="group" t-key="group.move_id"
+                             t-attf-class="o_rms_dc_group #{group.complete ? 'o_rms_dc_group_done' : ''} #{pendingUnits(group) ? 'o_rms_dc_group_amber' : ''}">
+                            <div class="o_rms_dc_group_head">
+                                <span class="o_rms_dc_group_name" t-esc="group.product"/>
+                                <span t-if="group.wanted_state" class="o_rms_dc_tag" t-esc="'Pedido: ' + group.wanted_state"/>
+                                <span t-if="group.by_qty" class="o_rms_dc_tag o_rms_dc_tag_grey">Por cantidad</span>
+                                <span class="o_rms_dc_group_count">
+                                    <i t-if="group.complete" class="fa fa-check me-1"/>
+                                    <t t-esc="fmt(group.done)"/> de <t t-esc="fmt(group.demand)"/>
+                                </span>
+                            </div>
+                            <!-- Accesorios: cantidad con + y − -->
+                            <div t-if="group.by_qty" class="o_rms_dc_qty">
+                                <button class="btn btn-light o_rms_dc_qty_btn" t-att-disabled="!data.editable or group.done &lt;= 0"
+                                        t-on-click="() => this.setQty(group, group.done - 1)">−</button>
+                                <input type="text" inputmode="decimal" class="form-control o_rms_dc_qty_input"
+                                       t-att-value="fmt(group.done)" t-att-disabled="!data.editable"
+                                       t-on-change="(ev) => this.onQtyChange(group, ev)"/>
+                                <button class="btn btn-light o_rms_dc_qty_btn" t-att-disabled="!data.editable or group.complete"
+                                        t-on-click="() => this.setQty(group, group.done + 1)">+</button>
+                                <button class="btn btn-outline-success" t-if="data.editable and !group.complete"
+                                        t-on-click="() => this.setQty(group, group.demand)">Están todas (<t t-esc="fmt(group.demand)"/>)</button>
+                            </div>
+                            <ul t-else="" class="o_rms_dc_units">
+                                <li t-foreach="group.units" t-as="unit" t-key="unit.scan_id"
+                                    t-attf-class="o_rms_dc_unit o_rms_dc_r_#{unit.result} o_rms_dc_a_#{unit.approval} #{unit.scan_id === state.lastScanId ? 'o_rms_dc_last' : ''}">
+                                    <span class="o_rms_dc_unit_icon"><i t-attf-class="fa #{unit.approval === 'rejected' ? 'fa-times' : (unit.approval === 'approved' ? 'fa-check' : icon(unit.result))}"/></span>
+                                    <span class="o_rms_dc_unit_serial" t-esc="unit.serial"/>
+                                    <span t-if="unit.state_code and unit.state_code != 'new'" class="o_rms_dc_tag" t-esc="unit.state_name"/>
+                                    <span t-if="unit.pack" class="o_rms_dc_tag o_rms_dc_tag_grey" t-esc="'Paquete: ' + unit.pack"/>
+                                    <span class="o_rms_dc_unit_msg">
+                                        <t t-if="unit.approval === 'approved'">Aprobado por <t t-esc="unit.approved_by"/> · <t t-esc="unit.reason_label"/></t>
+                                        <t t-elif="unit.approval === 'rejected'">Rechazado por <t t-esc="unit.approved_by"/>: no sale</t>
+                                        <t t-elif="unit.result === 'amber'" t-esc="unit.message"/>
+                                    </span>
+                                    <span class="o_rms_dc_unit_actions">
+                                        <t t-if="unit.approval === 'pending' and data.is_manager">
+                                            <button class="btn btn-success btn-sm" t-on-click="() => this.approve(unit)">Aprobar</button>
+                                            <button class="btn btn-outline-danger btn-sm" t-on-click="() => this.reject(unit)">Rechazar</button>
+                                        </t>
+                                        <button t-if="unit.needs_review and unit.approval !== 'rejected'"
+                                                t-attf-class="btn btn-sm o_rms_dc_review #{unit.reviewed ? 'btn-success' : 'btn-outline-dark'}"
+                                                t-att-disabled="!data.editable" t-on-click="() => this.toggleReviewed(unit)">
+                                            <i t-attf-class="fa #{unit.reviewed ? 'fa-check-square-o' : 'fa-square-o'} me-1"/>Revisado
+                                        </button>
+                                        <button class="btn btn-light btn-sm" title="Imprimir etiqueta" t-on-click="() => this.printLabel(unit.lot_id)">
+                                            <i class="fa fa-print"/>
+                                        </button>
+                                        <button t-if="data.editable" class="btn btn-light btn-sm" title="Deshacer esta lectura"
+                                                t-on-click="() => this.undo(unit.scan_id)">
+                                            <i class="fa fa-undo"/>
+                                        </button>
+                                    </span>
+                                </li>
+                                <li t-if="missing(group) &gt; 0" class="o_rms_dc_unit o_rms_dc_unit_missing">
+                                    <span class="o_rms_dc_unit_icon"><i class="fa fa-circle-o"/></span>
+                                    <span>
+                                        Falta<t t-if="missing(group) != 1">n</t> por leer <b t-esc="fmt(missing(group))"/>
+                                        <t t-if="group.fixed_missing.length"> · el pedido pide: <b t-esc="group.fixed_missing.join(', ')"/></t>
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Últimas lecturas (todas quedan guardadas) -->
+                    <div class="o_rms_dc_side">
+                        <t t-if="data.outside.length">
+                            <div class="o_rms_dc_side_title">En casa del cliente</div>
+                            <ul class="o_rms_dc_outside">
+                                <li t-foreach="data.outside" t-as="item" t-key="item_index"
+                                    t-attf-class="#{item.back ? 'o_rms_dc_outside_back' : ''}">
+                                    <span class="o_rms_dc_outside_name">
+                                        <b t-esc="item.serial or (fmt(item.qty) + ' ud.')"/> <t t-esc="item.product"/>
+                                    </span>
+                                    <span t-if="item.back" class="o_rms_dc_tag o_rms_dc_tag_ok">vuelve ahora</span>
+                                    <span t-else="" class="o_rms_dc_tag" t-esc="item.days + ' días fuera'"/>
+                                </li>
+                            </ul>
+                        </t>
+                        <div class="o_rms_dc_side_title">Últimas lecturas</div>
+                        <div t-if="!data.feed.length" class="text-muted p-2">Todavía no se ha leído nada.</div>
+                        <ul class="o_rms_dc_feed">
+                            <li t-foreach="data.feed" t-as="row" t-key="row.id"
+                                t-attf-class="o_rms_dc_feed_row o_rms_dc_r_#{row.result} #{row.undone ? 'o_rms_dc_undone' : ''} #{row.id === data.last_scan_id ? 'o_rms_dc_last' : ''}">
+                                <span class="o_rms_dc_feed_icon"><i t-attf-class="fa #{icon(row.result)}"/></span>
+                                <span class="o_rms_dc_feed_main">
+                                    <span class="o_rms_dc_feed_code" t-esc="row.code"/>
+                                    <span class="o_rms_dc_feed_label">
+                                        <t t-if="row.undone">Deshecha · </t><t t-esc="row.label"/>
+                                    </span>
+                                    <span class="o_rms_dc_feed_msg" t-if="row.result != 'ok'" t-esc="row.message"/>
+                                    <span class="o_rms_dc_feed_msg" t-else="" t-esc="row.product"/>
+                                </span>
+                                <span class="o_rms_dc_feed_who"><t t-esc="row.time"/> · <t t-esc="row.user"/></span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Pie: qué toca ahora -->
+                <div t-attf-class="o_rms_dc_footer o_rms_dc_f_#{data.picking.check_state}">
+                    <span class="o_rms_dc_status" t-esc="statusText"/>
+                    <div class="o_rms_dc_footer_btns">
+                        <t t-if="data.editable">
+                            <button class="btn btn-primary btn-lg o_rms_dc_finish" t-att-disabled="state.busy" t-on-click="finish">He terminado</button>
+                        </t>
+                        <t t-elif="data.picking.check_state === 'pending_admin'">
+                            <t t-if="data.is_manager">
+                                <button class="btn btn-light" t-att-disabled="state.busy" t-on-click="reopen">Devolver al operario</button>
+                                <t t-if="c.missing and !c.amber">
+                                    <button class="btn btn-warning o_rms_dc_partial_bo" t-att-disabled="state.busy"
+                                            t-on-click="() => this.decidePartial('backorder')">Sale incompleto · lo que falta queda pendiente</button>
+                                    <button class="btn btn-outline-warning o_rms_dc_partial_nobo" t-att-disabled="state.busy"
+                                            t-on-click="() => this.decidePartial('no_backorder')">Sale incompleto · sin pendiente</button>
+                                </t>
+                            </t>
+                        </t>
+                        <t t-elif="data.picking.check_state === 'ready'">
+                            <button class="btn btn-light" t-att-disabled="state.busy" t-on-click="reopen">Seguir leyendo</button>
+                            <button class="btn btn-success btn-lg o_rms_dc_validate" t-att-disabled="state.busy" t-on-click="validate">
+                                <i class="fa fa-check me-2"/>Validar albarán
+                            </button>
+                        </t>
+                        <t t-elif="data.picking.state === 'done'">
+                            <button class="btn btn-light o_rms_dc_print" t-on-click="printSerials"><i class="fa fa-print me-2"/>Nº de serie entregados</button>
+                            <button class="btn btn-primary" t-on-click="back">Volver al albarán</button>
+                        </t>
+                    </div>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>

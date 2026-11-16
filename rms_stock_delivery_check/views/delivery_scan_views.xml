@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_delivery_scan_list" model="ir.ui.view">
+        <field name="name">rms.delivery.scan.list</field>
+        <field name="model">rms.delivery.scan</field>
+        <field name="arch" type="xml">
+            <list string="Lecturas" create="0" edit="0" delete="0"
+                  decoration-success="result == 'ok'" decoration-warning="result == 'amber'"
+                  decoration-danger="result == 'red'" decoration-muted="undone or result in ('grey', 'duplicate')">
+                <field name="scanned_at"/>
+                <field name="user_id"/>
+                <field name="picking_id"/>
+                <field name="partner_id" optional="show"/>
+                <field name="code"/>
+                <field name="product_id"/>
+                <field name="lot_id" optional="hide"/>
+                <field name="state_id" optional="show"/>
+                <field name="result" widget="badge" decoration-success="result == 'ok'"
+                       decoration-warning="result == 'amber'" decoration-danger="result == 'red'"/>
+                <field name="reason"/>
+                <field name="message" optional="show"/>
+                <field name="approval_state" optional="show"/>
+                <field name="approved_by_id" optional="show"/>
+                <field name="approval_note" optional="hide"/>
+                <field name="reviewed" optional="hide"/>
+                <field name="undone" optional="show"/>
+                <field name="incident_resolved" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+                <button name="action_resolve_incident" type="object" string="Cerrar incidencia" icon="fa-check"
+                        groups="stock.group_stock_manager"
+                        invisible="not is_incident or incident_resolved"/>
+                <button name="action_open_picking" type="object" string="Ver albarán" icon="fa-truck"/>
+                <field name="is_incident" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_delivery_scan_search" model="ir.ui.view">
+        <field name="name">rms.delivery.scan.search</field>
+        <field name="model">rms.delivery.scan</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="code" string="Código leído" filter_domain="['|', ('code', 'ilike', self), ('lot_id.name', 'ilike', self)]"/>
+                <field name="picking_id"/>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="user_id"/>
+                <filter name="open_incidents" string="Incidencias abiertas" domain="[('is_incident', '=', True), ('incident_resolved', '=', False)]"/>
+                <filter name="incidents" string="Todas las incidencias" domain="[('is_incident', '=', True)]"/>
+                <separator/>
+                <filter name="red" string="Bloqueadas (rojo)" domain="[('result', '=', 'red')]"/>
+                <filter name="amber" string="Necesitan administrador (ámbar)" domain="[('result', '=', 'amber')]"/>
+                <filter name="undone" string="Deshechas" domain="[('undone', '=', True)]"/>
+                <group>
+                    <filter name="by_reason" string="Motivo" context="{'group_by': 'reason'}"/>
+                    <filter name="by_picking" string="Albarán" context="{'group_by': 'picking_id'}"/>
+                    <filter name="by_user" string="Operario" context="{'group_by': 'user_id'}"/>
+                    <filter name="by_day" string="Día" context="{'group_by': 'scanned_at:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_delivery_scan" model="ir.actions.act_window">
+        <field name="name">Lecturas de checklist</field>
+        <field name="res_model">rms.delivery.scan</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <record id="action_delivery_incident" model="ir.actions.act_window">
+        <field name="name">Incidencias de salida</field>
+        <field name="res_model">rms.delivery.scan</field>
+        <field name="view_mode">list</field>
+        <field name="domain">[('is_incident', '=', True)]</field>
+        <field name="context">{'search_default_open_incidents': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay incidencias.</p>
+            <p>Aquí queda todo lo inesperado que se ha leído en una salida: cajas que no estaban en el albarán, equipos Demo, estados distintos al pedido, paquetes incompletos...</p>
+        </field>
+    </record>
+</odoo>

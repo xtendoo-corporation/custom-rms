@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_delivery_check_root" name="Salidas con checklist"
+              parent="stock.menu_stock_root" sequence="4" groups="stock.group_stock_user"/>
+    <menuitem id="menu_delivery_check_pending" name="Pendientes"
+              parent="menu_delivery_check_root" sequence="10" action="action_picking_check_pending"/>
+    <menuitem id="menu_delivery_check_admin" name="Pendientes de administrador"
+              parent="menu_delivery_check_root" sequence="20" action="action_picking_check_admin"/>
+    <menuitem id="menu_delivery_check_deposit_root" name="Depósitos en clientes"
+              parent="menu_delivery_check_root" sequence="30"/>
+    <menuitem id="menu_delivery_check_deposit_units" name="Qué hay fuera"
+              parent="menu_delivery_check_deposit_root" sequence="10" action="action_deposit_unit"/>
+    <menuitem id="menu_delivery_check_deposits" name="Depósitos (salidas y vueltas)"
+              parent="menu_delivery_check_deposit_root" sequence="20" action="action_deposit"/>
+    <menuitem id="menu_delivery_check_packs" name="Paquetes de 2ª mano"
+              parent="menu_delivery_check_root" sequence="40" action="action_used_pack"/>
+    <menuitem id="menu_delivery_check_incidents" name="Incidencias"
+              parent="menu_delivery_check_root" sequence="50" action="action_delivery_incident"/>
+</odoo>

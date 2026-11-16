@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_used_pack_form" model="ir.ui.view">
+        <field name="name">rms.used.pack.form</field>
+        <field name="model">rms.used.pack</field>
+        <field name="arch" type="xml">
+            <form string="Paquete de 2ª mano">
+                <header>
+                    <button name="action_break" type="object" string="Romper paquete"
+                            groups="stock.group_stock_manager" invisible="state != 'authorized'"
+                            confirm="Los equipos de este paquete se podrán vender sueltos. Queda constancia de quién lo rompe. ¿Seguir?"/>
+                    <button name="action_authorize_again" type="object" string="Volver a autorizar entero"
+                            groups="stock.group_stock_manager" invisible="state != 'broken'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="authorized,sold"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Archivado" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="p. ej. 4 Galaxy 816 de 2ª mano"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="price"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="authorized_by_id"/>
+                            <field name="authorized_date"/>
+                            <field name="broken_by_id" invisible="not broken_by_id"/>
+                            <field name="broken_date" invisible="not broken_date"/>
+                            <field name="broken_reason" invisible="not broken_reason"/>
+                        </group>
+                    </group>
+                    <separator string="Equipos del paquete (se venden juntos)"/>
+                    <field name="lot_ids" readonly="state == 'sold'">
+                        <list>
+                            <field name="product_id"/>
+                            <field name="name" string="Nº de serie"/>
+                            <field name="product_state_id"/>
+                            <field name="custom_price" optional="show"/>
+                        </list>
+                    </field>
+                    <field name="notes" placeholder="Notas"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_used_pack_list" model="ir.ui.view">
+        <field name="name">rms.used.pack.list</field>
+        <field name="model">rms.used.pack</field>
+        <field name="arch" type="xml">
+            <list string="Paquetes de 2ª mano" decoration-muted="state == 'sold'" decoration-warning="state == 'broken'">
+                <field name="name"/>
+                <field name="lot_count"/>
+                <field name="lot_ids" widget="many2many_tags" optional="show"/>
+                <field name="price" optional="show"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="authorized_by_id"/>
+                <field name="authorized_date"/>
+                <field name="state" widget="badge" decoration-success="state == 'authorized'"
+                       decoration-warning="state == 'broken'"/>
+                <field name="company_id" groups="base.group_multi_company" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_used_pack_search" model="ir.ui.view">
+        <field name="name">rms.used.pack.search</field>
+        <field name="model">rms.used.pack</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="lot_ids" string="Nº de serie"/>
+                <filter name="authorized" string="Autorizados" domain="[('state', '=', 'authorized')]"/>
+                <filter name="broken" string="Rotos" domain="[('state', '=', 'broken')]"/>
+                <filter name="sold" string="Vendidos" domain="[('state', '=', 'sold')]"/>
+                <separator/>
+                <filter name="archived" string="Archivados" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_used_pack" model="ir.actions.act_window">
+        <field name="name">Paquetes de 2ª mano</field>
+        <field name="res_model">rms.used.pack</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_authorized': 1, 'search_default_broken': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crea el primer paquete de 2ª mano.</p>
+            <p>La 2ª mano solo sale si Dirección la ha autorizado en un paquete. Un paquete se vende entero (por ejemplo, 4 Galaxy juntas); también puede tener un solo equipo.</p>
+        </field>
+    </record>
+</odoo>

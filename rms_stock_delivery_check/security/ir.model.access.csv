@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_rms_delivery_scan_user,rms.delivery.scan user,model_rms_delivery_scan,stock.group_stock_user,1,0,0,0
+access_rms_delivery_scan_manager,rms.delivery.scan manager,model_rms_delivery_scan,stock.group_stock_manager,1,1,0,0
+access_rms_used_pack_user,rms.used.pack user,model_rms_used_pack,stock.group_stock_user,1,0,0,0
+access_rms_used_pack_sale,rms.used.pack sale,model_rms_used_pack,sales_team.group_sale_salesman,1,0,0,0
+access_rms_used_pack_manager,rms.used.pack manager,model_rms_used_pack,stock.group_stock_manager,1,1,1,1
+access_rms_deposit_line_user,rms.deposit.line user,model_rms_deposit_line,stock.group_stock_user,1,1,1,1
+access_rms_deposit_unit_user,rms.deposit.unit user,model_rms_deposit_unit,stock.group_stock_user,1,0,0,0
+access_rms_deposit_unit_manager,rms.deposit.unit manager,model_rms_deposit_unit,stock.group_stock_manager,1,1,0,0
