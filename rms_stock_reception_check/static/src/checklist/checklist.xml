@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="rms_stock_reception_check.Checklist">
+        <div class="o_rms_rc" t-ref="root">
+            <div t-if="state.loading" class="o_rms_rc_message">Cargando la recepción…</div>
+            <div t-elif="state.error" class="o_rms_rc_message">
+                <p t-esc="state.error"/>
+            </div>
+            <t t-else="">
+                <!-- Cabecera: de qué recepción se trata + marcador -->
+                <div class="o_rms_rc_top">
+                    <button class="btn btn-light o_rms_rc_back" t-on-click="openForm" title="Volver a la recepción">
+                        <i class="fa fa-arrow-left"/> Volver
+                    </button>
+                    <div class="o_rms_rc_title">
+                        <div class="o_rms_rc_name">
+                            <t t-esc="data.reception.name"/>
+                            <span class="o_rms_rc_state" t-att-class="'o_rms_rc_state_' + data.reception.state"
+                                  t-esc="data.reception.state_label"/>
+                        </div>
+                        <div class="o_rms_rc_sub">
+                            <t t-esc="data.reception.partner"/>
+                            <t t-if="data.reception.supplier_ref"> · Doc. <t t-esc="data.reception.supplier_ref"/></t>
+                            · <t t-esc="data.reception.warehouse"/> (<t t-esc="data.reception.company"/>)
+                        </div>
+                    </div>
+                    <div class="o_rms_rc_score">
+                        <div class="o_rms_rc_tile o_rms_rc_tile_green">
+                            <div class="o_rms_rc_tile_num">
+                                <span class="o_rms_rc_count_received" t-esc="fmt(data.counters.received)"/>
+                                <small> de <t t-esc="fmt(data.counters.expected)"/></small>
+                            </div>
+                            <div class="o_rms_rc_tile_label">Recibidos</div>
+                        </div>
+                        <div class="o_rms_rc_tile o_rms_rc_tile_white">
+                            <div class="o_rms_rc_tile_num o_rms_rc_count_missing" t-esc="fmt(data.counters.missing)"/>
+                            <div class="o_rms_rc_tile_label">Faltan</div>
+                        </div>
+                        <div class="o_rms_rc_tile" t-att-class="blind ? 'o_rms_rc_tile_blue' : 'o_rms_rc_tile_red'">
+                            <div class="o_rms_rc_tile_num o_rms_rc_count_extra" t-esc="fmt(data.counters.extra)"/>
+                            <div class="o_rms_rc_tile_label"><t t-if="blind">Leídos sin lista</t><t t-else="">Sobrantes</t></div>
+                        </div>
+                        <div class="o_rms_rc_tile o_rms_rc_tile_amber">
+                            <div class="o_rms_rc_tile_num o_rms_rc_count_review" t-esc="data.counters.review"/>
+                            <div class="o_rms_rc_tile_label">A revisar</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div t-if="readonly" class="o_rms_rc_banner">
+                    <t t-if="data.reception.state == 'review'">
+                        Lectura terminada: la recepción está <strong>en revisión</strong>. El responsable decide las
+                        incidencias y da la entrada en stock desde la recepción.
+                    </t>
+                    <t t-elif="data.reception.state == 'done'">Esta recepción ya ha entrado en stock.</t>
+                    <t t-else="">Esta recepción no admite lecturas (<t t-esc="data.reception.state_label"/>).</t>
+                </div>
+
+                <div class="o_rms_rc_body">
+                    <!-- LA LISTA ESPERADA: la protagonista -->
+                    <div class="o_rms_rc_list">
+                        <div class="o_rms_rc_filters" t-if="!blind">
+                            <button class="btn" t-att-class="state.filter == 'all' ? 'btn-dark' : 'btn-light'"
+                                    t-on-click="() => this.setFilter('all')">Toda la lista</button>
+                            <button class="btn" t-att-class="state.filter == 'pending' ? 'btn-dark' : 'btn-light'"
+                                    t-on-click="() => this.setFilter('pending')">
+                                Faltan (<t t-esc="fmt(data.counters.missing)"/>)
+                            </button>
+                            <button class="btn" t-att-class="state.filter == 'done' ? 'btn-dark' : 'btn-light'"
+                                    t-on-click="() => this.setFilter('done')">Leídos</button>
+                        </div>
+                        <div t-if="blind" class="o_rms_rc_blind">
+                            <h3>Recepción a ciegas</h3>
+                            <p>Todavía no hay lista del proveedor. Puedes ir leyendo todas las cajas: cuando cargues
+                               el documento, lo leído se cuadrará solo.</p>
+                            <button t-if="!readonly" class="btn btn-primary btn-lg" t-on-click="loadDocument">
+                                <i class="fa fa-file-text-o"/> Cargar documento del proveedor
+                            </button>
+                        </div>
+                        <div t-elif="!visibleGroups.length" class="o_rms_rc_empty">
+                            <t t-if="state.filter == 'pending'">No falta nada: está todo leído.</t>
+                            <t t-else="">Todavía no se ha leído nada.</t>
+                        </div>
+                        <div t-foreach="visibleGroups" t-as="group" t-key="group.key"
+                             class="o_rms_rc_group" t-att-class="groupClass(group)">
+                            <div class="o_rms_rc_group_head" t-on-click="() => this.toggleGroup(group)">
+                                <i class="fa o_rms_rc_caret" t-att-class="state.collapsed[group.key] ? 'fa-caret-right' : 'fa-caret-down'"/>
+                                <div class="o_rms_rc_group_name">
+                                    <strong t-esc="group.name"/>
+                                    <span class="o_rms_rc_group_code" t-if="group.code" t-esc="group.code"/>
+                                    <span class="o_rms_rc_group_warn" t-if="group.no_product">sin producto asignado</span>
+                                </div>
+                                <button t-if="!readonly and (group.tracked or group.no_product)"
+                                        class="btn btn-sm btn-outline-secondary o_rms_rc_nolabel_btn"
+                                        t-on-click.stop="() => this.openNoLabel(group)">Sin etiqueta</button>
+                                <div class="o_rms_rc_group_count">
+                                    <span t-esc="fmt(group.done)"/> de <span t-esc="fmt(group.total)"/>
+                                </div>
+                                <div class="o_rms_rc_bar"><div t-attf-style="width: {{ percent(group) }}%"/></div>
+                            </div>
+                            <div class="o_rms_rc_lines" t-if="!state.collapsed[group.key]">
+                                <t t-foreach="group.lines" t-as="line" t-key="line.id">
+                                    <!-- Línea por cantidad -->
+                                    <div t-if="line.by_quantity" class="o_rms_rc_line o_rms_rc_line_qty"
+                                         t-att-class="lineClass(line)" t-att-data-line="line.id">
+                                        <div class="o_rms_rc_line_mark"><i class="fa fa-cubes"/></div>
+                                        <div class="o_rms_rc_line_main">
+                                            <div class="o_rms_rc_serial">Sin nº de serie: se cuenta</div>
+                                            <div class="o_rms_rc_line_status" t-esc="lineStatus(line)"/>
+                                        </div>
+                                        <div class="o_rms_rc_qty">
+                                            <button class="btn btn-light o_rms_rc_qty_minus" t-att-disabled="readonly or line.qty_received &lt;= 0"
+                                                    t-on-click="() => this.changeQty(line, -1)">−</button>
+                                            <input type="text" inputmode="decimal" class="form-control o_rms_rc_qty_input"
+                                                   t-att-value="fmt(line.qty_received)" t-att-disabled="readonly"
+                                                   t-on-change="(ev) => this.onQtyChange(line, ev)"/>
+                                            <button class="btn btn-light o_rms_rc_qty_plus" t-att-disabled="readonly"
+                                                    t-on-click="() => this.changeQty(line, 1)">+</button>
+                                            <span class="o_rms_rc_qty_total">de <t t-esc="fmt(line.qty_expected)"/></span>
+                                        </div>
+                                    </div>
+                                    <!-- Línea con número de serie -->
+                                    <div t-else="" class="o_rms_rc_line" t-att-class="lineClass(line)" t-att-data-line="line.id">
+                                        <div class="o_rms_rc_line_row" t-on-click="() => this.toggleLine(line)">
+                                            <div class="o_rms_rc_line_mark">
+                                                <i t-if="line.state == 'received'" class="fa fa-check"/>
+                                                <i t-elif="line.state == 'damaged'" class="fa fa-exclamation-triangle"/>
+                                                <i t-elif="line.state == 'probable' or line.state == 'wrong_model'" class="fa fa-question"/>
+                                                <i t-elif="line.state == 'missing'" class="fa fa-times"/>
+                                            </div>
+                                            <div class="o_rms_rc_line_main">
+                                                <div class="o_rms_rc_serial" t-esc="line.serial"/>
+                                                <div class="o_rms_rc_line_status" t-esc="lineStatus(line)"/>
+                                            </div>
+                                            <span class="o_rms_rc_chip" t-if="line.state_name and line.state_name != 'Nuevo'" t-esc="line.state_name"/>
+                                        </div>
+                                        <div class="o_rms_rc_line_actions" t-if="state.openLine == line.id and !readonly">
+                                            <t t-if="line.state == 'pending'">
+                                                <span class="text-muted">Lee la caja con la pistola. Si no tiene etiqueta, usa «Sin etiqueta».</span>
+                                            </t>
+                                            <t t-else="">
+                                                <button t-if="line.state != 'damaged'" class="btn btn-outline-warning"
+                                                        t-on-click="() => this.openDamaged(line)">
+                                                    <i class="fa fa-exclamation-triangle"/> Dañado
+                                                </button>
+                                                <button t-else="" class="btn btn-outline-secondary" t-on-click="() => this.clearDamaged(line)">
+                                                    Quitar «dañado»
+                                                </button>
+                                                <button class="btn btn-outline-secondary" t-on-click="() => this.unreceive(line)">
+                                                    <i class="fa fa-undo"/> Desmarcar
+                                                </button>
+                                            </t>
+                                        </div>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Columna de lectura -->
+                    <div class="o_rms_rc_side">
+                        <div class="o_rms_rc_input" t-if="!readonly">
+                            <input type="text" class="form-control form-control-lg" t-ref="codeInput"
+                                   autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                                   placeholder="Lee con la pistola o escribe aquí"
+                                   t-on-keydown="onCodeKeydown" t-on-input="onCodeInput"/>
+                            <button class="btn btn-primary btn-lg" t-on-click="addTypedCode">Añadir</button>
+                        </div>
+
+                        <div t-if="state.verdict" class="o_rms_rc_verdict" t-att-class="'o_rms_rc_verdict_' + state.verdict.kind">
+                            <div class="o_rms_rc_verdict_title" t-esc="state.verdict.title"/>
+                            <div class="o_rms_rc_verdict_code" t-if="state.verdict.code" t-esc="state.verdict.code"/>
+                            <div class="o_rms_rc_verdict_msg" t-esc="state.verdict.message"/>
+                        </div>
+                        <div t-elif="!readonly" class="o_rms_rc_verdict o_rms_rc_verdict_idle">
+                            <div class="o_rms_rc_verdict_title">Listo para leer</div>
+                            <div class="o_rms_rc_verdict_msg">Cada caja leída pone en verde su línea de la lista.</div>
+                        </div>
+
+                        <div t-if="state.context" class="o_rms_rc_context">
+                            <span>Siguiente caja: <strong t-esc="state.context.name"/></span>
+                            <button class="btn btn-sm btn-link" t-on-click="clearContext" title="Quitar">✕</button>
+                        </div>
+
+                        <div class="o_rms_rc_buttons" t-if="!readonly">
+                            <button class="btn btn-light o_rms_rc_undo" t-on-click="() => this.undo()">
+                                <i class="fa fa-undo"/> Deshacer mi última lectura
+                            </button>
+                            <button class="btn btn-light o_rms_rc_nolabel" t-on-click="() => this.openNoLabel()">
+                                <i class="fa fa-tag"/> Sin etiqueta
+                            </button>
+                            <button class="btn btn-light o_rms_rc_load" t-on-click="loadDocument" t-if="!blind">
+                                <i class="fa fa-file-text-o"/> Cargar otro documento
+                            </button>
+                        </div>
+
+                        <div class="o_rms_rc_box" t-if="data.extras.length">
+                            <div class="o_rms_rc_box_title" t-att-class="blind ? 'o_rms_rc_text_blue' : 'o_rms_rc_text_red'">
+                                <t t-if="blind">Leído sin lista</t><t t-else="">Sobrantes: no están en la lista</t>
+                                (<t t-esc="data.extras.length"/>)
+                            </div>
+                            <div t-foreach="data.extras" t-as="extra" t-key="extra.id"
+                                 class="o_rms_rc_extra" t-att-class="{ o_rms_rc_extra_blind: blind, o_rms_rc_line_last: state.lastLine == extra.id }"
+                                 t-att-data-line="extra.id">
+                                <div class="o_rms_rc_extra_main">
+                                    <span class="o_rms_rc_serial" t-if="extra.scanned_serial" t-esc="extra.scanned_serial"/>
+                                    <span class="o_rms_rc_serial" t-else="">× <t t-esc="fmt(extra.qty_received)"/></span>
+                                    <small>
+                                        <t t-esc="extra.product_name or 'modelo sin identificar'"/>
+                                        <t t-if="extra.user"> · <t t-esc="extra.user"/> <t t-esc="extra.time"/></t>
+                                        <t t-if="extra.damage_note"> · Dañado: <t t-esc="extra.damage_note"/></t>
+                                    </small>
+                                </div>
+                                <button t-if="!readonly and !extra.by_quantity" class="btn btn-sm btn-link" title="Dañado"
+                                        t-on-click="() => this.openDamaged(extra)"><i class="fa fa-exclamation-triangle"/></button>
+                                <button t-if="!readonly" class="btn btn-sm btn-link" title="Quitar esta lectura"
+                                        t-on-click="() => this.unreceive(extra)"><i class="fa fa-trash-o"/></button>
+                            </div>
+                        </div>
+
+                        <div class="o_rms_rc_box" t-if="data.scans.length">
+                            <div class="o_rms_rc_box_title">Últimas lecturas</div>
+                            <div t-foreach="data.scans" t-as="scan" t-key="scan.id" class="o_rms_rc_scan"
+                                 t-att-class="'o_rms_rc_scan_' + scan.verdict + (scan.undone ? ' o_rms_rc_scan_undone' : '')">
+                                <span class="o_rms_rc_dot"/>
+                                <span class="o_rms_rc_scan_code" t-esc="scan.code"/>
+                                <span class="o_rms_rc_scan_who"><t t-esc="scan.user"/> · <t t-esc="scan.time"/></span>
+                            </div>
+                        </div>
+
+                        <button t-if="!readonly" class="btn btn-success btn-lg o_rms_rc_finish" t-on-click="finish">
+                            <i class="fa fa-flag-checkered"/> He terminado
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Ventanas: dañado / sin etiqueta -->
+                <div t-if="state.panel" class="o_rms_rc_overlay">
+                    <div class="o_rms_rc_panel" t-if="state.panel.type == 'damaged'">
+                        <h3>Caja dañada</h3>
+                        <p class="o_rms_rc_serial" t-esc="state.panel.line.scanned_serial or state.panel.line.serial"/>
+                        <label>¿Qué daño tiene?</label>
+                        <textarea class="form-control o_rms_rc_damage_note" rows="3" t-model="state.panel.note"
+                                  placeholder="Por ejemplo: caja abierta, golpe en una esquina, mojada…"/>
+                        <p class="text-muted mt-2">Anótalo también en el albarán del transportista. Un responsable decidirá si entra en stock.</p>
+                        <div class="o_rms_rc_panel_error" t-if="state.panel.error" t-esc="state.panel.error"/>
+                        <div class="o_rms_rc_panel_buttons">
+                            <button class="btn btn-warning btn-lg o_rms_rc_damage_save" t-on-click="saveDamaged">Marcar como dañado</button>
+                            <button class="btn btn-light btn-lg" t-on-click="closePanel">Cancelar</button>
+                        </div>
+                    </div>
+                    <div class="o_rms_rc_panel" t-if="state.panel.type == 'nolabel'">
+                        <h3>Caja o equipo sin etiqueta</h3>
+                        <p class="text-muted">Abre la caja y copia el número de serie de la placa del equipo. Se pide dos veces para evitar erratas.</p>
+                        <label>Producto</label>
+                        <select class="form-select form-select-lg" t-model="state.panel.productId">
+                            <option value="">No lo sé / no está en la lista</option>
+                            <option t-foreach="state.panel.products" t-as="product" t-key="product.key"
+                                    t-att-value="product.product_id">
+                                <t t-esc="product.name"/> <t t-if="product.code">(<t t-esc="product.code"/>)</t>
+                            </option>
+                        </select>
+                        <label class="mt-3">Número de serie</label>
+                        <input type="text" class="form-control form-control-lg o_rms_rc_manual_serial" autocomplete="off"
+                               autocapitalize="characters" spellcheck="false" t-model="state.panel.serial"/>
+                        <label class="mt-3">Repite el número de serie</label>
+                        <input type="text" class="form-control form-control-lg o_rms_rc_manual_confirm" autocomplete="off"
+                               autocapitalize="characters" spellcheck="false" t-model="state.panel.confirm"/>
+                        <label class="mt-3 o_rms_rc_check">
+                            <input type="checkbox" t-model="state.panel.print"/> Imprimir la etiqueta sustituta para pegarla en la caja
+                        </label>
+                        <div class="o_rms_rc_panel_error" t-if="state.panel.error" t-esc="state.panel.error"/>
+                        <div class="o_rms_rc_panel_buttons">
+                            <button class="btn btn-primary btn-lg o_rms_rc_manual_save" t-on-click="saveNoLabel">Guardar</button>
+                            <button class="btn btn-light btn-lg" t-on-click="closePanel">Cancelar</button>
+                        </div>
+                    </div>
+                </div>
+            </t>
+        </div>
+    </t>
+
+</templates>

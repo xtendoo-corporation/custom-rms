@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_rms_reception" model="ir.actions.report">
+        <field name="name">Informe de recepción</field>
+        <field name="model">rms.reception</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">rms_stock_reception_check.report_rms_reception</field>
+        <field name="report_file">rms_stock_reception_check.report_rms_reception</field>
+        <field name="print_report_name">'Recepcion - %s' % (object.name.replace('/', '-'))</field>
+        <field name="binding_model_id" ref="model_rms_reception"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_rms_reception">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h3>Recepción de proveedor <t t-esc="o.name"/></h3>
+                        <p>
+                            Proveedor: <strong t-esc="o.partner_id.display_name"/> ·
+                            Documento: <strong t-esc="o.supplier_ref or '-'"/> ·
+                            Fecha: <span t-field="o.date"/> ·
+                            Almacén: <t t-esc="o.warehouse_id.name"/> ·
+                            Estado: <strong t-field="o.state"/>
+                            <t t-if="o.picking_id and o.state == 'done'"> · Albarán: <strong t-esc="o.picking_id.name"/></t>
+                        </p>
+                        <p>
+                            Esperado: <strong t-esc="'%g' % o.count_expected"/> ·
+                            Recibido: <strong t-esc="'%g' % o.count_received"/> ·
+                            Falta: <strong t-esc="'%g' % o.count_missing"/> ·
+                            Sobrante: <strong t-esc="'%g' % o.count_extra"/> ·
+                            A revisar: <strong t-esc="o.count_review"/>
+                        </p>
+                        <t t-foreach="o._report_sections()" t-as="section">
+                            <t t-if="section[1]">
+                                <h5 class="mt-3"><t t-esc="section[0]"/> (<t t-esc="len(section[1])"/>)</h5>
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Referencia</th>
+                                            <th>Producto</th>
+                                            <th>Nº serie esperado</th>
+                                            <th>Nº serie leído</th>
+                                            <th class="text-end">Esperado</th>
+                                            <th class="text-end">Recibido</th>
+                                            <th>Decisión / nota</th>
+                                            <th>Leído por</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr t-foreach="section[1]" t-as="line">
+                                            <td><t t-esc="line.product_id.default_code or line.supplier_code or ''"/></td>
+                                            <td>
+                                                <t t-esc="line.product_id.name or line.description or ''"/>
+                                                <t t-if="line.state == 'wrong_model' and line.scanned_product_id">
+                                                    <br/><em>Leído como: <t t-esc="line.scanned_product_id.display_name"/></em>
+                                                </t>
+                                            </td>
+                                            <td><t t-esc="line.serial or ''"/></td>
+                                            <td><t t-esc="line.scanned_serial or ''"/></td>
+                                            <td class="text-end"><t t-esc="'%g' % line.qty_expected"/></td>
+                                            <td class="text-end">
+                                                <t t-esc="'%g' % (line.qty_received if line.by_quantity else (1 if line.scanned_serial else 0))"/>
+                                            </td>
+                                            <td>
+                                                <span t-field="line.resolution"/>
+                                                <t t-if="line.damage_note"> <t t-esc="line.damage_note"/></t>
+                                            </td>
+                                            <td>
+                                                <t t-esc="line.scanned_by.name or ''"/>
+                                                <t t-if="line.scanned_at"> <span t-field="line.scanned_at" t-options="{'widget': 'datetime'}"/></t>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </t>
+                        </t>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

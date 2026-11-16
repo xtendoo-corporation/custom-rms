@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_reception_load_wizard_form" model="ir.ui.view">
+        <field name="name">rms.reception.load.wizard.form</field>
+        <field name="model">rms.reception.load.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Cargar documento del proveedor">
+                <field name="step" invisible="1"/>
+                <field name="reception_id" invisible="1"/>
+                <field name="column_ids" invisible="1"/>
+                <!-- Paso 1: el documento -->
+                <div invisible="step != 'input'">
+                    <div class="alert alert-info" role="alert">
+                        Elige cómo llega la lista del proveedor. Antes de guardar nada verás una
+                        <strong>vista previa</strong> que puedes corregir.
+                    </div>
+                    <group>
+                        <field name="source" widget="radio" options="{'horizontal': true}"/>
+                        <field name="product_state_id" options="{'no_create': True, 'no_open': True}"/>
+                    </group>
+                    <group invisible="source == 'paste'">
+                        <field name="file" filename="filename" required="source != 'paste' and step == 'input'"/>
+                        <field name="filename" invisible="1"/>
+                    </group>
+                    <group invisible="source != 'pdf'">
+                        <field name="pdf_format"/>
+                        <div colspan="2" class="text-muted">
+                            Solo sirven los PDF con texto. Si el PDF es una foto o un escaneado del
+                            papel, usa «Excel / CSV» o «Pegar texto».
+                        </div>
+                    </group>
+                    <group invisible="source != 'sheet'">
+                        <field name="has_header"/>
+                    </group>
+                    <group invisible="source != 'sheet' or not column_ids" string="¿Qué hay en cada columna?">
+                        <field name="col_product_id" options="{'no_create': True, 'no_open': True}"/>
+                        <field name="col_serial_id" options="{'no_create': True, 'no_open': True}"/>
+                        <field name="col_qty_id" options="{'no_create': True, 'no_open': True}"/>
+                        <field name="col_description_id" options="{'no_create': True, 'no_open': True}"/>
+                    </group>
+                    <group invisible="source != 'paste'">
+                        <field name="paste_text" nolabel="1" colspan="2"
+                               placeholder="Una serie por línea, o: referencia [tabulador] serie&#10;Ejemplo:&#10;0933800104	26476604&#10;0933800104	26476605"/>
+                    </group>
+                </div>
+                <!-- Paso 2: vista previa editable -->
+                <div invisible="step != 'preview'">
+                    <div class="alert alert-info" role="alert">
+                        <strong>Vista previa</strong> (<field name="detected_format" class="oe_inline" readonly="1"/>):
+                        <field name="summary" class="oe_inline"/>.
+                        Revisa y corrige lo que haga falta; todavía no se ha guardado nada.
+                    </div>
+                    <div class="alert alert-warning" role="alert" invisible="unassigned_count == 0">
+                        Hay líneas <strong>sin producto</strong>: elige el producto de Odoo en una de
+                        ellas y se aplicará a todas las del mismo código. El programa lo recordará
+                        para la próxima vez.
+                    </div>
+                    <field name="unassigned_count" invisible="1"/>
+                    <field name="line_ids">
+                        <list editable="bottom" decoration-warning="not product_id" decoration-danger="warning">
+                            <field name="sequence" column_invisible="1"/>
+                            <field name="supplier_code"/>
+                            <field name="description" optional="show"/>
+                            <field name="product_id" options="{'no_create': True}"/>
+                            <field name="serial"/>
+                            <field name="qty" width="80px"/>
+                            <field name="product_state_id" options="{'no_create': True, 'no_open': True}" optional="show"/>
+                            <field name="match" optional="show"/>
+                            <field name="warning" optional="show"/>
+                        </list>
+                    </field>
+                </div>
+                <footer>
+                    <button name="action_read" type="object" class="btn-primary" invisible="step != 'input'"
+                            string="Leer y ver la vista previa"/>
+                    <button name="action_confirm" type="object" class="btn-primary" invisible="step != 'preview'"
+                            string="Cargar en la recepción"/>
+                    <button name="action_back" type="object" class="btn-secondary" invisible="step != 'preview'"
+                            string="Volver"/>
+                    <button special="cancel" string="Cancelar" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

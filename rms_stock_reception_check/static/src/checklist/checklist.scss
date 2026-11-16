@@ -1,0 +1,847 @@
+// Pantalla de checklist de recepción (iPad horizontal y portátil).
+// Compatible con libsass: sin min()/max()/env() de CSS.
+
+$rc-green: #1e8e3e;
+$rc-green-bg: #e3f4e8;
+$rc-amber: #a85d00;
+$rc-amber-bg: #fff3d6;
+$rc-red: #c5221f;
+$rc-red-bg: #fde7e5;
+$rc-grey: #5f6368;
+$rc-grey-bg: #eef0f2;
+$rc-blue: #1759b8;
+$rc-blue-bg: #e5eefc;
+$rc-ink: #1f2933;
+$rc-line: #dfe3e8;
+
+.o_rms_rc {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    background: #f4f5f7;
+    color: $rc-ink;
+    font-size: 16px;
+    position: relative;
+
+    .o_rms_rc_message {
+        margin: auto;
+        padding: 32px;
+        font-size: 20px;
+        text-align: center;
+    }
+
+    // ------------------------------------------------------------ cabecera
+    .o_rms_rc_top {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px 16px;
+        padding: 10px 16px;
+        background: #fff;
+        border-bottom: 1px solid $rc-line;
+    }
+
+    .o_rms_rc_back {
+        min-height: 44px;
+        white-space: nowrap;
+    }
+
+    .o_rms_rc_title {
+        flex: 1 1 220px;
+        min-width: 0;
+    }
+
+    .o_rms_rc_name {
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .o_rms_rc_state {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+        vertical-align: middle;
+        background: $rc-grey-bg;
+        color: $rc-grey;
+
+        &.o_rms_rc_state_receiving {
+            background: $rc-blue-bg;
+            color: $rc-blue;
+        }
+
+        &.o_rms_rc_state_review {
+            background: $rc-amber-bg;
+            color: $rc-amber;
+        }
+
+        &.o_rms_rc_state_done {
+            background: $rc-green-bg;
+            color: $rc-green;
+        }
+    }
+
+    .o_rms_rc_sub {
+        color: $rc-grey;
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .o_rms_rc_score {
+        display: flex;
+        gap: 8px;
+    }
+
+    .o_rms_rc_tile {
+        min-width: 104px;
+        padding: 6px 12px;
+        border-radius: 10px;
+        text-align: center;
+        border: 1px solid transparent;
+    }
+
+    .o_rms_rc_tile_num {
+        font-size: 28px;
+        font-weight: 800;
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+
+        small {
+            font-size: 15px;
+            font-weight: 600;
+            opacity: 0.8;
+        }
+    }
+
+    .o_rms_rc_tile_label {
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .o_rms_rc_tile_green {
+        background: $rc-green-bg;
+        color: $rc-green;
+    }
+
+    .o_rms_rc_tile_white {
+        background: #fff;
+        border-color: $rc-line;
+        color: $rc-ink;
+    }
+
+    .o_rms_rc_tile_red {
+        background: $rc-red-bg;
+        color: $rc-red;
+    }
+
+    .o_rms_rc_tile_blue {
+        background: $rc-blue-bg;
+        color: $rc-blue;
+    }
+
+    .o_rms_rc_tile_amber {
+        background: $rc-amber-bg;
+        color: $rc-amber;
+    }
+
+    .o_rms_rc_banner {
+        padding: 10px 16px;
+        background: $rc-amber-bg;
+        color: $rc-amber;
+        border-bottom: 1px solid $rc-line;
+    }
+
+    // ------------------------------------------------------------ cuerpo
+    .o_rms_rc_body {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        gap: 12px;
+        padding: 12px 16px;
+    }
+
+    .o_rms_rc_list {
+        flex: 1 1 62%;
+        min-width: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-right: 4px;
+    }
+
+    .o_rms_rc_side {
+        flex: 0 0 36%;
+        max-width: 440px;
+        min-width: 300px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .o_rms_rc_filters {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+
+        .btn {
+            min-height: 42px;
+            font-weight: 600;
+            border: 1px solid $rc-line;
+        }
+    }
+
+    .o_rms_rc_blind,
+    .o_rms_rc_empty {
+        background: #fff;
+        border: 1px dashed #b8c0cc;
+        border-radius: 12px;
+        padding: 28px;
+        text-align: center;
+        color: $rc-grey;
+
+        h3 {
+            color: $rc-ink;
+            font-weight: 700;
+        }
+    }
+
+    // ------------------------------------------------------------ grupos
+    .o_rms_rc_group {
+        background: #fff;
+        border: 1px solid $rc-line;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        overflow: hidden;
+    }
+
+    .o_rms_rc_group_head {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+        padding: 10px 14px;
+        cursor: pointer;
+        position: relative;
+    }
+
+    .o_rms_rc_caret {
+        width: 12px;
+        color: $rc-grey;
+    }
+
+    .o_rms_rc_group_name {
+        flex: 1 1 200px;
+        min-width: 0;
+        font-size: 18px;
+        line-height: 1.25;
+    }
+
+    .o_rms_rc_group_code {
+        margin-left: 8px;
+        color: $rc-grey;
+        font-size: 14px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .o_rms_rc_group_warn {
+        margin-left: 8px;
+        padding: 1px 8px;
+        border-radius: 999px;
+        background: $rc-amber-bg;
+        color: $rc-amber;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .o_rms_rc_group_count {
+        font-size: 20px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    .o_rms_rc_bar {
+        flex: 0 0 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: $rc-grey-bg;
+        overflow: hidden;
+
+        > div {
+            height: 100%;
+            background: $rc-green;
+            transition: width 0.25s ease;
+        }
+    }
+
+    .o_rms_rc_group_done {
+        border-color: #9fd3ae;
+
+        .o_rms_rc_group_head {
+            background: $rc-green-bg;
+        }
+
+        .o_rms_rc_group_count {
+            color: $rc-green;
+        }
+    }
+
+    .o_rms_rc_group_review .o_rms_rc_group_count {
+        color: $rc-amber;
+    }
+
+    .o_rms_rc_lines {
+        border-top: 1px solid $rc-line;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1px;
+        background: $rc-line;
+    }
+
+    // ------------------------------------------------------------ líneas
+    .o_rms_rc_line {
+        background: #fff;
+        border-left: 6px solid #c9ced6;
+        min-height: 56px;
+    }
+
+    .o_rms_rc_line_row,
+    .o_rms_rc_line_qty {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+    }
+
+    .o_rms_rc_line_row {
+        cursor: pointer;
+    }
+
+    .o_rms_rc_line_mark {
+        flex: 0 0 30px;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 2px solid #c9ced6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 15px;
+    }
+
+    .o_rms_rc_line_main {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .o_rms_rc_serial {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        word-break: break-all;
+    }
+
+    .o_rms_rc_line_status {
+        font-size: 13px;
+        color: $rc-grey;
+    }
+
+    .o_rms_rc_chip {
+        padding: 1px 8px;
+        border-radius: 999px;
+        background: $rc-blue-bg;
+        color: $rc-blue;
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .o_rms_rc_line_actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 0 12px 10px 52px;
+
+        .btn {
+            min-height: 42px;
+        }
+    }
+
+    .o_rms_rc_line_received {
+        background: $rc-green-bg;
+        border-left-color: $rc-green;
+
+        .o_rms_rc_line_mark {
+            background: $rc-green;
+            border-color: $rc-green;
+        }
+
+        .o_rms_rc_line_status {
+            color: $rc-green;
+        }
+    }
+
+    .o_rms_rc_line_probable,
+    .o_rms_rc_line_wrong_model,
+    .o_rms_rc_line_damaged,
+    .o_rms_rc_line_partial {
+        background: $rc-amber-bg;
+        border-left-color: #e8a100;
+
+        .o_rms_rc_line_mark {
+            background: #e8a100;
+            border-color: #e8a100;
+        }
+
+        .o_rms_rc_line_status {
+            color: $rc-amber;
+        }
+    }
+
+    .o_rms_rc_line_missing,
+    .o_rms_rc_line_over {
+        background: $rc-red-bg;
+        border-left-color: $rc-red;
+
+        .o_rms_rc_line_mark {
+            background: $rc-red;
+            border-color: $rc-red;
+        }
+
+        .o_rms_rc_line_status {
+            color: $rc-red;
+        }
+    }
+
+    .o_rms_rc_line_qty .o_rms_rc_line_mark {
+        color: $rc-grey;
+        border-color: transparent;
+        background: transparent;
+    }
+
+    .o_rms_rc_line_qty.o_rms_rc_line_received .o_rms_rc_line_mark {
+        color: $rc-green;
+        background: transparent;
+        border-color: transparent;
+    }
+
+    .o_rms_rc_line_qty {
+        grid-column: 1 / -1;
+        flex-wrap: wrap;
+
+        .o_rms_rc_serial {
+            font-family: inherit;
+            font-size: 16px;
+            letter-spacing: 0;
+        }
+    }
+
+    .o_rms_rc_qty {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .btn {
+            width: 48px;
+            height: 48px;
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1;
+            border: 1px solid #c9ced6;
+        }
+
+        .o_rms_rc_qty_input {
+            width: 76px;
+            height: 48px;
+            text-align: center;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .o_rms_rc_qty_total {
+            font-size: 18px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+    }
+
+    // Última lectura: bien visible
+    .o_rms_rc_line_last {
+        box-shadow: inset 0 0 0 3px $rc-ink;
+        animation: o_rms_rc_flash 0.9s ease-out 1;
+        position: relative;
+        z-index: 1;
+    }
+
+    // ------------------------------------------------------------ lateral
+    .o_rms_rc_input {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #f4f5f7;
+        padding-bottom: 2px;
+
+        input {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 52px;
+            font-size: 18px;
+            border: 2px solid $rc-ink;
+        }
+
+        .btn {
+            height: 52px;
+        }
+    }
+
+    .o_rms_rc_verdict,
+    .o_rms_rc_box,
+    .o_rms_rc_buttons,
+    .o_rms_rc_context {
+        flex-shrink: 0;
+    }
+
+    .o_rms_rc_verdict {
+        border-radius: 12px;
+        padding: 14px 16px;
+        border: 2px solid transparent;
+        min-height: 112px;
+    }
+
+    .o_rms_rc_verdict_title {
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.15;
+    }
+
+    .o_rms_rc_verdict_code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 20px;
+        font-weight: 700;
+        word-break: break-all;
+        margin-top: 2px;
+    }
+
+    .o_rms_rc_verdict_msg {
+        font-size: 15px;
+        margin-top: 4px;
+    }
+
+    .o_rms_rc_verdict_idle {
+        background: #fff;
+        border-color: $rc-line;
+        color: $rc-grey;
+    }
+
+    .o_rms_rc_verdict_green {
+        background: $rc-green;
+        color: #fff;
+    }
+
+    .o_rms_rc_verdict_amber {
+        background: #f5b400;
+        color: #2b2000;
+    }
+
+    .o_rms_rc_verdict_red {
+        background: $rc-red;
+        color: #fff;
+    }
+
+    .o_rms_rc_verdict_grey {
+        background: #d5d9df;
+        color: $rc-ink;
+    }
+
+    .o_rms_rc_verdict_blue {
+        background: $rc-blue;
+        color: #fff;
+    }
+
+    .o_rms_rc_context {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 12px;
+        border-radius: 10px;
+        background: $rc-grey-bg;
+        border: 1px solid $rc-line;
+        font-size: 14px;
+    }
+
+    .o_rms_rc_buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+
+        .btn {
+            flex: 1 1 46%;
+            min-height: 46px;
+            border: 1px solid $rc-line;
+            background: #fff;
+            font-weight: 600;
+        }
+    }
+
+    .o_rms_rc_box {
+        background: #fff;
+        border: 1px solid $rc-line;
+        border-radius: 12px;
+        padding: 10px 12px;
+    }
+
+    .o_rms_rc_box_title {
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: $rc-grey;
+        margin-bottom: 6px;
+    }
+
+    .o_rms_rc_text_red {
+        color: $rc-red;
+    }
+
+    .o_rms_rc_text_blue {
+        color: $rc-blue;
+    }
+
+    .o_rms_rc_extra {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 8px;
+        margin-bottom: 4px;
+        border-radius: 8px;
+        background: $rc-red-bg;
+        border-left: 5px solid $rc-red;
+
+        &.o_rms_rc_extra_blind {
+            background: $rc-blue-bg;
+            border-left-color: $rc-blue;
+        }
+
+        .o_rms_rc_extra_main {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .o_rms_rc_serial {
+            display: block;
+            font-size: 16px;
+        }
+
+        small {
+            color: $rc-grey;
+        }
+
+        .btn {
+            min-width: 40px;
+            min-height: 40px;
+            color: $rc-grey;
+        }
+    }
+
+    .o_rms_rc_scan {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+        font-size: 14px;
+        border-bottom: 1px solid #f0f1f3;
+
+        &:last-child {
+            border-bottom: 0;
+        }
+    }
+
+    .o_rms_rc_dot {
+        flex: 0 0 10px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #b0b6bf;
+    }
+
+    .o_rms_rc_scan_ok .o_rms_rc_dot {
+        background: $rc-green;
+    }
+
+    .o_rms_rc_scan_probable .o_rms_rc_dot,
+    .o_rms_rc_scan_wrong_model .o_rms_rc_dot,
+    .o_rms_rc_scan_ambiguous .o_rms_rc_dot {
+        background: #e8a100;
+    }
+
+    .o_rms_rc_scan_extra .o_rms_rc_dot {
+        background: $rc-red;
+    }
+
+    .o_rms_rc_scan_code {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .o_rms_rc_scan_who {
+        color: $rc-grey;
+        white-space: nowrap;
+        font-size: 12px;
+    }
+
+    .o_rms_rc_scan_undone .o_rms_rc_scan_code {
+        text-decoration: line-through;
+        color: $rc-grey;
+    }
+
+    .o_rms_rc_finish {
+        margin-top: auto;
+        min-height: 60px;
+        font-size: 20px;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    // ------------------------------------------------------------ ventanas
+    .o_rms_rc_overlay {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 20;
+        background: rgba(20, 24, 31, 0.55);
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 24px 16px;
+        overflow-y: auto;
+    }
+
+    .o_rms_rc_panel {
+        width: 100%;
+        max-width: 540px;
+        background: #fff;
+        border-radius: 14px;
+        padding: 20px 22px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+
+        h3 {
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .o_rms_rc_check {
+            font-weight: 400;
+
+            input {
+                width: 20px;
+                height: 20px;
+                vertical-align: middle;
+                margin-right: 6px;
+            }
+        }
+    }
+
+    .o_rms_rc_panel_error {
+        margin-top: 12px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: $rc-red-bg;
+        color: $rc-red;
+        font-weight: 600;
+    }
+
+    .o_rms_rc_panel_buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+
+        .btn {
+            flex: 1 1 0;
+            min-height: 52px;
+        }
+    }
+}
+
+@keyframes o_rms_rc_flash {
+    0% {
+        transform: scale(1.03);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+// Pantallas estrechas (iPad en vertical, móvil): una sola columna, con la
+// lectura arriba.
+@media (max-width: 860px) {
+    .o_rms_rc {
+        height: auto;
+        min-height: 100%;
+
+        .o_rms_rc_body {
+            flex-direction: column-reverse;
+        }
+
+        .o_rms_rc_side {
+            flex: 0 0 auto;
+            max-width: none;
+            min-width: 0;
+            overflow: visible;
+        }
+
+        .o_rms_rc_list {
+            overflow: visible;
+        }
+
+        .o_rms_rc_score {
+            flex: 1 1 100%;
+        }
+
+        .o_rms_rc_tile {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .o_rms_rc_finish {
+            margin-top: 0;
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .o_rms_rc .o_rms_rc_line_last {
+        animation: none;
+    }
+
+    .o_rms_rc .o_rms_rc_bar > div {
+        transition: none;
+    }
+}

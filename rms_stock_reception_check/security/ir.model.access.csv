@@ -1,0 +1,11 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_rms_reception_user,rms.reception.user,model_rms_reception,stock.group_stock_user,1,1,1,0
+access_rms_reception_manager,rms.reception.manager,model_rms_reception,stock.group_stock_manager,1,1,1,1
+access_rms_reception_line_user,rms.reception.line.user,model_rms_reception_line,stock.group_stock_user,1,1,1,1
+access_rms_reception_scan_user,rms.reception.scan.user,model_rms_reception_scan,stock.group_stock_user,1,1,1,0
+access_rms_reception_scan_manager,rms.reception.scan.manager,model_rms_reception_scan,stock.group_stock_manager,1,1,1,1
+access_rms_reception_supplier_code_user,rms.reception.supplier.code.user,model_rms_reception_supplier_code,stock.group_stock_user,1,1,1,0
+access_rms_reception_supplier_code_manager,rms.reception.supplier.code.manager,model_rms_reception_supplier_code,stock.group_stock_manager,1,1,1,1
+access_rms_reception_load_wizard_user,rms.reception.load.wizard.user,model_rms_reception_load_wizard,stock.group_stock_user,1,1,1,1
+access_rms_reception_load_column_user,rms.reception.load.column.user,model_rms_reception_load_column,stock.group_stock_user,1,1,1,1
+access_rms_reception_load_line_user,rms.reception.load.line.user,model_rms_reception_load_line,stock.group_stock_user,1,1,1,1

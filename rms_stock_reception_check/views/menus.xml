@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Inventario > Recepción de proveedor (se llama así para no confundirlo
+         con «Recepciones» de Operaciones, que son los albaranes de Odoo). -->
+    <menuitem id="menu_rms_reception_root" name="Recepción de proveedor"
+              parent="stock.menu_stock_root" sequence="3" groups="stock.group_stock_user"/>
+    <menuitem id="menu_rms_reception" name="Recepciones" parent="menu_rms_reception_root"
+              action="action_rms_reception" sequence="10"/>
+    <menuitem id="menu_rms_reception_incident" name="Incidencias" parent="menu_rms_reception_root"
+              action="action_rms_reception_incident" sequence="20"/>
+    <menuitem id="menu_rms_reception_config" name="Configuración" parent="menu_rms_reception_root"
+              sequence="90"/>
+    <menuitem id="menu_rms_reception_supplier_code" name="Códigos de proveedor"
+              parent="menu_rms_reception_config" action="action_rms_reception_supplier_code" sequence="10"/>
+</odoo>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="seq_rms_reception" model="ir.sequence">
+        <field name="name">Recepción de proveedor con lista</field>
+        <field name="code">rms.reception</field>
+        <field name="prefix">REC-IN/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

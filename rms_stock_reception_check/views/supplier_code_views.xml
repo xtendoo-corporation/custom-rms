@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_reception_supplier_code_list" model="ir.ui.view">
+        <field name="name">rms.reception.supplier.code.list</field>
+        <field name="model">rms.reception.supplier.code</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="partner_id"/>
+                <field name="code"/>
+                <field name="product_id" options="{'no_create': True}"/>
+                <field name="note" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_reception_supplier_code_search" model="ir.ui.view">
+        <field name="name">rms.reception.supplier.code.search</field>
+        <field name="model">rms.reception.supplier.code</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="code" filter_domain="['|', ('code', 'ilike', self), ('code_normalized', 'ilike', self)]"/>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <group>
+                    <filter name="by_partner" string="Proveedor" context="{'group_by': 'partner_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_rms_reception_supplier_code" model="ir.actions.act_window">
+        <field name="name">Códigos de proveedor</field>
+        <field name="res_model">rms.reception.supplier.code</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Todavía no hay códigos de proveedor</p>
+            <p>Se aprenden solos cuando asignas un producto en la vista previa de un documento.
+               También puedes añadirlos aquí a mano.</p>
+        </field>
+    </record>
+</odoo>

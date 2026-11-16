@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Pantalla de checklist (iPad horizontal / portátil) -->
+    <record id="action_rms_reception_checklist" model="ir.actions.client">
+        <field name="name">Lista de recepción</field>
+        <field name="tag">rms_stock_reception_check.checklist</field>
+    </record>
+
+    <!-- ============================ Líneas ============================ -->
+    <record id="view_rms_reception_line_incident_list" model="ir.ui.view">
+        <field name="name">rms.reception.line.incident.list</field>
+        <field name="model">rms.reception.line</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0" editable="bottom"
+                  decoration-danger="state == 'extra'" decoration-warning="state in ('probable', 'wrong_model', 'damaged')"
+                  decoration-muted="resolution">
+                <header>
+                    <button name="action_confirm_probable" type="object" string="Confirmar coincidencia"
+                            groups="stock.group_stock_manager"/>
+                    <button name="action_res_backorder" type="object" string="Pendiente de llegar"
+                            groups="stock.group_stock_manager"/>
+                    <button name="action_res_claim" type="object" string="Reclamación"
+                            groups="stock.group_stock_manager"/>
+                    <button name="action_res_accept" type="object" string="Aceptar (entra en stock)"
+                            groups="stock.group_stock_manager"/>
+                    <button name="action_res_reject" type="object" string="Dejar fuera"
+                            groups="stock.group_stock_manager"/>
+                </header>
+                <field name="reception_id" readonly="1" optional="hide"/>
+                <field name="partner_id" readonly="1" optional="hide"/>
+                <field name="company_id" readonly="1" optional="hide" groups="base.group_multi_company"/>
+                <field name="state" widget="badge" readonly="1"
+                       decoration-danger="state == 'extra'" decoration-warning="state in ('probable', 'wrong_model', 'damaged')"
+                       decoration-info="state == 'missing'"/>
+                <field name="product_id" readonly="reception_state in ('done', 'cancel')" options="{'no_create': True}"/>
+                <field name="serial" readonly="1"/>
+                <field name="scanned_serial" readonly="1"/>
+                <field name="scanned_product_id" readonly="reception_state in ('done', 'cancel')"
+                       options="{'no_create': True}" optional="show"/>
+                <field name="by_quantity" column_invisible="1"/>
+                <field name="reception_state" column_invisible="1"/>
+                <field name="qty_expected" readonly="1" optional="hide"/>
+                <field name="qty_received" readonly="1" optional="hide"/>
+                <field name="damage_note" readonly="1" optional="show"/>
+                <field name="scanned_by" optional="hide"/>
+                <field name="scanned_at" optional="hide"/>
+                <field name="resolution" readonly="1" widget="badge" decoration-success="resolution == 'accept'"
+                       decoration-info="resolution == 'backorder'" decoration-warning="resolution == 'claim'"/>
+                <button name="action_confirm_probable" type="object" string="Es el mismo" class="btn-success"
+                        invisible="state != 'probable' or reception_state in ('done', 'cancel')"
+                        groups="stock.group_stock_manager"/>
+                <button name="action_reject_probable" type="object" string="No es el mismo" class="btn-secondary"
+                        invisible="state != 'probable' or reception_state in ('done', 'cancel')"
+                        groups="stock.group_stock_manager"/>
+                <button name="action_res_backorder" type="object" string="Pendiente de llegar" class="btn-secondary"
+                        invisible="state != 'missing' or resolution or reception_state in ('done', 'cancel')"
+                        groups="stock.group_stock_manager"/>
+                <button name="action_res_claim" type="object" string="Reclamación" class="btn-secondary"
+                        invisible="state != 'missing' or resolution or reception_state in ('done', 'cancel')"
+                        groups="stock.group_stock_manager"/>
+                <button name="action_res_accept" type="object" string="Aceptar" class="btn-success"
+                        invisible="state in ('missing', 'probable') or resolution or reception_state in ('done', 'cancel')"
+                        groups="stock.group_stock_manager"/>
+                <button name="action_res_reject" type="object" string="Dejar fuera" class="btn-secondary"
+                        invisible="state in ('missing', 'probable') or resolution or reception_state in ('done', 'cancel')"
+                        groups="stock.group_stock_manager"/>
+                <button name="action_res_clear" type="object" string="Cambiar" class="btn-link"
+                        invisible="not resolution or reception_state in ('done', 'cancel')"
+                        groups="stock.group_stock_manager"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_reception_line_search" model="ir.ui.view">
+        <field name="name">rms.reception.line.search</field>
+        <field name="model">rms.reception.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="reception_id"/>
+                <field name="product_id"/>
+                <field name="serial" filter_domain="['|', ('serial', 'ilike', self), ('scanned_serial', 'ilike', self)]"/>
+                <field name="partner_id"/>
+                <filter name="unresolved" string="Sin resolver" domain="[('has_issue', '=', True)]"/>
+                <separator/>
+                <filter name="missing" string="Faltan" domain="[('state', '=', 'missing')]"/>
+                <filter name="extra" string="Sobrantes" domain="[('state', '=', 'extra')]"/>
+                <filter name="wrong" string="Modelo distinto / probable" domain="[('state', 'in', ('wrong_model', 'probable'))]"/>
+                <filter name="damaged" string="Dañados" domain="[('state', '=', 'damaged')]"/>
+                <group>
+                    <filter name="by_reception" string="Recepción" context="{'group_by': 'reception_id'}"/>
+                    <filter name="by_state" string="Situación" context="{'group_by': 'state'}"/>
+                    <filter name="by_partner" string="Proveedor" context="{'group_by': 'partner_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_rms_reception_incident" model="ir.actions.act_window">
+        <field name="name">Incidencias de recepción</field>
+        <field name="res_model">rms.reception.line</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_rms_reception_line_incident_list"/>
+        <field name="domain">[('is_incident', '=', True)]</field>
+        <field name="context">{'search_default_unresolved': 1, 'search_default_by_reception': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay incidencias sin resolver</p>
+            <p>Aquí aparecen los faltantes, sobrantes, modelos distintos y dañados de las recepciones.</p>
+        </field>
+    </record>
+
+    <!-- ============================ Lecturas ============================ -->
+    <record id="view_rms_reception_scan_list" model="ir.ui.view">
+        <field name="name">rms.reception.scan.list</field>
+        <field name="model">rms.reception.scan</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0" decoration-muted="undone or verdict in ('product_code', 'ignored', 'repeat')"
+                  decoration-danger="verdict == 'extra' and not undone"
+                  decoration-warning="verdict in ('probable', 'wrong_model', 'ambiguous') and not undone"
+                  decoration-success="verdict == 'ok' and not undone">
+                <field name="scanned_at"/>
+                <field name="user_id"/>
+                <field name="code"/>
+                <field name="verdict"/>
+                <field name="product_id" optional="show"/>
+                <field name="message"/>
+                <field name="manual" optional="show"/>
+                <field name="undone"/>
+                <field name="raw_code" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================ Recepción ============================ -->
+    <record id="view_rms_reception_form" model="ir.ui.view">
+        <field name="name">rms.reception.form</field>
+        <field name="model">rms.reception</field>
+        <field name="arch" type="xml">
+            <form string="Recepción de proveedor">
+                <header>
+                    <button name="action_open_checklist" type="object" string="Abrir lista y leer con la pistola"
+                            class="btn-primary" invisible="state not in ('draft', 'receiving')"/>
+                    <button name="action_load_document" type="object" string="Cargar documento del proveedor"
+                            invisible="state in ('done', 'cancel')"/>
+                    <button name="action_finish" type="object" string="He terminado"
+                            invisible="state != 'receiving'"
+                            confirm="Lo que no se haya leído quedará como «Falta» y la recepción pasará al responsable. ¿Has terminado?"/>
+                    <button name="action_validate_stock" type="object" string="Dar entrada en stock"
+                            class="btn-primary" invisible="state != 'review'" groups="stock.group_stock_manager"
+                            confirm="Se creará y validará el albarán de entrada solo con lo recibido y aprobado. No se puede deshacer. ¿Continuar?"/>
+                    <button name="action_open_checklist" type="object" string="Ver lista"
+                            invisible="state not in ('review', 'done')"/>
+                    <button name="action_reopen" type="object" string="Reabrir la lectura"
+                            invisible="state != 'review'" groups="stock.group_stock_manager"/>
+                    <button name="%(action_report_rms_reception)d" type="action" string="Informe PDF"
+                            invisible="state == 'draft'"/>
+                    <button name="action_export_xlsx" type="object" string="Informe Excel"
+                            invisible="state == 'draft'"/>
+                    <button name="action_cancel" type="object" string="Cancelar"
+                            invisible="state in ('done', 'cancel')" confirm="¿Cancelar esta recepción?"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,receiving,review,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_picking" type="object" class="oe_stat_button" icon="fa-truck"
+                                invisible="not picking_id or state != 'done'">
+                            <div class="o_stat_info"><span class="o_stat_text">Albarán de entrada</span></div>
+                        </button>
+                        <button name="action_view_scans" type="object" class="oe_stat_button" icon="fa-barcode">
+                            <field name="scan_count" widget="statinfo" string="Lecturas"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <div class="alert alert-warning" role="alert" invisible="state != 'review' or count_unresolved == 0">
+                        Quedan <strong><field name="count_unresolved" class="oe_inline"/></strong> incidencias por
+                        decidir en la pestaña «Incidencias» antes de dar entrada en stock.
+                    </div>
+                    <group>
+                        <group>
+                            <field name="partner_id" readonly="state in ('review', 'done', 'cancel')"/>
+                            <field name="supplier_ref" readonly="state in ('done', 'cancel')"/>
+                            <field name="date" readonly="state in ('done', 'cancel')"/>
+                            <field name="default_product_state_id" readonly="state in ('done', 'cancel')"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                        </group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
+                            <field name="warehouse_id" readonly="state in ('done', 'cancel')" options="{'no_create': True}"/>
+                            <field name="location_dest_id" readonly="state in ('done', 'cancel')" options="{'no_create': True}"/>
+                            <field name="picking_id" readonly="state in ('done', 'cancel')" options="{'no_create': True}"/>
+                        </group>
+                    </group>
+                    <div class="d-flex flex-wrap gap-4 mb-3 fs-5" invisible="state == 'draft'">
+                        <span>Esperado: <strong><field name="count_expected" class="oe_inline" digits="[12, 0]"/></strong></span>
+                        <span class="text-success">Recibido: <strong><field name="count_received" class="oe_inline" digits="[12, 0]"/></strong></span>
+                        <span>Falta: <strong><field name="count_missing" class="oe_inline" digits="[12, 0]"/></strong></span>
+                        <span class="text-danger">Sobrante: <strong><field name="count_extra" class="oe_inline" digits="[12, 0]"/></strong></span>
+                        <span class="text-warning">A revisar: <strong><field name="count_review" class="oe_inline"/></strong></span>
+                    </div>
+                    <notebook>
+                        <page string="Lista esperada" name="lines">
+                            <field name="line_ids" readonly="state in ('done', 'cancel')"
+                                   context="{'default_product_state_id': default_product_state_id}">
+                                <list editable="bottom" decoration-success="state == 'received'"
+                                      decoration-danger="state == 'extra'" decoration-info="state == 'missing'"
+                                      decoration-warning="state in ('probable', 'wrong_model', 'damaged')">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="product_id" options="{'no_create': True}"/>
+                                    <field name="supplier_code" optional="show"/>
+                                    <field name="description" optional="hide"/>
+                                    <field name="serial" readonly="origin == 'scan'"/>
+                                    <field name="qty_expected" readonly="serial or origin == 'scan'"/>
+                                    <field name="qty_received" readonly="1" optional="hide"/>
+                                    <field name="product_state_id" options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="state" widget="badge" readonly="1"
+                                           decoration-success="state == 'received'" decoration-danger="state == 'extra'"
+                                           decoration-info="state == 'missing'"
+                                           decoration-warning="state in ('probable', 'wrong_model', 'damaged')"/>
+                                    <field name="scanned_serial" readonly="1" optional="show"/>
+                                    <field name="scanned_by" optional="show"/>
+                                    <field name="scanned_at" optional="show"/>
+                                    <field name="lot_id" optional="hide"/>
+                                    <field name="origin" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Incidencias" name="incidents" invisible="state == 'draft'">
+                            <div class="mb-2" invisible="state != 'review'" groups="stock.group_stock_manager">
+                                <button name="action_confirm_all_probable" type="object" class="btn btn-secondary me-2"
+                                        string="Confirmar todas las coincidencias probables"/>
+                                <button name="action_all_missing_backorder" type="object" class="btn btn-secondary me-2"
+                                        string="Todos los faltantes: pendientes de llegar"/>
+                                <button name="action_accept_all_extra" type="object" class="btn btn-secondary"
+                                        string="Aceptar todos los sobrantes"/>
+                            </div>
+                            <field name="incident_line_ids" readonly="state in ('done', 'cancel')"
+                                   context="{'list_view_ref': 'rms_stock_reception_check.view_rms_reception_line_incident_list'}"/>
+                        </page>
+                        <page string="Notas" name="notes">
+                            <field name="note" placeholder="Observaciones de la recepción (transportista, palets, daños...)"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_rms_reception_list" model="ir.ui.view">
+        <field name="name">rms.reception.list</field>
+        <field name="model">rms.reception</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state == 'cancel'" decoration-info="state == 'receiving'"
+                  decoration-warning="state == 'review'">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="partner_id"/>
+                <field name="supplier_ref"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="warehouse_id"/>
+                <field name="count_expected"/>
+                <field name="count_received"/>
+                <field name="count_missing"/>
+                <field name="count_extra"/>
+                <field name="state" widget="badge" decoration-info="state == 'receiving'"
+                       decoration-warning="state == 'review'" decoration-success="state == 'done'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rms_reception_search" model="ir.ui.view">
+        <field name="name">rms.reception.search</field>
+        <field name="model">rms.reception</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" filter_domain="['|', ('name', 'ilike', self), ('supplier_ref', 'ilike', self)]"/>
+                <field name="partner_id"/>
+                <filter name="open" string="Abiertas" domain="[('state', 'in', ('draft', 'receiving', 'review'))]"/>
+                <filter name="review" string="En revisión" domain="[('state', '=', 'review')]"/>
+                <filter name="done" string="Hechas" domain="[('state', '=', 'done')]"/>
+                <group>
+                    <filter name="by_partner" string="Proveedor" context="{'group_by': 'partner_id'}"/>
+                    <filter name="by_state" string="Estado" context="{'group_by': 'state'}"/>
+                    <filter name="by_company" string="Empresa" context="{'group_by': 'company_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_rms_reception" model="ir.actions.act_window">
+        <field name="name">Recepciones de proveedor</field>
+        <field name="res_model">rms.reception</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_open': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crea la primera recepción</p>
+            <p>Indica el proveedor, carga su factura o packing list y lee las cajas con la pistola.</p>
+        </field>
+    </record>
+</odoo>

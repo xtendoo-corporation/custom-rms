@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="rule_rms_reception_company" model="ir.rule">
+        <field name="name">Recepción de proveedor: multiempresa</field>
+        <field name="model_id" ref="model_rms_reception"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_rms_reception_line_company" model="ir.rule">
+        <field name="name">Recepción de proveedor: multiempresa (líneas)</field>
+        <field name="model_id" ref="model_rms_reception_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_rms_reception_scan_company" model="ir.rule">
+        <field name="name">Recepción de proveedor: multiempresa (lecturas)</field>
+        <field name="model_id" ref="model_rms_reception_scan"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>
