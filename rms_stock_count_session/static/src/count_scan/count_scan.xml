@@ -94,6 +94,10 @@
                                 aria-label="Buscar en Sage" t-on-click="() => this.openPanel('sage')">
                             <i class="fa fa-search"/><span class="o_rms_cs_button_label">Buscar en Sage</span>
                         </button>
+                        <button class="btn o_rms_cs_btn_qty" title="Contar por cantidad lo que no lleva nº de serie (cables, fundas, hierros...)"
+                                aria-label="Por cantidad" t-on-click="() => this.openPanel('qty')">
+                            <i class="fa fa-calculator"/><span class="o_rms_cs_button_label">Por cantidad</span>
+                        </button>
                     </div>
                 </div>
 
@@ -125,6 +129,10 @@
                             <b t-esc="pg ? pg.review : 0"/> a revisar</span>
                         <span class="o_rms_cs_stat o_rms_cs_stat_mine" title="Lecturas que llevas tú">
                             Llevas <b t-esc="os.operator.scan_count"/></span>
+                        <button t-if="pg and pg.qty_pending" class="o_rms_cs_stat o_rms_cs_stat_qty"
+                                title="Artículos sin nº de serie que Sage tiene en esta nave y nadie ha apuntado. Toca para contarlos por cantidad."
+                                t-on-click="() => this.openPanel('qty')">
+                            <b t-esc="pg.qty_pending"/> artículos por cantidad sin contar</button>
                     </div>
                     <div t-if="pg and pg.has_sage and pg.total" class="o_rms_cs_progress_bar">
                         <div t-att-style="'width:' + Math.round(100 * pg.counted / pg.total) + '%'"/>
@@ -145,14 +153,115 @@
                 <t t-if="state.panel">
                     <div class="p-2 border-bottom">
                         <div class="input-group">
-                            <input type="text" class="form-control" autofocus="autofocus"
-                                   t-att-placeholder="state.panel === 'location' ? 'Buscar ubicación...' : state.panel === 'sage' ? 'Modelo, nombre, artículo o últimos dígitos del nº de serie...' : 'Buscar producto (nombre, referencia, código)...'"
+                            <span t-if="state.qtyEditScanId" class="form-control fw-bold border-0">Cambiar la cantidad</span>
+                            <input t-else="" type="text" class="form-control" autofocus="autofocus"
+                                   autocomplete="off" autocapitalize="off" spellcheck="false"
+                                   t-att-placeholder="state.panel === 'location' ? 'Buscar ubicación...' : state.panel === 'sage' ? 'Modelo, nombre, artículo o últimos dígitos del nº de serie...' : state.panel === 'qty' ? 'Parte del nombre o del código (cable, funda, XLR...)' : 'Buscar producto (nombre, referencia, código)...'"
                                    t-att-value="state.panelQuery"
                                    t-on-input="onPanelQueryInput"/>
                             <button class="btn btn-secondary" t-on-click="closePanel">Cerrar</button>
                         </div>
                     </div>
-                    <div t-if="state.panel === 'sage'" class="flex-grow-1 overflow-auto o_rms_cs_sage_panel">
+                    <!-- "Por cantidad": artículos sin nº de serie. A ciegas: no se
+                         enseña lo que dice Sage, solo lo ya apuntado en este recuento. -->
+                    <div t-if="state.panel === 'qty'" class="flex-grow-1 overflow-auto o_rms_cs_qty_panel" t-ref="qtyPanel">
+                        <div t-if="!state.qtyEditScanId and !state.qtyPick" class="px-2 py-1 small text-muted">
+                            Lo que no lleva nº de serie (cables, fundas, hierros, accesorios): busca el artículo,
+                            cuenta las unidades que hay y apunta la cantidad.
+                        </div>
+                        <div t-if="state.qtyDone" class="o_rms_cs_qty_done" role="status" aria-live="polite">
+                            <i class="fa fa-check-circle"/> <t t-esc="state.qtyDone"/>
+                        </div>
+                        <div t-if="state.qtyPick" class="o_rms_cs_qty_pick">
+                            <div class="o_rms_cs_qty_pick_name" t-esc="state.qtyPick.name"/>
+                            <div t-if="state.qtyPick.article" class="small text-muted">
+                                Sage: <t t-esc="state.qtyPick.article"/><t t-if="state.qtyPick.sage_name"> · <t t-esc="state.qtyPick.sage_name"/></t>
+                            </div>
+                            <t t-if="!state.qtyPick.ok">
+                                <div class="o_rms_cs_qty_blocked" role="alert">
+                                    <i class="fa fa-exclamation-triangle"/> Falta crear el producto: avisa al responsable.
+                                </div>
+                                <div class="o_rms_cs_qty_actions">
+                                    <button class="btn btn-outline-secondary btn-lg" t-on-click="clearQtyPick">Otro artículo</button>
+                                </div>
+                            </t>
+                            <t t-else="">
+                                <div t-if="!state.qtyEditScanId" class="o_rms_cs_states o_rms_cs_qty_states" role="group" aria-label="Estado de lo que cuentas">
+                                    <button t-foreach="os.product_states" t-as="qtyState" t-key="qtyState.id"
+                                            class="btn o_rms_cs_state"
+                                            t-att-class="'o_rms_cs_state_' + qtyState.code + (state.qtyStateId === qtyState.id ? ' active' : '')"
+                                            t-att-aria-pressed="state.qtyStateId === qtyState.id ? 'true' : 'false'"
+                                            t-on-click="() => this.setQtyState(qtyState.id)">
+                                        <t t-esc="qtyState.name"/>
+                                    </button>
+                                </div>
+                                <div class="o_rms_cs_qty_entry">
+                                    <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5"
+                                           autocomplete="off" class="form-control o_rms_cs_qty_input"
+                                           placeholder="0" aria-label="Cantidad contada"
+                                           t-att-value="state.qtyValue" t-on-input="onQtyInput"/>
+                                    <span class="o_rms_cs_qty_unit">unidades</span>
+                                </div>
+                                <div class="o_rms_cs_qty_keys" role="group" aria-label="Teclado numérico">
+                                    <button t-foreach="qtyKeys" t-as="qtyKeyName" t-key="qtyKeyName" class="btn o_rms_cs_qty_key"
+                                            t-att-class="qtyKeyName === 'C' or qtyKeyName === 'back' ? 'o_rms_cs_qty_key_fn' : ''"
+                                            t-att-aria-label="qtyKeyName === 'back' ? 'Borrar la última cifra' : qtyKeyName === 'C' ? 'Borrar todo' : qtyKeyName"
+                                            t-on-click="() => this.qtyKey(qtyKeyName)">
+                                        <i t-if="qtyKeyName === 'back'" class="fa fa-long-arrow-left"/>
+                                        <t t-else="" t-esc="qtyKeyName"/>
+                                    </button>
+                                </div>
+                                <div t-if="state.qtyConfirm" class="o_rms_cs_qty_confirm" role="alert">
+                                    <div class="fw-bold">
+                                        Ya hay <t t-esc="formatQty(state.qtyConfirm.existing)"/> apuntadas<t t-if="state.qtyConfirm.by"> (<t t-esc="state.qtyConfirm.by"/>)</t>: ¿sumar o sustituir?
+                                    </div>
+                                    <div class="o_rms_cs_qty_actions">
+                                        <button class="btn btn-success btn-lg" t-att-disabled="state.qtyBusy" t-on-click="() => this.qtySave('add')">
+                                            Sumar · total <t t-esc="formatQty(state.qtyConfirm.existing + qtyNumber)"/></button>
+                                        <button class="btn btn-warning btn-lg" t-att-disabled="state.qtyBusy" t-on-click="() => this.qtySave('replace')">
+                                            Sustituir · quedan <t t-esc="formatQty(qtyNumber)"/></button>
+                                        <button class="btn btn-outline-secondary btn-lg" t-on-click="() => { this.state.qtyConfirm = null; }">Cancelar</button>
+                                    </div>
+                                </div>
+                                <div t-else="" class="o_rms_cs_qty_actions">
+                                    <button class="btn btn-success btn-lg o_rms_cs_qty_save" t-att-disabled="!qtyNumber or state.qtyBusy"
+                                            t-on-click="() => this.qtySave()">
+                                        <i class="fa fa-check"/>
+                                        <t t-if="state.qtyEditScanId"> Guardar cantidad</t>
+                                        <t t-else=""> Apuntar <t t-if="qtyNumber" t-esc="formatQty(qtyNumber)"/></t>
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-lg" t-on-click="clearQtyPick">
+                                        <t t-if="state.qtyEditScanId">Cancelar</t><t t-else="">Otro artículo</t>
+                                    </button>
+                                </div>
+                            </t>
+                        </div>
+                        <t t-if="!state.qtyEditScanId">
+                            <ul class="list-group list-group-flush">
+                                <li t-foreach="state.panelResults" t-as="rec" t-key="rec.key"
+                                    class="list-group-item list-group-item-action o_rms_cs_qty_item" style="cursor:pointer"
+                                    t-att-class="(state.qtyPick and state.qtyPick.key === rec.key ? 'active' : '') + (rec.ok ? '' : ' o_rms_cs_qty_item_blocked')"
+                                    t-on-click="() => this.pickQtyItem(rec)">
+                                    <div class="o_rms_cs_qty_item_main">
+                                        <span class="fw-bold" t-esc="rec.name"/>
+                                        <span t-if="rec.counted" class="o_rms_cs_qty_badge" title="Ya apuntado en este recuento">
+                                            × <t t-esc="formatQty(rec.counted)"/></span>
+                                    </div>
+                                    <div class="small">
+                                        <t t-if="rec.ref" t-esc="rec.ref"/>
+                                        <t t-if="rec.sage_name and rec.sage_name !== rec.name"> · <t t-esc="rec.sage_name"/></t>
+                                        <span t-if="!rec.ok" class="o_rms_cs_qty_flag"> · Falta crear el producto</span>
+                                        <span t-elif="!rec.in_sage" class="text-muted"> · no está en Sage en esta nave</span>
+                                    </div>
+                                </li>
+                            </ul>
+                            <div t-if="!state.panelResults.length" class="p-3 text-muted">
+                                <t t-if="state.panelQuery">Ningún artículo por cantidad con esa búsqueda.</t>
+                                <t t-else="">Escribe parte del nombre o del código del artículo.</t>
+                            </div>
+                        </t>
+                    </div>
+                    <div t-elif="state.panel === 'sage'" class="flex-grow-1 overflow-auto o_rms_cs_sage_panel">
                         <div class="px-2 py-1 small text-muted">
                             Equipos de Sage de este almacén que aún no se han contado. Elige el que tienes delante:
                             se cuenta y se imprime su etiqueta.
@@ -279,6 +388,9 @@
                                                     <button t-if="scan.type === 'serial' and scan.product_name and (scan.lot_name or scan.code)"
                                                             class="btn btn-sm btn-outline-primary" title="Imprimir la etiqueta de este equipo"
                                                             t-on-click="() => this.printScanLabel(scan.id)"><i class="fa fa-print"/> Imprimir etiqueta</button>
+                                                    <button t-if="scan.type === 'product'"
+                                                            class="btn btn-sm btn-outline-primary" title="Corregir la cantidad apuntada"
+                                                            t-on-click="() => this.openQtyEdit(scan)"><i class="fa fa-pencil"/> Cambiar cantidad</button>
                                                     <button class="btn btn-sm btn-outline-danger" title="Borrar lectura"
                                                             t-on-click="() => this.deleteScan(scan.id)"><i class="fa fa-trash"/> Borrar</button>
                                                 </div>

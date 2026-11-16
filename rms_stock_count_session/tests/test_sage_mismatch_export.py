@@ -39,6 +39,22 @@ class TestSageMismatchExport(TransactionCase):
         cls.operator.current_product_id = cls.product
         for code in ('XL-OK', 'XL-DEMO', 'XL-DEP', 'XL-MADRID', 'XL-ALTA'):
             Scan.scanner_register(cls.operator.id, code)
+        # Por cantidad (sin nº de serie): uno con diferencia, uno sin contar,
+        # uno que cuadra, uno de Madrid y uno contado que Sage no tiene.
+        cls.qty = {}
+        for ref, lines in (('XLQ-FALTA', (('A.7', 5),)), ('XLQ-PEND', (('A.7', 2),)), ('XLQ-OK', (('A.7', 4),)),
+                           ('XLQ-MADRID', (('AL1', 6),)), ('XLQ-ALTA', ())):
+            cls.qty[ref] = cls.env['product.product'].create({
+                'name': 'EXCEL %s' % ref, 'default_code': ref, 'categ_id': cls.brand.id, 'is_storable': True})
+            for warehouse, quantity in lines:
+                cls.env['rms.sage.stock.line'].create({
+                    'snapshot_id': cls.snapshot.id, 'is_current': True, 'warehouse_code': warehouse,
+                    'article_code': ref, 'model_code': ref, 'quantity': quantity,
+                    'product_id': cls.qty[ref].id, 'state': 'nuevo', 'match_state': 'ok'})
+        cls.env['rms.sage.warehouse']._relink_lines()
+        state = cls.env['product.state'].search([('code', '=', 'new')], limit=1)
+        for ref, quantity in (('XLQ-FALTA', 3), ('XLQ-OK', 4), ('XLQ-ALTA', 9)):
+            cls.operator.scanner_qty_count(cls.qty[ref].id, quantity, state.id)
 
     def _sheets(self, **vals):
         from openpyxl import load_workbook
@@ -64,6 +80,26 @@ class TestSageMismatchExport(TransactionCase):
         summary = {row[0]: row[1] for row in sheets['Resumen'] if row[0] and isinstance(row[1], int)}
         self.assertEqual(summary['No leídos'], 1)
         self.assertEqual(summary['Altas'], 1)
+
+    def test_quantity_sheet(self):
+        sheets = self._sheets()
+        rows = {row[2]: row for row in sheets['Por cantidad']}
+        self.assertEqual(set(rows), {'XLQ-FALTA', 'XLQ-PEND', 'XLQ-MADRID', 'XLQ-ALTA'})   # lo que cuadra no sale
+        # Nave, Marca, Referencia, Producto, Sage, Por empresa, Contado, Diferencia, Resultado
+        self.assertEqual(rows['XLQ-FALTA'], ['Sevilla', 'RMSTEST Excel Brand', 'XLQ-FALTA',
+                                             '[XLQ-FALTA] EXCEL XLQ-FALTA', 5, 'RMS 5', 3, -2, 'Falta'])
+        self.assertEqual(rows['XLQ-PEND'][4:], [2, 'RMS 2', 0, -2, 'Sin contar'])
+        self.assertEqual(rows['XLQ-MADRID'][0], 'Madrid')
+        self.assertEqual(rows['XLQ-ALTA'][4:], [0, None, 9, 9, 'No está en Sage'])
+        summary = {row[0]: row[1] for row in sheets['Resumen'] if row[0] and isinstance(row[1], int)}
+        self.assertEqual(summary['Por cantidad'], 4)
+        # Filtros del asistente: nave y empresa.
+        madrid = {row[2] for row in self._sheets(site_number='1')['Por cantidad']}
+        self.assertEqual(madrid, {'XLQ-MADRID'})
+        sevilla = {row[2] for row in self._sheets(site_number='7', sage_company_code='01')['Por cantidad']}
+        self.assertEqual(sevilla, {'XLQ-FALTA', 'XLQ-PEND', 'XLQ-ALTA'})
+        # Otra empresa: solo lo contado que Sage no tiene en ninguna.
+        self.assertEqual({row[2] for row in self._sheets(sage_company_code='03')['Por cantidad']}, {'XLQ-ALTA'})
 
     def test_filter_by_site(self):
         madrid = self._sheets(site_number='1')

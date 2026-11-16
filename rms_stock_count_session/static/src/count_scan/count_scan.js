@@ -77,14 +77,24 @@ export class StockCountScan extends Component {
             offline: false,
             inputMode: storageGet(MODE_KEY) === "camera" ? "camera" : "pda",
             cameraError: null,
-            panel: null, // null | "product" | "location" | "sage"
+            panel: null, // null | "product" | "location" | "sage" | "qty"
             panelQuery: "",
             panelResults: [],
             progress: null, // marcador: {site, has_sage, counted, pending, not_in_sage, review}
             expandedId: null, // lectura desplegada en la lista compacta
             sagePick: null, // fila de "Buscar en Sage" elegida (mesa sin pegatina)
             sagePickStateId: null,
+            // "Por cantidad": artículo sin nº de serie elegido y lo tecleado.
+            qtyPick: null,
+            qtyValue: "",
+            qtyStateId: null,
+            qtyConfirm: null, // {existing, by}: ya hay cantidad apuntada, ¿sumar o sustituir?
+            qtyEditScanId: null, // corrigiendo la cantidad de una lectura ya hecha
+            qtyBusy: false,
+            qtyDone: null, // último apunte guardado (aviso verde)
         });
+        this.qtyPanelRef = useRef("qtyPanel");
+        this.qtyKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "back"];
 
         this._sending = false;
         this._retryTimer = null;
@@ -810,7 +820,7 @@ export class StockCountScan extends Component {
                 if (scan.type === "ignored") {
                     return /código de barras del producto/i.test(message) ? "Código de producto, no cuenta" : "Ignorado";
                 }
-                return scan.type === "product" ? "+1" : "";
+                return scan.type === "product" ? `× ${this.formatQty(scan.quantity ?? 1)}` : "";
         }
     }
 
@@ -851,12 +861,151 @@ export class StockCountScan extends Component {
         this.state.panelQuery = "";
         this.state.panelResults = [];
         this.state.sagePick = null;
+        this._resetQty();
+        this.state.qtyDone = null;
         this._search();
     }
 
     closePanel() {
         this.state.panel = null;
         this.state.sagePick = null;
+        this._resetQty();
+        this.state.qtyDone = null;
+    }
+
+    // ------------------------------------------------------------------
+    // "Por cantidad": artículos sin nº de serie (cables, fundas, hierros).
+    // Se busca el artículo, se elige estado y se teclea la cantidad contada.
+    // A ciegas: aquí nunca se enseña la cantidad que dice Sage.
+    // ------------------------------------------------------------------
+
+    _resetQty() {
+        this.state.qtyPick = null;
+        this.state.qtyValue = "";
+        this.state.qtyConfirm = null;
+        this.state.qtyEditScanId = null;
+        this.state.qtyBusy = false;
+    }
+
+    formatQty(value) {
+        const number = Math.round((Number(value) || 0) * 1000) / 1000;
+        return String(number).replace(".", ",");
+    }
+
+    get qtyNumber() {
+        return parseInt(this.state.qtyValue, 10) || 0;
+    }
+
+    pickQtyItem(rec) {
+        const os = this.state.operatorState;
+        this._resetQty();
+        this.state.qtyDone = null;
+        this.state.qtyPick = rec;
+        this.state.qtyStateId = os.operator.current_state_id ||
+            ((os.product_states || [])[0] || {}).id || null;
+        // Un toque doble o un reenvío no apuntan dos veces la misma cantidad.
+        this._qtyUid = newUid();
+        if (this.qtyPanelRef.el) {
+            this.qtyPanelRef.el.scrollTop = 0;
+        }
+    }
+
+    // Corregir la cantidad de una lectura ya hecha, con el mismo teclado.
+    openQtyEdit(scan) {
+        this.state.panelQuery = "";
+        this.state.panelResults = [];
+        this.state.sagePick = null;
+        this._resetQty();
+        this.state.qtyDone = null;
+        this.state.qtyPick = { key: `scan${scan.id}`, name: scan.product_name || scan.code, ok: true };
+        this.state.qtyValue = String(Math.round(Number(scan.quantity) || 0) || "");
+        this.state.qtyEditScanId = scan.id;
+        this.state.panel = "qty";
+    }
+
+    clearQtyPick() {
+        if (this.state.qtyEditScanId) {
+            this.closePanel();
+        } else {
+            this._resetQty();
+        }
+    }
+
+    setQtyState(stateId) {
+        this.state.qtyStateId = stateId;
+        this.state.qtyConfirm = null;
+    }
+
+    qtyKey(key) {
+        if (this.state.qtyBusy) {
+            return;
+        }
+        let value = this.state.qtyValue;
+        if (key === "C") {
+            value = "";
+        } else if (key === "back") {
+            value = value.slice(0, -1);
+        } else if (value.length < 5) {
+            value = (value + key).replace(/^0+(?=\d)/, "");
+        }
+        this.state.qtyValue = value;
+        this.state.qtyConfirm = null;
+    }
+
+    onQtyInput(ev) {
+        const value = ev.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "").slice(0, 5);
+        ev.target.value = value;
+        this.state.qtyValue = value;
+        this.state.qtyConfirm = null;
+    }
+
+    async qtySave(mode = false) {
+        const rec = this.state.qtyPick;
+        const qty = this.qtyNumber;
+        if (!rec || !rec.ok || this.state.qtyBusy) {
+            return;
+        }
+        if (!qty) {
+            this.notification.add("Escribe la cantidad que has contado.", { type: "warning" });
+            return;
+        }
+        const op = this.state.operatorState.operator;
+        this.state.qtyBusy = true;
+        try {
+            if (this.state.qtyEditScanId) {
+                const payload = await this.orm.call(
+                    "rms.stock.count.scan", "scanner_set_quantity", [[this.state.qtyEditScanId], qty]
+                );
+                this._mergeHistory([payload]);
+                this.closePanel();
+                this._scheduleProgress(0);
+                return;
+            }
+            const result = await this.orm.call("rms.stock.count.operator", "scanner_qty_count",
+                [[op.id], rec.product_id, qty, this.state.qtyStateId || false, mode, this._qtyUid]);
+            if (result.status === "confirm") {
+                this.state.qtyConfirm = result;
+                return;
+            }
+            this._historyGeneration++;
+            const deleted = new Set(result.deleted_ids || []);
+            if (deleted.size) {
+                this.state.history = this.state.history.filter((scan) => !deleted.has(scan.id));
+            }
+            this._mergeHistory([result.scan]);
+            this._applyState(result.state);
+            this.state.qtyDone = `Apuntado: ${this.formatQty(qty)} × ${rec.name}` +
+                (result.total !== qty ? ` · total ${this.formatQty(result.total)}` : "");
+            this._resetQty();
+            this._feedback("ok", result.status);
+            this._scheduleProgress(0);
+            await this._search();
+        } catch (error) {
+            this.notification.add((error.data && error.data.message) || "No se pudo apuntar la cantidad. Comprueba la conexión.",
+                { type: "warning" });
+        } finally {
+            this.state.qtyBusy = false;
+        }
     }
 
     // "Buscar en Sage": mesa en flycase sin pegatina. Se elige de la lista de
@@ -904,10 +1053,15 @@ export class StockCountScan extends Component {
     async _search() {
         const op = this.state.operatorState.operator;
         const method = this.state.panel === "location" ? "scanner_search_locations"
-            : this.state.panel === "sage" ? "scanner_sage_search" : "scanner_search_products";
-        this.state.panelResults = await this.orm.call(
+            : this.state.panel === "sage" ? "scanner_sage_search"
+            : this.state.panel === "qty" ? "scanner_qty_search" : "scanner_search_products";
+        const panel = this.state.panel;
+        const results = await this.orm.call(
             "rms.stock.count.operator", method, [[op.id], this.state.panelQuery]
         );
+        if (this.state.panel === panel) {
+            this.state.panelResults = results;
+        }
     }
 
     async pickPanelResult(record) {

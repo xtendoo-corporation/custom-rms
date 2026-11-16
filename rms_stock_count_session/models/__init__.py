@@ -10,3 +10,4 @@ from . import stock_count_scan
 from . import stock_count_line
 from . import sage_live
 from . import sage_checklist
+from . import sage_checklist_qty

@@ -420,3 +420,121 @@ $rms-info-bg: #e3edff;
     select { width: auto; min-width: 7rem; }
 }
 .o_rms_cs_sage_item.active { background: #e3f4ea; color: inherit; border-color: #198754; }
+
+// "Por cantidad": artículos sin nº de serie. Teclado numérico grande para el
+// iPad (con la pistola Bluetooth conectada no sale el teclado en pantalla).
+.o_rms_count_scan {
+    // Indicador discreto del marcador: también abre el panel.
+    .o_rms_cs_stat_qty {
+        background: transparent;
+        color: #495057;
+        border: 1px dashed #adb5bd;
+        font-size: 0.85rem;
+        cursor: pointer;
+        b { font-size: 0.95rem; }
+    }
+
+    .o_rms_cs_qty_done {
+        margin: 0.4rem 0.5rem 0;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.4rem;
+        background: $rms-ok-bg;
+        color: #0f5132;
+        font-weight: 600;
+    }
+
+    .o_rms_cs_qty_pick {
+        max-width: 34rem;
+        margin: 0.5rem auto;
+        padding: 0.75rem;
+        border: 2px solid $rms-ok;
+        border-radius: 0.5rem;
+        background: #fff;
+    }
+    .o_rms_cs_qty_pick_name { font-size: 1.15rem; font-weight: 700; line-height: 1.25; }
+
+    .o_rms_cs_qty_states { padding: 8px 0 0; }
+
+    .o_rms_cs_qty_entry {
+        display: flex;
+        align-items: baseline;
+        margin-top: 0.6rem;
+        .o_rms_cs_qty_input {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 64px;
+            font-size: 2.4rem;
+            font-weight: 700;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        .o_rms_cs_qty_unit { margin-left: 0.6rem; color: $rms-grey; font-size: 1rem; }
+    }
+
+    .o_rms_cs_qty_keys {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-gap: 8px;
+        margin-top: 0.6rem;
+        .o_rms_cs_qty_key {
+            height: 64px;
+            font-size: 1.7rem;
+            font-weight: 700;
+            border: 1px solid #adb5bd;
+            background: #f8f9fa;
+            touch-action: manipulation;
+            &:active { background: #dee2e6; }
+        }
+        .o_rms_cs_qty_key_fn { background: #e9ecef; color: #495057; font-size: 1.3rem; }
+    }
+
+    .o_rms_cs_qty_actions {
+        display: flex;
+        flex-wrap: wrap;
+        margin: 0.6rem -4px 0;
+        > .btn { flex: 1 1 auto; min-height: 56px; margin: 0 4px 6px; font-weight: 700; }
+        .o_rms_cs_qty_save { flex: 3 1 auto; }
+    }
+
+    .o_rms_cs_qty_confirm {
+        margin-top: 0.6rem;
+        padding: 0.6rem 0.6rem 0;
+        border-radius: 0.4rem;
+        background: $rms-warn-bg;
+        border: 1px solid #f3d58a;
+        color: #664d03;
+        font-size: 1.05rem;
+    }
+
+    .o_rms_cs_qty_blocked {
+        margin-top: 0.6rem;
+        padding: 0.6rem 0.75rem;
+        border-radius: 0.4rem;
+        background: $rms-warn-bg;
+        border: 1px solid #f3d58a;
+        color: #664d03;
+        font-weight: 600;
+    }
+
+    .o_rms_cs_qty_item {
+        min-height: 52px;
+        &.active { background: $rms-ok-bg; color: inherit; border-color: $rms-ok; }
+    }
+    .o_rms_cs_qty_item_blocked { color: #6c757d; }
+    .o_rms_cs_qty_item_main {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .o_rms_cs_qty_badge {
+        flex: 0 0 auto;
+        margin-left: 0.5rem;
+        padding: 1px 10px;
+        border-radius: 999px;
+        background: $rms-ok-bg;
+        color: #0f5132;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    .o_rms_cs_qty_flag { color: #805400; font-weight: 600; }
+}

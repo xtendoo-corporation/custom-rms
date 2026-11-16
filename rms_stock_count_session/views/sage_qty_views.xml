@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Checklist por cantidad: lo que no lleva nº de serie (cables, fundas,
+         hierros...) cotejado con Sage por nave. Solo lectura, siempre al día. -->
+    <record id="view_sage_checklist_qty_list" model="ir.ui.view">
+        <field name="name">rms.sage.checklist.qty.list</field>
+        <field name="model">rms.sage.checklist.qty</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false"
+                  decoration-success="state == 'ok'"
+                  decoration-danger="state == 'missing'"
+                  decoration-warning="state == 'extra'"
+                  decoration-info="state == 'not_in_sage'"
+                  decoration-muted="state == 'pending'">
+                <field name="site_name"/>
+                <field name="brand_categ_id"/>
+                <field name="default_code"/>
+                <field name="product_id"/>
+                <field name="article_code" optional="hide"/>
+                <field name="article_name" optional="show"/>
+                <field name="sage_qty" sum="Sage"/>
+                <field name="company_breakdown"/>
+                <field name="sage_qty_01" optional="hide" sum="RMS"/>
+                <field name="sage_qty_02" optional="hide" sum="Espacio"/>
+                <field name="sage_qty_03" optional="hide" sum="RJB"/>
+                <field name="counted_qty" sum="Contado"/>
+                <field name="difference" sum="Diferencia"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'ok'"
+                       decoration-danger="state == 'missing'"
+                       decoration-warning="state == 'extra'"
+                       decoration-info="state == 'not_in_sage'"/>
+                <field name="product_missing" optional="show"/>
+                <field name="serial_tracked" optional="hide"/>
+                <field name="scan_count" optional="hide"/>
+                <field name="session_count" optional="hide"/>
+                <field name="last_scanned_at" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_sage_checklist_qty_search" model="ir.ui.view">
+        <field name="name">rms.sage.checklist.qty.search</field>
+        <field name="model">rms.sage.checklist.qty</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="default_code" string="Referencia, artículo o nombre"
+                       filter_domain="['|', '|', '|', ('default_code', 'ilike', self), ('article_code', 'ilike', self), ('article_name', 'ilike', self), ('product_id', 'ilike', self)]"/>
+                <field name="product_id"/>
+                <field name="brand_categ_id"/>
+                <field name="site_name"/>
+                <filter name="with_difference" string="Con diferencia"
+                        domain="[('state', 'in', ('missing', 'extra', 'not_in_sage'))]"/>
+                <filter name="not_counted" string="Sin contar" domain="[('state', '=', 'pending')]"/>
+                <filter name="matches" string="Cuadra" domain="[('state', '=', 'ok')]"/>
+                <separator/>
+                <filter name="missing" string="Falta" domain="[('state', '=', 'missing')]"/>
+                <filter name="extra" string="Sobra" domain="[('state', '=', 'extra')]"/>
+                <filter name="not_in_sage" string="No está en Sage" domain="[('state', '=', 'not_in_sage')]"/>
+                <separator/>
+                <filter name="product_missing" string="Falta crear el producto" domain="[('product_missing', '=', True)]"/>
+                <filter name="serial_tracked" string="En Odoo lleva nº de serie" domain="[('serial_tracked', '=', True)]"/>
+                <separator/>
+                <filter name="rms" string="RMS (01)" domain="[('sage_qty_01', '>', 0)]"/>
+                <filter name="espacio" string="Espacio (02)" domain="[('sage_qty_02', '>', 0)]"/>
+                <filter name="rjb" string="RJB (03)" domain="[('sage_qty_03', '>', 0)]"/>
+                <group>
+                    <filter name="by_site" string="Nave" context="{'group_by': 'site_name'}"/>
+                    <filter name="by_brand" string="Marca" context="{'group_by': 'brand_categ_id'}"/>
+                    <filter name="by_state" string="Resultado" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_sage_checklist_qty" model="ir.actions.act_window">
+        <field name="name">Por cantidad (sin nº de serie)</field>
+        <field name="res_model">rms.sage.checklist.qty</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_by_site': 1, 'search_default_by_brand': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Sage no tiene artículos sin nº de serie y no se ha contado ninguno.</p>
+            <p>Cada fila es un artículo sin nº de serie (cables, fundas, hierros, accesorios) en una nave:
+               lo que dice Sage sumando las tres empresas, lo que se ha apuntado con el botón
+               "Por cantidad" del escáner y la diferencia.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_sage_checklist_qty" name="Por cantidad (sin nº de serie)"
+              parent="menu_sage_group_checklist" action="action_sage_checklist_qty"
+              sequence="15" groups="stock.group_stock_manager"/>
+</odoo>

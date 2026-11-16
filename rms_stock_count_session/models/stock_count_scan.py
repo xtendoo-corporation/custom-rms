@@ -795,12 +795,28 @@ class RmsStockCountScan(models.Model):
             self.write({"product_state_id": state.id})
         return self._scanner_payload()
 
+    def scanner_set_quantity(self, quantity):
+        """Corrige la cantidad de una lectura por cantidad (producto sin nº
+        de serie) mientras el recuento sigue abierto."""
+        self.ensure_one()
+        self.operator_id._check_counting()
+        if self.scan_type != "product":
+            raise UserError("Solo se puede cambiar la cantidad de un artículo contado por cantidad.")
+        Operator = self.env["rms.stock.count.operator"]
+        qty = Operator._qty_value(quantity)
+        self.write({
+            "quantity": qty,
+            "message": "Por cantidad: %s × %s (corregido)" % (Operator._qty_text(qty), self.product_id.display_name),
+        })
+        return self._scanner_payload()
+
     def _scanner_payload(self):
         self.ensure_one()
         payload = {
             "id": self.id,
             "code": self.code,
             "type": self.scan_type,
+            "quantity": self.quantity,
             "product_name": self.product_id.display_name or "",
             "product_state_id": self.product_state_id.id,
             "product_state_name": self.product_state_id.name or "",

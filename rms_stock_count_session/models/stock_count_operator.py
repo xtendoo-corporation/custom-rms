@@ -209,7 +209,7 @@ class RmsStockCountOperator(models.Model):
         result = {
             "site": " + ".join(names[:3]) + (" + %d más" % (len(names) - 3) if len(names) > 3 else ""),
             "has_sage": bool(warehouses),
-            "total": 0, "counted": 0, "pending": 0,
+            "total": 0, "counted": 0, "pending": 0, "qty_pending": 0,
         }
         if warehouses:
             self.env["rms.sage.stock.line"].sudo().flush_model()
@@ -232,7 +232,8 @@ class RmsStockCountOperator(models.Model):
             """, (warehouses.ids,))
             total, counted = self.env.cr.fetchone()
             result.update(total=total, counted=counted, pending=total - counted)
-        Scan = self.env["rms.stock.count.scan"]
+            result["qty_pending"] = self._qty_pending_count(warehouses)
+        Scan =self.env["rms.stock.count.scan"]
         scans = Scan.search([("session_id", "=", session.id), ("ignored", "=", False),
                              ("scan_type", "in", ("serial", "unknown"))])
         serials = scans.filtered(lambda s: s.scan_type == "serial" and s.lot_name)
@@ -334,6 +335,197 @@ class RmsStockCountOperator(models.Model):
         action = scan.scanner_print_label()
         return {"status": result["status"], "scan": scan._scanner_payload(), "action": action,
                 "state": self._scanner_state()}
+
+    # ------------------------------------------------------------------
+    # Artículos por cantidad (sin nº de serie): cables, fundas, hierros...
+    # ------------------------------------------------------------------
+
+    # Líneas de Sage que se cuentan por cantidad: existencias vigentes en la
+    # nave, sin nº de serie (o con el lote genérico "SN") y fuera de depósito.
+    _QTY_SAGE_WHERE = (
+        "l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0 "
+        "AND COALESCE(l.serial_normalized, '') IN ('', 'SN') AND NOT COALESCE(l.in_deposit, FALSE)"
+    )
+    _QTY_MAX = 99999
+
+    def _qty_pending_count(self, warehouses):
+        """Artículos por cantidad de Sage de la nave que nadie ha apuntado aún
+        (los que en Odoo llevan nº de serie no cuentan: no se ofrecen)."""
+        sites = sorted(set(warehouses.mapped("site_number")) - {0})
+        self.env.cr.execute("""
+            WITH counted AS (
+                SELECT DISTINCT sc.product_id
+                  FROM rms_stock_count_scan sc
+                  JOIN rms_stock_count_session ss ON ss.id = sc.session_id
+                  LEFT JOIN stock_location loc ON loc.id = COALESCE(sc.location_id, ss.location_id)
+                  LEFT JOIN stock_warehouse wh ON wh.id = loc.warehouse_id
+                 WHERE sc.scan_type = 'product' AND sc.product_id IS NOT NULL
+                   AND ss.state <> 'cancel' AND NOT COALESCE(sc.ignored, FALSE)
+                   AND COALESCE(substring(btrim(wh.code) from '[0-9]+$')::int, 0) = ANY(%s)
+            )
+            SELECT count(*) FROM (
+                SELECT l.product_id
+                  FROM rms_sage_stock_line l
+                  LEFT JOIN product_product pp ON pp.id = l.product_id
+                  LEFT JOIN product_template pt ON pt.id = pp.product_tmpl_id
+                 WHERE """ + self._QTY_SAGE_WHERE + """
+                   AND l.sage_warehouse_id = ANY(%s)
+                   AND COALESCE(pt.tracking, 'none') = 'none'
+                 GROUP BY l.product_id, CASE WHEN l.product_id IS NULL THEN l.article_code END
+            ) s
+            WHERE s.product_id IS NULL OR s.product_id NOT IN (SELECT product_id FROM counted)
+        """, (sites, warehouses.ids))
+        return self.env.cr.fetchone()[0]
+
+    @api.model
+    def _qty_value(self, quantity):
+        try:
+            value = round(float(str(quantity).replace(",", ".")), 3)
+        except (TypeError, ValueError):
+            value = 0.0
+        if not 0 < value <= self._QTY_MAX:
+            raise UserError("Escribe una cantidad entre 1 y %d." % self._QTY_MAX)
+        return value
+
+    @api.model
+    def _qty_text(self, value):
+        return ("%.3f" % value).rstrip("0").rstrip(".")
+
+    def scanner_qty_search(self, query="", limit=40):
+        """Botón "Por cantidad": artículos sin nº de serie de Sage de la nave
+        donde se cuenta (las 3 empresas juntas) y, si se escribe algo, también
+        productos de Odoo sin seguimiento aunque Sage no los tenga. Recuento a
+        ciegas: nunca devuelve la cantidad de Sage."""
+        self.ensure_one()
+        self.session_id.check_access("read")
+        limit = max(1, min(int(limit or 40), 100))
+        warehouses = self._progress_warehouses()
+        # Punto 5: lo que en Odoo lleva nº de serie no se ofrece por cantidad.
+        where = [SQL(self._QTY_SAGE_WHERE), SQL("COALESCE(pt.tracking, 'none') = 'none'")]
+        if warehouses:
+            where.append(SQL("l.sage_warehouse_id = ANY(%s)", warehouses.ids))
+        else:
+            where.append(SQL("l.company_id = %s", self.session_id.company_id.id))
+        words = [word for word in (query or "").split() if normalize_code(word)]
+        for word in words:
+            where.append(SQL(
+                "regexp_replace(upper(COALESCE(l.article_code, '') || ' ' || COALESCE(l.article_name, '') || ' ' || "
+                "COALESCE(l.model_code, '') || ' ' || COALESCE(pp.default_code, '') || ' ' || "
+                "COALESCE(pt.name->>'es_ES', pt.name->>'en_US', '')), '[^0-9A-Z]', '', 'g') LIKE %s",
+                "%" + normalize_code(word) + "%"))
+        self.env["rms.sage.stock.line"].sudo().flush_model()
+        self.env["product.product"].flush_model()
+        self.env["product.template"].flush_model()
+        self.env.cr.execute(SQL("""
+            SELECT l.product_id, min(l.article_code), min(l.article_name),
+                   bool_and(l.product_id IS NOT NULL AND COALESCE(l.match_state, '') = 'ok')
+              FROM rms_sage_stock_line l
+              LEFT JOIN product_product pp ON pp.id = l.product_id
+              LEFT JOIN product_template pt ON pt.id = pp.product_tmpl_id
+             WHERE %s
+             GROUP BY l.product_id, CASE WHEN l.product_id IS NULL THEN l.article_code END
+             ORDER BY min(l.article_name), min(l.article_code)
+             LIMIT %s""", SQL(" AND ").join(where), limit))
+        rows = self.env.cr.fetchall()
+        Product = self.env["product.product"]
+        products = Product.browse([r[0] for r in rows if r[0]]).exists()
+        if words:
+            domain = [("tracking", "=", "none"), ("type", "=", "consu"), ("id", "not in", products.ids)]
+            for word in words:
+                domain += ["|", "|", ("name", "ilike", word), ("default_code", "ilike", word),
+                           ("barcode", "ilike", word)]
+            products |= Product.search(domain, limit=limit, order="name")
+        counted = {product.id: qty for product, qty in self.env["rms.stock.count.scan"]._read_group(
+            [("session_id", "=", self.session_id.id), ("scan_type", "=", "product"), ("ignored", "=", False),
+             ("product_id", "in", products.ids)], ["product_id"], ["quantity:sum"])} if products else {}
+        by_id = {product.id: product for product in products}
+        result, in_sage = [], set()
+        for product_id, article, name, ok in rows:
+            product = by_id.get(product_id)
+            if product_id and not product:
+                continue
+            in_sage.add(product_id)
+            result.append({
+                "key": "p%d" % product.id if product else "a:%s" % article,
+                "product_id": product.id if product else False,
+                "name": product.display_name if product else (name or article or ""),
+                "ref": (product.default_code if product else "") or article or "",
+                "sage_name": name or "", "article": article or "",
+                "in_sage": True, "ok": bool(ok and product),
+                "counted": counted.get(product_id, 0.0),
+            })
+        for product in products:
+            if product.id not in in_sage:
+                result.append({
+                    "key": "p%d" % product.id, "product_id": product.id, "name": product.display_name,
+                    "ref": product.default_code or "", "sage_name": "", "article": "",
+                    "in_sage": False, "ok": True, "counted": counted.get(product.id, 0.0),
+                })
+        return result
+
+    def _qty_scans(self, product, state):
+        """Lecturas por cantidad de ese producto y estado en ESTE recuento."""
+        return self.env["rms.stock.count.scan"].search([
+            ("session_id", "=", self.session_id.id), ("scan_type", "=", "product"),
+            ("product_id", "=", product.id), ("product_state_id", "=", state.id), ("ignored", "=", False)])
+
+    def scanner_qty_count(self, product_id, quantity, state_id=False, mode=False, client_uid=False):
+        """Apunta N unidades de un producto sin nº de serie (una lectura
+        'product' con quantity = N). Si ese producto y estado ya tienen
+        cantidad en este recuento y no se dice qué hacer, no guarda nada y
+        devuelve status 'confirm' para que el operario elija sumar ('add') o
+        sustituir ('replace')."""
+        self.ensure_one()
+        self._check_counting()
+        product = self.env["product.product"].browse(product_id or []).exists()
+        if not product:
+            raise UserError("Falta crear el producto: avisa al responsable.")
+        if product.tracking != "none":
+            raise UserError("%s lleva nº de serie en Odoo: léelo con la pistola, no por cantidad."
+                            % product.display_name)
+        qty = self._qty_value(quantity)
+        state = self._scanner_product_state(state_id) if state_id else self.current_state_id
+        if not state:
+            raise UserError("Elige Nuevo, Demo, Ex-Demo o 2Mano.")
+        Scan = self.env["rms.stock.count.scan"]
+        if client_uid:
+            already = Scan.search([("operator_id", "=", self.id), ("client_uid", "=", client_uid)], limit=1)
+            if already:
+                return {"status": "resent", "scan": already._scanner_payload(), "deleted_ids": [],
+                        "total": sum(self._qty_scans(product, state).mapped("quantity")),
+                        "state": self._scanner_state()}
+        existing = self._qty_scans(product, state)
+        if existing and mode not in ("add", "replace"):
+            return {
+                "status": "confirm",
+                "existing": sum(existing.mapped("quantity")),
+                "by": ", ".join(dict.fromkeys(existing.mapped("operator_id.name"))),
+                "product_name": product.display_name, "state_name": state.name,
+            }
+        deleted_ids = []
+        if existing and mode == "replace":
+            deleted_ids = existing.ids
+            existing.unlink()
+        location = self.current_location_id or self.session_id.location_id
+        # El producto actual del operario (al que se asignan los nº de serie
+        # nuevos) no se toca: contar cables no cambia lo que lee la pistola.
+        previous_product = self.current_product_id
+        result = Scan.with_context(scanner_product_state_id=state.id, sage_batch=True)._scanner_register(
+            self.id, product.default_code or product.barcode or "CANT-%d" % product.id, client_uid,
+            classification={
+                "location_id": location.id, "scan_type": "product", "product_id": product.id, "quantity": qty,
+                "message": "Por cantidad: %s × %s" % (self._qty_text(qty), product.display_name),
+            })
+        if not result.get("scan"):
+            raise UserError("No se pudo apuntar la cantidad de %s." % product.display_name)
+        if self.current_product_id != previous_product:
+            self.current_product_id = previous_product
+        scan = Scan.browse(result["scan"]["id"])
+        return {
+            "status": "ok", "scan": scan._scanner_payload(), "deleted_ids": deleted_ids,
+            "total": sum(self._qty_scans(product, state).mapped("quantity")),
+            "state": self._scanner_state(),
+        }
 
     def scanner_set_location(self, location_id):
         self.ensure_one()

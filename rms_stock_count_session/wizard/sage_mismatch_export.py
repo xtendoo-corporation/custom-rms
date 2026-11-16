@@ -23,6 +23,8 @@ SHEETS = [
     ('negative', 'Negativos en Sage', 'Nº de serie con cantidad negativa o cero en Sage.'),
     ('moved', 'Movidos tras contar', 'Sage lo ha movido después de leerlo. Es un movimiento real: no hay que hacer nada.'),
     ('multi', 'En varios recuentos', 'El mismo equipo leído en más de un recuento.'),
+    ('qty', 'Por cantidad', 'Artículos sin nº de serie (cables, fundas, hierros): lo contado en la nave no coincide '
+                            'con Sage (las tres empresas sumadas) o aún no se ha contado. Recontar o regularizar en Sage.'),
 ]
 
 
@@ -128,7 +130,27 @@ class SageMismatchExport(models.TransientModel):
                                r.scanned_at])
         data['extra'] = (['Empresa del recuento', 'Leído en', 'Marca', 'Referencia', 'Producto', 'Estado marcado',
                           'Nº de serie', 'Recuento', 'Operario', 'Leído el'], extra_rows)
+        data['qty'] = self._collect_qty()
         return data
+
+    def _collect_qty(self):
+        """Hoja "Por cantidad": artículos sin nº de serie con diferencia o sin
+        contar. Lo contado es de la nave entera (no se puede repartir por
+        empresa): con filtro de empresa salen los artículos que esa empresa
+        tiene en Sage, y lo contado que no está en Sage en ninguna."""
+        Qty = self.env['rms.sage.checklist.qty'].sudo()
+        domain = [('state', '!=', 'ok')]
+        if self.site_number:
+            domain.append(('site_number', '=', int(self.site_number)))
+        if self.sage_company_code:
+            domain += ['|', ('sage_qty_%s' % self.sage_company_code, '>', 0), ('state', '=', 'not_in_sage')]
+        label = dict(Qty._fields['state'].selection)
+        rows = [[r.site_name or 'Sin nave', r.brand_categ_id.name or '', r.default_code or '',
+                 r.product_id.display_name or r.article_name or '', r.sage_qty, r.company_breakdown or '',
+                 r.counted_qty, r.difference, label.get(r.state, '')]
+                for r in Qty.search(domain)]
+        return (['Nave', 'Marca', 'Referencia', 'Producto', 'Sage', 'Por empresa', 'Contado', 'Diferencia',
+                 'Resultado'], rows)
 
     def _line_row(self, line):
         return [COMPANY.get(line.sage_company_code, ''), self._warehouse_label(line), line.brand_categ_id.name or '',
