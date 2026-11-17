@@ -40,6 +40,13 @@ class SaleLoyaltyRewardWizard(models.TransientModel):
         selected = self.line_ids.filtered('selected')
         if not selected:
             raise ValidationError('Selecciona al menos una promoción.')
+        if len(selected.filtered('reward_id.is_global_discount')) > 1:
+            # Odoo solo admite un descuento global por pedido (se queda con el
+            # mejor): avisar antes de tocar nada en vez de aplicar solo uno.
+            raise ValidationError(
+                'Solo se puede aplicar un descuento sobre el total del presupuesto. '
+                'Marca solo uno de los descuentos globales.'
+            )
         for line in selected:
             coupon = next((coupon for coupon, rewards in self.order_id._get_claimable_rewards().items()
                            if line.reward_id in rewards), False)
