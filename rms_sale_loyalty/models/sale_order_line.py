@@ -26,54 +26,61 @@ class SaleOrderLine(models.Model):
             vals = self._filter_restricted_values(vals)
             reward_id = vals.get('reward_id', self.env.context.get('default_reward_id'))
             if (self.env.su or not lock_prices_and_taxes(self.env)) and reward_id:
-                if self.env['loyalty.reward'].browse(reward_id).reward_type == 'product':
-                    # Los componentes explícitos pueden impedir el precompute.
-                    vals.update(discount=100, discount1=100, discount2=0, discount3=0)
+                discount = 100 if self.env['loyalty.reward'].browse(reward_id).reward_type == 'product' else 0
+                # Los componentes explícitos pueden impedir el precompute.
+                vals.update(discount=discount, discount1=discount, discount2=0, discount3=0)
             clean_vals.append(vals)
         return super().create(clean_vals)
 
     def write(self, vals):
         vals = self._filter_restricted_values(vals)
-        if 'reward_id' in vals:
-            reward = self.env['loyalty.reward'].browse(vals['reward_id'])
-            free_lines = self if reward.reward_type == 'product' else self.browse()
-        else:
-            free_lines = self.filtered(lambda line: line._is_free_product_reward_line())
-        other_lines = self - free_lines
+        restricted = not self.env.su and lock_prices_and_taxes(self.env)
         result = True
-        if other_lines:
-            result = super(SaleOrderLine, other_lines).write(dict(vals))
-        if free_lines:
-            # Mantener la invariante también si llegan componentes explícitos.
-            free_vals = dict(vals, discount=100, discount1=100, discount2=0, discount3=0)
-            if not self.env.su and lock_prices_and_taxes(self.env):
+        # Separar por recompensa permite escribir recordsets mixtos sin tocar
+        # la cantidad de las líneas normales ni mezclar sus descuentos.
+        for lines, discount in (
+            (self.filtered(lambda line: line._is_free_product_reward_line()), 100),
+            (self.filtered(lambda line: line.reward_id and not line._is_free_product_reward_line()), 0),
+            (self.filtered(lambda line: not line.reward_id), None),
+        ):
+            if not lines:
+                continue
+            line_vals = dict(vals)
+            if restricted and discount is not None:
                 for field in (
                     'product_id', 'product_uom_qty', 'product_uom_id', 'product_uom',
                     'order_id', 'product_template_id', 'linked_line_id',
                 ):
-                    free_vals.pop(field, None)
-            result = super(SaleOrderLine, free_lines).write(free_vals) and result
+                    line_vals.pop(field, None)
+            if 'reward_id' in line_vals:
+                reward = self.env['loyalty.reward'].browse(line_vals['reward_id'])
+                target_discount = (100 if reward.reward_type == 'product' else 0) if reward else None
+            else:
+                target_discount = discount
+            if target_discount is not None:
+                line_vals.update(discount=target_discount, discount1=target_discount, discount2=0, discount3=0)
+            result = super(SaleOrderLine, lines).write(line_vals) and result
         return result
 
     @api.depends('product_id', 'product_uom_id', 'product_uom_qty', 'reward_id', 'reward_id.reward_type')
     def _compute_discount1(self):
-        free_lines = self.filtered(lambda line: line._is_free_product_reward_line())
-        for line in free_lines:
-            line.discount1 = 100
+        reward_lines = self.filtered('reward_id')
+        for line in reward_lines:
+            line.discount1 = 100 if line._is_free_product_reward_line() else 0
             line.discount2 = 0
             line.discount3 = 0
-        other_lines = self - free_lines
+        other_lines = self - reward_lines
         if other_lines:
             super(SaleOrderLine, other_lines)._compute_discount1()
 
     def _compute_discounts(self):
-        free_lines = self.filtered(lambda line: line._is_free_product_reward_line())
-        other_lines = self - free_lines
+        reward_lines = self.filtered('reward_id')
+        other_lines = self - reward_lines
         if other_lines:
             super(SaleOrderLine, other_lines)._compute_discounts()
-        free_lines._compute_discount1()
-        for line in free_lines:
-            line.discount = 100
+        reward_lines._compute_discount1()
+        for line in reward_lines:
+            line.discount = 100 if line._is_free_product_reward_line() else 0
 
     def _reset_loyalty(self, complete=False):
         if not self.env.su and lock_prices_and_taxes(self.env):

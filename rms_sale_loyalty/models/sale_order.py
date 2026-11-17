@@ -8,6 +8,19 @@ from odoo.addons.rms_ventas_restriccion_comerciales.models.restrictions import (
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
+    def action_open_reward_wizard(self):
+        self.ensure_one()
+        self._update_programs_and_rewards()
+        action = self.env['ir.actions.actions']._for_xml_id(
+            'sale_loyalty.sale_loyalty_reward_wizard_action',
+        )
+        action['name'] = 'Promociones disponibles'
+        action['context'] = dict(self.env.context, active_id=self.id, default_order_id=self.id)
+        # El asistente se crea ya con sus líneas: el cliente web no envía los
+        # campos de solo lectura (la recompensa) de líneas creadas por defecto.
+        action['res_id'] = self.env['sale.loyalty.reward.wizard'].create({'order_id': self.id}).id
+        return action
+
     def _write_vals_from_reward_vals(self, reward_vals, old_lines, delete=True):
         if not self.env.su and lock_prices_and_taxes(self.env):
             self.check_access('write')
