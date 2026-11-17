@@ -1,4 +1,5 @@
-from odoo import models
+from odoo import _, models
+from odoo.exceptions import AccessError
 from odoo.addons.rms_ventas_restriccion_comerciales.models.restrictions import (
     lock_prices_and_taxes,
 )
@@ -9,6 +10,9 @@ class SaleOrder(models.Model):
 
     def _write_vals_from_reward_vals(self, reward_vals, old_lines, delete=True):
         if not self.env.su and lock_prices_and_taxes(self.env):
+            self.check_access('write')
+            if not old_lines.order_id <= self:
+                raise AccessError(_('Reward lines must belong to this order.'))
             # sudo: el motor de promociones fija el 100 %; el comercial no puede
             # escribir descuentos. Solo elevamos la escritura de recompensas.
             return super(SaleOrder, self.sudo())._write_vals_from_reward_vals(

@@ -46,6 +46,12 @@ class SaleOrderLine(models.Model):
         if free_lines:
             # Mantener la invariante también si llegan componentes explícitos.
             free_vals = dict(vals, discount=100, discount1=100, discount2=0, discount3=0)
+            if not self.env.su and lock_prices_and_taxes(self.env):
+                for field in (
+                    'product_id', 'product_uom_qty', 'product_uom_id', 'product_uom',
+                    'order_id', 'product_template_id', 'linked_line_id',
+                ):
+                    free_vals.pop(field, None)
             result = super(SaleOrderLine, free_lines).write(free_vals) and result
         return result
 
@@ -71,6 +77,7 @@ class SaleOrderLine(models.Model):
 
     def _reset_loyalty(self, complete=False):
         if not self.env.su and lock_prices_and_taxes(self.env):
+            self.order_id.check_access('write')
             # sudo: permitir al motor limpiar precio, puntos y recompensa.
             super(SaleOrderLine, self.sudo())._reset_loyalty(complete=complete)
             return self

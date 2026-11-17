@@ -1,3 +1,4 @@
+from odoo.exceptions import AccessError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase, new_test_user
 
@@ -159,6 +160,57 @@ class TestRewardLines(TransactionCase):
         self.assertFalse(line.points_cost)
         self.assertFalse(line.reward_identifier_code)
         self.assertGreater(line.price_subtotal, 0)
+
+    def test_comercial_cannot_change_existing_gift(self):
+        order = self._order(self.comercial)
+        self._apply_reward(order)
+        gift = self._assert_free(order)
+        gift.write({'product_uom_qty': 50})
+        self._assert_free(order)
+        order.with_user(self.comercial).write({
+            'order_line': [(1, gift.id, {'product_uom_qty': 50})],
+        })
+        self._assert_free(order)
+        gift.write({'product_id': self.trigger.id})
+        self._assert_free(order)
+
+    def test_comercial_can_increase_trigger_quantity(self):
+        order = self._order(self.comercial)
+        self._apply_reward(order)
+        normal = order.order_line.filtered(lambda line: not line.is_reward_line)
+        # Una escritura mixta solo debe filtrar la cantidad del regalo.
+        order.order_line.write({'product_uom_qty': 4})
+        self.assertEqual(normal.product_uom_qty, 4)
+        self._assert_free(order)
+        order._update_programs_and_rewards()
+        self._assert_free(order, qty=2)
+
+    def test_comercial_can_unlink_gift(self):
+        order = self._order(self.comercial)
+        self._apply_reward(order)
+        gift = self._assert_free(order)
+        gift.unlink()
+        self.assertFalse(gift.exists())
+
+    def test_manager_can_change_existing_gift(self):
+        order = self._order(self.manager)
+        self._apply_reward(order)
+        gift = self._assert_free(order)
+        self.assertFalse(gift.env.su)
+        gift.write({'product_uom_qty': 50})
+        self._assert_free(order, qty=50)
+        gift.write({'product_id': self.trigger.id})
+        self.assertEqual(gift.product_id, self.trigger)
+        self.assertAlmostEqual(gift.price_subtotal, 0)
+
+    def test_comercial_cannot_update_rewards_from_another_order(self):
+        order = self._order(self.comercial)
+        other_order = self._order(self.comercial)
+        self._apply_reward(other_order)
+        gift = self._assert_free(other_order)
+        with self.assertRaises(AccessError):
+            order._write_vals_from_reward_vals([], gift)
+        self._assert_free(other_order)
 
     def test_comercial_program_timezone(self):
         order = self._order(self.comercial)
