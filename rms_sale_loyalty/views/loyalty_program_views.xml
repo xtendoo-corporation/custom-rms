@@ -5,6 +5,12 @@
         <field name="model">loyalty.program</field>
         <field name="inherit_id" ref="loyalty.loyalty_program_view_form"/>
         <field name="arch" type="xml">
+            <!-- Solo se usan regalos («Comprar X y recibir Y») y descuentos
+                 («Promociones»): los tipos con código necesitan el botón de
+                 cupón, que está oculto, y no hay programa de puntos. -->
+            <xpath expr="//field[@name='program_type']" position="attributes">
+                <attribute name="options">{'whitelisted_values': ['promotion', 'buy_x_get_y']}</attribute>
+            </xpath>
             <xpath expr="//sheet/notebook" position="before">
                 <group><field name="rms_internal_note"/></group>
             </xpath>

@@ -1,6 +1,6 @@
 {
     'name': 'RMS - Promociones en ventas',
-    'version': '19.0.1.1.0',
+    'version': '19.0.1.1.1',
     'category': 'Sales',
     'summary': 'El producto de regalo de las promociones queda siempre al 100 % de descuento, también para los comerciales sin permiso de descuentos y con el triple descuento',
     'author': 'Custom RMS',
