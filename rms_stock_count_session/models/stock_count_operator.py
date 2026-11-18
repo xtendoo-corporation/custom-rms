@@ -4,6 +4,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
+from .sage_expected import sql_same_serial
 from .scan_rule import normalize_code
 
 
@@ -219,7 +220,7 @@ class RmsStockCountOperator(models.Model):
                        count(*) FILTER (WHERE EXISTS (
                            SELECT 1 FROM rms_stock_count_scan sc
                              JOIN rms_stock_count_session ss ON ss.id = sc.session_id
-                            WHERE sc.serial_normalized = l.serial_normalized
+                            WHERE """ + sql_same_serial('sc.serial_normalized', 'l.serial_normalized') + """
                               AND sc.scan_type = 'serial'
                               AND ss.state <> 'cancel'
                               AND NOT COALESCE(sc.ignored, FALSE)
@@ -283,7 +284,7 @@ class RmsStockCountOperator(models.Model):
                AND NOT EXISTS (
                    SELECT 1 FROM rms_stock_count_scan sc
                      JOIN rms_stock_count_session ss ON ss.id = sc.session_id
-                    WHERE sc.serial_normalized = l.serial_normalized
+                    WHERE """ + sql_same_serial('sc.serial_normalized', 'l.serial_normalized') + """
                       AND sc.scan_type = 'serial' AND ss.state <> 'cancel'
                       AND NOT COALESCE(sc.ignored, FALSE)
                       AND (l.product_id IS NULL OR sc.product_id = l.product_id))

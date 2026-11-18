@@ -26,6 +26,16 @@ def serial_alternatives(key):
     return ['SN' + key]
 
 
+def sql_same_serial(left, right):
+    """Fragmento SQL: `left` es el mismo nº de serie que `right` contando las
+    formas alternativas de serial_alternatives ("SN" delante en Sage y no en
+    la etiqueta, o al revés). Sin "%" para poder usarlo en consultas con
+    parámetros. `left` queda a un lado del IN: su índice se sigue usando."""
+    return ("%(l)s IN (%(r)s, 'SN' || %(r)s, CASE WHEN left(%(r)s, 2) = 'SN' AND length(%(r)s) > 4 "
+            "THEN COALESCE(NULLIF(ltrim(substr(%(r)s, 3), '0'), ''), '0') ELSE %(r)s END)"
+            % {'l': left, 'r': right})
+
+
 def sage_article_parts(article):
     article = article.strip()
     state = 'Nuevo'

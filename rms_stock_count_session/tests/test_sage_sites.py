@@ -110,3 +110,23 @@ class TestSageSites(TransactionCase):
         self.assertFalse(doubtful.location_id)
         self.assertIn('dudoso', doubtful.name)
         self.assertTrue(any(item.startswith('02 A.4') for item in summary['doubtful']))
+
+    def test_sn_prefix_in_sage_counts_as_read_everywhere(self):
+        """AtlasIED: Sage guarda "SN" delante y la etiqueta no. El escáner ya lo
+        daba por bueno; el marcador, el checklist y las altas también deben."""
+        line = self._line('01', 'SNCI664153152000019')
+        self._line('01', 'SNCI664153152000245')
+        self.Warehouse._setup_default_links()
+        session = self.env['rms.stock.count.session'].create({'location_id': self.wh['RMS7'].lot_stock_id.id})
+        Operator = self.env['rms.stock.count.operator']
+        operator = Operator.browse(Operator.scanner_join(session.id, 'Atlas')['operator']['id'])
+        result = self.Scan.scanner_register(operator.id, 'CI664153152000019')
+        self.assertEqual(result['scan']['sage']['v'], 'ok')
+        progress = operator.scanner_progress()
+        self.assertEqual((progress['total'], progress['counted']), (2, 1))
+        self.assertEqual({r['serial'] for r in operator.scanner_sage_search('CI6641')}, {'SNCI664153152000245'})
+        self.env.flush_all()
+        row = self.env['rms.sage.checklist'].search([('sage_line_id', '=', line.id)])
+        self.assertTrue(row.counted)
+        self.assertEqual(row.pending_qty, 0)
+        self.assertFalse(self.env['rms.sage.checklist.extra'].search([('session_id', '=', session.id)]))

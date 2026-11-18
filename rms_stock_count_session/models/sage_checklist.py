@@ -11,6 +11,7 @@ recuentos (menos los cancelados). No guardan nada: siempre al día.
 """
 from odoo import fields, models, tools
 
+from .sage_expected import sql_same_serial
 from .sage_live import MOVE_TYPES
 
 SAGE_STATES = [('nuevo', 'Nuevo'), ('demo', 'Demo'), ('2mano', '2ª Mano')]
@@ -101,7 +102,7 @@ class SageChecklist(models.Model):
                            min(sc.scanned_at) AS first_scanned_at,
                            (array_agg(sc.product_state_id ORDER BY sc.scanned_at DESC, sc.id DESC))[1] AS last_state_id
                       FROM scans sc
-                     WHERE sc.serial_normalized = l.serial_normalized
+                     WHERE %s
                        AND sc.scan_type = 'serial'
                        AND (l.product_id IS NULL OR sc.product_id = l.product_id)
               ) s ON TRUE
@@ -124,7 +125,7 @@ class SageChecklist(models.Model):
                      LIMIT 1
               ) dp ON TRUE
              WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0 AND COALESCE(l.serial_normalized, '') <> ''
-            )""" % (self._table, _VALID_SCANS))
+            )""" % (self._table, _VALID_SCANS, sql_same_serial('sc.serial_normalized', 'l.serial_normalized')))
 
 
 class SageChecklistExtra(models.Model):
@@ -175,5 +176,5 @@ class SageChecklistExtra(models.Model):
              WHERE sc.scan_type IN ('serial', 'unknown')
                AND NOT EXISTS (
                     SELECT 1 FROM rms_sage_stock_line l
-                     WHERE l.is_current AND l.serial_normalized = sc.serial_normalized)
-            )""" % (self._table, _VALID_SCANS))
+                     WHERE l.is_current AND %s)
+            )""" % (self._table, _VALID_SCANS, sql_same_serial('l.serial_normalized', 'sc.serial_normalized')))
