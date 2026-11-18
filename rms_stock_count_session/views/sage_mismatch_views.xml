@@ -7,8 +7,9 @@
             <form string="Excel de descuadres">
                 <p invisible="file">
                     Un solo Excel con una hoja por cada tipo de diferencia entre lo contado y Sage:
-                    no leídos, altas, estado distinto, en depósito, en otra nave, duplicados, negativos
-                    y movidos después de contar. No cambia nada en Odoo ni en Sage.
+                    no leídos, altas, estado distinto, en depósito, en otra nave, duplicados, negativos,
+                    movidos después de contar, leídos en varios recuentos y lo contado por cantidad.
+                    No cambia nada en Odoo ni en Sage.
                 </p>
                 <group invisible="file">
                     <field name="sage_company_code" placeholder="Las tres empresas"/>
