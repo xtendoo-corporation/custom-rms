@@ -48,6 +48,21 @@ class RmsStockCountOperator(models.Model):
              "a mano). Los números de serie que aún no existen en Odoo se "
              "asignan a este producto.",
     )
+    product_explicit = fields.Boolean(
+        string="Producto leído o elegido", default=False,
+        help="El producto actual lo ha leído (código de producto) o elegido el "
+             "operario. Si solo viene del último nº de serie leído, un nº de "
+             "serie que no está en Sage NO lo hereda: hay que leer antes el "
+             "código del producto.",
+    )
+
+    def write(self, vals):
+        # Cualquier cambio del producto actual es "leído o elegido" salvo el
+        # que hace el propio escáner tras reconocer un nº de serie.
+        if "current_product_id" in vals and "product_explicit" not in vals:
+            vals = dict(vals, product_explicit=bool(vals["current_product_id"])
+                        and not self.env.context.get("rms_product_from_serial"))
+        return super().write(vals)
     scan_ids = fields.One2many("rms.stock.count.scan", "operator_id", string="Lecturas")
     scan_count = fields.Integer(compute="_compute_scan_count", string="Nº de lecturas")
 
@@ -510,7 +525,7 @@ class RmsStockCountOperator(models.Model):
         location = self.current_location_id or self.session_id.location_id
         # El producto actual del operario (al que se asignan los nº de serie
         # nuevos) no se toca: contar cables no cambia lo que lee la pistola.
-        previous_product = self.current_product_id
+        previous_product, previous_explicit = self.current_product_id, self.product_explicit
         result = Scan.with_context(scanner_product_state_id=state.id, sage_batch=True)._scanner_register(
             self.id, product.default_code or product.barcode or "CANT-%d" % product.id, client_uid,
             classification={
@@ -519,8 +534,8 @@ class RmsStockCountOperator(models.Model):
             })
         if not result.get("scan"):
             raise UserError("No se pudo apuntar la cantidad de %s." % product.display_name)
-        if self.current_product_id != previous_product:
-            self.current_product_id = previous_product
+        if self.current_product_id != previous_product or self.product_explicit != previous_explicit:
+            self.write({"current_product_id": previous_product.id, "product_explicit": previous_explicit})
         scan = Scan.browse(result["scan"]["id"])
         return {
             "status": "ok", "scan": scan._scanner_payload(), "deleted_ids": deleted_ids,

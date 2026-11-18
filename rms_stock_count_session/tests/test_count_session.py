@@ -81,7 +81,14 @@ class TestCountSession(TransactionCase):
         self.assertEqual(res["scan"]["type"], "serial")
         self.assertEqual(self.ana.current_product_id, self.console)
 
-        # Nº de serie desconocido con producto actual con seguimiento: nuevo.
+        # Nº de serie desconocido: NO hereda el producto del último equipo leído.
+        res = self.scan(self.ana, "S/N: C-0099")
+        self.assertEqual(res["scan"]["type"], "unknown")
+        self.assertIn("lee antes el código del producto", res["message"])
+        self.assertFalse(self.ana.product_explicit)
+        # Con el producto elegido (o leído su código) sí: nº de serie nuevo.
+        self.ana.scanner_set_product(self.console.id)
+        self.assertTrue(self.ana.product_explicit)
         res = self.scan(self.ana, "S/N: C-0099")
         self.assertEqual(res["scan"]["type"], "serial")
         self.assertTrue(res["scan"]["is_new_lot"])
@@ -116,6 +123,7 @@ class TestCountSession(TransactionCase):
         self.scan(self.ana, "LOC-RMS-A")
         self.scan(self.ana, "C-0001")
         self.scan(self.ana, "C-0002")
+        self.ana.scanner_set_product(self.console.id)  # nº de serie nuevo: producto elegido
         self.scan(self.ana, "C-0099")
         for _i in range(5):
             self.scan(self.ana, "RMSTEST-EAN-CABLE")

@@ -89,7 +89,9 @@ class TestScanRules(TransactionCase):
         res = self.scan("FF01FA00031A")
         self.assertEqual(res["scan"]["lot_name"], "00000794")
         self.assertFalse(res["scan"]["is_new_lot"])
-        # Nuevo: se crea con 6 cifras como en la etiqueta de las tarjetas.
+        # Nuevo: se crea con 6 cifras como en la etiqueta de las tarjetas
+        # (con el producto elegido: ya no hereda el de la tarjeta anterior).
+        self.op.scanner_set_product(self.axc_avb.id)
         res = self.scan("FF010A000369")
         self.assertEqual(res["scan"]["lot_name"], "000873")
         self.assertTrue(res["scan"]["is_new_lot"])

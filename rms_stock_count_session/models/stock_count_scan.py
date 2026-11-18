@@ -416,11 +416,19 @@ class RmsStockCountScan(models.Model):
                 message="Código de barras de producto (UPC/EAN) que Odoo no conoce: no es un nº de "
                         "serie. Escanea el nº de serie del equipo.",
             )
-        if current and current.tracking != "none":
+        if current and current.tracking != "none" and operator.product_explicit:
             return dict(
                 base, scan_type="serial", product_id=current.id, lot_name=serial,
-                is_new_lot=True, quantity=1.0,
+                is_new_lot=True, quantity=1.0, _inherited_product=True,
                 message="Nº de serie NUEVO para %s: %s%s" % (current.display_name, serial, brand_note),
+            )
+        if current and current.tracking != "none":
+            # El producto actual solo viene del último nº de serie leído: no se
+            # hereda (un A168 de DiGiCo acababa apuntado como Galaxy 816).
+            return dict(
+                base, scan_type="unknown", lot_name=serial, quantity=0.0,
+                message="El nº de serie %s%s no está en Sage: lee antes el código del producto "
+                        "(o elígelo arriba) y vuelve a leerlo." % (serial, brand_note),
             )
 
         return dict(
@@ -719,13 +727,19 @@ class RmsStockCountScan(models.Model):
             "client_uid": client_uid or False,
             "found_in_search": self.env.context.get("found_in_search", operator.search_mode),
         })
+        inherited_product = vals.pop("_inherited_product", False)
         scan = self.create(vals)
         if not self.env.context.get("sage_batch"):
             scan._compute_sage_suggestion()
 
         if scan.scan_type == "location":
             operator.current_location_id = scan.location_id
-        elif scan.scan_type in ("product_ref", "product", "serial") and scan.product_id:
+        elif scan.scan_type == "serial" and scan.product_id:
+            # Reconocido por Sage/Odoo: el producto actual sigue al equipo pero
+            # ya no es "leído o elegido". Heredado del producto leído: se queda.
+            if not inherited_product:
+                operator.with_context(rms_product_from_serial=True).current_product_id = scan.product_id
+        elif scan.scan_type in ("product_ref", "product") and scan.product_id:
             operator.current_product_id = scan.product_id
 
         status = {
