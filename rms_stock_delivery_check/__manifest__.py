@@ -1,6 +1,6 @@
 {
     'name': 'RMS Checklist de salida con pistola',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.1.0',
     'category': 'Inventory/Inventory',
     'summary': 'Checklist de salida: cada caja se lee con la pistola y pone en verde su línea '
                'del albarán. Paquetes de 2ª mano y depósitos en clientes (salida y vuelta).',
@@ -20,6 +20,8 @@ Checklist de salida con pistola
 * Paquetes de 2ª mano autorizados por Dirección (rms.used.pack).
 * Depósitos en clientes sobre las cesiones (stock_cession): salida y vuelta
   con checklist, y listado de lo que sigue fuera con sus días.
+* Documentos PDF de depósito: entrega (firma del cliente) y devolución (firma
+  en almacén), una hoja por albarán de vuelta.
 * Todas las lecturas quedan guardadas; lo inesperado queda como incidencia.
     """,
     'author': 'Custom RMS',
@@ -29,6 +31,7 @@ Checklist de salida con pistola
         'security/security.xml',
         'security/ir.model.access.csv',
         'report/delivery_serials_report.xml',
+        'report/deposit_report.xml',
         'views/stock_picking_views.xml',
         'views/delivery_scan_views.xml',
         'views/used_pack_views.xml',

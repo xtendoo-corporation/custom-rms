@@ -15,8 +15,13 @@
                 <button name="action_rms_register_return" type="object" string="Registrar vuelta con pistola"
                         class="oe_highlight" icon="fa-undo"
                         invisible="rms_deposit_state not in ('out', 'partial') or not rms_unit_ids"/>
+                <button name="action_rms_print_delivery" type="object" string="Imprimir entrega" icon="fa-print"
+                        invisible="not rms_unit_ids"/>
+                <button name="action_rms_print_return" type="object" string="Imprimir devolución" icon="fa-print"
+                        invisible="not rms_has_returns"/>
             </xpath>
             <xpath expr="//field[@name='picking_id']" position="after">
+                <field name="rms_has_returns" invisible="1"/>
                 <field name="rms_deposit_state" widget="badge"
                        decoration-info="rms_deposit_state in ('draft', 'preparing')"
                        decoration-warning="rms_deposit_state in ('out', 'partial')"
@@ -65,6 +70,9 @@
                             <field name="date_done"/>
                             <field name="rms_check_state" widget="badge"/>
                             <field name="state" widget="badge"/>
+                            <button name="action_rms_print_deposit_return" type="object" string="Imprimir devolución"
+                                    icon="fa-print"
+                                    invisible="rms_deposit_role != 'return' or state != 'done'"/>
                             <button name="action_open_delivery_check" type="object" string="Abrir checklist"
                                     icon="fa-barcode" invisible="state in ('draft', 'cancel')"/>
                         </list>

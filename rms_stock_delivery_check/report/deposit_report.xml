@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- BORRADOR pendiente de revisión por Administración: el texto de condiciones
+         (parámetro de sistema rms_stock_delivery_check.deposit_terms) y el diseño de
+         los dos documentos de depósito deben validarse antes de usarlos con clientes. -->
+
+    <template id="report_deposit_delivery_document">
+        <t t-call="web.external_layout">
+            <t t-set="o" t-value="o.with_context(lang=o.partner_id.lang or o.env.lang)"/>
+            <t t-set="units" t-value="units_of(o)"/>
+            <div class="page">
+                <h2>Documento de entrega de material en depósito</h2>
+                <div class="row mt-3 mb-3">
+                    <div class="col-6"><strong>Referencia del depósito:</strong> <span t-field="o.name"/></div>
+                    <div class="col-6" t-if="units"><strong>Fecha de entrega:</strong>
+                        <span t-out="min(units.mapped('date_out'))" t-options="{'widget': 'date'}"/>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <strong>Cliente:</strong>
+                    <span t-field="o.partner_id" t-options="{'widget': 'contact', 'fields': ['name', 'address'], 'no_marker': True}"/>
+                </div>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Referencia</th>
+                            <th>Nº de serie</th>
+                            <th>Estado del equipo</th>
+                            <th class="text-end">Cantidad</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="units" t-as="unit">
+                            <td><span t-out="unit.product_id.name"/></td>
+                            <td><span t-out="unit.product_id.default_code or ''"/></td>
+                            <td><span t-out="unit.lot_id.name or '—'"/></td>
+                            <td><span t-out="unit.product_state_id.name or ''"/></td>
+                            <td class="text-end"><span t-out="'%g' % unit.quantity"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="mt-3" t-out="terms"/>
+                <div class="row mt-5" style="page-break-inside: avoid;">
+                    <div class="col-6">
+                        <div style="border: 1px solid #444; height: 150px; padding: 6px;">
+                            <strong>Entregado por RMS (nombre, fecha y firma)</strong>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div style="border: 1px solid #444; height: 150px; padding: 6px;">
+                            <strong>Recibido por el cliente (nombre, DNI, fecha y firma)</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="report_deposit_delivery">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="rms_stock_delivery_check.report_deposit_delivery_document"/>
+            </t>
+        </t>
+    </template>
+
+    <template id="report_deposit_return_sheet">
+        <t t-call="web.external_layout">
+            <t t-set="o" t-value="o.with_context(lang=o.partner_id.lang or o.env.lang)"/>
+            <div class="page">
+                <h2>Documento de devolución de material en depósito</h2>
+                <div class="row mt-3 mb-3">
+                    <div class="col-4"><strong>Referencia del depósito:</strong> <span t-field="o.name"/></div>
+                    <div class="col-4"><strong>Albarán de vuelta:</strong> <span t-out="picking.name"/></div>
+                    <div class="col-4"><strong>Fecha de devolución:</strong>
+                        <span t-out="picking.date_done" t-options="{'widget': 'date'}"/></div>
+                </div>
+                <div class="mb-3">
+                    <strong>Cliente:</strong>
+                    <span t-field="o.partner_id" t-options="{'widget': 'contact', 'fields': ['name', 'address'], 'no_marker': True}"/>
+                </div>
+                <h4>Equipos devueltos</h4>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Referencia</th>
+                            <th>Nº de serie</th>
+                            <th>Estado</th>
+                            <th class="text-end">Cantidad</th>
+                            <th>Fecha de salida</th>
+                            <th>Fecha de vuelta</th>
+                            <th class="text-end">Días fuera</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="units" t-as="unit">
+                            <td><span t-out="unit.product_id.name"/></td>
+                            <td><span t-out="unit.product_id.default_code or ''"/></td>
+                            <td><span t-out="unit.lot_id.name or '—'"/></td>
+                            <td><span t-out="unit.product_state_id.name or ''"/></td>
+                            <td class="text-end"><span t-out="'%g' % unit.qty_returned"/></td>
+                            <td><span t-out="unit.date_out" t-options="{'widget': 'date'}"/></td>
+                            <td><span t-out="unit.date_return or picking.date_done" t-options="{'widget': 'date'}"/></td>
+                            <td class="text-end"><span t-out="unit.days_out"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <t t-set="still_out" t-value="still_out_of(o)"/>
+                <t t-if="still_out">
+                    <h4 class="mt-4">Sigue en depósito en el cliente</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Referencia</th>
+                                <th>Nº de serie</th>
+                                <th>Estado</th>
+                                <th class="text-end">Cantidad</th>
+                                <th>Fecha de salida</th>
+                                <th class="text-end">Días fuera</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="still_out" t-as="unit">
+                                <td><span t-out="unit.product_id.name"/></td>
+                                <td><span t-out="unit.product_id.default_code or ''"/></td>
+                                <td><span t-out="unit.lot_id.name or '—'"/></td>
+                                <td><span t-out="unit.product_state_id.name or ''"/></td>
+                                <td class="text-end"><span t-out="'%g' % (unit.quantity - unit.qty_returned)"/></td>
+                                <td><span t-out="unit.date_out" t-options="{'widget': 'date'}"/></td>
+                                <td class="text-end"><span t-out="unit.days_out"/></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </t>
+                <div class="row mt-5" style="page-break-inside: avoid;">
+                    <div class="col-6">
+                        <div style="border: 1px solid #444; height: 150px; padding: 6px;">
+                            <strong>Devuelto por el cliente (nombre, DNI, fecha y firma)</strong>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div style="border: 1px solid #444; height: 150px; padding: 6px;">
+                            <strong>Recibido en almacén por RMS (nombre, fecha y firma)</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="report_deposit_return">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-foreach="returns_of(o)" t-as="ret">
+                    <t t-set="picking" t-value="ret[0]"/>
+                    <t t-set="units" t-value="ret[1]"/>
+                    <t t-call="rms_stock_delivery_check.report_deposit_return_sheet"/>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_deposit_delivery" model="ir.actions.report">
+        <field name="name">Entrega en depósito</field>
+        <field name="model">stock.cession</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">rms_stock_delivery_check.report_deposit_delivery</field>
+        <field name="report_file">rms_stock_delivery_check.report_deposit_delivery</field>
+        <field name="print_report_name">'Entrega en depósito - %s' % (object.name)</field>
+        <field name="binding_model_id" ref="stock_cession.model_stock_cession"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <record id="action_report_deposit_return" model="ir.actions.report">
+        <field name="name">Devolución de depósito</field>
+        <field name="model">stock.cession</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">rms_stock_delivery_check.report_deposit_return</field>
+        <field name="report_file">rms_stock_delivery_check.report_deposit_return</field>
+        <field name="print_report_name">'Devolución de depósito - %s' % (object.name)</field>
+        <field name="binding_model_id" ref="stock_cession.model_stock_cession"/>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>
