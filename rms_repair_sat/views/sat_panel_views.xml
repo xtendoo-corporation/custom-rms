@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rms_panel_repair_search" model="ir.ui.view">
+        <field name="name">repair.order.panel.search</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="view_repair_order_search_sat"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='rms_group_stage']" position="before">
+                <filter name="rms_late_panel" string="Atascadas" domain="[('rms_late', '=', True)]"/>
+                <filter name="rms_group_site" string="Sede" context="{'group_by': 'rms_site'}"/>
+                <filter name="rms_group_technician" string="Técnico" context="{'group_by': 'user_id'}"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_rms_panel_repair_pivot" model="ir.ui.view">
+        <field name="name">repair.order.panel.pivot</field>
+        <field name="model">repair.order</field>
+        <field name="arch" type="xml">
+            <pivot string="Reparaciones abiertas">
+                <field name="rms_site" type="row"/><field name="rms_stage" type="row"/>
+                <field name="rms_lead_days" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_rms_panel_repair_graph" model="ir.ui.view">
+        <field name="name">repair.order.panel.graph</field>
+        <field name="model">repair.order</field>
+        <field name="arch" type="xml"><graph string="Reparaciones abiertas" type="bar">
+            <field name="rms_site"/><field name="rms_stage"/>
+        </graph></field>
+    </record>
+    <record id="action_rms_panel_open" model="ir.actions.act_window">
+        <field name="name">Reparaciones abiertas</field><field name="res_model">repair.order</field>
+        <field name="view_mode">kanban,list,pivot,graph,form</field>
+        <field name="domain">[('rms_stage', 'not in', ('delivered', 'cancel'))]</field>
+        <field name="search_view_id" ref="view_rms_panel_repair_search"/>
+        <field name="context">{'group_by': ['rms_site', 'rms_stage']}</field>
+        <field name="view_ids" eval="[Command.create({'view_mode': 'kanban', 'view_id': ref('view_repair_order_kanban_sat')}), Command.create({'view_mode': 'list', 'view_id': ref('view_repair_order_list_sat')}), Command.create({'view_mode': 'pivot', 'view_id': ref('view_rms_panel_repair_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('view_rms_panel_repair_graph')})]"/>
+    </record>
+    <record id="view_rms_ra_quant_list" model="ir.ui.view">
+        <field name="name">stock.quant.ra.list</field><field name="model">stock.quant</field>
+        <field name="arch" type="xml"><list string="Unidades en RA" create="false" edit="false" delete="false">
+            <field name="product_id"/><field name="lot_id"/><field name="location_id"/>
+            <field name="quantity"/><field name="company_id" groups="base.group_multi_company"/>
+        </list></field>
+    </record>
+    <record id="action_rms_panel_ra" model="ir.actions.server">
+        <field name="name">Unidades en RA</field><field name="model_id" ref="stock.model_stock_quant"/>
+        <field name="state">code</field><field name="code">action = env['stock.quant'].action_rms_ra_quants()</field>
+    </record>
+    <record id="view_rms_stage_log_pivot" model="ir.ui.view">
+        <field name="name">rms.repair.stage.log.pivot</field><field name="model">rms.repair.stage.log</field>
+        <field name="arch" type="xml"><pivot string="Días por fase">
+            <field name="stage" type="row"/><field name="site" type="col"/><field name="days" type="measure"/>
+        </pivot></field>
+    </record>
+    <record id="view_rms_stage_log_graph" model="ir.ui.view">
+        <field name="name">rms.repair.stage.log.graph</field><field name="model">rms.repair.stage.log</field>
+        <field name="arch" type="xml"><graph string="Días por fase" type="bar">
+            <field name="stage"/><field name="site"/><field name="days" type="measure"/>
+        </graph></field>
+    </record>
+    <record id="action_rms_panel_stage_times" model="ir.actions.act_window">
+        <field name="name">Días por fase</field><field name="res_model">rms.repair.stage.log</field>
+        <field name="view_mode">pivot,graph</field><field name="view_id" ref="view_rms_stage_log_pivot"/>
+    </record>
+    <record id="view_rms_panel_lead_pivot" model="ir.ui.view">
+        <field name="name">repair.order.lead.pivot</field><field name="model">repair.order</field>
+        <field name="arch" type="xml"><pivot string="Días hasta entrega">
+            <field name="rms_close_date" interval="month" type="row"/><field name="rms_lead_days" type="measure"/>
+        </pivot></field>
+    </record>
+    <record id="view_rms_panel_lead_graph" model="ir.ui.view">
+        <field name="name">repair.order.lead.graph</field><field name="model">repair.order</field>
+        <field name="arch" type="xml"><graph string="Días hasta entrega" type="bar">
+            <field name="rms_close_date" interval="month"/><field name="rms_lead_days" type="measure"/>
+        </graph></field>
+    </record>
+    <record id="action_rms_panel_lead_times" model="ir.actions.act_window">
+        <field name="name">Días hasta entrega</field><field name="res_model">repair.order</field>
+        <field name="view_mode">pivot,graph</field><field name="domain">[('rms_close_date', '!=', False)]</field>
+        <field name="view_ids" eval="[Command.create({'view_mode': 'pivot', 'view_id': ref('view_rms_panel_lead_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('view_rms_panel_lead_graph')})]"/>
+    </record>
+    <record id="view_rms_panel_billing_pivot" model="ir.ui.view">
+        <field name="name">repair.order.billing.pivot</field><field name="model">repair.order</field>
+        <field name="arch" type="xml"><pivot string="Facturación SAT">
+            <field name="rms_close_date" interval="month" type="row"/><field name="under_warranty" type="col"/>
+            <field name="rms_amount_invoiced" type="measure"/><field name="rms_parts_cost" type="measure"/>
+            <field name="rms_margin" type="measure"/>
+        </pivot></field>
+    </record>
+    <record id="view_rms_panel_billing_graph" model="ir.ui.view">
+        <field name="name">repair.order.billing.graph</field><field name="model">repair.order</field>
+        <field name="arch" type="xml"><graph string="Facturación SAT" type="bar">
+            <field name="rms_close_date" interval="month"/><field name="under_warranty"/>
+            <field name="rms_amount_invoiced" type="measure"/><field name="rms_parts_cost" type="measure"/>
+            <field name="rms_margin" type="measure"/>
+        </graph></field>
+    </record>
+    <record id="action_rms_panel_billing" model="ir.actions.act_window">
+        <field name="name">Facturación SAT</field><field name="res_model">repair.order</field>
+        <field name="view_mode">pivot,graph</field><field name="domain">[('rms_close_date', '!=', False)]</field>
+        <field name="view_ids" eval="[Command.create({'view_mode': 'pivot', 'view_id': ref('view_rms_panel_billing_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('view_rms_panel_billing_graph')})]"/>
+    </record>
+    <menuitem id="menu_rms_panel" name="Panel" parent="menu_rms_sat_root" sequence="80" groups="rms_repair_sat.group_sat_manager"/>
+    <menuitem id="menu_rms_panel_open" name="Reparaciones abiertas" parent="menu_rms_panel" action="action_rms_panel_open" sequence="10"/>
+    <menuitem id="menu_rms_panel_factory" name="En fábrica y RA" parent="menu_rms_panel" sequence="20"/>
+    <menuitem id="menu_rms_panel_factory_repairs" name="En fábrica" parent="menu_rms_panel_factory" action="action_rms_sat_factory"/>
+    <menuitem id="menu_rms_panel_ra" name="Unidades en RA" parent="menu_rms_panel_factory" action="action_rms_panel_ra"/>
+    <menuitem id="menu_rms_panel_times" name="Tiempos" parent="menu_rms_panel" sequence="30"/>
+    <menuitem id="menu_rms_panel_stage_times" name="Días por fase" parent="menu_rms_panel_times" action="action_rms_panel_stage_times"/>
+    <menuitem id="menu_rms_panel_lead" name="Días hasta entrega" parent="menu_rms_panel_times" action="action_rms_panel_lead_times"/>
+    <menuitem id="menu_rms_panel_billing" name="Facturación SAT" parent="menu_rms_panel" action="action_rms_panel_billing" sequence="40"/>
+    <record id="ir_cron_rms_panel" model="ir.cron">
+        <field name="name">SAT: actualizar panel</field><field name="model_id" ref="repair.model_repair_order"/>
+        <field name="state">code</field><field name="code">model._cron_rms_panel()</field>
+        <field name="interval_number">1</field><field name="interval_type">days</field>
+    </record>
+</odoo>

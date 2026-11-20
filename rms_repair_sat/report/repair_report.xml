@@ -79,6 +79,7 @@
                         <p><strong>Entregado por:</strong> <t t-esc="user.name"/></p>
                         <p><strong>Fecha:</strong> <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
                         <p><strong>Forma de entrega:</strong> <span t-field="o.rms_delivery_way"/></p>
+                        <p><strong>Portes de vuelta:</strong> <span t-field="o.rms_return_shipping_effective"/></p>
                         <p t-if="o.rms_delivery_tracking_ref"><strong>Nº de envío:</strong> <span t-field="o.rms_delivery_tracking_ref"/></p>
                         <div style="margin-top:20mm;min-height:25mm;">Firma del cliente: _______________________</div>
                     </div>

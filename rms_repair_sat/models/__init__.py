@@ -7,3 +7,7 @@ from . import disassembly
 from . import res_config_settings
 from . import sat_config
 from . import quotation
+from . import sat_panel
+from . import sat_security
+from . import sat_payment
+from . import sat_notifications

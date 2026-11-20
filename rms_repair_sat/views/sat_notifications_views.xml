@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_repair_form_sat_notifications" model="ir.ui.view">
+        <field name="name">repair.order.form.sat.notifications</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="rms_repair_sat.view_repair_order_form_sat"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='rms_delivery_way']/parent::group" position="inside">
+                <field name="rms_return_shipping"/>
+                <field name="rms_return_shipping_effective" invisible="rms_return_shipping_effective == rms_return_shipping"/>
+                <field name="rms_ready_date"/>
+                <field name="rms_not_collected"/>
+                <button name="action_rms_add_shipping" type="object" string="Añadir portes"
+                        invisible="rms_return_shipping != 'invoice' or under_warranty or not sale_order_id or rms_sale_order_state not in ('draft', 'sent')"
+                        groups="rms_repair_sat.group_sat_technician"/>
+            </xpath>
+            <xpath expr="//div[hasclass('oe_title')]" position="before">
+                <widget name="web_ribbon" title="Sin recoger" bg_color="text-bg-danger" invisible="not rms_not_collected"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_repair_kanban_sat_notifications" model="ir.ui.view">
+        <field name="name">repair.order.kanban.sat.notifications</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="rms_repair_sat.view_repair_order_kanban_sat"/>
+        <field name="arch" type="xml">
+            <xpath expr="//kanban/field[@name='rms_late']" position="after"><field name="rms_not_collected"/></xpath>
+            <xpath expr="//span[@t-if='record.rms_late.raw_value']" position="after">
+                <span t-if="record.rms_not_collected.raw_value" class="badge text-bg-danger">Sin recoger</span>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_repair_search_sat_notifications" model="ir.ui.view">
+        <field name="name">repair.order.search.sat.notifications</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="rms_repair_sat.view_repair_order_search_sat"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='rms_open']" position="after">
+                <filter name="rms_not_collected" string="Sin recoger" domain="[('rms_not_collected', '=', True)]"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="res_config_settings_view_form_sat_notifications" model="ir.ui.view">
+        <field name="name">res.config.settings.form.sat.notifications</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="rms_repair_sat.res_config_settings_view_form_rms_sat"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='repair_setting_container']" position="inside">
+                <setting string="Envío de vuelta por defecto"><field name="rms_sat_default_return_shipping"/></setting>
+                <setting string="Avisos de recogida" help="Días desde que el equipo está listo o se rechaza el presupuesto.">
+                    <div class="content-group">
+                        <label for="rms_sat_reminder_1_days"/><field name="rms_sat_reminder_1_days"/>
+                        <label for="rms_sat_reminder_2_days"/><field name="rms_sat_reminder_2_days"/>
+                        <label for="rms_sat_reminder_3_days"/><field name="rms_sat_reminder_3_days"/>
+                    </div>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,49 @@
+<odoo>
+    <record id="view_partner_form_sat_payment" model="ir.ui.view">
+        <field name="name">res.partner.form.sat.payment</field><field name="model">res.partner</field>
+        <field name="inherit_id" ref="account_financial_risk.res_partner_view_risk"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='financial_risk']" position="after">
+              <page name="sat_payment" string="SAT">
+                <group string="Condiciones SAT">
+                    <field name="rms_sat_can_edit_risk" invisible="1"/>
+                    <field name="rms_sat_pay_later" readonly="not rms_sat_can_edit_risk"/>
+                    <field name="rms_sat_no_risk_limit" readonly="not rms_sat_can_edit_risk"/>
+                </group>
+              </page>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_repair_form_sat_payment" model="ir.ui.view">
+        <field name="name">repair.order.form.sat.payment</field><field name="model">repair.order</field>
+        <field name="inherit_id" ref="rms_repair_sat.view_repair_order_form_sat"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_rms_force_payment" type="object" string="Autorizar sin cobro"
+                        groups="rms_repair_sat.group_sat_manager" invisible="rms_owner_type != 'customer' or rms_paid or rms_payment_exempt or rms_payment_forced"/>
+            </xpath>
+            <xpath expr="//page[@name='rms_sat']/group" position="inside">
+                <group string="Cobro y riesgo" invisible="rms_owner_type != 'customer'">
+                    <field name="rms_has_risk_limit" invisible="1"/>
+                    <field name="rms_risk_percentage" invisible="not rms_has_risk_limit"/>
+                    <field name="rms_risk_limit" invisible="not rms_has_risk_limit"/>
+                    <div invisible="rms_has_risk_limit">Sin límite de riesgo</div>
+                    <field name="rms_risk_exception"/><field name="rms_payment_exempt"/>
+                    <field name="rms_payment_exempt_reason" invisible="not rms_payment_exempt"/>
+                    <field name="rms_paid"/><field name="rms_payment_forced"/>
+                    <div class="alert alert-danger" invisible="rms_paid or rms_payment_exempt or under_warranty or rms_payment_forced">Falta el cobro</div>
+                    <div class="alert alert-success" invisible="not rms_paid and not rms_payment_exempt and not under_warranty and not rms_payment_forced">Cobro o autorización conforme</div>
+                </group>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_settings_sat_admin" model="ir.ui.view">
+        <field name="name">res.config.settings.sat.admin</field><field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="rms_repair_sat.res_config_settings_view_form_rms_sat"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='repair_setting_container']" position="inside">
+                <setting string="Avisos de Administración para"><field name="rms_sat_admin_user_ids" widget="many2many_tags"/></setting>
+            </xpath>
+        </field>
+    </record>
+</odoo>

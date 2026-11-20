@@ -8,7 +8,7 @@ from ..dedup_hooks import uninstall_hook
 class TestStandardAccess(TransactionCase):
     def test_menu_and_print_visibility(self):
         user = new_test_user(self.env, login='sat_access_v2',
-                             groups='stock.group_stock_user,repair_security.group_repair_user')
+                             groups='stock.group_stock_user,rms_repair_sat.group_sat_warehouse')
         menu = self.env.ref('repair.menu_repair_order')
         self.assertFalse(menu.with_user(user)._filter_visible_menus())
         self.assertTrue(self.env.ref('rms_repair_sat.menu_rms_sat_root').with_user(user)._filter_visible_menus())

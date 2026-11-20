@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_repair_order_form_sat_security" model="ir.ui.view">
+        <field name="name">repair.order.form.sat.security</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="view_repair_order_form_sat"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_rms_register_entry']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_warehouse</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_deliver']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_warehouse</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_print_label']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_warehouse</attribute></xpath>
+            <xpath expr="//button[@name='action_validate']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_repair_start']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="(//button[@name='action_repair_end'])[1]" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="(//button[@name='action_repair_end'])[2]" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_create_sale_order']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_send_factory']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_back_from_factory']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_swap']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_wait_part']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_part_received']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_send_quote']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_reject_quote']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_reapprove']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_add_used_alternative']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_choose_used']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_choose_new']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_add_factory_bill']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_rms_add_labour']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_assign']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_unreserve']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_repair_cancel']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_repair_cancel_draft']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+            <xpath expr="//button[@name='action_generate_serial']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+        </field>
+    </record>
+    <record id="view_rms_disassembly_form_security" model="ir.ui.view">
+        <field name="name">rms.disassembly.form.security</field>
+        <field name="model">rms.disassembly</field>
+        <field name="inherit_id" ref="view_rms_disassembly_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_done']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_manager</attribute></xpath>
+        </field>
+    </record>
+    <record id="view_factory_list_security" model="ir.ui.view">
+        <field name="name">repair.order.list.factory.security</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="view_repair_order_list_factory"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_rms_back_from_factory']" position="attributes"><attribute name="groups">rms_repair_sat.group_sat_technician</attribute></xpath>
+        </field>
+    </record>
+</odoo>

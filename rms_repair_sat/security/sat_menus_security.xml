@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="menu_rms_sat_root" model="ir.ui.menu">
+        <field name="group_ids" eval="[Command.set([ref('group_sat_warehouse'), ref('custom.comerciales')])]"/>
+    </record>
+    <record id="menu_rms_sat_repairs" model="ir.ui.menu">
+        <field name="group_ids" eval="[Command.set([ref('group_sat_warehouse'), ref('custom.comerciales')])]"/>
+    </record>
+    <record id="menu_rms_sat_factory" model="ir.ui.menu"><field name="group_ids" eval="[Command.set([ref('group_sat_technician')])]"/></record>
+    <record id="menu_rms_sat_disassembly" model="ir.ui.menu"><field name="group_ids" eval="[Command.set([ref('group_sat_technician')])]"/></record>
+    <record id="menu_rms_sat_config" model="ir.ui.menu"><field name="group_ids" eval="[Command.set([ref('group_sat_manager')])]"/></record>
+    <record id="menu_rms_sat_stage_limits" model="ir.ui.menu"><field name="group_ids" eval="[Command.set([ref('group_sat_manager')])]"/></record>
+    <record id="menu_rms_sat_fixed_price" model="ir.ui.menu"><field name="group_ids" eval="[Command.set([ref('group_sat_manager')])]"/></record>
+</odoo>

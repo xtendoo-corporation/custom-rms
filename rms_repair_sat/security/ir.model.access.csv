@@ -14,3 +14,6 @@ access_rms_fixed_price_user,rms.repair.fixed.price user,model_rms_repair_fixed_p
 access_rms_fixed_price_manager,rms.repair.fixed.price manager,model_rms_repair_fixed_price,repair_security.group_repair_manager,1,1,1,1
 access_rms_swap_wizard_user,rms.repair.swap.wizard user,model_rms_repair_swap_wizard,repair_security.group_repair_user,1,1,1,1
 access_rms_return_wizard_user,rms.repair.factory.return.wizard user,model_rms_repair_factory_return_wizard,repair_security.group_repair_user,1,1,1,1
+access_repair_order_sat_commercial,repair.order SAT comercial,repair.model_repair_order,custom.comerciales,1,0,0,0
+access_rms_stage_log_technician,rms.repair.stage.log technician,model_rms_repair_stage_log,rms_repair_sat.group_sat_technician,1,0,0,0
+access_rms_stage_log_manager,rms.repair.stage.log manager,model_rms_repair_stage_log,rms_repair_sat.group_sat_manager,1,1,1,1

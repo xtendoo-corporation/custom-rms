@@ -146,6 +146,7 @@ class TestRmsRepairSat(TransactionCase):
         self.assertEqual(alt.serial_ids.lot_id, used_lot)
         self.assertEqual(alt.serial_state_name, self.second_hand.name)
         repair.action_validate()
+        repair.rms_payment_forced = True
         repair.action_repair_start()
         self.assertEqual(repair.rms_stage, 'repair')
         part = repair.move_ids.filtered(lambda m: m.repair_line_type == 'add')
@@ -169,6 +170,7 @@ class TestRmsRepairSat(TransactionCase):
         self.assertFalse(negative, [(q.location_id.complete_name, q.owner_id.name, q.lot_id.name, q.quantity,
                                      repair.product_location_src_id.complete_name,
                                      repair.product_location_dest_id.complete_name) for q in negative])
+        repair.rms_payment_forced = True
         repair.action_rms_deliver()
         self.assertEqual(repair.rms_stage, 'delivered')
 
@@ -207,10 +209,10 @@ class TestRmsRepairSat(TransactionCase):
         self.assertEqual(action['context']['default_lot_id'], desk_lot.id)
 
     def test_05_permissions(self):
-        # El hook deja con permiso de reparaciones a quien tenía Inventario (admin incluido).
+        # Los administradores heredan los permisos de responsable SAT.
         manager = self.env.ref('repair_security.group_repair_manager')
         self.assertIn(self.env.ref('base.user_admin'), manager.all_user_ids)
-        user = new_test_user(self.env, login='sat_tech', groups='stock.group_stock_user,repair_security.group_repair_user')
+        user = new_test_user(self.env, login='sat_tech', groups='stock.group_stock_user,rms_repair_sat.group_sat_warehouse')
         dis = self.env['rms.disassembly'].with_user(user).create({
             'product_id': self.desk.id, 'location_id': self.stock.id})
         with self.assertRaises(AccessError):

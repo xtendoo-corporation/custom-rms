@@ -91,7 +91,7 @@ class RmsDisassembly(models.Model):
         return weights
 
     def action_done(self):
-        if not self.env.user.has_group('repair_security.group_repair_manager'):
+        if not self.env.user.has_group('rms_repair_sat.group_sat_manager'):
             raise AccessError('Solo los responsables del SAT pueden validar un despiece.')
         for record in self:
             record._do_disassembly()
