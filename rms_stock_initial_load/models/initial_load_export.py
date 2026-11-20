@@ -5,7 +5,7 @@ import io
 
 from odoo import fields, models
 
-from .initial_load import KIND_HELP, KINDS, SITE_NAMES, _fmt
+from .initial_load import KIND_HELP, KINDS, NO_PARTNER, SITE_NAMES, _fmt
 
 SAGE_STATE = {'nuevo': 'Nuevo', 'demo': 'Demo', '2mano': '2ª Mano'}
 RESULT = {'pending': 'Sin aplicar', 'done': 'Cargado', 'duplicate': 'Ya tenía existencias: no duplicado',
@@ -89,6 +89,9 @@ class InitialLoad(models.Model):
                 'rms_stock_initial_load.partner_inherited_deposits').id)],
              'Depósitos cuyo cliente de Sage no coincide con un único contacto de Odoo: quedan con el contacto '
              'genérico y el nombre de Sage. Asignar el cliente en el depósito.'),
+            ('Depósitos sin cliente', [('kind', '=', 'deposit'), ('sage_partner_name', '=', NO_PARTNER)],
+             'Depósitos heredados sin cliente identificado: ni la línea de depósito de Sage ni sus movimientos '
+             'dicen en qué cliente está el equipo. Quedan con el contacto genérico: averiguar el cliente.'),
             ('Movimientos posteriores', [('sage_move_id', '!=', False)],
              'Líneas en las que se ha aplicado un movimiento de Sage posterior al recuento.'),
             ('Estados revisados', [('review_id', '!=', False)],

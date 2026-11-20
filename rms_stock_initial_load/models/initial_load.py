@@ -31,6 +31,8 @@ KINDS = [
     ('skip', 'No cargado'),
 ]
 KIND_LABELS = dict(KINDS)
+# Depósito de Sage del que ni la línea ni los movimientos dicen el cliente.
+NO_PARTNER = '(sin nombre en Sage)'
 KIND_HELP = {
     'counted': 'Equipos leídos con la pistola: entran en la nave donde se leyeron, a nombre de la empresa de Sage.',
     'sage_unverified': 'Equipos que nadie ha leído y entran según Sage, marcados «No verificado» (naves no '
@@ -241,6 +243,8 @@ class InitialLoad(models.Model):
             ('Estados por revisar uno a uno', len(self.review_ids.filtered(lambda r: r.state == 'pending'))),
             ('Depósitos a cerrar en Sage (leídos en la nave)', Line.search_count(base + [('deposit_to_close', '=', True)])),
             ('Clientes de depósito sin casar con un contacto', len(unmatched)),
+            ('Depósitos heredados sin cliente identificado (equipos)',
+             units(base + [('kind', '=', 'deposit'), ('sage_partner_name', '=', NO_PARTNER)])),
             ('Líneas con un movimiento de Sage posterior al recuento', Line.search_count(base + [('sage_move_id', '!=', False)])),
             ('Nº de serie que ya tenían existencias en Odoo (no duplicados)',
              Line.search_count(base + [('apply_result', '=', 'duplicate')])),

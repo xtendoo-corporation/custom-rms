@@ -292,3 +292,47 @@ class TestLoadPlan(LoadCommon):
         self.assertEqual(sorted(lines.mapped('kind')), ['sage_unverified', 'skip'])
         load.action_apply()
         self.assertEqual(self.stock(self.product, lot='LT-DUP'), 1)
+
+    # ---- Depósitos: el cliente sale de los movimientos de Sage si la línea no lo trae ----
+    def test_deposit_partner_from_sage_moves(self):
+        partner = self.env['res.partner'].create({'name': 'Alquileres Loadtest Norte, S.L.', 'is_company': True})
+        for serial in ('LT-DM-OLD', 'SN0055001', 'LT-DM-RETURNED', 'LT-DM-SOLD', 'LT-DM-NONE', 'LT-DM-REOPEN'):
+            self.sage_deposit('01', self.product, serial, None)
+        # Depósito antiguo (muy anterior al recuento) y sin vuelta: vale.
+        self.sage_move('LT-DM-OLD', 'deposit', move_date=date(2025, 6, 3), partner='ALQUILERES LOADTEST NORTE SL')
+        # Sage guarda "SN" delante y el movimiento no.
+        self.sage_move('55001', 'deposit', move_date=date(2026, 1, 20), partner='ALQUILERES LOADTEST NORTE SL')
+        # Con vuelta de depósito o venta posterior, ese depósito ya no vale.
+        self.sage_move('LT-DM-RETURNED', 'deposit', move_date=date(2026, 2, 1), partner='ALQUILERES LOADTEST NORTE SL')
+        self.sage_move('LT-DM-RETURNED', 'deposit_return', move_date=date(2026, 4, 1), partner='ALQUILERES LOADTEST NORTE SL')
+        self.sage_move('LT-DM-SOLD', 'deposit', move_date=date(2026, 2, 1), partner='ALQUILERES LOADTEST NORTE SL')
+        self.sage_move('LT-DM-SOLD', 'sale', move_date=date(2026, 5, 1), partner='OTRO CLIENTE')
+        # Devuelto y vuelto a dejar: manda el último depósito.
+        self.sage_move('LT-DM-REOPEN', 'deposit', move_date=date(2026, 2, 1), partner='CLIENTE VIEJO LOADTEST')
+        self.sage_move('LT-DM-REOPEN', 'deposit_return', move_date=date(2026, 3, 1), partner='CLIENTE VIEJO LOADTEST')
+        self.sage_move('LT-DM-REOPEN', 'deposit', move_date=date(2026, 6, 1), partner='ALQUILERES LOADTEST NORTE SL')
+        self.scan('LT-Q', self.product2, 'new')
+        load = self.new_load()
+        generic = self.env.ref('rms_stock_initial_load.partner_inherited_deposits')
+        expected = {'LT-DM-OLD': date(2025, 6, 3), 'SN0055001': date(2026, 1, 20), 'LT-DM-REOPEN': date(2026, 6, 1)}
+        for serial, day in expected.items():
+            line = self.line(load, serial)
+            self.assertEqual((line.kind, line.partner_id, line.sage_partner_name, line.deposit_date),
+                             ('deposit', partner, 'ALQUILERES LOADTEST NORTE SL', day), serial)
+            self.assertFalse(line.sage_move_id, 'no es un movimiento posterior al recuento')
+        for serial in ('LT-DM-RETURNED', 'LT-DM-SOLD', 'LT-DM-NONE'):
+            line = self.line(load, serial)
+            self.assertEqual((line.kind, line.partner_id, line.sage_partner_name, line.deposit_date),
+                             ('deposit', generic, '(sin nombre en Sage)', load.date), serial)
+        self.assertIn(('Depósitos heredados sin cliente identificado (equipos)', 3.0), load._extra_figures())
+        self.assertIn('Depósitos heredados sin cliente identificado', load.summary_html)
+        from openpyxl import load_workbook
+        import io
+        book = load_workbook(io.BytesIO(load._export_workbook()))
+        self.assertEqual(sorted(row[6].value for row in book['Depósitos sin cliente'].iter_rows(min_row=2)),
+                         ['LT-DM-NONE', 'LT-DM-RETURNED', 'LT-DM-SOLD'])
+        load.action_apply()
+        named = load.cession_ids.filtered(lambda c: c.partner_id == partner)
+        self.assertEqual(sorted(named.rms_unit_ids.mapped('lot_id.name')), ['LT-DM-OLD', 'LT-DM-REOPEN', 'SN0055001'])
+        self.assertEqual(named.date.date(), date(2025, 6, 3))
+        self.assertEqual(len(load.cession_ids.filtered(lambda c: c.partner_id == generic).rms_unit_ids), 3)

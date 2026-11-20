@@ -197,6 +197,19 @@ class InitialLoad(models.Model):
         return best
 
     @staticmethod
+    def _plan_open_deposit_move(ctx, serial_keys):
+        """Último movimiento de Sage de tipo depósito de ese nº de serie, de
+        cualquier fecha, si después no hay una vuelta de depósito ni una venta
+        (el depósito sigue abierto). Sirve para saber el cliente cuando la
+        línea de depósito de Sage no lo trae."""
+        found = [move for key in dict.fromkeys(serial_keys) for move in ctx['moves'].get(key, ())
+                 if move['type'] in ('deposit', 'deposit_return', 'sale')]
+        if not found:
+            return None
+        last = max(found, key=lambda move: (move['date'], move['id']))
+        return last if last['type'] == 'deposit' else None
+
+    @staticmethod
     def _plan_move_label(move):
         text = SHORT_LABELS.get(move['type'], move['type'])
         if move['partner_name'] and move['type'] in ('sale', 'deposit', 'deposit_return'):
@@ -271,8 +284,16 @@ class InitialLoad(models.Model):
                 partner_name=((deposit and deposit['partner_name']) or (stock and stock['partner_name']) or '').strip(),
                 state=base['state'], serial=(base['serial'] or '').strip(), article=base['article'],
                 cost=(stock and stock['cost']) or (deposit and deposit['cost']) or 0.0,
-                warehouse_code=base['warehouse_code'], line_id=base['id'],
+                warehouse_code=base['warehouse_code'], line_id=base['id'], deposit_date=None, partner_source='',
             )
+            if unit['in_deposit'] and not unit['partner_name']:
+                # La exportación de depósitos de Sage no trae el cliente: se toma
+                # del último movimiento de depósito de ese nº de serie.
+                move = self._plan_open_deposit_move(ctx, [unit['sn']] + serial_alternatives(unit['sn']))
+                if move and (move['partner_name'] or '').strip():
+                    unit.update(partner_name=move['partner_name'].strip(), deposit_date=move['date'],
+                                partner_source=' (cliente y fecha del movimiento de depósito de Sage del %s)'
+                                % _date(move['date']))
 
         # --- Lecturas agrupadas por nº de serie y producto (la última manda) ---
         groups = {}
@@ -325,7 +346,7 @@ class InitialLoad(models.Model):
             partner_name = (partner_name or '').strip()
             partner_id, _matched = self._plan_partner(ctx, partner_name)
             if not date:
-                last = self._plan_latest_move(ctx, keys, None, types=('deposit',))
+                last = self._plan_open_deposit_move(ctx, keys)
                 date = last['date'] if last else None
             return {'partner_id': partner_id, 'sage_partner_name': partner_name or '(sin nombre en Sage)',
                     'deposit_date': date or load_date, 'unverified': True}
@@ -438,8 +459,9 @@ class InitialLoad(models.Model):
             if unit['in_deposit']:
                 add('deposit', site_number=unit['site'], note=(
                     'Sage lo tiene en depósito en %s. Entra en el depósito de ese cliente, sin verificar.'
-                    % (unit['partner_name'] or 'un cliente sin nombre')),
-                    **dict(base, **deposit_vals(unit, unit['partner_name'], keys)))
+                    % ((unit['partner_name'] + unit['partner_source']) if unit['partner_name']
+                       else 'un cliente SIN IDENTIFICAR (ni la línea ni los movimientos de Sage dicen cuál)')),
+                    **dict(base, **deposit_vals(unit, unit['partner_name'], keys, date=unit['deposit_date'])))
                 continue
             if not unit['site']:
                 add('skip', site_number=0, note='Almacén de Sage sin nave (%s): sin ubicar, no cargado.'
