@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Altas por revisar -->
+    <record id="view_lot_alta_list" model="ir.ui.view">
+        <field name="name">stock.lot.rms.alta.list</field>
+        <field name="model">stock.lot</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list string="Altas por revisar" create="0" delete="0" edit="0">
+                <field name="name" string="Nº de serie"/>
+                <field name="product_id"/>
+                <field name="product_state_id"/>
+                <field name="location_id" string="Está en"/>
+                <field name="rms_stock_company_id"/>
+                <field name="rms_initial_load_id" optional="hide"/>
+                <field name="rms_alta_review" column_invisible="1"/>
+                <button name="action_rms_alta_change_company" type="object" string="Cambiar empresa"
+                        class="btn-secondary" invisible="not rms_alta_review"/>
+                <button name="action_rms_alta_reviewed" type="object" string="Revisada" class="btn-primary"
+                        invisible="not rms_alta_review"
+                        confirm="El equipo deja de estar en «Altas por revisar». ¿Seguir?"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_lot_alta" model="ir.actions.act_window">
+        <field name="name">Altas por revisar</field>
+        <field name="res_model">stock.lot</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('rms_alta_review', '=', True)]</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_lot_alta_list')})]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay altas por revisar</p>
+            <p>Equipos que se leyeron en la nave y no estaban en Sage: entraron a nombre de RMS.
+               Administración revisa la empresa y el coste.</p>
+        </field>
+    </record>
+
+    <!-- No verificados -->
+    <record id="view_lot_unverified_list" model="ir.ui.view">
+        <field name="name">stock.lot.rms.unverified.list</field>
+        <field name="model">stock.lot</field>
+        <field name="priority">91</field>
+        <field name="arch" type="xml">
+            <list string="No verificados" create="0" delete="0" edit="0">
+                <field name="name" string="Nº de serie"/>
+                <field name="product_id"/>
+                <field name="product_state_id"/>
+                <field name="location_id" string="Está en"/>
+                <field name="rms_stock_company_id"/>
+                <field name="rms_initial_load_id" optional="hide"/>
+                <field name="rms_unverified" column_invisible="1"/>
+                <button name="action_rms_mark_verified" type="object" string="Verificado" class="btn-primary"
+                        invisible="not rms_unverified"
+                        confirm="¿Se ha visto físicamente este equipo? Dejará de estar en «No verificados»."/>
+            </list>
+        </field>
+    </record>
+    <record id="action_lot_unverified" model="ir.actions.act_window">
+        <field name="name">No verificados</field>
+        <field name="res_model">stock.lot</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('rms_unverified', '=', True)]</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_lot_unverified_list')})]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay equipos sin verificar</p>
+            <p>Equipos que entraron en la carga de arranque según Sage, sin que nadie los haya visto.</p>
+        </field>
+    </record>
+
+    <record id="view_lot_search_rms_load" model="ir.ui.view">
+        <field name="name">stock.lot.search.rms.load</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.search_product_lot_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <filter name="rms_unverified" string="No verificado" domain="[('rms_unverified', '=', True)]"/>
+                <filter name="rms_alta_review" string="Alta por revisar" domain="[('rms_alta_review', '=', True)]"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_lot_form_rms_load" model="ir.ui.view">
+        <field name="name">stock.lot.form.rms.load</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <group string="Carga de arranque" invisible="not rms_initial_load_id and not rms_unverified and not rms_alta_review">
+                    <field name="rms_initial_load_id" readonly="1"/>
+                    <field name="rms_unverified"/>
+                    <field name="rms_alta_review"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Pendiente de localizar (almacén fantasma) -->
+    <record id="view_quant_phantom_list" model="ir.ui.view">
+        <field name="name">stock.quant.rms.phantom.list</field>
+        <field name="model">stock.quant</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list string="Pendiente de localizar" create="0" delete="0" edit="0">
+                <field name="company_id"/>
+                <field name="product_id"/>
+                <field name="lot_id" string="Nº de serie"/>
+                <field name="product_state_id" optional="show"/>
+                <field name="quantity" sum="Unidades"/>
+                <field name="in_date" string="Desde"/>
+                <field name="location_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_quant_phantom" model="ir.actions.act_window">
+        <field name="name">Pendiente de localizar</field>
+        <field name="res_model">stock.quant</field>
+        <field name="view_mode">list</field>
+        <field name="domain">[('location_id.rms_phantom', '=', True), ('quantity', '>', 0)]</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_quant_phantom_list')})]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay nada pendiente de localizar</p>
+            <p>Lo que Sage tenía en una nave contada y nadie encontró. No se puede vender y no cuenta en la valoración.</p>
+        </field>
+    </record>
+
+    <record id="view_location_form_rms_load" model="ir.ui.view">
+        <field name="name">stock.location.form.rms.load</field>
+        <field name="model">stock.location</field>
+        <field name="inherit_id" ref="stock.view_location_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <group invisible="not rms_phantom">
+                    <field name="rms_phantom" readonly="1"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Depósitos heredados de Sage -->
+    <record id="view_stock_cession_form_rms_load" model="ir.ui.view">
+        <field name="name">stock.cession.form.rms.load</field>
+        <field name="model">stock.cession</field>
+        <field name="inherit_id" ref="stock_cession.view_stock_cession_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <group string="Carga de arranque" invisible="not rms_inherited_from_sage">
+                    <field name="rms_inherited_from_sage" readonly="1"/>
+                    <field name="rms_sage_partner_name" readonly="1"/>
+                    <field name="rms_initial_load_id" readonly="1"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_stock_cession_list_rms_load" model="ir.ui.view">
+        <field name="name">stock.cession.list.rms.load</field>
+        <field name="model">stock.cession</field>
+        <field name="inherit_id" ref="rms_stock_delivery_check.view_stock_cession_list_deposit"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="rms_inherited_from_sage" optional="show"/>
+                <field name="rms_sage_partner_name" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

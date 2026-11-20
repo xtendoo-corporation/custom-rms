@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================ Líneas ============================ -->
+    <record id="view_initial_load_line_list" model="ir.ui.view">
+        <field name="name">rms.initial.load.line.list</field>
+        <field name="model">rms.initial.load.line</field>
+        <field name="arch" type="xml">
+            <list string="Líneas de la carga" create="0" delete="0" editable="bottom"
+                  decoration-muted="kind == 'skip'" decoration-warning="kind == 'phantom'"
+                  decoration-info="unverified" decoration-danger="apply_result == 'duplicate'">
+                <field name="load_state" column_invisible="1"/>
+                <field name="site_name" readonly="1"/>
+                <field name="company_id" readonly="1"/>
+                <field name="kind" readonly="1" widget="badge"
+                       decoration-success="kind in ('counted', 'qty_counted')"
+                       decoration-info="kind in ('sage_unverified', 'qty_sage', 'deposit')"
+                       decoration-warning="kind in ('alta', 'phantom')"/>
+                <field name="product_id" readonly="1"/>
+                <field name="lot_name" readonly="1"/>
+                <field name="state_id" readonly="1"/>
+                <field name="quantity" readonly="1" sum="Unidades"/>
+                <field name="destination" readonly="1"/>
+                <field name="unverified" readonly="1" optional="show"/>
+                <field name="cost" readonly="load_state not in ('draft', 'prepared') or kind == 'skip'"/>
+                <field name="sage_cost" optional="hide"/>
+                <field name="note" readonly="1"/>
+                <field name="sage_partner_name" readonly="1" optional="hide"/>
+                <field name="partner_id" readonly="1" optional="hide"/>
+                <field name="deposit_to_close" readonly="1" optional="hide"/>
+                <field name="sage_state" readonly="1" optional="hide"/>
+                <field name="sage_qty" readonly="1" optional="hide"/>
+                <field name="counted_qty" readonly="1" optional="hide"/>
+                <field name="sage_move_id" readonly="1" optional="hide"/>
+                <field name="session_id" readonly="1" optional="hide"/>
+                <field name="scanned_at" readonly="1" optional="hide"/>
+                <field name="sage_warehouse_code" readonly="1" optional="hide"/>
+                <field name="review_state" readonly="1" optional="hide"/>
+                <field name="apply_result" readonly="1" optional="show"/>
+                <field name="lot_id" readonly="1" optional="hide"/>
+                <field name="move_id" readonly="1" optional="hide"/>
+                <field name="cession_id" readonly="1" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_initial_load_line_search" model="ir.ui.view">
+        <field name="name">rms.initial.load.line.search</field>
+        <field name="model">rms.initial.load.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="lot_name"/>
+                <field name="product_id"/>
+                <field name="article_code"/>
+                <field name="sage_partner_name"/>
+                <field name="company_id"/>
+                <field name="load_id"/>
+                <filter name="entering" string="Lo que entra" domain="[('kind', '!=', 'skip')]"/>
+                <filter name="counted" string="Contado" domain="[('kind', '=', 'counted')]"/>
+                <filter name="sage_unverified" string="Según Sage sin verificar" domain="[('kind', '=', 'sage_unverified')]"/>
+                <filter name="alta" string="Altas" domain="[('kind', '=', 'alta')]"/>
+                <filter name="phantom" string="Pendiente de localizar" domain="[('kind', '=', 'phantom')]"/>
+                <filter name="deposit" string="Depósitos heredados" domain="[('kind', '=', 'deposit')]"/>
+                <filter name="qty" string="Por cantidad" domain="[('kind', 'in', ('qty_counted', 'qty_sage'))]"/>
+                <filter name="skip" string="No cargado" domain="[('kind', '=', 'skip')]"/>
+                <separator/>
+                <filter name="unverified" string="No verificado" domain="[('unverified', '=', True)]"/>
+                <filter name="no_cost" string="Sin coste" domain="[('cost_pending', '=', True)]"/>
+                <filter name="to_close" string="Depósito a cerrar en Sage" domain="[('deposit_to_close', '=', True)]"/>
+                <filter name="moved" string="Con movimiento de Sage posterior" domain="[('sage_move_id', '!=', False)]"/>
+                <filter name="duplicate" string="Ya tenían existencias" domain="[('apply_result', '=', 'duplicate')]"/>
+                <group>
+                    <filter name="group_kind" string="Tipo" context="{'group_by': 'kind'}"/>
+                    <filter name="group_site" string="Nave" context="{'group_by': 'site_name'}"/>
+                    <filter name="group_company" string="Empresa" context="{'group_by': 'company_id'}"/>
+                    <filter name="group_product" string="Producto" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_partner" string="Cliente según Sage" context="{'group_by': 'sage_partner_name'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_initial_load_line" model="ir.actions.act_window">
+        <field name="name">Líneas de la carga</field>
+        <field name="res_model">rms.initial.load.line</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <!-- ============================ Carga ============================ -->
+    <record id="view_initial_load_form" model="ir.ui.view">
+        <field name="name">rms.initial.load.form</field>
+        <field name="model">rms.initial.load</field>
+        <field name="arch" type="xml">
+            <form string="Carga de arranque">
+                <header>
+                    <button name="action_prepare" type="object" string="Preparar" class="btn-primary"
+                            invisible="state != 'draft'"
+                            help="Simulación: calcula qué entraría y dónde. No toca el stock."/>
+                    <button name="action_prepare" type="object" string="Volver a preparar"
+                            invisible="state not in ('prepared', 'undone')"
+                            help="Recalcula todas las líneas con las lecturas y Sage de ahora mismo. No toca el stock."/>
+                    <button name="action_apply" type="object" string="Aplicar" class="btn-primary"
+                            invisible="state != 'prepared'" groups="stock.group_stock_manager"
+                            confirm="Se van a crear las existencias de esta carga en Odoo (nº de serie, stock en las naves, almacén «Pendiente de localizar» y depósitos heredados de Sage). ¿Aplicar la carga?"/>
+                    <button name="action_export_excel" type="object" string="Excel de la carga"
+                            invisible="state == 'draft'"/>
+                    <button name="action_import_costs" type="object" string="Cargar costes desde Excel"
+                            invisible="state != 'prepared'"/>
+                    <button name="action_use_sage_cost" type="object" string="Usar el coste de Sage"
+                            invisible="state != 'prepared'"
+                            confirm="Se pondrá el coste de la línea de Sage en todas las líneas que no tienen coste. ¿Seguir?"/>
+                    <button name="action_undo" type="object" string="Deshacer carga"
+                            invisible="state != 'applied'" groups="stock.group_stock_manager"
+                            confirm="Se va a revertir todo lo que creó esta carga: las existencias vuelven a como estaban y se borran los depósitos heredados. ¿Deshacer la carga?"/>
+                    <button name="action_back_to_draft" type="object" string="Vaciar y volver a borrador"
+                            invisible="state not in ('prepared', 'undone')"
+                            confirm="Se borran las líneas calculadas y las revisiones de estado de esta carga. ¿Seguir?"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,prepared,applied"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_lines" type="object" class="oe_stat_button" icon="fa-list"
+                                invisible="state == 'draft'">
+                            <field name="line_count" widget="statinfo" string="Líneas"/>
+                        </button>
+                        <button name="action_view_reviews" type="object" class="oe_stat_button" icon="fa-exchange"
+                                invisible="state == 'draft'">
+                            <field name="review_pending_count" widget="statinfo" string="Estados por revisar"/>
+                        </button>
+                        <button name="action_view_no_cost" type="object" class="oe_stat_button" icon="fa-eur"
+                                invisible="state == 'draft'">
+                            <field name="no_cost_units" widget="statinfo" string="Uds. sin coste"/>
+                        </button>
+                        <button name="action_view_cessions" type="object" class="oe_stat_button" icon="fa-truck"
+                                invisible="cession_count == 0">
+                            <field name="cession_count" widget="statinfo" string="Depósitos"/>
+                        </button>
+                        <button name="action_view_duplicates" type="object" class="oe_stat_button" icon="fa-clone"
+                                invisible="duplicate_count == 0">
+                            <field name="duplicate_count" widget="statinfo" string="Ya en Odoo"/>
+                        </button>
+                    </div>
+                    <div class="alert alert-info" role="alert" invisible="state != 'draft'">
+                        Marca las naves que se han contado enteras y pulsa <b>Preparar</b>. Preparar es una
+                        simulación: no toca el stock y se puede repetir las veces que haga falta.
+                    </div>
+                    <div class="alert alert-warning" role="alert" invisible="state != 'prepared' or review_pending_count == 0">
+                        Quedan <field name="review_pending_count" class="oe_inline"/> equipos con el estado sin revisar.
+                        No se puede <b>Aplicar</b> hasta decidir el estado de cada uno en «Estados por revisar».
+                    </div>
+                    <div class="alert alert-success" role="alert" invisible="state != 'applied'">
+                        Carga aplicada. Las existencias están creadas. «Deshacer carga» lo revierte todo.
+                    </div>
+                    <div class="alert alert-secondary" role="alert" invisible="state != 'undone'">
+                        Carga deshecha: el stock ha vuelto a como estaba. Se puede volver a preparar y aplicar.
+                    </div>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" readonly="state == 'applied'"/></h1>
+                    </div>
+                    <group>
+                        <group string="Datos">
+                            <field name="date" readonly="state == 'applied'"/>
+                            <field name="counted_sites_label"/>
+                            <field name="unit_count" invisible="state == 'draft'"/>
+                        </group>
+                        <group string="Naves contadas (manda lo contado)">
+                            <field name="site_1" readonly="state == 'applied'"/>
+                            <field name="site_7" readonly="state == 'applied'"/>
+                            <field name="site_2" readonly="state == 'applied'"/>
+                            <field name="site_3" readonly="state == 'applied'"/>
+                            <field name="site_4" readonly="state == 'applied'"/>
+                            <field name="site_5" readonly="state == 'applied'"/>
+                            <field name="site_6" readonly="state == 'applied'"/>
+                        </group>
+                    </group>
+                    <p class="text-muted">
+                        En una nave contada entra lo leído con la pistola y lo apuntado por cantidad; lo que Sage tiene
+                        y nadie encontró va a «Pendiente de localizar». En una nave no contada entra lo que dice Sage,
+                        marcado «No verificado».
+                    </p>
+                    <separator string="Resumen por nave, empresa y tipo (unidades)" invisible="state == 'draft'"/>
+                    <field name="summary_html" nolabel="1" invisible="state == 'draft'"/>
+                    <group string="Seguimiento" invisible="state == 'draft'">
+                        <group>
+                            <field name="prepared_by"/>
+                            <field name="prepared_at"/>
+                            <field name="prepare_seconds"/>
+                        </group>
+                        <group>
+                            <field name="applied_by" invisible="not applied_at"/>
+                            <field name="applied_at" invisible="not applied_at"/>
+                            <field name="apply_seconds" invisible="not applied_at"/>
+                            <field name="undone_by" invisible="not undone_at"/>
+                            <field name="undone_at" invisible="not undone_at"/>
+                        </group>
+                    </group>
+                    <group string="Notas">
+                        <field name="note" nolabel="1" colspan="2" placeholder="Notas de la carga (ensayo, incidencias...)"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_initial_load_list" model="ir.ui.view">
+        <field name="name">rms.initial.load.list</field>
+        <field name="model">rms.initial.load</field>
+        <field name="arch" type="xml">
+            <list string="Cargas de arranque">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="counted_sites_label"/>
+                <field name="unit_count"/>
+                <field name="review_pending_count"/>
+                <field name="no_cost_units"/>
+                <field name="state" widget="badge" decoration-info="state == 'prepared'"
+                       decoration-success="state == 'applied'" decoration-muted="state == 'undone'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_initial_load" model="ir.actions.act_window">
+        <field name="name">Cargas de arranque</field>
+        <field name="res_model">rms.initial.load</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crea la carga de arranque del stock</p>
+            <p>Marca las naves contadas, pulsa «Preparar» para simularla y, cuando esté revisada, «Aplicar».</p>
+        </field>
+    </record>
+</odoo>

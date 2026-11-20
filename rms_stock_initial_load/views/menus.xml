@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_initial_load_root" name="Carga de arranque"
+              parent="rms_stock_count_session.menu_sage_root" sequence="40"
+              groups="stock.group_stock_manager"/>
+    <menuitem id="menu_initial_load" name="Cargas" parent="menu_initial_load_root"
+              action="action_initial_load" sequence="10" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_state_review" name="Revisión de estados" parent="menu_initial_load_root"
+              action="action_state_review" sequence="20" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_lot_alta" name="Altas por revisar" parent="menu_initial_load_root"
+              action="action_lot_alta" sequence="30" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_lot_unverified" name="No verificados" parent="menu_initial_load_root"
+              action="action_lot_unverified" sequence="40" groups="stock.group_stock_manager"/>
+    <menuitem id="menu_quant_phantom" name="Pendiente de localizar" parent="menu_initial_load_root"
+              action="action_quant_phantom" sequence="50" groups="stock.group_stock_manager"/>
+</odoo>

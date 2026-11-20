@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Contacto genérico de los depósitos de Sage cuyo cliente no se ha podido
+         casar con un contacto de Odoo. Compartido por las 3 empresas. -->
+    <record id="partner_inherited_deposits" model="res.partner">
+        <field name="name">Depósitos heredados de Sage (cliente por asignar)</field>
+        <field name="is_company" eval="True"/>
+        <field name="company_id" eval="False"/>
+        <field name="comment">No es un cliente real. La carga de arranque lo usa cuando el cliente de un depósito de Sage no coincide con un único contacto de Odoo. El nombre de Sage queda en el depósito.</field>
+    </record>
+</odoo>

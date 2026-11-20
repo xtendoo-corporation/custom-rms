@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_cost_import_form" model="ir.ui.view">
+        <field name="name">rms.initial.load.cost.import.form</field>
+        <field name="model">rms.initial.load.cost.import</field>
+        <field name="arch" type="xml">
+            <form string="Cargar costes desde Excel">
+                <p class="text-muted">
+                    Excel con una fila de títulos y estas columnas: <b>Artículo</b> (o <b>Referencia</b>),
+                    <b>Estado</b> (opcional: Nuevo, Demo, Ex-Demo, 2ª Mano) y <b>Coste</b>. Una fila sin estado
+                    vale para todos los estados de ese artículo. El coste vacío no bloquea la carga.
+                </p>
+                <group>
+                    <field name="load_id" readonly="1"/>
+                    <field name="file" filename="filename"/>
+                    <field name="filename" invisible="1"/>
+                    <field name="overwrite"/>
+                </group>
+                <group string="Resultado" invisible="not result">
+                    <field name="result" nolabel="1" colspan="2"/>
+                </group>
+                <footer>
+                    <button name="action_import" type="object" string="Cargar costes" class="btn-primary"/>
+                    <button string="Cerrar" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_alta_company_form" model="ir.ui.view">
+        <field name="name">rms.initial.load.alta.company.form</field>
+        <field name="model">rms.initial.load.alta.company</field>
+        <field name="arch" type="xml">
+            <form string="Cambiar la empresa del alta">
+                <p class="text-muted">
+                    El equipo sale del almacén de la empresa actual y entra en el de la empresa correcta
+                    (dos ajustes de inventario, uno en cada empresa).
+                </p>
+                <group>
+                    <field name="lot_id"/>
+                    <field name="product_id"/>
+                    <field name="current_location_id"/>
+                    <field name="current_company_id"/>
+                    <field name="company_id" options="{'no_create': True}"/>
+                    <field name="location_id"/>
+                    <field name="clear_mark"/>
+                </group>
+                <footer>
+                    <button name="action_apply" type="object" string="Cambiar empresa" class="btn-primary"/>
+                    <button string="Cancelar" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

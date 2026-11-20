@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_rms_initial_load_manager,rms.initial.load.manager,model_rms_initial_load,stock.group_stock_manager,1,1,1,1
+access_rms_initial_load_line_manager,rms.initial.load.line.manager,model_rms_initial_load_line,stock.group_stock_manager,1,1,0,0
+access_rms_initial_load_state_review_manager,rms.initial.load.state.review.manager,model_rms_initial_load_state_review,stock.group_stock_manager,1,1,0,0
+access_rms_initial_load_cost_import_manager,rms.initial.load.cost.import.manager,model_rms_initial_load_cost_import,stock.group_stock_manager,1,1,1,1
+access_rms_initial_load_alta_company_manager,rms.initial.load.alta.company.manager,model_rms_initial_load_alta_company,stock.group_stock_manager,1,1,1,1

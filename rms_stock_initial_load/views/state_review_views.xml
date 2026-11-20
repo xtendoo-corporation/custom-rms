@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_state_review_list" model="ir.ui.view">
+        <field name="name">rms.initial.load.state.review.list</field>
+        <field name="model">rms.initial.load.state.review</field>
+        <field name="arch" type="xml">
+            <list string="Revisión de estados" create="0" delete="0" edit="0"
+                  decoration-warning="state == 'pending'" decoration-success="state == 'done'">
+                <field name="load_state" column_invisible="1"/>
+                <field name="load_id" optional="hide"/>
+                <field name="site_name"/>
+                <field name="company_id" optional="show"/>
+                <field name="product_id"/>
+                <field name="serial"/>
+                <field name="sage_state"/>
+                <field name="scanned_state_id"/>
+                <field name="session_id"/>
+                <field name="final_state_id"/>
+                <button name="action_use_sage" type="object" string="Poner el de Sage" class="btn-primary"
+                        invisible="load_state == 'applied'"/>
+                <button name="action_set_new" type="object" string="Nuevo" class="btn-secondary"
+                        invisible="load_state == 'applied'"/>
+                <button name="action_set_demo" type="object" string="Demo" class="btn-secondary"
+                        invisible="load_state == 'applied'"/>
+                <button name="action_set_ex_demo" type="object" string="Ex-Demo" class="btn-secondary"
+                        invisible="load_state == 'applied'"/>
+                <button name="action_set_second_hand" type="object" string="2ª Mano" class="btn-secondary"
+                        invisible="load_state == 'applied'"/>
+                <field name="state" widget="badge" decoration-warning="state == 'pending'"
+                       decoration-success="state == 'done'"/>
+                <field name="reviewed_by" optional="show"/>
+                <field name="reviewed_on" optional="show"/>
+                <button name="action_reset" type="object" string="Deshacer revisión" icon="fa-undo"
+                        invisible="state != 'done' or load_state == 'applied'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_state_review_search" model="ir.ui.view">
+        <field name="name">rms.initial.load.state.review.search</field>
+        <field name="model">rms.initial.load.state.review</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="serial"/>
+                <field name="product_id"/>
+                <field name="load_id"/>
+                <filter name="pending" string="Por revisar" domain="[('state', '=', 'pending')]"/>
+                <filter name="done" string="Revisados" domain="[('state', '=', 'done')]"/>
+                <separator/>
+                <filter name="open_loads" string="Cargas sin aplicar" domain="[('load_id.state', 'in', ('draft', 'prepared'))]"/>
+                <group>
+                    <filter name="group_site" string="Nave" context="{'group_by': 'site_name'}"/>
+                    <filter name="group_product" string="Producto" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_sage" string="Estado en Sage" context="{'group_by': 'sage_state'}"/>
+                    <filter name="group_scanned" string="Estado marcado" context="{'group_by': 'scanned_state_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_state_review" model="ir.actions.act_window">
+        <field name="name">Revisión de estados</field>
+        <field name="res_model">rms.initial.load.state.review</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_pending': 1, 'search_default_open_loads': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay estados por revisar</p>
+            <p>Aquí aparecen los equipos cuya lectura marca un estado distinto al de Sage, al preparar una carga.</p>
+        </field>
+    </record>
+</odoo>
