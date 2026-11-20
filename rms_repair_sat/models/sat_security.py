@@ -8,21 +8,6 @@ def _require(env, level):
         raise AccessError('No tienes permiso para realizar esta operación del SAT.')
 
 
-class ResUsers(models.Model):
-    _inherit = 'res.users'
-
-    def rms_sat_visible_partner_ids(self):
-        self.ensure_one()
-        # Usa las reglas de contactos efectivas de este usuario, incluidas las
-        # personalizadas de la base, sin reproducir una cartera distinta.
-        commercial = self.env.ref('custom.comerciales', raise_if_not_found=False)
-        partner_model = self.env['ir.model'].sudo()._get('res.partner')
-        rules = self.env['ir.rule'].sudo().search([('model_id', '=', partner_model.id), ('active', '=', True)])
-        has_portfolio_rule = bool(commercial and rules.filtered(lambda rule: commercial in rule.groups))
-        domain = [] if has_portfolio_rule else [('commercial_partner_id.user_id', '=', self.id)]
-        return self.env['res.partner'].with_user(self).search(domain).ids
-
-
 class RepairOrderSecurity(models.Model):
     _inherit = 'repair.order'
 

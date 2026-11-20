@@ -32,7 +32,12 @@
         <field name="name">SAT: clientes visibles del comercial</field>
         <field name="model_id" ref="repair.model_repair_order"/>
         <field name="groups" eval="[Command.link(ref('custom.comerciales'))]"/>
-        <field name="domain_force">[('partner_id', 'in', user.rms_sat_visible_partner_ids())]</field>
+        <!-- Mismo criterio que las reglas de contactos de los comerciales (rms_ventas_restriccion_comerciales):
+             clientes propios y los de los comerciales cuya cartera comparte. Sin funciones: Odoo cachea los dominios. -->
+        <field name="domain_force">['|', '|',
+            ('partner_id.user_id', '=', user.id),
+            ('partner_id.commercial_partner_id.user_id', '=', user.id),
+            ('partner_id.commercial_partner_id.user_id', 'in', user.rms_shared_customer_user_ids.ids)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
