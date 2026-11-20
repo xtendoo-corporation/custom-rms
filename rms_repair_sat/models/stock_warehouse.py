@@ -10,6 +10,7 @@ SAT_SITES = {'1': ('madrid', 'SAT Madrid'), '7': ('sevilla', 'SAT Sevilla')}
 class StockWarehouse(models.Model):
     _inherit = 'stock.warehouse'
 
+    rms_standard_repair_type_id = fields.Many2one('stock.picking.type', string='Tipo de reparación anterior', copy=False)
     rms_ra_location_id = fields.Many2one('stock.location', string='Ubicación RA', copy=False)
     rms_sat_location_id = fields.Many2one('stock.location', string='Ubicación SAT', copy=False)
     rms_sat_factory_location_id = fields.Many2one('stock.location', string='Ubicación "En fábrica"', copy=False)
@@ -58,16 +59,42 @@ class StockWarehouse(models.Model):
                 warehouse.rms_sat_picking_type_id = warehouse.repair_type_id.sudo().copy({
                     'name': 'Reparaciones %s' % label,
                     'sequence_code': 'SAT',
+                    # La estándar de Odoo puede estar archivada (BD nueva): la del SAT, siempre activa.
+                    'active': True,
                     # Piezas: del stock del almacén. Equipo del cliente: en la ubicación SAT.
                     'default_location_src_id': warehouse.lot_stock_id.id,
                     'default_product_location_src_id': warehouse.rms_sat_location_id.id,
                     'default_product_location_dest_id': warehouse.rms_sat_location_id.id,
                 })
+        self.sudo().search([])._rms_archive_standard_repair_types()
         for company in self.env['res.company'].sudo().search([]):
             if not self.env['stock.location']._rms_disassembly_location(company, create=False):
                 self.env['stock.location']._rms_disassembly_location(company)
                 summary['despiece'].append(company.name)
         return summary
+
+    def _rms_archive_standard_repair_types(self):
+        for warehouse in self:
+            current = warehouse.repair_type_id.with_context(active_test=False)
+            sat = warehouse.rms_sat_picking_type_id.with_context(active_test=False)
+            if current and current != sat and current.code == 'repair_operation':
+                warehouse.rms_standard_repair_type_id = current
+                if sat:
+                    warehouse.repair_type_id = sat
+                    if warehouse.repair_mto_pull_id.picking_type_id == current:
+                        warehouse.repair_mto_pull_id.picking_type_id = sat
+                current.active = False
+            if sat and not sat.active:
+                sat.active = True
+            standard = warehouse.rms_standard_repair_type_id.with_context(active_test=False)
+            if standard and standard != sat and standard.active:
+                standard.active = False
+
+    def _get_picking_type_update_values(self):
+        values = super()._get_picking_type_update_values()
+        if self.repair_type_id and self.repair_type_id != self.rms_sat_picking_type_id:
+            values.get('repair_type_id', {})['active'] = False
+        return values
 
 
 class StockLocation(models.Model):

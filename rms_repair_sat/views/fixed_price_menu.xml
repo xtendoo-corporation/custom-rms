@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_rms_sat_fixed_price" name="Tipos de reparación con precio cerrado"
+              parent="menu_rms_sat_config" action="action_rms_repair_fixed_price"
+              sequence="6" groups="repair_security.group_repair_manager"/>
+</odoo>

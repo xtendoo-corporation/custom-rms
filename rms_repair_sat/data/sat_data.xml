@@ -12,7 +12,7 @@
         <record id="seq_rms_disassembly" model="ir.sequence">
             <field name="name">Despiece SAT</field>
             <field name="code">rms.disassembly</field>
-            <field name="prefix">DESP/%(year)s/</field>
+            <field name="prefix">DSP/%(year)s/</field>
             <field name="padding">4</field>
             <field name="company_id" eval="False"/>
         </record>
@@ -35,5 +35,7 @@
         <record id="accessory_manual" model="rms.repair.accessory"><field name="name">Manual</field><field name="sequence">50</field></record>
         <record id="accessory_other" model="rms.repair.accessory"><field name="name">Otros</field><field name="sequence">60</field></record>
         <record id="accessory_none" model="rms.repair.accessory"><field name="name">Sin accesorios</field><field name="sequence">70</field></record>
+        <record id="product_factory_repair" model="product.product"><field name="name">Reparación en fábrica</field><field name="type">service</field><field name="sale_ok" eval="True"/><field name="list_price">0</field></record>
+        <record id="product_labour_hour" model="product.product"><field name="name">Hora de taller</field><field name="type">service</field><field name="sale_ok" eval="True"/><field name="uom_id" ref="uom.product_uom_hour"/><field name="list_price">0</field></record>
     </data>
 </odoo>

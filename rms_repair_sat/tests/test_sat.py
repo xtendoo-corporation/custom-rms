@@ -98,7 +98,10 @@ class TestRmsRepairSat(TransactionCase):
         with self.assertRaises(UserError):
             repair.action_rms_deliver()
         self.assertIn(repair, self.env['repair.order'].search([('rms_stage', '=', 'factory')]))
-        repair.action_rms_back_from_factory()
+        action = repair.action_rms_back_from_factory()
+        self.assertEqual(action['res_model'], 'rms.repair.factory.return.wizard')
+        self.env['rms.repair.factory.return.wizard'].create(
+            {'repair_id': repair.id, 'result': 'repaired'}).action_confirm()
         self.assertEqual(repair.rms_stage, 'repair')
         self.assertTrue(repair.rms_factory_back_date)
         # Fase y días
@@ -173,23 +176,21 @@ class TestRmsRepairSat(TransactionCase):
         desk_lot = self._stock_lot(self.desk, 'MESA-VIEJA', self.second_hand)
         dis = self.env['rms.disassembly'].create({
             'product_id': self.desk.id, 'lot_id': desk_lot.id, 'location_id': self.stock.id, 'cost_total': 600.0,
-            'line_ids': [Command.create({'product_id': self.fader.id, 'quantity': 2}),
-                         Command.create({'product_id': self.screen.id, 'quantity': 1, 'serial': 'PANT-ORIG'}),
-                         Command.create({'product_id': self.knob.id, 'quantity': 4})],
+            'line_ids': [Command.create({'product_id': self.fader.id, 'quantity': 2, 'serial': 'FADER-1, FADER-2'}),
+                         Command.create({'product_id': self.screen.id, 'quantity': 1, 'serial': 'PANT-ORIG'})],
         })
         dis.action_save_bom()
-        self.assertEqual(len(dis.bom_id.bom_line_ids), 3)
+        self.assertEqual(len(dis.bom_id.bom_line_ids), 2)
         dis.action_done()
         self.assertEqual(dis.state, 'done')
-        self.assertTrue(dis.name.startswith('DESP/'))
+        self.assertTrue(dis.name.startswith('DSP/'))
         self.assertEqual(self.desk.with_context(lot_id=desk_lot.id).qty_available, 0)
-        # Pesos por precio: fader 2*100, pantalla 300, potenciómetro 4*2 -> 508
-        fader_line, screen_line, knob_line = dis.line_ids
-        self.assertAlmostEqual(fader_line.cost_unit, 600 * 200 / 508 / 2, places=2)
-        self.assertAlmostEqual(screen_line.cost_unit, 600 * 300 / 508, places=2)
+        # Pesos por precio: fader 2*100, pantalla 300 -> 500
+        fader_line, screen_line = dis.line_ids
+        self.assertAlmostEqual(fader_line.cost_unit, 600 * 200 / 500 / 2, places=2)
+        self.assertAlmostEqual(screen_line.cost_unit, 600 * 300 / 500, places=2)
         self.assertEqual(len(fader_line.lot_ids), 2)
         self.assertEqual(screen_line.lot_ids.name, 'PANT-ORIG')
-        self.assertFalse(knob_line.lot_ids)
         self.assertEqual(set(dis.piece_lot_ids.mapped('product_state_id.code')), {'second_hand'})
         in_moves = dis.move_ids.filtered(lambda m: m.location_dest_id == self.stock)
         self.assertAlmostEqual(sum(in_moves.mapped('value')), 600.0, places=1)

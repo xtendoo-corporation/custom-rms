@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Etiqueta Código de Barras (Número de Serie)',
-    'version': '19.0.1.2.1',
+    'version': '19.0.1.3.0',
     'category': 'Inventory/Inventory',
     'summary': (
         'Genera e imprime una etiqueta de 50x29 mm con el código de barras '
@@ -66,8 +66,11 @@ Notas:
         'report/label_paperformat.xml',
         'report/stock_lot_label_templates.xml',
         'report/stock_lot_label_report.xml',
+        'report/restrict_standard_labels.xml',
         'views/replacement_label_views.xml',
     ],
+    'pre_init_hook': 'pre_init_hook',
+    'uninstall_hook': 'uninstall_hook',
     'installable': True,
     'application': False,
 }

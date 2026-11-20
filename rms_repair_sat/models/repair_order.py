@@ -69,6 +69,39 @@ class RepairOrder(models.Model):
     rms_parts_choice = fields.Selection([('new', 'Piezas nuevas'), ('used', 'Piezas de 2ª mano')],
                                         string='Opción elegida', copy=False, tracking=True)
 
+    rms_factory_tracking_ref = fields.Char(string='Nº de envío a fábrica', copy=False)
+    rms_factory_shipping_cost = fields.Monetary(string='Coste del porte', currency_field='rms_currency_id', copy=False)
+    rms_factory_note = fields.Text(string='Nota de fábrica', copy=False)
+    rms_factory_credit_ref = fields.Char(string='Nº de abono', copy=False)
+    rms_factory_result = fields.Selection([('repaired', 'Reparado'), ('replaced', 'Sustituido por otro'),
+                                           ('credited', 'Abonado por la fábrica')], string='Resultado de fábrica', copy=False)
+    rms_factory_bill_ids = fields.Many2many('account.move', string='Facturas de fábrica', domain="[('move_type', '=', 'in_invoice')]")
+    rms_swap_done = fields.Boolean(string='Cambio realizado', copy=False, readonly=True)
+    rms_swap_date = fields.Date(string='Fecha de cambio', copy=False, readonly=True)
+    rms_swap_lot_id = fields.Many2one('stock.lot', string='Nº de serie entregado', copy=False, readonly=True)
+    rms_original_lot_id = fields.Many2one('stock.lot', string='Nº de serie original', copy=False, readonly=True)
+    rms_original_partner_id = fields.Many2one('res.partner', string='Cliente original', copy=False, readonly=True)
+    rms_swap_picking_id = fields.Many2one('stock.picking', string='Entrega del cambio', copy=False, readonly=True)
+    rms_swap_note = fields.Text(string='Nota del cambio', copy=False)
+    rms_labour_mode = fields.Selection([('hourly', 'Por horas'), ('fixed', 'Precio cerrado')], string='Mano de obra', default='hourly')
+    rms_labour_hours = fields.Float(string='Horas de taller')
+    rms_fixed_price_id = fields.Many2one('rms.repair.fixed.price', string='Tipo de reparación')
+    rms_labour_service_id = fields.Many2one('repair.service', string='Servicio de mano de obra', copy=False)
+    rms_labour_line_id = fields.Many2one('sale.order.line', string='Línea de mano de obra', copy=False)
+    rms_factory_bill_line_id = fields.Many2one('sale.order.line', string='Línea de fábrica', copy=False)
+    rms_sale_order_state = fields.Selection(related='sale_order_id.state')
+    rms_rejected_date = fields.Date(string='Fecha de rechazo', copy=False)
+    rms_accepted_amount = fields.Monetary(string='Importe aceptado', currency_field='rms_currency_id', copy=False)
+    rms_has_accepted_amount = fields.Boolean(string='Presupuesto aceptado', copy=False)
+    rms_needs_reapproval = fields.Boolean(string='Necesita nueva aceptación', compute='_compute_rms_needs_reapproval')
+    rms_reapproved = fields.Boolean(string='Ampliación aceptada', tracking=True, copy=False)
+
+    @api.depends('sale_order_id.amount_total', 'rms_accepted_amount', 'rms_has_accepted_amount', 'rms_max_amount')
+    def _compute_rms_needs_reapproval(self):
+        for repair in self:
+            repair.rms_needs_reapproval = bool(repair.rms_has_accepted_amount and repair.sale_order_id and
+                repair.sale_order_id.amount_total > repair.rms_accepted_amount + repair.rms_max_amount)
+
     @api.model
     def _group_expand_rms_stage(self, values, domain):
         return [key for key, _label in SAT_STAGES]
@@ -269,7 +302,8 @@ class RepairOrder(models.Model):
             if repair.rms_stage == 'factory':
                 raise UserError('El equipo de %s sigue en fábrica.' % repair.name)
             warehouse = repair._rms_sat_locations()
-            repair.rms_exit_move_id = repair._rms_customer_move(warehouse.rms_sat_location_id, customers, 'Salida SAT')
+            source = warehouse.rms_ra_location_id if repair.product_location_src_id == warehouse.rms_ra_location_id else warehouse.rms_sat_location_id
+            repair.rms_exit_move_id = repair._rms_customer_move(source, customers, 'Salida SAT')
             repair.write({'rms_in_sat': False, 'rms_stage': 'delivered'})
         return True
 
@@ -280,23 +314,100 @@ class RepairOrder(models.Model):
             'view_mode': 'form', 'target': 'new', 'context': {'default_repair_id': self.id},
         }
 
-    def _rms_send_to_factory(self, partner, rma, date):
+    def _rms_send_to_factory(self, partner, rma, date, tracking_ref=False, shipping_cost=0, note=False):
         self.ensure_one()
         if not self.rms_in_sat:
             raise UserError('Registra antes la entrada del equipo en el SAT.')
         warehouse = self._rms_sat_locations()
-        self._rms_customer_move(warehouse.rms_sat_location_id, warehouse.rms_sat_factory_location_id, 'Enviado a fábrica')
+        source = warehouse.rms_ra_location_id if self.rms_swap_done and self.product_location_src_id == warehouse.rms_ra_location_id else warehouse.rms_sat_location_id
+        self._rms_customer_move(source, warehouse.rms_sat_factory_location_id, 'Enviado a fábrica')
         self.write({'rms_factory_partner_id': partner.id, 'rms_rma_number': rma, 'rms_factory_sent_date': date,
-                    'rms_factory_back_date': False, 'rms_stage': 'factory'})
+                    'rms_factory_back_date': False, 'rms_factory_result': False, 'rms_factory_tracking_ref': tracking_ref,
+                    'rms_factory_shipping_cost': shipping_cost, 'rms_factory_note': note, 'rms_stage': 'factory'})
 
     def action_rms_back_from_factory(self):
-        for repair in self.filtered(lambda r: r.rms_stage == 'factory'):
-            warehouse = repair._rms_sat_locations()
-            repair._rms_customer_move(warehouse.rms_sat_factory_location_id, warehouse.rms_sat_location_id,
-                                      'Vuelta de fábrica')
-            repair.write({'rms_factory_back_date': fields.Date.context_today(repair),
-                          'rms_stage': 'ready' if repair.state == 'done' else 'repair'})
-        return True
+        self.ensure_one()
+        return {'type': 'ir.actions.act_window', 'name': 'Vuelta de fábrica',
+                'res_model': 'rms.repair.factory.return.wizard', 'view_mode': 'form', 'target': 'new',
+                'context': {'default_repair_id': self.id}}
+
+    def action_rms_swap(self):
+        self.ensure_one()
+        return {'type': 'ir.actions.act_window', 'name': 'Cambio en garantía',
+                'res_model': 'rms.repair.swap.wizard', 'view_mode': 'form', 'target': 'new',
+                'context': {'default_repair_id': self.id, 'default_product_id': self.product_id.id}}
+
+    def action_rms_wait_part(self):
+        self.write({'rms_stage': 'waiting_part'})
+
+    def action_rms_part_received(self):
+        self.write({'rms_stage': 'repair'})
+
+    def _rms_draft_order(self):
+        self.ensure_one()
+        if not self.sale_order_id or self.sale_order_id.state not in ('draft', 'sent'):
+            raise UserError('Hace falta un presupuesto en borrador o enviado.')
+        return self.sale_order_id
+
+    def action_rms_add_factory_bill(self):
+        self.ensure_one()
+        order = self._rms_draft_order()
+        if self.under_warranty:
+            raise UserError('No se repercute la factura de fábrica si está en garantía.')
+        if not self.rms_factory_bill_ids or any(b.move_type != 'in_invoice' for b in self.rms_factory_bill_ids):
+            raise UserError('Añade facturas de proveedor.')
+        product = self.env.ref('rms_repair_sat.product_factory_repair')
+        vals = {'order_id': order.id, 'product_id': product.id, 'product_uom_qty': 1,
+                'name': 'Reparación en fábrica · RMA %s' % (self.rms_rma_number or '-'),
+                'price_unit': sum(self.rms_factory_bill_ids.mapped('amount_untaxed'))}
+        if self.rms_factory_bill_line_id and self.rms_factory_bill_line_id.order_id == order:
+            self.rms_factory_bill_line_id.write(vals)
+        else:
+            self.rms_factory_bill_line_id = self.env['sale.order.line'].create(vals)
+
+    def action_rms_add_labour(self):
+        self.ensure_one()
+        order = self._rms_draft_order()
+        if self.rms_labour_mode == 'fixed':
+            if not self.rms_fixed_price_id:
+                raise UserError('Elige un tipo de reparación.')
+            product, qty, price = self.rms_fixed_price_id.product_id, 1, self.rms_fixed_price_id.price
+        else:
+            if self.rms_labour_hours <= 0:
+                raise UserError('Indica las horas de taller.')
+            product, qty = self.env.ref('rms_repair_sat.product_labour_hour'), self.rms_labour_hours
+            price = product.lst_price
+        service_vals = {'repair_id': self.id, 'product_id': product.id, 'product_uom_qty': qty,
+                        'product_uom': product.uom_id.id}
+        if self.rms_labour_service_id:
+            self.rms_labour_service_id.write(service_vals)
+        else:
+            self.rms_labour_service_id = self.env['repair.service'].create(service_vals)
+        vals = self.rms_labour_service_id._prepare_sale_order_line_vals(qty)
+        vals['price_unit'] = 0 if self.under_warranty else price
+        if self.rms_labour_line_id and self.rms_labour_line_id.order_id == order:
+            self.rms_labour_line_id.write(vals)
+        else:
+            self.rms_labour_line_id = self.env['sale.order.line'].create(vals)
+
+    def action_rms_send_quote(self):
+        self.ensure_one()
+        order = self._rms_draft_order()
+        action = order.action_quotation_send()
+        self.rms_stage = 'quoted'
+        return action
+
+    def action_rms_reject_quote(self):
+        for repair in self:
+            order = repair._rms_draft_order()
+            order.action_cancel()
+            repair.write({'rms_stage': 'uncollected', 'rms_rejected_date': fields.Date.context_today(repair)})
+
+    def action_rms_reapprove(self):
+        for repair in self:
+            if not repair.rms_has_accepted_amount or not repair.sale_order_id:
+                raise UserError('No hay un presupuesto aceptado.')
+            repair.write({'rms_reapproved': True, 'rms_accepted_amount': repair.sale_order_id.amount_total})
 
     def action_rms_print_label(self):
         return self.env.ref('rms_repair_sat.action_report_label_equipment').report_action(self, config=False)
@@ -310,6 +421,8 @@ class RepairOrder(models.Model):
         return res
 
     def action_repair_done(self):
+        if any(repair.rms_needs_reapproval for repair in self):
+            raise UserError('El presupuesto supera lo aceptado: pide una nueva aceptación al cliente.')
         pairs = [(r.product_id.id, r.lot_id.id or False, r.partner_id.id, r.product_location_src_id.id)
                  for r in self if r.rms_owner_type == 'customer' and r.rms_in_sat and r.product_id and r.partner_id and r.product_location_src_id]
         return super(RepairOrder, self.with_context(rms_sat_owner_pairs=pairs)).action_repair_done()
@@ -343,12 +456,14 @@ class RepairOrder(models.Model):
                                                                                and m.repair_line_type == 'add'))
             if not lines:
                 raise UserError('La reparación no tiene piezas en el presupuesto.')
+            untracked = lines.filtered(lambda line: line.product_id.tracking == 'none')
+            lines = lines - untracked
             old = order.order_line.filtered('rms_used_alternative_of_id')
             old.unlink()
             order.order_line.filtered(lambda l: l.display_type == 'line_section' and l.rms_used_section).unlink()
             sequence = max(order.order_line.mapped('sequence') or [10]) + 10
             vals = [{'order_id': order.id, 'display_type': 'line_section', 'is_optional': True,
-                     'rms_used_section': True, 'name': 'Alternativa con piezas de 2ª mano', 'sequence': sequence,
+                     'rms_used_section': True, 'name': 'Alternativa con piezas de 2ª mano' + ((' (sin 2ª mano: %s)' % ', '.join(untracked.mapped('product_id.display_name'))) if untracked else ''), 'sequence': sequence,
                      'product_uom_qty': 0}]
             for index, line in enumerate(lines, 1):
                 lot = repair._rms_used_lot(line.product_id, repair.location_id)

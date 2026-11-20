@@ -10,3 +10,7 @@ access_rms_stage_limit_user,rms.repair.stage.limit user,model_rms_repair_stage_l
 access_rms_stage_limit_manager,rms.repair.stage.limit manager,model_rms_repair_stage_limit,repair_security.group_repair_manager,1,1,1,1
 access_rms_accessory_user,rms.repair.accessory user,model_rms_repair_accessory,repair_security.group_repair_user,1,0,0,0
 access_rms_accessory_manager,rms.repair.accessory manager,model_rms_repair_accessory,repair_security.group_repair_manager,1,1,1,1
+access_rms_fixed_price_user,rms.repair.fixed.price user,model_rms_repair_fixed_price,repair_security.group_repair_user,1,0,0,0
+access_rms_fixed_price_manager,rms.repair.fixed.price manager,model_rms_repair_fixed_price,repair_security.group_repair_manager,1,1,1,1
+access_rms_swap_wizard_user,rms.repair.swap.wizard user,model_rms_repair_swap_wizard,repair_security.group_repair_user,1,1,1,1
+access_rms_return_wizard_user,rms.repair.factory.return.wizard user,model_rms_repair_factory_return_wizard,repair_security.group_repair_user,1,1,1,1

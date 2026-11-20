@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="stock.action_report_lot_label" model="ir.actions.report">
+        <field name="group_ids" eval="[Command.set([ref('base.group_system')])]"/>
+    </record>
+    <record id="stock.label_lot_template" model="ir.actions.report">
+        <field name="group_ids" eval="[Command.set([ref('base.group_system')])]"/>
+    </record>
+</odoo>

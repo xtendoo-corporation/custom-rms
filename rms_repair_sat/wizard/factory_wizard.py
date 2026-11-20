@@ -11,7 +11,12 @@ class RmsRepairFactoryWizard(models.TransientModel):
     rma_number = fields.Char(string='Nº RMA del fabricante')
     date = fields.Date(string='Fecha de envío', required=True, default=fields.Date.context_today)
 
+    currency_id = fields.Many2one(related='repair_id.rms_currency_id')
+    tracking_ref = fields.Char(string='Nº de envío')
+    shipping_cost = fields.Monetary(string='Coste del porte', currency_field='currency_id')
+    note = fields.Text(string='Nota')
+
     def action_confirm(self):
         self.ensure_one()
-        self.repair_id._rms_send_to_factory(self.partner_id, self.rma_number, self.date)
+        self.repair_id._rms_send_to_factory(self.partner_id, self.rma_number, self.date, self.tracking_ref, self.shipping_cost, self.note)
         return {'type': 'ir.actions.act_window_close'}

@@ -8,7 +8,7 @@ vez de repartir el coste del equipo. La lista de materiales (mrp.bom) sí se usa
 como plantilla de piezas por modelo: se carga y se puede guardar desde aquí.
 """
 from odoo import Command, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 
 class RmsDisassembly(models.Model):
@@ -91,6 +91,8 @@ class RmsDisassembly(models.Model):
         return weights
 
     def action_done(self):
+        if not self.env.user.has_group('repair_security.group_repair_manager'):
+            raise AccessError('Solo los responsables del SAT pueden validar un despiece.')
         for record in self:
             record._do_disassembly()
         return True
@@ -103,14 +105,31 @@ class RmsDisassembly(models.Model):
             raise UserError('Indica las piezas que salen del equipo.')
         if self.product_id.tracking != 'none' and not self.lot_id:
             raise UserError('Indica el nº de serie del equipo que se despieza.')
-        Quant = self.env['stock.quant']
-        available = Quant._get_available_quantity(self.product_id, self.location_id, lot_id=self.lot_id or None,
-                                                  strict=False)
+        for line in self.line_ids:
+            product = line.product_id
+            if product.tracking == 'none':
+                raise UserError('Las piezas sin nº de serie solo pueden ser nuevas: quita %s' % product.display_name)
+            names = [name.strip() for name in (line.serial or '').replace(',', '\n').splitlines() if name.strip()]
+            if line.quantity <= 0:
+                raise UserError('La cantidad de %s debe ser mayor que cero.' % product.display_name)
+            if product.tracking == 'serial' and (line.quantity != int(line.quantity) or len(names) != line.quantity):
+                raise UserError('Indica un nº de serie por unidad de %s.' % product.display_name)
+            if product.tracking == 'lot' and len(names) != 1:
+                raise UserError('Indica un lote para %s.' % product.display_name)
+            if len(names) != len(set(names)):
+                raise UserError('No repitas números de serie en %s.' % product.display_name)
+        Quant = self.env['stock.quant'].sudo()
+        domain = [('product_id', '=', self.product_id.id), ('location_id', '=', self.location_id.id),
+                  ('lot_id', '=', self.lot_id.id or False), ('quantity', '>', 0)]
+        if Quant.search_count(domain + [('owner_id', '!=', False)]):
+            raise UserError('Solo se pueden despiezar equipos nuestros')
+        available = sum(Quant.search(domain + [('owner_id', '=', False)]).mapped('quantity')) - sum(
+            Quant.search(domain + [('owner_id', '=', False)]).mapped('reserved_quantity'))
         if available < 1:
             raise UserError('El equipo %s no está en stock en %s.' % (self.lot_id.name or self.product_id.display_name,
                                                                        self.location_id.display_name))
         if self.name == 'Nuevo':
-            self.name = self.env['ir.sequence'].next_by_code('rms.disassembly') or 'DESP'
+            self.name = self.env['ir.sequence'].next_by_code('rms.disassembly') or 'DSP'
         scrap = self.env['stock.location']._rms_disassembly_location(self.company_id)
         second_hand = self.env['product.state'].search([('code', '=', 'second_hand')], limit=1)
         Move = self.env['stock.move']
@@ -132,25 +151,17 @@ class RmsDisassembly(models.Model):
         total_weight = sum(weights.values()) or 1.0
         moves = out
         Lot = self.env['stock.lot']
-        for index, line in enumerate(self.line_ids, 1):
-            unit_cost = self.cost_total * weights[line.id] / total_weight / (line.quantity or 1.0)
+        for line in self.line_ids:
+            unit_cost = self.cost_total * weights[line.id] / total_weight / line.quantity
             line.cost_unit = unit_cost
             product = line.product_id
+            names = [name.strip() for name in line.serial.replace(',', '\n').splitlines() if name.strip()]
             ml_vals = []
-            if product.tracking == 'serial':
-                names = [n.strip() for n in (line.serial or '').replace(',', '\n').split('\n') if n.strip()]
-                for unit in range(int(line.quantity)):
-                    name = names[unit] if unit < len(names) else '%s-%02d-%02d' % (self.name.replace('/', '-'), index, unit + 1)
-                    lot = Lot.create({'product_id': product.id, 'name': name, 'company_id': self.company_id.id,
-                                      'product_state_id': second_hand.id})
-                    ml_vals.append((lot, 1.0))
-            elif product.tracking == 'lot':
-                name = (line.serial or '').strip() or '%s-%02d' % (self.name.replace('/', '-'), index)
+            for name in names:
                 lot = Lot.create({'product_id': product.id, 'name': name, 'company_id': self.company_id.id,
-                                  'product_state_id': second_hand.id})
-                ml_vals.append((lot, line.quantity))
-            else:
-                ml_vals.append((Lot, line.quantity))
+                                  'product_state_id': second_hand.id, 'rms_origin_disassembly_id': self.id,
+                                  'rms_origin_lot_id': self.lot_id.id})
+                ml_vals.append((lot, 1.0 if product.tracking == 'serial' else line.quantity))
             move = Move.create({
                 'product_id': product.id, 'product_uom': product.uom_id.id, 'product_uom_qty': line.quantity,
                 'location_id': scrap.id, 'location_dest_id': self.location_id.id, 'company_id': self.company_id.id,
@@ -188,15 +199,18 @@ class RmsDisassemblyLine(models.Model):
                                  domain="[('is_storable', '=', True)]")
     tracking = fields.Selection(related='product_id.tracking', string='Seguimiento')
     quantity = fields.Float(string='Cantidad', default=1.0, required=True)
-    serial = fields.Text(string='Nº de serie (opcional)',
-                         help='Si la pieza lleva nº de serie propio, escríbelo (uno por línea). Si no, se crea '
-                              'un lote automático DESP-…')
+    serial = fields.Text(string='Nº de serie o lote',
+                         help='Indica un nº de serie de fábrica por unidad, separado por comas o líneas; para lote, indica uno.')
     cost_unit = fields.Float(string='Coste unitario asignado', readonly=True, digits='Product Price')
     lot_ids = fields.Many2many('stock.lot', string='Lotes creados', readonly=True)
 
 
 class StockLot(models.Model):
     _inherit = 'stock.lot'
+
+    rms_origin_disassembly_id = fields.Many2one('rms.disassembly', string='Despiece de origen', copy=False, readonly=True)
+    rms_origin_lot_id = fields.Many2one('stock.lot', string='Nº de serie de origen', copy=False, readonly=True)
+    rms_origin_product_id = fields.Many2one(related='rms_origin_disassembly_id.product_id', string='Equipo de origen')
 
     def action_rms_disassemble(self):
         self.ensure_one()

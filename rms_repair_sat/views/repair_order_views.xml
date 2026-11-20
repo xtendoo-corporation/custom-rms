@@ -15,12 +15,28 @@
                         groups="repair_security.group_repair_user"/>
                 <button name="action_rms_back_from_factory" type="object" string="Recibido de fábrica" class="oe_highlight"
                         invisible="rms_stage != 'factory'" groups="repair_security.group_repair_user"/>
+                <button name="action_rms_swap" type="object" string="Cambio en garantía"
+                        invisible="not under_warranty or not rms_in_sat or rms_owner_type != 'customer' or rms_swap_done or rms_stage == 'factory'"
+                        groups="repair_security.group_repair_user"/>
+                <button name="action_rms_wait_part" type="object" string="Esperando pieza"
+                        invisible="rms_stage in ('waiting_part', 'factory', 'delivered', 'uncollected', 'cancel')"
+                        groups="repair_security.group_repair_user"/>
+                <button name="action_rms_part_received" type="object" string="Pieza recibida"
+                        invisible="rms_stage != 'waiting_part'" groups="repair_security.group_repair_user"/>
                 <button name="action_rms_deliver" type="object" string="Entregar / enviar al cliente"
                         invisible="not rms_in_sat or rms_stage == 'factory'"
                         class="oe_highlight" groups="repair_security.group_repair_user"
                         confirm="El equipo sale del SAT hacia el cliente. ¿Seguir?"/>
             </xpath>
             <xpath expr="//header/button[@name='action_create_sale_order']" position="after">
+                <button name="action_rms_send_quote" type="object" string="Enviar presupuesto"
+                        invisible="not sale_order_id or rms_sale_order_state not in ('draft', 'sent')"
+                        groups="repair_security.group_repair_user"/>
+                <button name="action_rms_reject_quote" type="object" string="Presupuesto rechazado"
+                        invisible="not sale_order_id or rms_sale_order_state not in ('draft', 'sent')"
+                        groups="repair_security.group_repair_user"/>
+                <button name="action_rms_reapprove" type="object" string="Cliente acepta la ampliación"
+                        invisible="not rms_needs_reapproval" groups="repair_security.group_repair_user"/>
                 <button name="action_rms_add_used_alternative" type="object" string="Añadir alternativa 2ª mano"
                         invisible="not sale_order_id or rms_parts_choice or state in ('done', 'cancel')"
                         groups="repair_security.group_repair_user"/>
@@ -33,6 +49,9 @@
                 <button name="action_rms_print_label" type="object" string="Etiqueta del equipo" invisible="not lot_id"/>
             </xpath>
             <xpath expr="//div[hasclass('oe_title')]" position="before">
+                <div class="alert alert-danger" role="alert" invisible="not rms_needs_reapproval">
+                    El presupuesto supera lo aceptado: hay que pedir nueva aceptación al cliente
+                </div>
                 <widget name="web_ribbon" title="Atascada" bg_color="text-bg-danger" invisible="not rms_late"/>
             </xpath>
             <xpath expr="//div[hasclass('oe_title')]" position="after">
@@ -69,6 +88,7 @@
                             <field name="rms_purchase_ref"/>
                             <field name="rms_needed_by"/>
                             <field name="rms_backup_done"/>
+                            <field name="rms_currency_id" invisible="1"/>
                             <field name="rms_max_amount"/>
                             <div colspan="2">Añade al menos una foto desde los archivos adjuntos del chatter antes de registrar la entrada.</div>
                             <field name="rms_in_sat"/>
@@ -81,6 +101,29 @@
                             <field name="rms_warranty_end"/>
                             <field name="rms_warranty_source"/>
                             <div invisible="rms_sale_date" colspan="2">No vendido por nosotros</div>
+                        </group>
+                        <group string="Cambio en garantía" invisible="not rms_swap_done">
+                            <field name="rms_swap_done"/>
+                            <field name="rms_swap_date"/>
+                            <field name="rms_original_partner_id"/>
+                            <field name="lot_id" string="Equipo averiado" invisible="rms_original_lot_id"/>
+                            <field name="rms_original_lot_id" string="Equipo averiado" invisible="not rms_original_lot_id"/>
+                            <field name="rms_swap_lot_id" string="Equipo entregado"/>
+                            <field name="rms_swap_note"/>
+                            <field name="rms_swap_picking_id"/>
+                        </group>
+                        <group string="Presupuesto">
+                            <field name="rms_sale_order_state" invisible="1"/>
+                            <field name="rms_labour_mode"/>
+                            <field name="rms_labour_hours" invisible="rms_labour_mode != 'hourly'"/>
+                            <field name="rms_fixed_price_id" invisible="rms_labour_mode != 'fixed'"/>
+                            <button name="action_rms_add_labour" type="object" string="Añadir mano de obra"
+                                    invisible="not sale_order_id or rms_sale_order_state not in ('draft', 'sent')"
+                                    groups="repair_security.group_repair_user"/>
+                            <field name="rms_accepted_amount" readonly="1"/>
+                            <field name="rms_needs_reapproval" invisible="1"/>
+                            <field name="rms_reapproved" readonly="1"/>
+                            <field name="rms_rejected_date"/>
                         </group>
                         <group string="Recogida">
                             <field name="rms_delivery_way"/>
@@ -99,6 +142,16 @@
                             <field name="rms_factory_sent_date"/>
                             <field name="rms_factory_back_date"/>
                             <field name="rms_factory_days"/>
+                            <field name="rms_factory_tracking_ref"/>
+                            <field name="rms_factory_shipping_cost"/>
+                            <field name="rms_factory_note"/>
+                            <field name="rms_factory_result"/>
+                            <field name="rms_factory_credit_ref" invisible="rms_factory_result != 'credited'"/>
+                            <field name="rms_original_lot_id"/>
+                            <field name="rms_factory_bill_ids" widget="many2many_tags" domain="[('move_type', '=', 'in_invoice')]"/>
+                            <button name="action_rms_add_factory_bill" type="object" string="Repercutir en presupuesto"
+                                    invisible="not sale_order_id or rms_sale_order_state not in ('draft', 'sent') or not rms_factory_bill_ids"
+                                    groups="repair_security.group_repair_user"/>
                         </group>
                     </group>
                 </page>
@@ -177,6 +230,9 @@
                 <field name="rms_rma_number"/>
                 <field name="rms_factory_sent_date"/>
                 <field name="rms_factory_days"/>
+                <field name="rms_currency_id" column_invisible="1"/>
+                <field name="rms_factory_tracking_ref" optional="show"/>
+                <field name="rms_factory_shipping_cost" optional="show"/>
                 <field name="rms_late" column_invisible="1"/>
                 <button name="action_rms_back_from_factory" type="object" string="Recibido de fábrica"
                         class="btn-link" groups="repair_security.group_repair_user"/>
@@ -263,12 +319,83 @@
                     <field name="partner_id"/>
                     <field name="rma_number"/>
                     <field name="date"/>
+                    <field name="tracking_ref"/>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="shipping_cost"/>
+                    <field name="note"/>
                 </group>
                 <footer>
                     <button name="action_confirm" type="object" string="Enviar" class="btn-primary"/>
                     <button special="cancel" string="Cancelar"/>
                 </footer>
             </form>
+        </field>
+    </record>
+
+    <record id="view_rms_repair_swap_wizard" model="ir.ui.view">
+        <field name="name">rms.repair.swap.wizard.form</field>
+        <field name="model">rms.repair.swap.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Cambio en garantía">
+                <group>
+                    <field name="repair_id" readonly="1"/>
+                    <field name="product_id"/>
+                    <field name="available_lot_ids" invisible="1"/>
+                    <field name="lot_id" domain="[('id', 'in', available_lot_ids)]"/>
+                    <field name="note"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Confirmar cambio" class="btn-primary"/>
+                    <button special="cancel" string="Cancelar"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="view_rms_repair_factory_return_wizard" model="ir.ui.view">
+        <field name="name">rms.repair.factory.return.wizard.form</field>
+        <field name="model">rms.repair.factory.return.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Recibido de fábrica">
+                <group>
+                    <field name="repair_id" readonly="1"/>
+                    <field name="result"/>
+                    <field name="new_serial" invisible="result != 'replaced'" required="result == 'replaced'"/>
+                    <field name="credit_ref" invisible="result != 'credited'"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Confirmar" class="btn-primary"/>
+                    <button special="cancel" string="Cancelar"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="view_rms_repair_fixed_price_list" model="ir.ui.view">
+        <field name="name">rms.repair.fixed.price.list</field>
+        <field name="model">rms.repair.fixed.price</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="name"/>
+                <field name="product_id" domain="[('type', '=', 'service')]"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="price"/>
+                <field name="active" optional="show"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_rms_repair_fixed_price" model="ir.actions.act_window">
+        <field name="name">Tipos de reparación con precio cerrado</field>
+        <field name="res_model">rms.repair.fixed.price</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_rms_repair_fixed_price_list"/>
+    </record>
+    <record id="view_stock_lot_form_rms_replaces" model="ir.ui.view">
+        <field name="name">stock.lot.form.rms.replaces</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='product_id']" position="after">
+                <field name="rms_replaces_lot_id"/>
+            </xpath>
         </field>
     </record>
 </odoo>

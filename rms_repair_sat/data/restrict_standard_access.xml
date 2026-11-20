@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="repair.menu_repair_order" model="ir.ui.menu">
+        <field name="group_ids" eval="[Command.set([ref('base.group_system')])]"/>
+    </record>
+    <record id="repair.action_report_repair_order" model="ir.actions.report">
+        <field name="group_ids" eval="[Command.set([ref('base.group_system')])]"/>
+    </record>
+</odoo>
