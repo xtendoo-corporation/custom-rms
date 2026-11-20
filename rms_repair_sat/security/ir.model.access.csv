@@ -6,3 +6,7 @@ access_rms_disassembly_stock,rms.disassembly stock read,model_rms_disassembly,st
 access_rms_disassembly_line_stock,rms.disassembly.line stock read,model_rms_disassembly_line,stock.group_stock_user,1,0,0,0
 access_rms_factory_wizard_user,rms.repair.factory.wizard user,model_rms_repair_factory_wizard,repair_security.group_repair_user,1,1,1,1
 access_rms_sage_import_manager,rms.repair.sat.sage.import manager,model_rms_repair_sat_sage_import,repair_security.group_repair_manager,1,1,1,1
+access_rms_stage_limit_user,rms.repair.stage.limit user,model_rms_repair_stage_limit,repair_security.group_repair_user,1,0,0,0
+access_rms_stage_limit_manager,rms.repair.stage.limit manager,model_rms_repair_stage_limit,repair_security.group_repair_manager,1,1,1,1
+access_rms_accessory_user,rms.repair.accessory user,model_rms_repair_accessory,repair_security.group_repair_user,1,0,0,0
+access_rms_accessory_manager,rms.repair.accessory manager,model_rms_repair_accessory,repair_security.group_repair_manager,1,1,1,1

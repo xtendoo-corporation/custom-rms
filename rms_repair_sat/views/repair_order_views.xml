@@ -38,8 +38,11 @@
             <xpath expr="//div[hasclass('oe_title')]" position="after">
                 <div class="mb-2">
                     <field name="rms_stage" widget="statusbar" options="{'clickable': '1'}"
-                           statusbar_visible="received,diagnosis,quoted,accepted,repair,ready,delivered"/>
+                           statusbar_visible="received,diagnosis,quoted,waiting_part,factory,repair,ready,delivered,uncollected"/>
                 </div>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="required">rms_owner_type == 'customer'</attribute>
             </xpath>
             <xpath expr="//field[@name='product_id']" position="after">
                 <field name="rms_serial_in" invisible="lot_id or rms_in_sat"
@@ -47,18 +50,41 @@
             </xpath>
             <xpath expr="//field[@name='schedule_date']" position="before">
                 <field name="rms_site" required="1" readonly="state != 'draft'"/>
+                <field name="rms_owner_type"/>
                 <field name="rms_entry_way"/>
+                <field name="rms_tracking_ref" invisible="rms_entry_way != 'courier'"/>
             </xpath>
             <xpath expr="//notebook/page[@name='parts']" position="before">
                 <page string="Entrada SAT" name="rms_sat">
                     <group>
-                        <group string="Equipo del cliente">
+                        <group string="Recepción">
+                            <field name="rms_contact_id" domain="[('id', 'child_of', partner_id)] if partner_id else []"/>
+                            <field name="rms_contact_phone"/>
+                            <field name="rms_contact_email"/>
                             <field name="rms_fault"/>
-                            <field name="rms_accessories" placeholder="Fuente, cables, flight case…"/>
+                            <field name="rms_intermittent"/>
+                            <field name="rms_accessory_ids" widget="many2many_tags"/>
+                            <field name="rms_accessories" placeholder="Notas de accesorios"/>
+                            <field name="rms_received_by"/>
+                            <field name="rms_purchase_ref"/>
+                            <field name="rms_needed_by"/>
+                            <field name="rms_backup_done"/>
+                            <field name="rms_max_amount"/>
+                            <div colspan="2">Añade al menos una foto desde los archivos adjuntos del chatter antes de registrar la entrada.</div>
                             <field name="rms_in_sat"/>
                             <field name="rms_entry_date"/>
                             <field name="rms_entry_move_id" groups="stock.group_stock_manager"/>
                             <field name="rms_exit_move_id" groups="stock.group_stock_manager"/>
+                        </group>
+                        <group string="Garantía">
+                            <field name="rms_sale_date"/>
+                            <field name="rms_warranty_end"/>
+                            <field name="rms_warranty_source"/>
+                            <div invisible="rms_sale_date" colspan="2">No vendido por nosotros</div>
+                        </group>
+                        <group string="Recogida">
+                            <field name="rms_delivery_way"/>
+                            <field name="rms_delivery_tracking_ref"/>
                         </group>
                         <group string="Tiempos">
                             <field name="rms_stage_date"/>
@@ -186,7 +212,7 @@
         <field name="context">{'search_default_rms_open': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Registra el primer equipo que entra en el SAT</p>
-            <p>Indica cliente, equipo, nº de serie, sede, avería y accesorios, y pulsa "Registrar entrada".</p>
+            <p>Indica los datos de entrada y añade una foto en los archivos adjuntos del chatter antes de registrar la entrada.</p>
         </field>
     </record>
 
@@ -196,6 +222,34 @@
         <field name="view_mode">list,form</field>
         <field name="view_id" ref="view_repair_order_list_factory"/>
         <field name="domain">[('rms_stage', '=', 'factory')]</field>
+    </record>
+
+    <record id="view_rms_repair_stage_limit_list" model="ir.ui.view">
+        <field name="name">rms.repair.stage.limit.list</field>
+        <field name="model">rms.repair.stage.limit</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="stage"/>
+                <field name="days"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_rms_repair_stage_limit" model="ir.actions.act_window">
+        <field name="name">Días por fase</field>
+        <field name="res_model">rms.repair.stage.limit</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_rms_repair_stage_limit_list"/>
+    </record>
+
+    <record id="view_product_category_form_rms_warranty" model="ir.ui.view">
+        <field name="name">product.category.form.rms.warranty</field>
+        <field name="model">product.category</field>
+        <field name="inherit_id" ref="product.product_category_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='parent_id']" position="after">
+                <field name="rms_warranty_months"/>
+            </xpath>
+        </field>
     </record>
 
     <!-- Asistente "Enviar a fábrica" -->

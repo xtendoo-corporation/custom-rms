@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS SAT (reparaciones y despiece)',
-    'version': '19.0.1.0.0',
+    'version': '19.0.2.0.0',
     'category': 'Inventory/Inventory',
     'summary': 'SAT de RMS sobre Reparaciones de Odoo: fases con días, equipo del cliente '
                'fuera de la valoración, envíos a fábrica, alternativa con piezas de 2ª mano y despiece.',
@@ -17,6 +17,7 @@ SAT de RMS (Madrid y Sevilla) sobre la app Reparaciones de Odoo y OCA
     'license': 'LGPL-3',
     'depends': [
         'repair',
+        'product_warranty',
         'repair_security',
         'repair_service',
         'base_repair_config',

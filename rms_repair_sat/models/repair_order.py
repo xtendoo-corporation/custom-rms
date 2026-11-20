@@ -1,36 +1,56 @@
 # -*- coding: utf-8 -*-
+from dateutil.relativedelta import relativedelta
+
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import html_sanitize
 
 SAT_STAGES = [
-    ('received', 'Recibido'),
-    ('diagnosis', 'Diagnóstico'),
-    ('quoted', 'Presupuesto enviado'),
-    ('accepted', 'Aceptado'),
-    ('repair', 'En reparación'),
-    ('factory', 'En fábrica'),
-    ('ready', 'Listo'),
-    ('delivered', 'Entregado / Enviado'),
-    ('cancel', 'Cancelado'),
+    ('received', 'Recibido'), ('diagnosis', 'En diagnóstico'),
+    ('quoted', 'Presupuesto enviado'), ('waiting_part', 'Esperando pieza'),
+    ('factory', 'En fábrica'), ('repair', 'En reparación'),
+    ('ready', 'Listo para recoger'), ('delivered', 'Entregado'),
+    ('uncollected', 'Pendiente de recoger'),
 ]
-# Estado de Odoo (repair) -> fase del SAT cuando cambia.
-STATE_TO_STAGE = {'confirmed': 'accepted', 'under_repair': 'repair', 'done': 'ready', 'cancel': 'cancel',
-                  'draft': 'received'}
-LATE_DAYS_PARAM = 'rms_repair_sat.late_days'
+STATE_TO_STAGE = {'confirmed': 'repair', 'under_repair': 'repair', 'done': 'ready',
+                  'cancel': 'cancel', 'draft': 'received'}
 USED_FACTOR_PARAM = 'rms_repair_sat.used_price_factor'
 
 
 class RepairOrder(models.Model):
     _inherit = 'repair.order'
 
+    partner_id = fields.Many2one(required=False)
+    rms_owner_type = fields.Selection([('customer', 'Del cliente'), ('company', 'Nuestro')],
+                                      string='Propietario', required=True, default='customer', tracking=True)
+    rms_contact_id = fields.Many2one('res.partner', string='Contacto', domain="[('id', 'child_of', partner_id)]")
+    rms_contact_phone = fields.Char(related='rms_contact_id.phone', string='Teléfono')
+    rms_contact_email = fields.Char(related='rms_contact_id.email', string='Correo')
+    rms_tracking_ref = fields.Char(string='Nº de envío')
+    rms_delivery_way = fields.Selection([('hand', 'En mano'), ('courier', 'Transportista')],
+                                         string='Forma de entrega', default='hand')
+    rms_delivery_tracking_ref = fields.Char(string='Nº de envío de entrega')
+    rms_accessory_ids = fields.Many2many('rms.repair.accessory', string='Accesorios')
+    rms_intermittent = fields.Selection([('constant', 'Constante'), ('intermittent', 'Intermitente')], string='Avería')
+    rms_purchase_ref = fields.Char(string='Factura de compra')
+    rms_needed_by = fields.Date(string='Lo necesita para')
+    rms_backup_done = fields.Boolean(string='Cliente ha guardado copia de shows/configuración')
+    rms_currency_id = fields.Many2one('res.currency', related='company_id.currency_id')
+    rms_max_amount = fields.Monetary(string='Importe máximo sin consultar', currency_field='rms_currency_id')
+    rms_received_by = fields.Many2one('res.users', string='Recibido por', default=lambda self: self.env.user, readonly=True)
+    rms_photo_count = fields.Integer(string='Fotos', compute='_compute_rms_photo_count')
+    rms_sale_date = fields.Date(string='Fecha de venta', compute='_compute_rms_warranty', store=True)
+    rms_warranty_end = fields.Date(string='Fin de garantía', compute='_compute_rms_warranty', store=True)
+    rms_warranty_source = fields.Selection([('product', 'Producto'), ('brand', 'Marca'), ('default', 'Por defecto')],
+                                            string='Origen de garantía', compute='_compute_rms_warranty', store=True)
     rms_site = fields.Selection([('madrid', 'Madrid'), ('sevilla', 'Sevilla')], string='Sede', tracking=True)
-    rms_entry_way = fields.Selection([('hand', 'En mano'), ('shipping', 'Por envío')], string='Cómo llega',
+    rms_entry_way = fields.Selection([('hand', 'En mano'), ('courier', 'Mensajería'), ('pickup', 'Recogida nuestra')], string='Cómo llega',
                                      default='hand')
     rms_fault = fields.Text(string='Avería que indica el cliente')
-    rms_accessories = fields.Text(string='Accesorios entregados')
+    rms_accessories = fields.Text(string='Notas de accesorios')
     rms_serial_in = fields.Char(string='Nº de serie del equipo',
                                 help='Si el nº de serie no existe en Odoo, se da de alta al registrar la entrada.')
-    rms_stage = fields.Selection(SAT_STAGES, string='Fase SAT', default='received', required=True, tracking=True,
+    rms_stage = fields.Selection(SAT_STAGES + [('cancel', 'Cancelado')], string='Fase SAT', default='received', required=True, tracking=True,
                                  group_expand='_group_expand_rms_stage', index=True)
     rms_stage_date = fields.Datetime(string='En esta fase desde', default=fields.Datetime.now, copy=False)
     rms_entry_date = fields.Datetime(string='Entrada', copy=False, readonly=True)
@@ -57,7 +77,7 @@ class RepairOrder(models.Model):
     def _compute_rms_days(self):
         now = fields.Datetime.now()
         today = fields.Date.context_today(self)
-        late = int(self.env['ir.config_parameter'].sudo().get_param(LATE_DAYS_PARAM, '7') or 7)
+        limits = {r.stage: r.days for r in self.env['rms.repair.stage.limit'].sudo().search([])}
         for repair in self:
             repair.rms_days_stage = (now - repair.rms_stage_date).days if repair.rms_stage_date else 0
             start = repair.rms_entry_date or repair.create_date
@@ -67,7 +87,74 @@ class RepairOrder(models.Model):
                 repair.rms_factory_days = (end - repair.rms_factory_sent_date).days
             else:
                 repair.rms_factory_days = 0
-            repair.rms_late = repair.rms_stage not in ('delivered', 'cancel') and repair.rms_days_stage > late
+            limit = limits.get(repair.rms_stage, 0)
+            repair.rms_late = bool(limit and repair.rms_days_stage > limit)
+
+    def _compute_rms_photo_count(self):
+        for repair in self:
+            repair.rms_photo_count = self.env['ir.attachment'].search_count([
+                ('res_model', '=', 'repair.order'), ('res_id', '=', repair.id), ('mimetype', '=like', 'image/%')]) if repair.id else 0
+
+    @api.depends('lot_id', 'product_id', 'product_id.product_tmpl_id.warranty',
+                 'product_id.product_tmpl_id.warranty_type', 'product_id.categ_id',
+                 'product_id.categ_id.rms_warranty_months', 'product_id.categ_id.parent_id.rms_warranty_months', 'company_id')
+    def _compute_rms_warranty(self):
+        MoveLine = self.env['stock.move.line'].sudo()
+        for repair in self:
+            repair.rms_sale_date = repair.rms_warranty_end = repair.rms_warranty_source = False
+            if not repair.lot_id:
+                continue
+            line = MoveLine.search([('lot_id', '=', repair.lot_id.id), ('state', '=', 'done'),
+                                    ('location_id.usage', '=', 'internal'), ('location_dest_id.usage', '=', 'customer'),
+                                    ('company_id', 'in', self.env.companies.ids)], order='date desc, id desc', limit=1)
+            if not line:
+                continue
+            sale_date = fields.Date.to_date(line.date)
+            product = repair.product_id.product_tmpl_id
+            category = repair.product_id.categ_id
+            while category and not category.rms_warranty_months:
+                category = category.parent_id
+            if product.warranty > 0:
+                unit = {'day': 'days', 'week': 'weeks', 'month': 'months', 'year': 'years'}.get(product.warranty_type, 'months')
+                duration = {unit: product.warranty}
+                source = 'product'
+            elif category:
+                duration, source = {'months': category.rms_warranty_months}, 'brand'
+            else:
+                months = int(self.env['ir.config_parameter'].sudo().get_param('rms_repair_sat.default_warranty_months', '24'))
+                duration, source = {'months': months}, 'default'
+            repair.rms_sale_date = sale_date
+            repair.rms_warranty_end = sale_date + relativedelta(**duration)
+            repair.rms_warranty_source = source
+
+    @api.onchange('lot_id')
+    def _onchange_rms_lot_warranty(self):
+        for repair in self:
+            repair._compute_rms_warranty()
+            repair.under_warranty = bool(repair.rms_warranty_end and fields.Date.context_today(repair) <= repair.rms_warranty_end)
+
+    def _rms_receipt_terms(self):
+        """Condiciones del resguardo (HTML de los ajustes del SAT), saneadas."""
+        terms = self.env['ir.config_parameter'].sudo().get_param('rms_repair_sat.receipt_terms', '')
+        return html_sanitize(terms) or ''
+
+    def _rms_validate_entry(self):
+        self.ensure_one()
+        self.invalidate_recordset(['rms_photo_count'])
+        missing = []
+        if self.rms_owner_type == 'customer' and not self.partner_id:
+            missing.append('cliente')
+        for value, label in [(self.rms_contact_id, 'contacto'), (self.product_id, 'equipo'),
+                             (self.lot_id or (self.rms_serial_in or '').strip(), 'nº de serie'),
+                             (self.rms_owner_type, 'propietario'), (self.rms_entry_way, 'forma de entrada'),
+                             ((self.rms_fault or '').strip(), 'avería'), (self.rms_accessory_ids, 'accesorios'),
+                             (self.rms_photo_count, 'foto')]:
+            if not value:
+                missing.append(label)
+        if self.rms_entry_way == 'courier' and not (self.rms_tracking_ref or '').strip():
+            missing.append('nº de envío')
+        if missing:
+            raise UserError('Faltan datos para registrar la entrada: %s.' % ', '.join(missing))
 
     # ------------------------------------------------------------------
     # Sede -> tipo de operación SAT (piezas del almacén, equipo en SAT)
@@ -101,7 +188,7 @@ class RepairOrder(models.Model):
         if 'state' in vals and STATE_TO_STAGE.get(vals['state']):
             stage = STATE_TO_STAGE[vals['state']]
             # No retroceder la fase (p. ej. confirmar estando "En fábrica").
-            order = [key for key, _label in SAT_STAGES]
+            order = [key for key, _label in SAT_STAGES] + ['cancel']
             todo = self.filtered(lambda r: r.rms_stage != stage and (
                 stage in ('cancel', 'received') or order.index(stage) > order.index(r.rms_stage)
                 or r.rms_stage == 'factory'))
@@ -115,7 +202,7 @@ class RepairOrder(models.Model):
     # ------------------------------------------------------------------
     def _rms_customer_move(self, location_src, location_dest, label):
         self.ensure_one()
-        if not self.product_id or not self.partner_id:
+        if not self.product_id or (self.rms_owner_type == 'customer' and not self.partner_id):
             raise UserError('Indica el cliente y el equipo.')
         move = self.env['stock.move'].sudo().create({
             'product_id': self.product_id.id,
@@ -124,7 +211,7 @@ class RepairOrder(models.Model):
             'location_id': location_src.id,
             'location_dest_id': location_dest.id,
             'partner_id': self.partner_id.id,
-            'restrict_partner_id': self.partner_id.id,
+            'restrict_partner_id': self.partner_id.id if self.rms_owner_type == 'customer' else False,
             'company_id': self.company_id.id,
             'origin': '%s · %s' % (self.name, label),
             'move_line_ids': [Command.create({
@@ -132,7 +219,7 @@ class RepairOrder(models.Model):
                 'product_uom_id': self.product_id.uom_id.id,
                 'quantity': self.product_qty or 1.0,
                 'lot_id': self.lot_id.id,
-                'owner_id': self.partner_id.id,
+                'owner_id': self.partner_id.id if self.rms_owner_type == 'customer' else False,
                 'location_id': location_src.id,
                 'location_dest_id': location_dest.id,
                 'company_id': self.company_id.id,
@@ -157,6 +244,7 @@ class RepairOrder(models.Model):
         for repair in self:
             if repair.rms_in_sat:
                 continue
+            repair._rms_validate_entry()
             warehouse = repair._rms_sat_locations()
             if repair.product_id.tracking != 'none' and not repair.lot_id:
                 serial = (repair.rms_serial_in or '').strip()
@@ -167,6 +255,7 @@ class RepairOrder(models.Model):
                                   ('company_id', 'in', [repair.company_id.id, False])], limit=1)
                 repair.lot_id = lot or Lot.create({'product_id': repair.product_id.id, 'name': serial,
                                                    'company_id': repair.company_id.id})
+                repair._onchange_rms_lot_warranty()
             repair.rms_entry_move_id = repair._rms_customer_move(customers, warehouse.rms_sat_location_id, 'Entrada SAT')
             repair.write({'rms_in_sat': True, 'rms_entry_date': fields.Datetime.now(), 'rms_stage': 'received'})
         return True
@@ -210,10 +299,7 @@ class RepairOrder(models.Model):
         return True
 
     def action_rms_print_label(self):
-        lots = self.lot_id
-        if not lots:
-            raise UserError('Esta reparación no tiene nº de serie.')
-        return self.env.ref('rms_stock_lot_label_print.action_report_lot_label_10x5').report_action(lots, config=False)
+        return self.env.ref('rms_repair_sat.action_report_label_equipment').report_action(self, config=False)
 
     # ------------------------------------------------------------------
     # Fases ligadas a Odoo y corrección del propietario al terminar
@@ -225,7 +311,7 @@ class RepairOrder(models.Model):
 
     def action_repair_done(self):
         pairs = [(r.product_id.id, r.lot_id.id or False, r.partner_id.id, r.product_location_src_id.id)
-                 for r in self if r.rms_in_sat and r.product_id and r.partner_id and r.product_location_src_id]
+                 for r in self if r.rms_owner_type == 'customer' and r.rms_in_sat and r.product_id and r.partner_id and r.product_location_src_id]
         return super(RepairOrder, self.with_context(rms_sat_owner_pairs=pairs)).action_repair_done()
 
     # ------------------------------------------------------------------
@@ -308,9 +394,9 @@ class RepairOrder(models.Model):
                             'product_uom_id': move.product_uom.id, 'quantity': move.product_uom_qty,
                             'lot_id': alt.rms_used_lot_id.id, 'location_id': move.location_id.id,
                             'location_dest_id': move.location_dest_id.id, 'company_id': move.company_id.id})
-            repair.write({'rms_parts_choice': 'used', 'rms_stage': 'accepted'})
+            repair.write({'rms_parts_choice': 'used', 'rms_stage': 'repair'})
         return True
 
     def action_rms_choose_new(self):
-        self.write({'rms_parts_choice': 'new', 'rms_stage': 'accepted'})
+        self.write({'rms_parts_choice': 'new', 'rms_stage': 'repair'})
         return True

@@ -16,5 +16,24 @@
             <field name="padding">4</field>
             <field name="company_id" eval="False"/>
         </record>
+
+        <record id="param_default_warranty" model="ir.config_parameter"><field name="key">rms_repair_sat.default_warranty_months</field><field name="value">24</field></record>
+        <record id="param_receipt_terms" model="ir.config_parameter"><field name="key">rms_repair_sat.receipt_terms</field><field name="value">&lt;p&gt;1. Diagnóstico gratuito.&lt;/p&gt;&lt;p&gt;2. No se repara nada sin que el cliente acepte el presupuesto. El presupuesto vale 30 días.&lt;/p&gt;&lt;p&gt;3. Garantía: se confirma después del diagnóstico. No la cubren los golpes, el mal uso, las manipulaciones de terceros ni los líquidos. Si no hay garantía, se presupuesta.&lt;/p&gt;&lt;p&gt;4. Plazos orientativos. Si el equipo va a fábrica, el plazo depende del fabricante.&lt;/p&gt;&lt;p&gt;5. Accesorios: solo respondemos de lo anotado en este resguardo.&lt;/p&gt;&lt;p&gt;6. Datos y configuraciones: el cliente debe hacer copia antes de entregar el equipo. Puede que haya que dejarlo como de fábrica.&lt;/p&gt;&lt;p&gt;7. Recogida: una vez avisado de que está listo, o si rechaza el presupuesto, el cliente tiene 3 meses para recogerlo. Pasado ese plazo se podrá cobrar almacenaje.&lt;/p&gt;&lt;p&gt;8. Garantía de la reparación: 3 meses sobre lo reparado, también para las piezas de 2ª mano.&lt;/p&gt;&lt;p&gt;9. Envíos: los portes corren a cargo del cliente, salvo que la reparación entre en garantía.&lt;/p&gt;&lt;p&gt;10. Para recoger el equipo hay que presentar este resguardo o dar el número de reparación.&lt;/p&gt;&lt;p&gt;11. Sus datos se tratan para gestionar la reparación, conforme a la normativa de protección de datos.&lt;/p&gt;</field></record>
+        <record id="stage_limit_received" model="rms.repair.stage.limit"><field name="stage">received</field><field name="days">7</field></record>
+        <record id="stage_limit_diagnosis" model="rms.repair.stage.limit"><field name="stage">diagnosis</field><field name="days">7</field></record>
+        <record id="stage_limit_quoted" model="rms.repair.stage.limit"><field name="stage">quoted</field><field name="days">7</field></record>
+        <record id="stage_limit_waiting_part" model="rms.repair.stage.limit"><field name="stage">waiting_part</field><field name="days">30</field></record>
+        <record id="stage_limit_factory" model="rms.repair.stage.limit"><field name="stage">factory</field><field name="days">30</field></record>
+        <record id="stage_limit_repair" model="rms.repair.stage.limit"><field name="stage">repair</field><field name="days">7</field></record>
+        <record id="stage_limit_ready" model="rms.repair.stage.limit"><field name="stage">ready</field><field name="days">7</field></record>
+        <record id="stage_limit_delivered" model="rms.repair.stage.limit"><field name="stage">delivered</field><field name="days">0</field></record>
+        <record id="stage_limit_uncollected" model="rms.repair.stage.limit"><field name="stage">uncollected</field><field name="days">0</field></record>
+        <record id="accessory_power" model="rms.repair.accessory"><field name="name">Fuente de alimentación</field><field name="sequence">10</field></record>
+        <record id="accessory_cables" model="rms.repair.accessory"><field name="name">Cables</field><field name="sequence">20</field></record>
+        <record id="accessory_case" model="rms.repair.accessory"><field name="name">Flight case</field><field name="sequence">30</field></record>
+        <record id="accessory_cards" model="rms.repair.accessory"><field name="name">Tarjetas</field><field name="sequence">40</field></record>
+        <record id="accessory_manual" model="rms.repair.accessory"><field name="name">Manual</field><field name="sequence">50</field></record>
+        <record id="accessory_other" model="rms.repair.accessory"><field name="name">Otros</field><field name="sequence">60</field></record>
+        <record id="accessory_none" model="rms.repair.accessory"><field name="name">Sin accesorios</field><field name="sequence">70</field></record>
     </data>
 </odoo>

@@ -5,3 +5,4 @@ from . import repair_order
 from . import sale_order_line
 from . import disassembly
 from . import res_config_settings
+from . import sat_config

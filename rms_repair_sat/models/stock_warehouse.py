@@ -10,6 +10,7 @@ SAT_SITES = {'1': ('madrid', 'SAT Madrid'), '7': ('sevilla', 'SAT Sevilla')}
 class StockWarehouse(models.Model):
     _inherit = 'stock.warehouse'
 
+    rms_ra_location_id = fields.Many2one('stock.location', string='Ubicación RA', copy=False)
     rms_sat_location_id = fields.Many2one('stock.location', string='Ubicación SAT', copy=False)
     rms_sat_factory_location_id = fields.Many2one('stock.location', string='Ubicación "En fábrica"', copy=False)
     rms_sat_picking_type_id = fields.Many2one('stock.picking.type', string='Tipo de operación SAT', copy=False)
@@ -39,6 +40,16 @@ class StockWarehouse(models.Model):
                 summary['creadas'].append('%s/%s' % (warehouse.code, label))
             else:
                 summary['existentes'].append('%s/%s' % (warehouse.code, label))
+            ra_label = 'RA Madrid' if site[0] == 'madrid' else 'RA Sevilla'
+            if not warehouse.rms_ra_location_id:
+                warehouse.rms_ra_location_id = Location.search([
+                    ('name', '=', ra_label), ('location_id', '=', warehouse.view_location_id.id),
+                    ('company_id', '=', warehouse.company_id.id), ('usage', '=', 'internal')], limit=1) or Location.create({
+                        'name': ra_label, 'usage': 'internal', 'location_id': warehouse.view_location_id.id,
+                        'company_id': warehouse.company_id.id})
+                summary['creadas'].append('%s/%s' % (warehouse.code, ra_label))
+            else:
+                summary['existentes'].append('%s/%s' % (warehouse.code, ra_label))
             if not warehouse.rms_sat_factory_location_id:
                 warehouse.rms_sat_factory_location_id = Location.create({
                     'name': 'En fábrica', 'usage': 'internal', 'location_id': warehouse.rms_sat_location_id.id,

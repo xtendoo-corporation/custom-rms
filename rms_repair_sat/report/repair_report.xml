@@ -1,36 +1,129 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Resguardo de entrada: el PDF estándar de la reparación con avería,
-         accesorios, sede y condiciones. -->
     <template id="report_repairorder_rms_sat" inherit_id="repair.report_repairorder">
         <xpath expr="//div[@id='informations']" position="after">
-            <div id="rms_sat_entry" class="row mb-3" t-if="o.rms_site or o.rms_fault or o.rms_accessories">
+            <div id="rms_sat_entry" class="row mb-3">
                 <div class="col-6">
-                    <p t-if="o.rms_site" class="m-0"><strong>Sede SAT:</strong> <span t-field="o.rms_site"/></p>
-                    <p t-if="o.rms_entry_date" class="m-0"><strong>Entrada:</strong> <span t-field="o.rms_entry_date"/></p>
-                    <p t-if="o.rms_entry_way" class="m-0"><strong>Llega:</strong> <span t-field="o.rms_entry_way"/></p>
-                    <p t-if="o.under_warranty" class="m-0"><strong>En garantía</strong></p>
+                    <p><strong>Sede:</strong> <span t-field="o.rms_site"/></p>
+                    <p><strong>Entrada:</strong> <span t-field="o.rms_entry_date"/></p>
+                    <p><strong>Contacto:</strong> <span t-field="o.rms_contact_id"/></p>
+                    <p t-if="o.rms_contact_id.phone"><strong>Teléfono:</strong> <span t-field="o.rms_contact_id.phone"/></p>
+                    <p t-if="o.rms_contact_id.email"><strong>Correo:</strong> <span t-field="o.rms_contact_id.email"/></p>
+                    <p><strong>Forma de entrada:</strong> <span t-field="o.rms_entry_way"/></p>
+                    <p t-if="o.rms_tracking_ref"><strong>Nº de envío:</strong> <span t-field="o.rms_tracking_ref"/></p>
+                    <p><strong>Propiedad:</strong> <span t-field="o.rms_owner_type"/></p>
+                    <p><strong>Recibido por:</strong> <span t-field="o.rms_received_by"/></p>
                 </div>
                 <div class="col-6">
-                    <p t-if="o.rms_fault" class="m-0"><strong>Avería indicada:</strong><br/><span t-field="o.rms_fault"/></p>
-                    <p t-if="o.rms_accessories" class="m-0"><strong>Accesorios entregados:</strong><br/><span t-field="o.rms_accessories"/></p>
+                    <p><strong>Avería:</strong><br/><span t-field="o.rms_fault"/></p>
+                    <p><strong>Accesorios:</strong> <t t-esc="', '.join(o.rms_accessory_ids.mapped('name'))"/></p>
+                    <p t-if="o.rms_accessories"><strong>Notas de accesorios:</strong><br/><span t-field="o.rms_accessories"/></p>
+                    <p><strong>Fotos:</strong> <t t-esc="o.env['ir.attachment'].sudo().search_count([('res_model', '=', 'repair.order'), ('res_id', '=', o.id), ('mimetype', '=like', 'image/%')])"/></p>
+                    <t t-if="o.rms_sale_date">
+                        <p><strong>Fecha de venta:</strong> <span t-field="o.rms_sale_date"/></p>
+                        <p><strong>Fin de garantía:</strong> <span t-field="o.rms_warranty_end"/></p>
+                        <p><strong>Origen de garantía:</strong> <span t-field="o.rms_warranty_source"/></p>
+                        <p><strong>En garantía:</strong> <t t-esc="'Sí' if o.under_warranty else 'No'"/></p>
+                    </t>
+                    <p t-else=""><strong>No vendido por nosotros</strong></p>
                 </div>
             </div>
         </xpath>
+        <xpath expr="//h2/span[1]" position="attributes">
+            <attribute name="t-if">not rms_receipt</attribute>
+        </xpath>
+        <xpath expr="//h2/span[1]" position="after">
+            <span t-if="rms_receipt">Resguardo de entrada </span>
+        </xpath>
         <xpath expr="//div[hasclass('page')]" position="inside">
-            <div id="rms_sat_conditions" class="mt-4 small" t-if="o.rms_site">
+            <div t-if="rms_receipt" id="rms_sat_conditions" class="mt-4 small">
                 <strong>Condiciones del servicio técnico</strong>
-                <ul class="mb-2">
-                    <li>El diagnóstico y el presupuesto se comunican antes de reparar; no se repara sin aceptación.</li>
-                    <li>Las reparaciones en garantía siguen las condiciones del fabricante.</li>
-                    <li>RMS solo responde de los accesorios indicados en este resguardo.</li>
-                    <li>Conserve este resguardo para recoger el equipo.</li>
-                </ul>
-                <div class="row mt-4">
-                    <div class="col-6">Firma del cliente:</div>
-                    <div class="col-6">Recibido por RMS:</div>
+                <div t-out="o._rms_receipt_terms()"/>
+                <div class="row mt-4" style="min-height:25mm;">
+                    <div class="col-6">Firma del cliente: _______________________</div>
+                    <div class="col-6">Firma RMS: _______________________</div>
                 </div>
             </div>
         </xpath>
     </template>
+
+    <template id="report_receipt_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-set="rms_receipt" t-value="True"/>
+                <t t-call="repair.report_repairorder" t-lang="doc.partner_id.lang"/>
+            </t>
+        </t>
+    </template>
+    <record id="action_report_receipt" model="ir.actions.report">
+        <field name="name">Resguardo de entrada</field>
+        <field name="model">repair.order</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">rms_repair_sat.report_receipt_document</field>
+        <field name="binding_model_id" ref="repair.model_repair_order"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_pickup_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2>Justificante de recogida</h2>
+                        <p><strong>Reparación:</strong> <span t-field="o.name"/></p>
+                        <p><strong>Cliente:</strong> <span t-field="o.partner_id"/></p>
+                        <p><strong>Equipo:</strong> <span t-field="o.product_id"/></p>
+                        <p><strong>Nº de serie:</strong> <span t-field="o.lot_id"/></p>
+                        <p><strong>Accesorios devueltos:</strong> <t t-esc="', '.join(o.rms_accessory_ids.mapped('name'))"/></p>
+                        <p t-if="o.rms_accessories"><strong>Notas:</strong> <span t-field="o.rms_accessories"/></p>
+                        <p><strong>Entregado por:</strong> <t t-esc="user.name"/></p>
+                        <p><strong>Fecha:</strong> <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
+                        <p><strong>Forma de entrega:</strong> <span t-field="o.rms_delivery_way"/></p>
+                        <p t-if="o.rms_delivery_tracking_ref"><strong>Nº de envío:</strong> <span t-field="o.rms_delivery_tracking_ref"/></p>
+                        <div style="margin-top:20mm;min-height:25mm;">Firma del cliente: _______________________</div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+    <record id="action_report_pickup" model="ir.actions.report">
+        <field name="name">Justificante de recogida</field>
+        <field name="model">repair.order</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">rms_repair_sat.report_pickup_document</field>
+        <field name="binding_model_id" ref="repair.model_repair_order"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="label_content">
+        <div t-att-style="'width:47mm;height:25.5mm;overflow:hidden;font-family:Arial,sans-serif;text-align:center;' + ('' if o_last else 'page-break-after:always;')">
+            <div t-if="bag" style="font-size:10pt;font-weight:bold;line-height:1;">BOLSA ACCESORIOS</div>
+            <div style="font-size:7pt;line-height:1.05;white-space:nowrap;overflow:hidden;"><strong><t t-esc="o.name"/></strong> · <t t-esc="o.partner_id.name or ''"/></div>
+            <div style="font-size:7pt;line-height:1.05;white-space:nowrap;overflow:hidden;"><t t-esc="o.product_id.display_name or ''"/></div>
+            <div style="font-size:7pt;line-height:1.05;white-space:nowrap;overflow:hidden;">S/N: <t t-esc="o.lot_id.name or o.rms_serial_in or ''"/> · <span t-field="o.rms_entry_date" t-options="{'widget': 'date'}"/></div>
+            <div t-out="o.name" t-options="{'widget': 'barcode', 'symbology': 'Code128', 'img_style': 'width:44mm;height:8mm;'}"/>
+        </div>
+    </template>
+    <template id="report_label_equipment">
+        <t t-call="web.html_container"><div class="article" style="margin:0;padding:0;">
+            <t t-foreach="docs" t-as="o"><t t-set="bag" t-value="False"/><t t-call="rms_repair_sat.label_content"/></t>
+        </div></t>
+    </template>
+    <template id="report_label_bag">
+        <t t-call="web.html_container"><div class="article" style="margin:0;padding:0;">
+            <t t-foreach="docs" t-as="o"><t t-set="bag" t-value="True"/><t t-call="rms_repair_sat.label_content"/></t>
+        </div></t>
+    </template>
+    <record id="action_report_label_equipment" model="ir.actions.report">
+        <field name="name">Etiqueta equipo</field><field name="model">repair.order</field>
+        <field name="report_type">qweb-pdf</field><field name="report_name">rms_repair_sat.report_label_equipment</field>
+        <field name="binding_model_id" ref="repair.model_repair_order"/><field name="binding_type">report</field>
+        <field name="paperformat_id" ref="rms_stock_lot_label_print.label_paperformat_10x5"/>
+    </record>
+    <record id="action_report_label_bag" model="ir.actions.report">
+        <field name="name">Etiqueta bolsa accesorios</field><field name="model">repair.order</field>
+        <field name="report_type">qweb-pdf</field><field name="report_name">rms_repair_sat.report_label_bag</field>
+        <field name="binding_model_id" ref="repair.model_repair_order"/><field name="binding_type">report</field>
+        <field name="paperformat_id" ref="rms_stock_lot_label_print.label_paperformat_10x5"/>
+    </record>
 </odoo>

@@ -10,6 +10,8 @@
               action="action_rms_disassembly"/>
     <menuitem id="menu_rms_sat_config" name="Configuración" parent="menu_rms_sat_root" sequence="90"
               groups="repair_security.group_repair_manager"/>
+    <menuitem id="menu_rms_sat_stage_limits" name="Días por fase" parent="menu_rms_sat_config" sequence="5"
+              action="action_rms_repair_stage_limit" groups="repair_security.group_repair_manager"/>
     <menuitem id="menu_rms_sat_setup" name="Preparar ubicaciones SAT" parent="menu_rms_sat_config" sequence="10"
               action="action_rms_setup_sat"/>
     <menuitem id="menu_rms_sat_sage" name="Crear reparaciones desde Sage" parent="menu_rms_sat_config" sequence="20"
