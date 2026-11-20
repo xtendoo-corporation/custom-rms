@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_type_check_required_list" model="ir.ui.view">
+        <field name="name">stock.picking.type.list.rms.check.required</field>
+        <field name="model">stock.picking.type</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list string="Checklist de salida por almacén" editable="bottom" create="0" delete="0">
+                <field name="warehouse_id" readonly="1"/>
+                <field name="name" readonly="1"/>
+                <field name="rms_check_required"/>
+                <field name="company_id" groups="base.group_multi_company" optional="show" readonly="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_picking_type_check_required" model="ir.actions.act_window">
+        <field name="name">Checklist de salida por almacén</field>
+        <field name="res_model">stock.picking.type</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_picking_type_check_required_list"/>
+        <field name="domain">[('code', '=', 'outgoing')]</field>
+    </record>
+
+    <record id="res_config_settings_view_form_delivery_check" model="ir.ui.view">
+        <field name="name">res.config.settings.form.rms.delivery.check</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="stock.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='stock']" position="inside">
+                <block title="Depósitos en clientes y checklist de salida" name="rms_deposit_setting_container">
+                    <setting string="Aviso de depósitos largos"
+                             help="Cuando un depósito lleva más días fuera, se crea una tarea para revisarlo con el cliente.">
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <label for="rms_deposit_alert_days" class="col-lg-5 o_light_label"/>
+                                <field name="rms_deposit_alert_days"/>
+                            </div>
+                            <div class="row">
+                                <label for="rms_deposit_manager_id" class="col-lg-5 o_light_label"/>
+                                <field name="rms_deposit_manager_id"/>
+                            </div>
+                            <div class="text-muted">
+                                El aviso va siempre al comercial del cliente (si no tiene, a quien creó el
+                                depósito) y, si lo eliges aquí, también al responsable de depósitos de la empresa.
+                            </div>
+                        </div>
+                    </setting>
+                    <setting string="Checklist de salida obligatorio"
+                             help="Se marca por tipo de operación (almacén). Solo obliga si el albarán lleva productos con nº de serie.">
+                        <div class="content-group">
+                            <button name="%(action_picking_type_check_required)d" type="action"
+                                    string="Ver por almacén" class="btn-link" icon="oi-arrow-right"/>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+
+    <menuitem id="menu_picking_type_check_required" name="Checklist de salida por almacén"
+              parent="stock.menu_warehouse_config" sequence="30" action="action_picking_type_check_required"
+              groups="stock.group_stock_manager"/>
+</odoo>

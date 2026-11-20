@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="mail_activity_type_deposit_long" model="mail.activity.type">
+        <field name="name">Depósito largo en cliente</field>
+        <field name="icon">fa-clock-o</field>
+        <field name="delay_count">0</field>
+    </record>
+
+    <record id="ir_cron_deposit_alerts" model="ir.cron">
+        <field name="name">Avisar de depósitos largos en clientes</field>
+        <field name="model_id" ref="stock_cession.model_stock_cession"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_rms_deposit_alerts()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+</odoo>

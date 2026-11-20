@@ -10,6 +10,10 @@
                 <button name="action_open_delivery_check" type="object" string="Abrir checklist"
                         class="btn-primary" icon="fa-barcode"
                         invisible="not rms_check_kind or state in ('draft', 'cancel')"/>
+                <field name="rms_check_mandatory" invisible="1"/>
+                <button name="action_rms_skip_check" type="object" string="Validar sin checklist"
+                        groups="stock.group_stock_manager"
+                        invisible="not rms_check_mandatory or state in ('draft', 'done', 'cancel')"/>
                 <button name="rms_check_reset" type="object" string="Anular checklist"
                         groups="stock.group_stock_manager"
                         confirm="Las lecturas quedarán guardadas como deshechas y el albarán se podrá validar a mano. ¿Anular el checklist?"
@@ -44,6 +48,24 @@
             <xpath expr="//field[@name='code']" position="after">
                 <field name="rms_check_required" invisible="code != 'outgoing'"/>
             </xpath>
+        </field>
+    </record>
+
+    <record id="view_rms_check_skip_wizard_form" model="ir.ui.view">
+        <field name="name">rms.check.skip.wizard.form</field>
+        <field name="model">rms.check.skip.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Validar sin checklist">
+                <p>Vas a validar este albarán sin leer los nº de serie con la pistola. Queda escrito en el historial del albarán con tu nombre, la fecha y el motivo.</p>
+                <group>
+                    <field name="picking_id"/>
+                    <field name="reason" placeholder="Por qué no se hace el checklist"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Validar sin checklist" class="btn-primary"/>
+                    <button string="Cancelar" special="cancel"/>
+                </footer>
+            </form>
         </field>
     </record>
 

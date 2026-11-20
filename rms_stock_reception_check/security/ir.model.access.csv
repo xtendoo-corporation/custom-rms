@@ -9,3 +9,4 @@ access_rms_reception_supplier_code_manager,rms.reception.supplier.code.manager,m
 access_rms_reception_load_wizard_user,rms.reception.load.wizard.user,model_rms_reception_load_wizard,stock.group_stock_user,1,1,1,1
 access_rms_reception_load_column_user,rms.reception.load.column.user,model_rms_reception_load_column,stock.group_stock_user,1,1,1,1
 access_rms_reception_load_line_user,rms.reception.load.line.user,model_rms_reception_load_line,stock.group_stock_user,1,1,1,1
+access_rms_reception_skip_wizard_manager,rms.reception.skip.wizard manager,model_rms_reception_skip_wizard,stock.group_stock_manager,1,1,1,1

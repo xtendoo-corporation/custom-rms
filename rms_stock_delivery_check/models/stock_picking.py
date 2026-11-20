@@ -19,8 +19,12 @@ class StockPickingType(models.Model):
 
     rms_check_required = fields.Boolean(
         string='Checklist de salida obligatorio',
-        help="Si se marca, los albaranes de este tipo solo se pueden validar "
-             "desde el checklist de salida con pistola.")
+        help="Si se marca, un albarán de este tipo que lleve algún producto con nº de serie "
+             "solo se puede validar desde el checklist de salida con pistola. Los albaranes "
+             "que solo llevan productos por cantidad (accesorios, cables) se pueden validar "
+             "a mano. Un responsable de inventario puede saltarse el checklist en un albarán "
+             "concreto con «Validar sin checklist»: tiene que escribir el motivo y queda en "
+             "el historial del albarán. Por defecto está apagada.")
 
 
 class StockMove(models.Model):
@@ -59,6 +63,9 @@ class StockPicking(models.Model):
         ('deposit_out', 'Depósito: salida'),
         ('deposit_return', 'Depósito: vuelta'),
     ], string='Tipo de checklist', compute='_compute_rms_check_kind', store=True)
+    rms_check_mandatory = fields.Boolean(
+        string='Checklist obligatorio', compute='_compute_rms_check_mandatory',
+        help="El tipo de operación exige checklist y el albarán lleva algún producto con nº de serie.")
     rms_check_progress = fields.Char(string='Leído', compute='_compute_rms_check_progress')
     rms_check_incident_count = fields.Integer(string='Incidencias', compute='_compute_rms_check_progress')
 
@@ -73,6 +80,14 @@ class StockPicking(models.Model):
                 picking.rms_check_kind = 'sale'
             else:
                 picking.rms_check_kind = False
+
+    @api.depends('picking_type_id.rms_check_required', 'rms_check_kind', 'move_ids.product_id.tracking',
+                 'move_ids.state')
+    def _compute_rms_check_mandatory(self):
+        for picking in self:
+            picking.rms_check_mandatory = bool(
+                picking.rms_check_kind and picking.picking_type_id.rms_check_required
+                and any(m.state != 'cancel' and m.product_id.tracking == 'serial' for m in picking.move_ids))
 
     def _compute_rms_check_progress(self):
         for picking in self:
@@ -571,11 +586,38 @@ class StockPicking(models.Model):
                     raise UserError(_(
                         "El albarán %s tiene un checklist de salida abierto: se valida desde el checklist "
                         "(botón «Abrir checklist»). Un administrador puede anularlo.", picking.name))
-                if picking.picking_type_id.rms_check_required:
+                if picking.rms_check_mandatory:
                     raise UserError(_(
-                        "Los albaranes de «%s» solo se validan desde el checklist de salida "
-                        "(botón «Abrir checklist»).", picking.picking_type_id.name))
+                        "Este albarán lleva productos con nº de serie y los albaranes de «%s» con nº de serie "
+                        "solo se validan desde el checklist de salida (botón «Abrir checklist»). "
+                        "Un responsable de inventario puede validarlo sin checklist indicando el motivo.",
+                        picking.picking_type_id.name))
         return super().button_validate()
+
+    def action_rms_skip_check(self):
+        """Abre la ventana que pide el motivo para validar sin checklist."""
+        self.ensure_one()
+        self._rms_require_manager()
+        return {
+            'type': 'ir.actions.act_window', 'name': _("Validar sin checklist"),
+            'res_model': 'rms.check.skip.wizard', 'view_mode': 'form', 'target': 'new',
+            'context': {'default_picking_id': self.id},
+        }
+
+    def _rms_validate_skipping_check(self, reason):
+        """Valida el albarán sin pasar por el checklist: solo un responsable de
+        inventario, con motivo, y queda escrito en el historial."""
+        self.ensure_one()
+        self._rms_require_manager()
+        reason = (reason or '').strip()
+        if not reason:
+            raise UserError(_("Escribe el motivo para validar sin checklist."))
+        if self.state in ('done', 'cancel'):
+            raise UserError(_("Este albarán ya está cerrado."))
+        self.message_post(body=_(
+            "Validado SIN checklist por %(user)s el %(date)s. Motivo: %(reason)s",
+            user=self.env.user.name, date=fields.Datetime.to_string(fields.Datetime.now()), reason=reason))
+        return self.with_context(rms_check_validated=True).button_validate()
 
     def _create_backorder(self, backorder_moves=None):
         backorders = super()._create_backorder(backorder_moves=backorder_moves)
@@ -710,3 +752,15 @@ class StockPicking(models.Model):
 
 def _fmt(value):
     return ('%g' % value) if value is not None else '0'
+
+
+class RmsCheckSkipWizard(models.TransientModel):
+    _name = 'rms.check.skip.wizard'
+    _description = 'Validar sin checklist'
+
+    picking_id = fields.Many2one('stock.picking', string='Albarán', required=True, readonly=True)
+    reason = fields.Text(string='Motivo', required=True)
+
+    def action_confirm(self):
+        self.ensure_one()
+        return self.picking_id._rms_validate_skipping_check(self.reason)

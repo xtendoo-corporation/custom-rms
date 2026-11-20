@@ -1,5 +1,13 @@
+import operator
+from datetime import timedelta
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+ALERT_DAYS_PARAM = 'rms_stock_delivery_check.deposit_alert_days'
+DEFAULT_ALERT_DAYS = 30
+OPERATORS = {'>': operator.gt, '>=': operator.ge, '<': operator.lt, '<=': operator.le, '=': operator.eq,
+             '!=': operator.ne}
 
 
 class StockCession(models.Model):
@@ -23,7 +31,13 @@ class StockCession(models.Model):
         ('returned', 'Devuelto todo'),
         ('cancel', 'Cancelado'),
     ], string='Situación del depósito', compute='_compute_rms_deposit', store=True)
-    rms_days_out = fields.Integer(string='Días fuera', compute='_compute_rms_days_out')
+    rms_days_out = fields.Integer(
+        string='Días fuera', compute='_compute_rms_days_out', search='_search_rms_days_out',
+        help="Días que lleva en casa del cliente el equipo que más tiempo lleva fuera.")
+    rms_deposit_overdue = fields.Boolean(
+        string='Depósito largo', compute='_compute_rms_deposit_overdue', search='_search_rms_deposit_overdue',
+        help="Hay equipos fuera desde hace más días de los configurados para avisar.")
+    rms_alert_date = fields.Datetime(string='Último aviso de depósito largo', copy=False, readonly=True)
 
     @api.depends('state', 'picking_id.state', 'rms_unit_ids.state', 'rms_unit_ids.qty_returned')
     def _compute_rms_deposit(self):
@@ -52,6 +66,76 @@ class StockCession(models.Model):
         for cession in self:
             cession.rms_days_out = max(cession.rms_unit_ids.filtered(lambda u: u.state == 'out').mapped('days_out'),
                                        default=0)
+
+    @api.model
+    def _rms_alert_days(self):
+        value = self.env['ir.config_parameter'].sudo().get_param(ALERT_DAYS_PARAM)
+        try:
+            days = int(value)
+        except (TypeError, ValueError):
+            days = DEFAULT_ALERT_DAYS
+        return days if days > 0 else DEFAULT_ALERT_DAYS
+
+    @api.model
+    def _search_rms_days_out(self, op, value):
+        if op not in OPERATORS or not isinstance(value, int):
+            raise UserError(_("Búsqueda no admitida en «Días fuera»."))
+        compare = OPERATORS[op]
+        cessions = self.sudo().search([('rms_unit_ids.state', '=', 'out')])
+        ids = [c.id for c in cessions if compare(c.rms_days_out, value)]
+        return [('id', 'in', ids)]
+
+    @api.depends('rms_days_out', 'rms_deposit_state')
+    def _compute_rms_deposit_overdue(self):
+        days = self._rms_alert_days()
+        for cession in self:
+            cession.rms_deposit_overdue = (
+                cession.rms_deposit_state in ('out', 'partial') and cession.rms_days_out > days)
+
+    @api.model
+    def _search_rms_deposit_overdue(self, op, value):
+        if op not in ('=', '!='):
+            raise UserError(_("Búsqueda no admitida en «Depósito largo»."))
+        cessions = self.sudo().search([('rms_deposit_state', 'in', ('out', 'partial'))])
+        days = self._rms_alert_days()
+        ids = [c.id for c in cessions if c.rms_days_out > days]
+        positive = (op == '=') == bool(value)
+        return [('id', 'in' if positive else 'not in', ids)]
+
+    # --------------------------------------------------- aviso de depósitos largos
+    def _rms_alert_users(self):
+        """Comercial del cliente (si no tiene, quien creó el depósito) y, si la
+        empresa lo tiene configurado, el «Responsable de depósitos»."""
+        self.ensure_one()
+        sale_user = self.partner_id.user_id or self.partner_id.commercial_partner_id.user_id or self.create_uid
+        users = sale_user | self.company_id.rms_deposit_manager_id
+        return users.filtered(lambda u: u.active and not u.share)
+
+    @api.model
+    def _cron_rms_deposit_alerts(self):
+        """Diaria: una actividad por depósito que lleva fuera más de N días.
+        No repite mientras la anterior siga abierta; si se cierra y el depósito
+        sigue fuera, vuelve a avisar pasados otros N días desde el último aviso."""
+        days = self._rms_alert_days()
+        now = fields.Datetime.now()
+        activity_type = self.env.ref('rms_stock_delivery_check.mail_activity_type_deposit_long')
+        units = self.env['rms.deposit.unit'].sudo().search([
+            ('state', '=', 'out'), ('date_out', '<=', now - timedelta(days=days + 1))])
+        for cession in units.cession_id.sudo().filtered(lambda c: c.state != 'cancel'):
+            open_alert = self.env['mail.activity'].sudo().search_count([
+                ('res_model', '=', 'stock.cession'), ('res_id', '=', cession.id),
+                ('activity_type_id', '=', activity_type.id)])
+            if open_alert:
+                continue
+            if cession.rms_alert_date and cession.rms_alert_date > now - timedelta(days=days):
+                continue
+            for user in cession._rms_alert_users():
+                cession.activity_schedule(
+                    'rms_stock_delivery_check.mail_activity_type_deposit_long', user_id=user.id,
+                    summary=_("Depósito de más de %s días: revisar con el cliente", days),
+                    note=_("El depósito %(name)s sigue en casa de %(partner)s desde hace %(days)s días.",
+                           name=cession.name, partner=cession.partner_id.name, days=cession.rms_days_out))
+            cession.rms_alert_date = now
 
     @api.model
     def default_get(self, fields_list):
@@ -201,6 +285,28 @@ class StockLocation(models.Model):
     rms_customer_deposit = fields.Boolean(
         string='Depósitos en clientes',
         help="Ubicación donde Odoo lleva el material que está en depósito en casa de un cliente.")
+
+
+class ResCompany(models.Model):
+    _inherit = 'res.company'
+
+    rms_deposit_manager_id = fields.Many2one(
+        'res.users', string='Responsable de depósitos',
+        domain="[('share', '=', False)]",
+        help="Además del comercial del cliente, recibe el aviso de los depósitos largos. "
+             "Si se deja vacío, solo se avisa al comercial.")
+
+
+class ResConfigSettings(models.TransientModel):
+    _inherit = 'res.config.settings'
+
+    rms_deposit_alert_days = fields.Integer(
+        string='Días para avisar de un depósito', config_parameter=ALERT_DAYS_PARAM,
+        default=DEFAULT_ALERT_DAYS,
+        help="Pasados estos días con material en casa del cliente se crea un aviso (una vez) "
+             "para revisar el depósito con el cliente.")
+    rms_deposit_manager_id = fields.Many2one(
+        related='company_id.rms_deposit_manager_id', readonly=False, string='Responsable de depósitos')
 
 
 class RmsDepositLine(models.Model):

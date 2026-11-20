@@ -29,6 +29,18 @@
                 <field name="rms_out_count" invisible="not rms_unit_ids"/>
                 <field name="rms_days_out" invisible="rms_deposit_state not in ('out', 'partial')"/>
             </xpath>
+            <xpath expr="//sheet" position="before">
+                <field name="rms_deposit_overdue" invisible="1"/>
+                <div class="alert alert-warning mb-0" role="alert"
+                     invisible="rms_deposit_state not in ('out', 'partial') or rms_deposit_overdue">
+                    Días fuera del equipo que más lleva: <field name="rms_days_out" class="oe_inline fw-bold"/>
+                </div>
+                <div class="alert alert-danger mb-0" role="alert"
+                     invisible="rms_deposit_state not in ('out', 'partial') or not rms_deposit_overdue">
+                    Depósito largo. Días fuera del equipo que más lleva: <field name="rms_days_out" class="oe_inline fw-bold"/>
+                    (revisar con el cliente)
+                </div>
+            </xpath>
             <xpath expr="//field[@name='product_id']" position="attributes">
                 <attribute name="required">not rms_line_ids</attribute>
             </xpath>
@@ -87,13 +99,15 @@
         <field name="model">stock.cession</field>
         <field name="priority">90</field>
         <field name="arch" type="xml">
-            <list string="Depósitos en clientes" decoration-warning="rms_deposit_state in ('out', 'partial')"
+            <list string="Depósitos en clientes" decoration-danger="rms_deposit_overdue"
+                  decoration-warning="rms_deposit_state in ('out', 'partial') and not rms_deposit_overdue"
                   decoration-muted="rms_deposit_state in ('returned', 'cancel')">
                 <field name="name"/>
                 <field name="date"/>
                 <field name="partner_id" string="Cliente"/>
                 <field name="rms_out_count" sum="Unidades fuera"/>
                 <field name="rms_days_out"/>
+                <field name="rms_deposit_overdue" column_invisible="1"/>
                 <field name="rms_deposit_state" widget="badge"
                        decoration-info="rms_deposit_state in ('draft', 'preparing')"
                        decoration-warning="rms_deposit_state in ('out', 'partial')"
@@ -111,6 +125,8 @@
                 <field name="name"/>
                 <field name="partner_id" string="Cliente"/>
                 <filter name="outside" string="Con material fuera" domain="[('rms_deposit_state', 'in', ('out', 'partial'))]"/>
+                <filter name="overdue" string="Más días de los del aviso (depósito largo)"
+                        domain="[('rms_deposit_overdue', '=', True)]"/>
                 <filter name="drafts" string="Sin salir todavía" domain="[('rms_deposit_state', 'in', ('draft', 'preparing'))]"/>
                 <filter name="returned" string="Devueltos" domain="[('rms_deposit_state', '=', 'returned')]"/>
                 <group>

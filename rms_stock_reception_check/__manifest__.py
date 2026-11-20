@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Recepción de proveedor con lista de números de serie',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.1.0',
     'category': 'Inventory/Inventory',
     'summary': (
         'Recepción de mercancía con la pistola como una lista de la compra: '
@@ -33,6 +33,7 @@ Recepción de proveedor con checklist de números de serie
         'views/reception_views.xml',
         'views/supplier_code_views.xml',
         'views/menus.xml',
+        'views/picking_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

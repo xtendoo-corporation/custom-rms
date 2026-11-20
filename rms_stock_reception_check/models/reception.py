@@ -816,7 +816,8 @@ class RmsReception(models.Model):
         used_moves.write({"picked": True})
         (open_moves - used_moves).write({"picked": False})
 
-        result = picking.with_context(skip_backorder=True, skip_sms=True).button_validate()
+        result = picking.with_context(
+            skip_backorder=True, skip_sms=True, rms_reception_validated=True).button_validate()
         if picking.state != "done":
             detail = result.get("name") if isinstance(result, dict) else ""
             raise UserError(
