@@ -94,6 +94,13 @@
 
             <div class="page rms_page">
                 <t t-set="hide_price_detail" t-value="doc.rms_hide_price_detail"/>
+                <!-- Solo se pintan las columnas de descuento que usa alguna línea
+                     del presupuesto; su ancho pasa a la descripción. -->
+                <t t-set="product_lines" t-value="doc.order_line.filtered(lambda l: not l.display_type)"/>
+                <t t-set="show_dto1" t-value="bool(product_lines.filtered(lambda l: l.discount1 > 0))"/>
+                <t t-set="show_dto2" t-value="bool(product_lines.filtered(lambda l: l.discount2 > 0))"/>
+                <t t-set="show_dto3" t-value="bool(product_lines.filtered(lambda l: l.discount3 > 0))"/>
+                <t t-set="dto_columns" t-value="int(show_dto1) + int(show_dto2) + int(show_dto3)"/>
                 <!-- LOGOS SUPERIORES -->
                 <table class="rms_header_table">
                     <tr>
@@ -152,11 +159,11 @@
                         <tr t-else="">
                             <th style="width: 13%;">Código</th>
                             <th style="width: 4%; text-align: center;">Cant.</th>
-                            <th style="width: 49%;">Descripción</th>
+                            <th t-attf-style="width: {{ 64 - 5 * dto_columns }}%;">Descripción</th>
                             <th style="width: 12%; text-align: right;">PVP sin IVA</th>
-                            <th style="width: 5%; text-align: center;">Dto1</th>
-                            <th style="width: 5%; text-align: center;">Dto2</th>
-                            <th style="width: 5%; text-align: center;">Dto3</th>
+                            <th t-if="show_dto1" style="width: 5%; text-align: center;">Dto1</th>
+                            <th t-if="show_dto2" style="width: 5%; text-align: center;">Dto2</th>
+                            <th t-if="show_dto3" style="width: 5%; text-align: center;">Dto3</th>
                             <th style="width: 7%; text-align: right;">Total Neto</th>
                         </tr>
                     </thead>
@@ -177,17 +184,17 @@
                                 </td>
                                 <t t-if="not hide_price_detail">
                                     <td style="text-align: right;"><span t-field="line.price_unit" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
-                                    <td style="text-align: center;">
+                                    <td t-if="show_dto1" style="text-align: center;">
                                         <t t-if="line.discount1 > 0">
                                             <span t-field="line.discount1" t-options='{"widget": "float", "precision": 0}'/>%
                                         </t>
                                     </td>
-                                    <td style="text-align: center;">
+                                    <td t-if="show_dto2" style="text-align: center;">
                                         <t t-if="line.discount2 > 0">
                                             <span t-field="line.discount2" t-options='{"widget": "float", "precision": 0}'/>%
                                         </t>
                                     </td>
-                                    <td style="text-align: center;">
+                                    <td t-if="show_dto3" style="text-align: center;">
                                         <t t-if="line.discount3 > 0">
                                             <span t-field="line.discount3" t-options='{"widget": "float", "precision": 0}'/>%
                                         </t>
@@ -203,13 +210,13 @@
                                 </td>
                             </t>
                             <t t-if="line.display_type == 'line_section'">
-                                <td t-att-colspan="5 if hide_price_detail else 8" style="background-color: #f2f2f2; font-weight: bold;">
+                                <td t-att-colspan="5 if hide_price_detail else 5 + dto_columns" style="background-color: #f2f2f2; font-weight: bold;">
                                     <span t-field="line.name"/>
                                 </td>
                             </t>
                             <t t-if="line.display_type == 'line_note'">
                                 <td colspan="2"/>
-                                <td t-att-colspan="3 if hide_price_detail else 6" style="font-style: italic;">
+                                <td t-att-colspan="3 if hide_price_detail else 3 + dto_columns" style="font-style: italic;">
                                     <span t-field="line.name"/>
                                 </td>
                             </t>

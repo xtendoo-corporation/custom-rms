@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- Permisos extra para usuarios del grupo Comerciales. Sin ninguno de
-         estos grupos, un comercial no ve las listas de precios y no puede
-         cambiar precios, descuentos ni impuestos de los presupuestos. Forman una cadena
+         estos grupos, un comercial ve la lista de precios del cliente pero no
+         puede cambiarla, ni tampoco precios, descuentos ni impuestos de los presupuestos. Forman una cadena
          (el segundo incluye al primero), así que en la ficha de usuario se
          eligen con un único desplegable. -->
     <record id="res_groups_privilege_comerciales_presupuestos" model="res.groups.privilege">
@@ -30,6 +30,24 @@
             Además de las listas de precios, un comercial de este grupo puede
             cambiar el precio unitario, los descuentos, los impuestos y la
             posición fiscal de los presupuestos.
+        </field>
+    </record>
+
+    <!-- Sin este grupo, un comercial solo puede hacer presupuestos a los
+         clientes que tiene asignados como Vendedor. -->
+    <record id="res_groups_privilege_comerciales_clientes" model="res.groups.privilege">
+        <field name="name">Clientes (comerciales)</field>
+        <field name="category_id" ref="base.module_category_sales"/>
+    </record>
+
+    <record id="group_comerciales_all_customers" model="res.groups">
+        <field name="name">Presupuestos a cualquier cliente</field>
+        <field name="sequence">10</field>
+        <field name="privilege_id" ref="res_groups_privilege_comerciales_clientes"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="comment">
+            Un comercial de este grupo puede elegir cualquier cliente en sus
+            presupuestos, no solo los que tiene asignados.
         </field>
     </record>
 </odoo>
