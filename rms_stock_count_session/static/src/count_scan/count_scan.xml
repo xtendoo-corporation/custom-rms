@@ -99,6 +99,21 @@
                             <i class="fa fa-calculator"/><span class="o_rms_cs_button_label">Por cantidad</span>
                         </button>
                     </div>
+                    <!-- Dónde están las lecturas ahora mismo: siempre a la vista. -->
+                    <t t-set="save" t-value="saveStatus"/>
+                    <button class="btn o_rms_cs_save" t-att-class="'o_rms_cs_save_' + save.kind"
+                            role="status" aria-live="polite"
+                            t-att-title="save.retry ? 'Toca para reintentar el envío ahora' : save.text"
+                            t-on-click="retryNow">
+                        <i class="fa" t-att-class="save.icon"/><span t-esc="save.text"/>
+                        <span t-if="save.retry" class="o_rms_cs_save_retry"><i class="fa fa-refresh"/><span class="o_rms_cs_save_retry_label"> Reintentar</span></span>
+                    </button>
+                </div>
+
+                <div t-if="state.conn === 'expired'" class="o_rms_cs_expired o_rms_cs_keep_focus" role="alert">
+                    <i class="fa fa-lock"/>
+                    <span>Tu sesión ha caducado. Las lecturas están guardadas en este dispositivo.</span>
+                    <a class="btn btn-light" t-att-href="loginUrl" t-on-click="onLoginClick">Pulsa aquí para volver a entrar</a>
                 </div>
 
                 <div class="o_rms_cs_states o_rms_cs_keep_focus" role="group" aria-label="Estado para las próximas lecturas">
@@ -341,26 +356,73 @@
                                     <i class="fa fa-undo"/><span class="o_rms_cs_button_label">Deshacer</span>
                                 </button>
                             </div>
-                            <div t-if="state.offline or state.pending.length" class="alert alert-warning py-1 mt-1 mb-0">
-                                <i class="fa fa-wifi me-1"/>
-                                <t t-if="state.offline">Sin conexión. </t>
-                                <t t-esc="state.pending.length"/> lectura(s) pendientes de enviar.
+                            <div t-if="state.stuck" class="o_rms_cs_note o_rms_cs_note_warn o_rms_cs_stuck" role="alert">
+                                <i class="fa fa-exclamation-triangle"/>
+                                <span>Lectura sin procesar: pulsa Añadir o vuelve a leer</span>
                             </div>
+                            <div t-if="state.conn === 'offline' or state.conn === 'server' or (state.pending.length and state.queueSlow and state.conn === 'ok')"
+                                 class="o_rms_cs_note o_rms_cs_keep_focus o_rms_cs_queue_note"
+                                 t-att-class="state.conn === 'offline' ? 'o_rms_cs_note_bad' : 'o_rms_cs_note_warn'" role="status">
+                                <i class="fa" t-att-class="state.conn === 'offline' ? 'fa-exclamation-triangle' : 'fa-clock-o'"/>
+                                <span>
+                                    <t t-if="state.conn === 'offline'">Sin conexión. </t>
+                                    <t t-elif="state.conn === 'server'">El servidor está dando errores. </t>
+                                    <t t-if="state.pending.length"><t t-esc="state.pending.length"/> lectura(s) pendientes de enviar: están guardadas en este dispositivo y se envían solas.</t>
+                                    <t t-else="">Las lecturas nuevas se guardan en este dispositivo y se envían solas al volver.</t>
+                                </span>
+                                <button class="btn btn-sm btn-dark" t-on-click="retryNow"><i class="fa fa-refresh"/> Reintentar ahora</button>
+                            </div>
+                            <button t-if="state.audioLocked" class="o_rms_cs_note o_rms_cs_note_quiet o_rms_cs_audio_note" t-on-click="_onGesture">
+                                <i class="fa fa-volume-off"/>
+                                <span>Toca la pantalla para activar el sonido</span>
+                            </button>
                         </div>
                         <section class="o_rms_cs_readings" aria-label="Equipos leídos">
-                            <div class="o_rms_cs_readings_scroll">
-                                <div t-if="!state.history.length" class="p-3 text-muted">Aún no hay equipos leídos. Dispara a un número de serie.</div>
+                            <div class="o_rms_cs_readings_scroll" t-ref="readingsScroll">
+                                <!-- Lecturas que el servidor rechaza: a la vista hasta reintentar o descartar. -->
+                                <div t-if="state.failed.length" class="o_rms_cs_failed o_rms_cs_keep_focus" role="alert">
+                                    <div class="o_rms_cs_failed_head">
+                                        <span><i class="fa fa-exclamation-circle"/> Lecturas con error: revisar (<t t-esc="state.failed.length"/>)</span>
+                                        <button t-if="state.failed.length > 1" class="btn btn-sm btn-outline-danger" t-on-click="retryAllFailed">Reintentar todas</button>
+                                    </div>
+                                    <div t-foreach="state.failed" t-as="bad" t-key="bad.uid" class="o_rms_cs_failed_row">
+                                        <div class="o_rms_cs_failed_text">
+                                            <span class="o_rms_cs_row_serial" t-esc="itemCode(bad)"/>
+                                            <span class="o_rms_cs_failed_error" t-esc="bad.error"/>
+                                        </div>
+                                        <button class="btn btn-danger" t-on-click="() => this.retryFailed(bad.uid)"><i class="fa fa-refresh"/> Reintentar</button>
+                                        <button class="btn btn-outline-secondary" t-on-click="() => this.discardFailed(bad.uid)">Descartar</button>
+                                    </div>
+                                </div>
+                                <div t-if="!state.history.length and !state.pending.length and !state.failed.length" class="p-3 text-muted">Aún no hay equipos leídos. Dispara a un número de serie.</div>
                                 <ul class="o_rms_cs_rows">
-                                    <t t-foreach="state.history.filter((s) => s.type !== 'product_ref')" t-as="scan" t-key="scan.id">
+                                    <!-- Leído pero aún sin confirmar por el servidor: gris con reloj. -->
+                                    <li t-foreach="pendingRows" t-as="wait" t-key="'p' + wait.uid" class="o_rms_cs_row o_rms_cs_row_pending">
+                                        <div class="o_rms_cs_row_main">
+                                            <span class="o_rms_cs_row_icon" aria-hidden="true"><i class="fa fa-clock-o"/></span>
+                                            <span class="o_rms_cs_row_model o_rms_cs_row_noproduct">Pendiente de enviar</span>
+                                            <span class="o_rms_cs_row_serial" t-esc="itemCode(wait)"/>
+                                            <span class="o_rms_cs_row_reason">
+                                                <t t-if="state.sendingUid === wait.uid and state.conn === 'ok'">Enviando…</t>
+                                                <t t-else="">Guardado en este dispositivo</t>
+                                            </span>
+                                        </div>
+                                        <div class="o_rms_cs_row_state"/>
+                                    </li>
+                                    <t t-foreach="visibleRows" t-as="scan" t-key="scan.id">
                                         <t t-set="kind" t-value="verdictKind({scan: scan})"/>
+                                        <t t-set="repeated" t-value="state.dupId === scan.id"/>
                                         <li class="o_rms_cs_row"
-                                            t-att-class="'o_rms_cs_k_' + kind + (scan_first ? ' o_rms_cs_row_last' : '') + (state.expandedId === scan.id ? ' o_rms_cs_row_open' : '')">
+                                            t-att-class="'o_rms_cs_k_' + kind + (scan_first ? ' o_rms_cs_row_last' : '') + (state.expandedId === scan.id ? ' o_rms_cs_row_open' : '') + (repeated ? ' o_rms_cs_row_repeated' : '')">
                                             <div class="o_rms_cs_row_main" t-on-click="() => this.toggleRow(scan.id)">
                                                 <span class="o_rms_cs_row_icon" aria-hidden="true" t-esc="verdictIcon(kind)"/>
                                                 <span class="o_rms_cs_row_model" t-att-class="scan.product_name ? '' : 'o_rms_cs_row_noproduct'"
                                                       t-esc="shortModel(scan)" t-att-title="scan.product_name or scan.code"/>
                                                 <span class="o_rms_cs_row_serial" t-esc="scan.lot_name or scan.code"/>
-                                                <span class="o_rms_cs_row_reason" t-esc="shortReason(scan, kind)"/>
+                                                <span class="o_rms_cs_row_reason">
+                                                    <span t-if="repeated" class="o_rms_cs_repeated_badge" role="status">Ya leído</span>
+                                                    <t t-esc="shortReason(scan, kind)"/>
+                                                </span>
                                             </div>
                                             <div class="o_rms_cs_row_state o_rms_cs_keep_focus">
                                                 <select t-if="['serial', 'product'].includes(scan.type)" class="form-select form-select-sm"
@@ -413,7 +475,19 @@
                     <i class="fa fa-check-circle fa-4x text-success mb-3"/>
                     <h4>Recorrido terminado</h4>
                     <div t-if="state.missing" class="text-start o_rms_cs_missing">
-                        <h5>FALTAN <t t-esc="state.missing.count || 0"/> de Sage <t t-esc="state.missing.site"/></h5>
+                        <t t-if="state.missing.scope === 'site'">
+                            <h5>FALTAN <t t-esc="state.missing.count || 0"/> equipos de Sage en <t t-esc="state.missing.site"/></h5>
+                            <div class="text-muted mb-2">Es el mismo número que el marcador de la nave: equipos con nº de serie que nadie ha leído todavía.</div>
+                            <div t-if="state.missing.truncated" class="text-muted mb-2">Se enseñan los primeros de la lista.</div>
+                        </t>
+                        <t t-else="">
+                            <h5>FALTAN <t t-esc="state.missing.count || 0"/> de la zona de este recuento (Sage <t t-esc="state.missing.site"/>)</h5>
+                            <div t-if="state.missing.site_pending !== null and state.missing.site_pending !== undefined and state.missing.site_pending !== state.missing.count"
+                                 class="text-muted mb-2">
+                                En toda la nave (<t t-esc="state.missing.site_name"/>) el marcador dice que faltan <b t-esc="state.missing.site_pending"/> equipos con nº de serie:
+                                es otra cuenta, incluye lo que no es de la zona de este recuento.
+                            </div>
+                        </t>
                         <ul class="list-group mb-3">
                             <li t-foreach="state.missing.missing || []" t-as="item" t-key="item_index" class="list-group-item">
                                 <strong t-esc="item.model"/>

@@ -1,20 +1,43 @@
 /** @odoo-module **/
 
+import { browser } from "@web/core/browser/browser";
+import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { ConnectionLostError, rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
+import { session } from "@web/session";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { Component, onMounted, onWillUnmount, useEffect, useRef, useState } from "@odoo/owl";
 
 const WORKER_URL = "/rms_stock_count_session/static/lib/zxing-wasm/zxing_worker.js";
 const RESCAN_COOLDOWN_MS = 2000;
 const PROGRESS_DEBOUNCE_MS = 700;
-// Lector sin Enter: ráfaga de >= 4 caracteres con < 45 ms entre teclas y
-// 160 ms de pausa al final = una lectura completa.
+// Lector sin Enter: ráfaga de >= 4 caracteres a < 45 ms de media por tecla =
+// una lectura. Se cierra con 160 ms de pausa o en cuanto empieza la siguiente
+// (un hueco de más de 90 ms entre teclas), así dos lecturas seguidas no se
+// funden. Un tropiezo del Bluetooth de hasta 90 ms dentro de un código no lo
+// parte: partir un nº de serie es peor que fundir dos (lo fundido se ve como
+// "?" en la lista; lo partido podría contarse como otro equipo).
 const BURST_GAP_MS = 45;
+const BURST_JOIN_MS = 90;
 const BURST_PAUSE_MS = 160;
 const BURST_MIN_CHARS = 4;
 const DETECT_INTERVAL_MS = 350;
-const RETRY_MS = 4000;
+// Reintentos de la cola con espera creciente mientras haya pendientes.
+const RETRY_STEPS_MS = [2000, 4000, 8000, 16000, 30000];
+// Una llamada que no contesta en este tiempo se da por fallida y se reintenta
+// (el navegador no avisa de un corte "por tiempo agotado").
+const SEND_TIMEOUT_MS = 25000;
+// Errores internos del servidor seguidos para UNA lectura antes de apartarla.
+const MAX_SERVER_TRIES = 5;
+const STUCK_INPUT_MS = 1000;
+const SLOW_QUEUE_MS = 1500;
+// Errores del propio programa (validación): reintentar no cambia nada.
+const USER_ERRORS = new Set([
+    "odoo.exceptions.UserError", "odoo.exceptions.ValidationError", "odoo.exceptions.AccessError",
+    "odoo.exceptions.MissingError", "odoo.exceptions.AccessDenied", "odoo.exceptions.RedirectWarning",
+]);
 const REFRESH_MS = 15000;
 const SCAN_RECT = { x: 0.05, y: 0.2, w: 0.9, h: 0.6 };
 const MODE_KEY = "rms_stock_count_session.inputMode";
@@ -56,6 +79,8 @@ export class StockCountScan extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
         this.notification = useService("notification");
+        this.dialog = useService("dialog");
+        this.listRef = useRef("readingsScroll");
         this.inputRef = useRef("codeInput");
         this.videoRef = useRef("video");
 
@@ -73,8 +98,14 @@ export class StockCountScan extends Component {
             missing: null,
             searchMode: false,
             history: [],
-            pending: [], // [{uid, code}] lecturas aún no confirmadas por el servidor
-            offline: false,
+            pending: [], // [{uid, code, at, tries}] lecturas aún no confirmadas por el servidor
+            failed: [], // [{uid, code, error}] lecturas que el servidor rechaza: a revisar
+            conn: "ok", // ok | offline | server | expired
+            queueSlow: false, // hay pendientes desde hace más de SLOW_QUEUE_MS
+            sendingUid: null,
+            stuck: false, // texto sin procesar en la casilla de lectura
+            audioLocked: false,
+            dupId: null, // lectura repetida: se resalta "Ya leído" y sube arriba
             inputMode: storageGet(MODE_KEY) === "camera" ? "camera" : "pda",
             cameraError: null,
             panel: null, // null | "product" | "location" | "sage" | "qty"
@@ -98,6 +129,10 @@ export class StockCountScan extends Component {
 
         this._sending = false;
         this._retryTimer = null;
+        this._retryStep = 0;
+        this._gone = new Set(); // uids ya guardados o descartados en esta pestaña
+        this._activeXhr = null;
+        this._allowUnload = false;
         this._refreshTimer = null;
         this._searchTimer = null;
         this._lastSeenAt = {};
@@ -120,8 +155,41 @@ export class StockCountScan extends Component {
         // de texto (se tocó una línea, un botón...), lo que "teclee" la pistola
         // se lleva a la casilla de lectura en vez de perderse.
         this._onGlobalKeydown = (ev) => this._redirectScannerKey(ev);
+        // La cola se reintenta sola al volver la red, el foco o la pestaña.
+        this._onWake = () => {
+            if (!document.hidden) { this._retryNow(false); }
+        };
+        this._onOffline = () => {
+            if (this.state.step === "scan") { this.state.conn = "offline"; }
+        };
+        this._onStorage = (ev) => {
+            if (ev.key && ev.key === this.queueKey && this.state.step === "scan") {
+                this._adoptStored();
+                this._flushQueue();
+            }
+        };
+        this._onBeforeUnload = (ev) => {
+            if (!this._allowUnload && (this.state.pending.length || this.state.failed.length)) {
+                ev.preventDefault();
+                ev.returnValue = "Hay lecturas sin enviar.";
+                return ev.returnValue;
+            }
+        };
+        // El navegador no deja sonar nada hasta el primer toque o tecla.
+        this._onGesture = () => {
+            if (this.state.audioLocked) { this._unlockAudio(); }
+        };
         onMounted(() => {
             window.addEventListener("keydown", this._onGlobalKeydown, true);
+            window.addEventListener("online", this._onWake);
+            window.addEventListener("offline", this._onOffline);
+            window.addEventListener("focus", this._onWake);
+            document.addEventListener("visibilitychange", this._onWake);
+            window.addEventListener("storage", this._onStorage);
+            window.addEventListener("beforeunload", this._onBeforeUnload);
+            for (const name of ["pointerdown", "touchend", "keydown"]) {
+                window.addEventListener(name, this._onGesture, true);
+            }
             this._load();
         });
 
@@ -142,8 +210,21 @@ export class StockCountScan extends Component {
 
         onWillUnmount(() => {
             window.removeEventListener("keydown", this._onGlobalKeydown, true);
+            window.removeEventListener("online", this._onWake);
+            window.removeEventListener("offline", this._onOffline);
+            window.removeEventListener("focus", this._onWake);
+            document.removeEventListener("visibilitychange", this._onWake);
+            window.removeEventListener("storage", this._onStorage);
+            window.removeEventListener("beforeunload", this._onBeforeUnload);
+            for (const name of ["pointerdown", "touchend", "keydown"]) {
+                window.removeEventListener(name, this._onGesture, true);
+            }
+            this._destroyed = true;
             this._stopCamera();
             clearTimeout(this._retryTimer);
+            clearTimeout(this._slowTimer);
+            clearTimeout(this._stuckTimer);
+            clearTimeout(this._burstTimer);
             clearInterval(this._refreshTimer);
             clearTimeout(this._searchTimer);
             clearTimeout(this._verdictTimer);
@@ -163,6 +244,133 @@ export class StockCountScan extends Component {
     get queueKey() {
         const op = this.state.operatorState && this.state.operatorState.operator;
         return op ? `rms_stock_count_session.queue.${op.id}` : null;
+    }
+
+    get failedKey() {
+        const op = this.state.operatorState && this.state.operatorState.operator;
+        return op ? `rms_stock_count_session.failed.${op.id}` : null;
+    }
+
+    // Llamada al servidor que SIEMPRE termina: el rpc de Odoo no resuelve ni
+    // rechaza cuando el navegador corta por tiempo agotado (evento "timeout"),
+    // y la cola se quedaba esperando para siempre.
+    _send(model, method, args, kwargs = {}) {
+        const url = `/web/dataset/call_kw/${model}/${method}`;
+        const xhr = new browser.XMLHttpRequest();
+        const promise = new Promise((resolve, reject) => {
+            const lost = () => reject(new ConnectionLostError(url));
+            xhr.addEventListener("timeout", lost);
+            xhr.addEventListener("abort", lost);
+            const request = rpc(url, { model, method, args, kwargs: { ...kwargs, context: { ...user.context } } },
+                { silent: true, xhr });
+            try {
+                xhr.timeout = SEND_TIMEOUT_MS;
+            } catch { /* sin límite propio: queda el del navegador */ }
+            request.then(resolve, (error) => {
+                try {
+                    error.httpStatus = xhr.status;
+                    error.responseURL = xhr.responseURL || "";
+                } catch { /* error no ampliable */ }
+                reject(error);
+            });
+        });
+        promise.xhr = xhr;
+        return promise;
+    }
+
+    // Qué ha fallado: "expired" (sesión caducada), "network" (sin red o
+    // servidor caído: reintentar siempre), "server" (error interno: reintentar
+    // unas cuantas veces) o "user" (el programa rechaza la lectura: mostrar).
+    async _errorKind(error) {
+        const name = error && (error.exceptionName || (error.data && error.data.name)) || "";
+        if (error && error.name === "RPC_ERROR") {
+            if (error.code === 100 || /SessionExpired/.test(name)) { return "expired"; }
+            return USER_ERRORS.has(name) ? "user" : "server";
+        }
+        if (error && /\/web\/login/.test(error.responseURL || "")) { return "expired"; }
+        if (error && error.httpStatus === 404) {
+            // Sin sesión Odoo no sabe qué base es y contesta 404 a las llamadas;
+            // si el servidor sí responde a una consulta pública, es la sesión.
+            return (await this._serverAlive()) ? "expired" : "network";
+        }
+        return "network";
+    }
+
+    async _serverAlive() {
+        try {
+            const response = await browser.fetch("/web/webclient/version_info", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ jsonrpc: "2.0", method: "call", params: {} }),
+            });
+            return response.ok && Boolean((await response.json()).result);
+        } catch {
+            return false;
+        }
+    }
+
+    _errorText(error, kind) {
+        const detail = (error && error.data && error.data.message) || "";
+        if (kind === "user") {
+            return detail || "El programa no admite esta lectura.";
+        }
+        return "El servidor ha dado un error al guardar esta lectura. Pulsa Reintentar; " +
+            "si sigue igual, avisa al responsable.";
+    }
+
+    // Enlace para volver a entrar SIEMPRE en la misma base de datos y al escáner.
+    get loginUrl() {
+        const here = window.location.pathname + window.location.search + window.location.hash;
+        return `/web/login?db=${encodeURIComponent(session.db || "")}&redirect=${encodeURIComponent(here)}`;
+    }
+
+    onLoginClick() {
+        // Las lecturas pendientes están guardadas en el dispositivo: sin aviso de salida.
+        this._allowUnload = true;
+    }
+
+    // Indicador fijo de la barra: dónde están ahora mismo las lecturas.
+    get saveStatus() {
+        const pending = this.state.pending.length;
+        const failed = this.state.failed.length;
+        const tail = pending ? ` · ${pending} pendiente${pending === 1 ? "" : "s"}` : "";
+        if (this.state.conn === "expired") {
+            return { kind: "bad", icon: "fa-lock", text: `Sesión caducada${tail}`, retry: false };
+        }
+        if (this.state.conn === "offline") {
+            return { kind: "bad", icon: "fa-exclamation-triangle", text: `Sin conexión${tail}`, retry: true };
+        }
+        if (pending && (this.state.queueSlow || this.state.conn === "server")) {
+            return { kind: "warn", icon: "fa-clock-o", retry: true,
+                text: `${pending} pendiente${pending === 1 ? "" : "s"} de enviar` };
+        }
+        if (this.state.conn === "server") {
+            return { kind: "warn", icon: "fa-exclamation-triangle", text: "El servidor da errores", retry: true };
+        }
+        if (failed) {
+            return { kind: "bad", icon: "fa-exclamation-circle", text: `${failed} con error: revisar`, retry: false };
+        }
+        if (pending) {
+            return { kind: "busy", icon: "fa-cloud-upload", text: `Guardando ${pending}…`, retry: false };
+        }
+        return { kind: "ok", icon: "fa-check-circle", text: "Todo guardado", retry: false };
+    }
+
+    // Filas de la lista: la lectura repetida ("Ya leído") sube arriba.
+    get visibleRows() {
+        const rows = this.state.history.filter((scan) => scan.type !== "product_ref");
+        const index = this.state.dupId ? rows.findIndex((scan) => scan.id === this.state.dupId) : -1;
+        if (index > 0) {
+            rows.unshift(...rows.splice(index, 1));
+        }
+        return rows;
+    }
+
+    get pendingRows() {
+        return [...this.state.pending].reverse();
+    }
+
+    itemCode(item) {
+        return item.codes && item.codes.length > 1 ? `${item.code} (+${item.codes.length - 1})` : item.code;
     }
 
     async _load() {
@@ -215,8 +423,14 @@ export class StockCountScan extends Component {
         );
         this._applyState(operatorState);
         storageSet(this.operatorKey, String(operatorState.operator.id));
-        this.state.pending = this._loadQueue();
+        this._gone = new Set();
+        this.state.pending = this._readStored(this.queueKey);
+        this.state.failed = this._readStored(this.failedKey);
+        this.state.conn = "ok";
+        this.state.dupId = null;
         this.state.step = "scan";
+        this._retryStep = 0;
+        this._touchQueueClock();
         this._flushQueue();
         this._scheduleProgress(0);
         clearInterval(this._refreshTimer);
@@ -236,7 +450,7 @@ export class StockCountScan extends Component {
             return;
         }
         try {
-            const progress = await this.orm.silent.call(
+            const progress = await this._send(
                 "rms.stock.count.operator", "scanner_progress", [[op.id]]
             );
             if (this.state.operatorState?.operator.id === op.id) {
@@ -247,12 +461,24 @@ export class StockCountScan extends Component {
         }
     }
 
-    changeOperator() {
+    // Con lecturas sin enviar o con error no se sale: se quedarían sin guardar.
+    _blockedByQueue(action) {
         if (this.state.pending.length) {
             this.notification.add(
-                "Quedan lecturas sin enviar: espera a recuperar la conexión antes de cambiar de operario.",
-                { type: "warning" }
-            );
+                `Quedan lecturas sin enviar: espera a que se envíen antes de ${action}.`, { type: "warning" });
+            return true;
+        }
+        if (this.state.failed.length) {
+            this.notification.add(
+                `Hay lecturas con error sin revisar: reinténtalas o descártalas antes de ${action}.`,
+                { type: "warning" });
+            return true;
+        }
+        return false;
+    }
+
+    changeOperator() {
+        if (this._blockedByQueue("cambiar de operario")) {
             return;
         }
         this._historyGeneration++;
@@ -290,16 +516,19 @@ export class StockCountScan extends Component {
             this.state.operatorState?.operator.id === op.id &&
             generation === this._historyGeneration;
         try {
-            const operatorState = await this.orm.silent.call(
+            const operatorState = await this._send(
                 "rms.stock.count.operator", "scanner_state", [[op.id]]
             );
             if (!isCurrent()) { return; }
             this._applyState(operatorState);
-            this.state.offline = false;
+            this.state.conn = "ok";
             // Otros operarios también cuentan: el marcador se pone al día.
             this._scheduleProgress(0);
-        } catch {
-            if (isCurrent()) { this.state.offline = true; }
+        } catch (error) {
+            const kind = await this._errorKind(error);
+            if (isCurrent() && kind !== "user") {
+                this.state.conn = kind === "expired" ? "expired" : kind === "server" ? "server" : "offline";
+            }
         }
     }
 
@@ -333,14 +562,11 @@ export class StockCountScan extends Component {
         if (document.querySelector(".modal.show, .o_dialog")) {
             return;
         }
-        if (ev.key === "Enter") {
+        if (ev.key === "Enter" || ev.key === "Tab") {
             if (input.value) {
                 ev.preventDefault();
                 ev.stopPropagation();
-                this._resetBurst();
-                const code = input.value;
-                input.value = "";
-                this._enqueue(code);
+                this._submitInput(input);
             }
             return;
         }
@@ -351,7 +577,17 @@ export class StockCountScan extends Component {
         ev.stopPropagation();
         input.focus();
         input.value += ev.key;
-        this.onCodeInput({ target: input });
+        this.onCodeInput({ target: input, timeStamp: ev.timeStamp });
+    }
+
+    // Terminador del lector (Enter o Tab) o botón Añadir: todo lo que hay en
+    // la casilla es una lectura.
+    _submitInput(input) {
+        this._resetBurst();
+        const code = input.value;
+        input.value = "";
+        this._watchInput(input);
+        this._enqueue(code);
     }
 
     _focusInput() {
@@ -364,14 +600,12 @@ export class StockCountScan extends Component {
     }
 
     onCodeKeydown(ev) {
-        if (ev.key !== "Enter") {
+        // Enter siempre; Tab solo si hay algo leído (sin texto, Tab navega).
+        if (ev.key !== "Enter" && !(ev.key === "Tab" && ev.target.value && !ev.shiftKey)) {
             return;
         }
         ev.preventDefault();
-        this._resetBurst();
-        const code = ev.target.value;
-        ev.target.value = "";
-        this._enqueue(code);
+        this._submitInput(ev.target);
     }
 
     // Lectores configurados SIN sufijo Enter (p. ej. Honeywell de fábrica):
@@ -379,30 +613,68 @@ export class StockCountScan extends Component {
     // no. Una ráfaga rápida seguida de una pausa se envía sola como lectura.
     onCodeInput(ev) {
         const input = ev.target;
-        const now = performance.now();
+        if (ev.inputType && ev.inputType.startsWith("delete")) {
+            this._resetBurst();
+            this._watchInput(input);
+            return;
+        }
+        // Hora de la tecla, no la de proceso: con la pantalla ocupada los
+        // eventos llegan a trompicones y dos lecturas parecerían una sola.
+        const now = ev.timeStamp || performance.now();
         const burst = this._burst;
-        if (!burst || now - burst.last > BURST_GAP_MS) {
-            this._burst = { start: now, last: now, chars: 1, from: Math.max(0, input.value.length - 1) };
-        } else {
+        if (burst && now - burst.last <= BURST_JOIN_MS) {
             burst.last = now;
             burst.chars += 1;
+        } else {
+            let from = Math.max(0, input.value.length - 1);
+            if (burst && this._isScannerBurst(burst) && burst.from < from) {
+                // Empieza otra lectura sin que la anterior llegara a su pausa
+                // (doble gatillo, dos códigos en la misma etiqueta): la
+                // anterior está completa y se envía ya; no se funden.
+                const code = input.value.slice(burst.from, from);
+                input.value = input.value.slice(0, burst.from) + input.value.slice(from);
+                from = burst.from;
+                this._burst = null;
+                this._enqueue(code);
+            }
+            this._burst = { start: now, last: now, chars: 1, from };
         }
         clearTimeout(this._burstTimer);
         this._burstTimer = setTimeout(() => this._flushBurst(input), BURST_PAUSE_MS);
+        this._watchInput(input);
+    }
+
+    _isScannerBurst(burst) {
+        return burst.chars >= BURST_MIN_CHARS &&
+            (burst.last - burst.start) / (burst.chars - 1) <= BURST_GAP_MS;
     }
 
     _flushBurst(input) {
         const burst = this._burst;
         this._resetBurst();
-        if (!burst || !input || burst.chars < BURST_MIN_CHARS) {
-            return;
-        }
-        if ((burst.last - burst.start) / (burst.chars - 1) > BURST_GAP_MS) {
+        if (!burst || !input || !this._isScannerBurst(burst)) {
+            this._watchInput(input);
             return;
         }
         const code = input.value.slice(burst.from);
         input.value = input.value.slice(0, burst.from);
+        this._watchInput(input);
         this._enqueue(code);
+    }
+
+    // Nunca texto pegado en la casilla sin enviar ni avisar: si queda algo
+    // sin procesar más de 1 s, se avisa en ámbar.
+    _watchInput(input) {
+        clearTimeout(this._stuckTimer);
+        if (!input || !input.value) {
+            this.state.stuck = false;
+            return;
+        }
+        this._stuckTimer = setTimeout(() => {
+            const el = this.inputRef.el;
+            this.state.stuck = Boolean(el && el.value && !this._burst);
+            if (el && el.value && this._burst) { this._watchInput(el); }
+        }, STUCK_INPUT_MS);
     }
 
     _resetBurst() {
@@ -415,10 +687,7 @@ export class StockCountScan extends Component {
         if (!input) {
             return;
         }
-        this._resetBurst();
-        const code = input.value;
-        input.value = "";
-        this._enqueue(code);
+        this._submitInput(input);
         if (this.state.inputMode === "pda") {
             this._focusInput();
         }
@@ -500,30 +769,47 @@ export class StockCountScan extends Component {
     // evita que un reenvío cuente dos veces la misma lectura.
     // ------------------------------------------------------------------
 
-    _loadQueue() {
-        const key = this.queueKey;
+    _readStored(key) {
         if (!key) {
             return [];
         }
         try {
-            return JSON.parse(storageGet(key) || "[]");
+            const items = JSON.parse(storageGet(key) || "[]");
+            return Array.isArray(items) ? items.filter((item) => item && item.uid && item.code) : [];
         } catch {
             return [];
         }
     }
 
+    // Lecturas que otra pestaña del mismo operario dejó en la cola del
+    // dispositivo: se adoptan (el servidor no las duplica: mismo client_uid).
+    _adoptStored() {
+        const known = new Set([...this.state.pending, ...this.state.failed].map((item) => item.uid));
+        const foreign = this._readStored(this.queueKey).filter(
+            (item) => !known.has(item.uid) && !this._gone.has(item.uid));
+        if (foreign.length) {
+            this.state.pending.push(...foreign);
+            this.state.pending.sort((a, b) => (a.at || 0) - (b.at || 0));
+            this._touchQueueClock();
+        }
+    }
+
     _saveQueue() {
-        const key = this.queueKey;
-        if (key) {
-            const saved = storageSet(
-                key, this.state.pending.length ? JSON.stringify(this.state.pending) : null
-            );
-            if (!saved && this.state.pending.length) {
-                // Prioritize durable codes if offline JPEGs exhaust localStorage.
-                // Keep snapshots in memory for best-effort upload this session.
-                const codesOnly = this.state.pending.map(({ snapshot, ...item }) => item);
-                storageSet(key, JSON.stringify(codesOnly));
-            }
+        this._adoptStored();
+        this._store(this.queueKey, this.state.pending);
+        this._store(this.failedKey, this.state.failed);
+    }
+
+    _store(key, items) {
+        if (!key) {
+            return;
+        }
+        const saved = storageSet(key, items.length ? JSON.stringify(items) : null);
+        if (!saved && items.length) {
+            // Prioritize durable codes if offline JPEGs exhaust localStorage.
+            // Keep snapshots in memory for best-effort upload this session.
+            const codesOnly = items.map(({ snapshot, ...item }) => item);
+            storageSet(key, JSON.stringify(codesOnly));
         }
     }
 
@@ -532,10 +818,123 @@ export class StockCountScan extends Component {
         if (!code || this.state.step !== "scan") {
             return;
         }
-        this.state.pending.push({ uid: newUid(), code, search_mode: this.state.searchMode,
+        this.state.pending.push({ uid: newUid(), code, at: Date.now(), search_mode: this.state.searchMode,
             product_state_id: this.state.operatorState.operator.current_state_id, ...extra });
         this._saveQueue();
+        this._touchQueueClock();
+        // Con el servidor dando errores se respeta la espera: cada lectura
+        // nueva no debe gastar un intento de la que está a la cabeza.
+        if (!(this._retryTimer && this.state.conn === "server")) {
+            this._flushQueue();
+        }
+    }
+
+    _dropPending(uid) {
+        const index = this.state.pending.findIndex((item) => item.uid === uid);
+        if (index >= 0) {
+            this.state.pending.splice(index, 1);
+        }
+    }
+
+    // "N pendientes" solo se pinta en ámbar si llevan un rato sin entrar: en
+    // marcha normal cada lectura está pendiente unas décimas.
+    _touchQueueClock() {
+        if (!this.state.pending.length) {
+            clearTimeout(this._slowTimer);
+            this._slowTimer = null;
+            this.state.queueSlow = false;
+        } else if (!this._slowTimer && !this.state.queueSlow) {
+            this._slowTimer = setTimeout(() => {
+                this._slowTimer = null;
+                this.state.queueSlow = this.state.pending.length > 0;
+            }, SLOW_QUEUE_MS);
+        }
+    }
+
+    _scheduleRetry() {
+        clearTimeout(this._retryTimer);
+        const delay = RETRY_STEPS_MS[Math.min(this._retryStep, RETRY_STEPS_MS.length - 1)];
+        this._retryStep += 1;
+        this._retryTimer = setTimeout(() => this._flushQueue(), delay);
+    }
+
+    // Botón "Reintentar ahora", vuelta de la red o de la pestaña.
+    _retryNow(byUser = true) {
+        if (this.state.step !== "scan") {
+            return;
+        }
+        this._retryStep = 0;
+        if (!this.state.pending.length) {
+            if (this.state.conn !== "ok") { this._refresh(); }
+        } else if (!this._sending) {
+            this._flushQueue();
+        } else if (byUser && this._activeXhr && Date.now() - this._sendStarted > 3000) {
+            // Envío colgado: se corta y se manda otra vez (el servidor no duplica).
+            this._resendAfterAbort = true;
+            this._activeXhr.abort();
+        }
+        if (byUser && this.state.inputMode === "pda") {
+            this._focusInput();
+        }
+    }
+
+    retryNow() {
+        this._retryNow(true);
+    }
+
+    // Lectura que el servidor rechaza: se aparta a "Lecturas con error" (a la
+    // vista, con Reintentar/Descartar) y la cola sigue con las demás.
+    _setAside(item, message) {
+        this._dropPending(item.uid);
+        const { tries, ...rest } = item;
+        this.state.failed.push({ ...rest, error: message });
+        this._snapshotTasks.delete(item.uid);
+        this._saveQueue();
+        this._touchQueueClock();
+        this.state.last = { status: "error", message, code: item.code };
+        this._feedback("none", "error");
+    }
+
+    retryFailed(uid) {
+        const index = this.state.failed.findIndex((item) => item.uid === uid);
+        if (index < 0) {
+            return;
+        }
+        const [{ error, ...item }] = this.state.failed.splice(index, 1);
+        this.state.pending.push({ ...item, tries: 0 });
+        this._saveQueue();
+        this._touchQueueClock();
+        this._retryStep = 0;
         this._flushQueue();
+        if (this.state.inputMode === "pda") { this._focusInput(); }
+    }
+
+    retryAllFailed() {
+        for (const item of [...this.state.failed]) {
+            this.retryFailed(item.uid);
+        }
+    }
+
+    discardFailed(uid) {
+        const item = this.state.failed.find((failed) => failed.uid === uid);
+        if (!item) {
+            return;
+        }
+        this.dialog.add(ConfirmationDialog, {
+            title: "Descartar lectura",
+            body: `¿Descartar la lectura «${this.itemCode(item)}»? No se guardará en el recuento.`,
+            confirmLabel: "Descartar",
+            cancelLabel: "Cancelar",
+            confirm: () => {
+                const index = this.state.failed.findIndex((failed) => failed.uid === uid);
+                if (index >= 0) {
+                    this.state.failed.splice(index, 1);
+                    this._gone.add(uid);
+                    this._saveQueue();
+                }
+            },
+            cancel: () => {},
+        }, { onClose: () => { if (this.state.inputMode === "pda") { this._focusInput(); } } });
     }
 
     async _flushQueue() {
@@ -544,37 +943,64 @@ export class StockCountScan extends Component {
         }
         this._sending = true;
         clearTimeout(this._retryTimer);
+        this._retryTimer = null;
         try {
-            while (this.state.pending.length && this.state.step === "scan") {
+            while (this.state.pending.length && this.state.step === "scan" && !this._destroyed) {
                 const item = this.state.pending[0];
                 const op = this.state.operatorState.operator;
                 let result;
                 try {
-                    result = await this.orm.silent.call(
+                    this.state.sendingUid = item.uid;
+                    const request = this._send(
                         "rms.stock.count.scan",
                         item.codes ? "scanner_register_batch" : "scanner_register",
                         [op.id, item.codes || item.code, item.uid],
                         { ...(item.codes ? { source: "camera" } : {}), search_mode: Boolean(item.search_mode),
                             ...(item.product_state_id ? { product_state_id: item.product_state_id } : {}) }
                     );
+                    this._activeXhr = request.xhr;
+                    this._sendStarted = Date.now();
+                    result = await request;
                 } catch (error) {
-                    if (error && error.data && error.data.message) {
-                        // Error funcional del servidor (recuento cerrado...):
-                        // no tiene sentido reintentar esta lectura.
-                        this.state.pending.shift();
-                        this._snapshotTasks.delete(item.uid);
-                        this._saveQueue();
-                        this._showResult({ status: "error", message: error.data.message });
-                        await this._refresh();
+                    this._activeXhr = null;
+                    this.state.sendingUid = null;
+                    if (this._resendAfterAbort) {
+                        this._resendAfterAbort = false;
                         continue;
                     }
-                    this.state.offline = true;
-                    this._retryTimer = setTimeout(() => this._flushQueue(), RETRY_MS);
+                    const kind = await this._errorKind(error);
+                    if (this._destroyed) {
+                        return;
+                    }
+                    if (kind === "user") {
+                        // El programa rechaza ESTA lectura (recuento cerrado...):
+                        // reintentar en bucle no sirve; se enseña y sigue la cola.
+                        this._setAside(item, this._errorText(error, kind));
+                        continue;
+                    }
+                    if (kind === "server") {
+                        item.tries = (item.tries || 0) + 1;
+                        if (item.tries > MAX_SERVER_TRIES) {
+                            this._setAside(item, this._errorText(error, kind));
+                            continue;
+                        }
+                        this._saveQueue();
+                    }
+                    // Sin red, servidor caído, error interno o sesión caducada:
+                    // la lectura se queda en la cola y se reintenta sola.
+                    this.state.conn = kind === "expired" ? "expired" : kind === "server" ? "server" : "offline";
+                    this._scheduleRetry();
                     return;
                 }
-                this.state.offline = false;
-                this.state.pending.shift();
+                this._activeXhr = null;
+                this._resendAfterAbort = false;
+                this.state.sendingUid = null;
+                this.state.conn = "ok";
+                this._retryStep = 0;
+                this._gone.add(item.uid);
+                this._dropPending(item.uid);
                 this._saveQueue();
+                this._touchQueueClock();
                 const results = item.codes ? (result.results || result) : [result];
                 if (result.state) { this._applyState(result.state); }
                 for (const reading of results) {
@@ -589,6 +1015,12 @@ export class StockCountScan extends Component {
                 if (feedback) {
                     this._setVerdict(this.verdictFor(feedback));
                     this._feedback(this.verdictKind(feedback), feedback.status);
+                }
+                // Lectura repetida: "Ya leído" sobre su fila, que sube arriba.
+                const repeated = results.find((r) => r.status === "duplicate" && r.scan?.id);
+                this.state.dupId = repeated ? repeated.scan.id : null;
+                if (repeated && this.listRef.el) {
+                    this.listRef.el.scrollTop = 0;
                 }
                 const unresolvedSerials = results.filter((r) => r.status === "unknown" &&
                     r.scan?.lot_name && !r.scan?.suggestion_product_id && (!r.sage || !r.sage.n));
@@ -610,6 +1042,7 @@ export class StockCountScan extends Component {
             }
         } finally {
             this._sending = false;
+            this.state.sendingUid = null;
         }
     }
 
@@ -639,8 +1072,14 @@ export class StockCountScan extends Component {
     _unlockAudio() {
         try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!this._audio && AudioCtx) { this._audio = new AudioCtx(); }
-            this._audio?.resume().catch(() => {});
+            if (!this._audio && AudioCtx) {
+                this._audio = new AudioCtx();
+                this._audio.onstatechange = () => this._checkAudio();
+            }
+            this._audio?.resume().then(() => this._checkAudio()).catch(() => {});
+            // Tras recargar no ha habido ningún toque: el navegador deja el
+            // sonido bloqueado y se avisa hasta el primer toque o tecla.
+            setTimeout(() => this._checkAudio(), 400);
             // A silent oscillator primes audio in the actual iOS user gesture.
             if (this._audio) {
                 const osc = this._audio.createOscillator();
@@ -650,6 +1089,12 @@ export class StockCountScan extends Component {
                 osc.start(); osc.stop(this._audio.currentTime + 0.01);
             }
         } catch { /* Audio is optional. */ }
+    }
+
+    _checkAudio() {
+        if (!this._destroyed) {
+            this.state.audioLocked = Boolean(this._audio && this._audio.state !== "running");
+        }
     }
 
     _feedback(kind, status) {
@@ -973,7 +1418,7 @@ export class StockCountScan extends Component {
         this.state.qtyBusy = true;
         try {
             if (this.state.qtyEditScanId) {
-                const payload = await this.orm.call(
+                const payload = await this._send(
                     "rms.stock.count.scan", "scanner_set_quantity", [[this.state.qtyEditScanId], qty]
                 );
                 this._mergeHistory([payload]);
@@ -981,7 +1426,9 @@ export class StockCountScan extends Component {
                 this._scheduleProgress(0);
                 return;
             }
-            const result = await this.orm.call("rms.stock.count.operator", "scanner_qty_count",
+            // _send siempre termina (también con un corte por tiempo agotado): el
+            // botón no se queda bloqueado y repetir el apunte no duplica (mismo uid).
+            const result = await this._send("rms.stock.count.operator", "scanner_qty_count",
                 [[op.id], rec.product_id, qty, this.state.qtyStateId || false, mode, this._qtyUid]);
             if (result.status === "confirm") {
                 this.state.qtyConfirm = result;
@@ -1128,11 +1575,7 @@ export class StockCountScan extends Component {
     }
 
     async finish() {
-        if (this.state.pending.length) {
-            this.notification.add(
-                "Quedan lecturas sin enviar. Espera a que vuelva la conexión.",
-                { type: "warning" }
-            );
+        if (this._blockedByQueue("terminar")) {
             return;
         }
         const op = this.state.operatorState.operator;
@@ -1149,6 +1592,9 @@ export class StockCountScan extends Component {
     }
 
     async backToSession() {
+        if (this.state.step === "scan" && this._blockedByQueue("salir")) {
+            return;
+        }
         await this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "rms.stock.count.session",

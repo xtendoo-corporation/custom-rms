@@ -360,6 +360,118 @@ $rms-info-bg: #e3edff;
 
     .o_rms_cs_missing { max-height: 45vh; overflow-y: auto; margin-bottom: 1rem; flex: 0 0 auto; }
 
+    // ------------------------------------- estado de guardado, cola y errores
+    // Indicador fijo de la barra: verde / ámbar / rojo.
+    .o_rms_cs_save {
+        display: inline-flex;
+        align-items: center;
+        flex: 0 0 auto;
+        gap: 6px;
+        height: 40px;
+        padding: 0 10px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        white-space: nowrap;
+        border: 1px solid transparent;
+        border-radius: 6px;
+    }
+    .o_rms_cs_save_ok { background: $rms-ok-bg; color: #0f5132; border-color: #b7dfc7; }
+    .o_rms_cs_save_busy { background: $rms-grey-bg; color: #343a40; border-color: #ced4da; }
+    .o_rms_cs_save_warn { background: #ffc107; color: #3d2f00; border-color: #d99200; }
+    .o_rms_cs_save_bad { background: $rms-bad; color: #fff; border-color: #a71d2a; }
+    .o_rms_cs_save_retry {
+        padding-left: 8px;
+        border-left: 1px solid currentColor;
+        font-weight: 600;
+    }
+
+    .o_rms_cs_expired {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        flex: 0 0 auto;
+        gap: 8px 12px;
+        padding: 10px 12px;
+        background: $rms-bad;
+        color: #fff;
+        font-size: 1.05rem;
+        font-weight: 600;
+        > span { flex: 1 1 16rem; }
+        .btn { flex: 0 0 auto; min-height: 44px; font-weight: 700; }
+    }
+
+    .o_rms_cs_note {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        margin-top: 4px;
+        padding: 6px 10px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        text-align: left;
+        > span { flex: 1 1 auto; min-width: 0; }
+        .btn { flex: 0 0 auto; min-height: 36px; white-space: nowrap; }
+    }
+    .o_rms_cs_note_warn { background: #ffe69c; color: #3d2f00; border-color: #d99200; font-weight: 600; }
+    .o_rms_cs_note_bad { background: $rms-bad-bg; color: #842029; border-color: #f1b0b7; font-weight: 600; }
+    .o_rms_cs_note_quiet { background: transparent; color: $rms-grey; border-color: #dee2e6; font-size: 0.85rem; padding: 3px 10px; }
+
+    // Lecturas que el servidor rechaza: arriba de la lista hasta resolverlas.
+    .o_rms_cs_failed {
+        border-bottom: 2px solid $rms-bad;
+        background: $rms-bad-bg;
+    }
+    .o_rms_cs_failed_head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 10px;
+        color: #842029;
+        font-weight: 700;
+    }
+    .o_rms_cs_failed_row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-top: 1px solid #f1b0b7;
+        .btn { flex: 0 0 auto; min-height: 40px; white-space: nowrap; }
+    }
+    .o_rms_cs_failed_text {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-width: 0;
+        .o_rms_cs_row_serial { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+    }
+    .o_rms_cs_failed_error { color: #842029; font-size: 0.9rem; }
+
+    // Leído pero aún sin confirmar por el servidor: gris con reloj.
+    .o_rms_cs_row_pending {
+        border-left-style: dashed;
+        color: #495057;
+        .o_rms_cs_row_main { cursor: default; }
+        .o_rms_cs_row_icon { color: $rms-grey; }
+        .o_rms_cs_row_reason { font-weight: 400; color: $rms-grey; }
+    }
+
+    // Lectura repetida: su fila sube arriba con el aviso "Ya leído".
+    .o_rms_cs_row_repeated {
+        box-shadow: inset 0 0 0 3px $rms-info;
+        animation: o_rms_cs_flash_repeated 0.9s ease-out;
+    }
+    .o_rms_cs_repeated_badge {
+        display: inline-block;
+        margin-right: 6px;
+        padding: 1px 10px;
+        border-radius: 999px;
+        background: $rms-info;
+        color: #fff;
+        font-weight: 700;
+    }
+
     // ------------------------------------------------------------ móvil
     @media (max-width: 700px) {
         .o_rms_cs_bar { flex-wrap: wrap; }
@@ -369,6 +481,9 @@ $rms-info-bg: #e3edff;
         .o_rms_cs_button_label { display: none; }
         .o_rms_cs_modes .btn { padding: 0 14px; }
         .o_rms_cs_progress_site { flex-basis: 100%; }
+        .o_rms_cs_save { flex: 1 1 100%; justify-content: center; }
+        .o_rms_cs_failed_row { flex-wrap: wrap; }
+        .o_rms_cs_failed_text { flex-basis: 100%; }
 
         // Modelo arriba; nº de serie y motivo debajo.
         .o_rms_cs_row_main {
@@ -378,6 +493,12 @@ $rms-info-bg: #e3edff;
             .o_rms_cs_row_reason:empty { display: none; }
         }
         .o_rms_cs_row_state select { width: 6.5rem; }
+    }
+
+    // iPad: en la barra el botón de reintentar se queda en su icono para no
+    // comerse el operario, la ubicación y el producto.
+    @media (max-width: 1300px) {
+        .o_rms_cs_save_retry_label { display: none; }
     }
 
     // iPad / portátil en horizontal con cámara: vídeo a la izquierda, lista a la derecha.
@@ -402,6 +523,7 @@ $rms-info-bg: #e3edff;
 @keyframes o_rms_cs_flash_bad { from { background-color: #f5a3ab; } }
 @keyframes o_rms_cs_flash_dup { from { background-color: #d2b8f2; } }
 @keyframes o_rms_cs_flash_grey { from { background-color: #d3d7db; } }
+@keyframes o_rms_cs_flash_repeated { from { background-color: #9ec5fe; } }
 
 // "Buscar en Sage": mesas en flycase sin pegatina.
 .o_rms_cs_sage_pick {

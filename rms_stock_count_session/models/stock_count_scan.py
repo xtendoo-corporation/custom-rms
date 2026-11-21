@@ -3,11 +3,14 @@
 import base64
 import binascii
 import json
+import logging
 import re
 from urllib.parse import quote
 
+import psycopg2
+
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import ConcurrencyError, UserError
 from odoo.tools import SQL
 
 from .scan_rule import _gtin_check_digit, normalize_code
@@ -35,6 +38,11 @@ _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 _SONY_PART_RE = re.compile(r"^P-?\d{8}-?[0-9A-Z]$", re.IGNORECASE)
 _SSCC_RE = re.compile(r"^(?:\(00\)|00)\d{18}$")
 _CAMERA_SERIAL_RE = re.compile(r"^S\d{2}-?\d{7}", re.IGNORECASE)
+
+_logger = logging.getLogger(__name__)
+# Índice único (operario, id. de lectura del dispositivo): un reenvío de la
+# misma lectura nunca crea dos filas, tampoco si llegan dos a la vez.
+_CLIENT_UID_INDEX = "rms_stock_count_scan_operator_client_uid_uniq"
 
 
 def label_print_action(url, close=False):
@@ -115,6 +123,43 @@ class RmsStockCountScan(models.Model):
         string="Id. de lectura en el dispositivo", readonly=True, index=True,
         help="Evita duplicar una lectura si la PDA la reenvía tras perder la conexión.",
     )
+
+    def init(self):
+        """Índice único parcial (operator_id, client_uid). Se crea a mano para
+        que una base con duplicados antiguos no rompa la actualización: en ese
+        caso se avisa en el registro y sigue valiendo la comprobación previa."""
+        cr = self.env.cr
+        cr.execute("SELECT 1 FROM pg_indexes WHERE indexname = %s", (_CLIENT_UID_INDEX,))
+        if cr.fetchone():
+            return
+        cr.execute("""
+            SELECT 1 FROM rms_stock_count_scan WHERE client_uid IS NOT NULL
+             GROUP BY operator_id, client_uid HAVING count(*) > 1 LIMIT 1
+        """)
+        if cr.fetchone():
+            _logger.warning(
+                "rms_stock_count_scan: hay lecturas antiguas con el mismo client_uid; "
+                "no se crea el índice único %s.", _CLIENT_UID_INDEX)
+            return
+        cr.execute(
+            "CREATE UNIQUE INDEX %s ON rms_stock_count_scan (operator_id, client_uid) "
+            "WHERE client_uid IS NOT NULL" % _CLIENT_UID_INDEX)
+
+    @api.model
+    def _create_scan(self, vals):
+        """Crea la lectura. Si otra petición con el mismo client_uid (la misma
+        lectura reenviada: dos pestañas, o un reintento mientras la primera
+        seguía en curso) se ha adelantado, se repite la llamada entera: en el
+        reintento ya se ve la fila guardada y se contesta 'resent'."""
+        if not vals.get("client_uid"):
+            return self.create(vals)
+        try:
+            with self.env.cr.savepoint():
+                return self.create(vals)
+        except psycopg2.errors.UniqueViolation as exc:
+            if getattr(exc.diag, "constraint_name", "") != _CLIENT_UID_INDEX:
+                raise
+            raise ConcurrencyError("Lectura reenviada a la vez: %s" % vals["client_uid"]) from exc
 
     found_in_search = fields.Boolean(readonly=True, default=False)
 
@@ -728,7 +773,7 @@ class RmsStockCountScan(models.Model):
             "found_in_search": self.env.context.get("found_in_search", operator.search_mode),
         })
         inherited_product = vals.pop("_inherited_product", False)
-        scan = self.create(vals)
+        scan = self._create_scan(vals)
         if not self.env.context.get("sage_batch"):
             scan._compute_sage_suggestion()
 

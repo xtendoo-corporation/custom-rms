@@ -1,11 +1,21 @@
 # -*- coding: utf-8 -*-
 
+import unicodedata
+
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
 from .sage_expected import sql_same_serial
 from .scan_rule import normalize_code
+
+
+def operator_name_key(name):
+    """Clave para comparar nombres de operario sin distinguir mayúsculas,
+    acentos ni espacios: "Ana  María" = "ana maria" = "ANAMARIA"."""
+    text = unicodedata.normalize("NFKD", name or "")
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return "".join(text.casefold().split())
 
 
 class RmsStockCountOperator(models.Model):
@@ -104,6 +114,12 @@ class RmsStockCountOperator(models.Model):
         if not name:
             raise UserError("Escribe tu nombre para empezar.")
         operator = self.search([("session_id", "=", session.id), ("name", "=", name)], limit=1)
+        if not operator:
+            # "prueba auto 9E " es la misma persona que "PRUEBA AUTO 9e": se
+            # reutiliza el operario que ya existe (el más antiguo) y sus lecturas.
+            key = operator_name_key(name)
+            operator = self.search([("session_id", "=", session.id)], order="id").filtered(
+                lambda op: operator_name_key(op.name) == key)[:1]
         if not operator:
             operator = self.create({
                 "session_id": session.id,
@@ -617,6 +633,12 @@ class RmsStockCountOperator(models.Model):
                     seen.add((scan.product_id.id, normalize_serial(scan.lot_name)))
         groups = {}
         lines = session._sage_lines()
+        if not lines:
+            # El recuento no tiene zona de Sage propia (empresa, marcas y
+            # almacenes): se enseña lo mismo que cuenta el marcador de la nave.
+            site_missing = self._scanner_missing_site()
+            if site_missing:
+                return site_missing
         # Reserve exact product matches before allocating unmatched serials.
         lines = lines.sorted(key=lambda line: (line.product_id.id, line.serial_normalized) not in seen)
         # Índice por nº de serie: evita recorrer 'seen' en cada línea (cuadrático).
@@ -642,8 +664,53 @@ class RmsStockCountOperator(models.Model):
         missing = list(groups.values())
         sites = ', '.join('%s (%s)' % (w.name, w.code) if w.name and w.name != w.code else w.code
                           for w in session.sage_warehouse_ids)
+        progress = self.scanner_progress()
         return {'missing': missing, 'site': sites or session.location_id.display_name,
-                'count': sum(len(row['serials']) if not row['count_by_quantity'] else 1 for row in missing)}
+                'count': sum(len(row['serials']) if not row['count_by_quantity'] else 1 for row in missing),
+                # 'zone': lo esperado en la zona de ESTE recuento, que puede no
+                # coincidir con el marcador de la nave (se enseñan los dos).
+                'scope': 'zone', 'truncated': False,
+                'site_name': progress['site'] if progress['has_sage'] else '',
+                'site_pending': progress['pending'] if progress['has_sage'] else None}
+
+    _MISSING_SITE_LIMIT = 300
+
+    def _scanner_missing_site(self):
+        """Faltantes de la nave donde se cuenta, con la MISMA cuenta que el
+        marcador del escáner (equipos con nº de serie de Sage, fuera de
+        depósito, que nadie ha leído en ningún recuento no cancelado)."""
+        self.ensure_one()
+        warehouses = self._progress_warehouses()
+        if not warehouses:
+            return False
+        progress = self.scanner_progress()
+        self.env.cr.execute("""
+            SELECT l.id
+              FROM rms_sage_stock_line l
+             WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0
+               AND COALESCE(l.serial_normalized, '') <> ''
+               AND NOT COALESCE(l.in_deposit, FALSE)
+               AND l.sage_warehouse_id = ANY(%s)
+               AND NOT EXISTS (
+                   SELECT 1 FROM rms_stock_count_scan sc
+                     JOIN rms_stock_count_session ss ON ss.id = sc.session_id
+                    WHERE """ + sql_same_serial('sc.serial_normalized', 'l.serial_normalized') + """
+                      AND sc.scan_type = 'serial' AND ss.state <> 'cancel'
+                      AND NOT COALESCE(sc.ignored, FALSE)
+                      AND (l.product_id IS NULL OR sc.product_id = l.product_id))
+             ORDER BY l.article_code, l.serial_normalized
+             LIMIT %s""", (warehouses.ids, self._MISSING_SITE_LIMIT))
+        lines = self.env['rms.sage.stock.line'].sudo().browse([row[0] for row in self.env.cr.fetchall()])
+        groups = {}
+        for line in lines:
+            group = groups.setdefault((line.product_id.id, line.model_code), {
+                'model': line.product_id.display_name or line.article_name or line.model_code,
+                'serials': [], 'count_by_quantity': False})
+            if line.serial and line.serial not in group['serials']:
+                group['serials'].append(line.serial)
+        return {'missing': list(groups.values()), 'site': progress['site'], 'count': progress['pending'],
+                'scope': 'site', 'truncated': progress['pending'] > len(lines),
+                'site_name': progress['site'], 'site_pending': progress['pending']}
 
     def scanner_start_search(self):
         self.ensure_one()
