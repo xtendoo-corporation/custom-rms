@@ -231,40 +231,84 @@ class InitialLoad(models.Model):
             group.write({'cession_id': cession.id})
 
     # ------------------------------------------------------------------ deshacer
-    def action_undo(self):
-        """Revierte lo aplicado: movimientos contrarios, depósitos heredados
-        borrados y marcas de los nº de serie quitadas."""
-        self.ensure_one()
-        self._check_manager()
-        if self.state != 'applied':
-            raise UserError('Solo se puede deshacer una carga aplicada.')
-        load = self.sudo()
-        lines = load.line_ids.filtered(lambda l: l.apply_result == 'done' and l.move_id and not l.undo_move_id)
-        self._check_companies(lines)
-        # Nada de lo cargado puede haberse movido ya.
-        available = defaultdict(float)
-        if lines:
-            for location, product, lot, quantity, reserved in self.env['stock.quant']._read_group(
-                    [('location_id', 'in', lines.location_id.ids), ('product_id', 'in', lines.product_id.ids)],
-                    ['location_id', 'product_id', 'lot_id'], ['quantity:sum', 'reserved_quantity:sum']):
-                available[(location.id, product.id, lot.id)] = (quantity or 0.0) - (reserved or 0.0)
-        problems = []
+    def _undo_problems(self, lines):
+        """{id de línea: motivo} de lo que ya no se puede deshacer.
+
+        Solo cuenta lo que le ha pasado a lo cargado por ESTA carga: en cada
+        ubicación tiene que seguir habiendo, al menos, la cantidad que la carga
+        metió, sin contar las reservas hechas DESPUÉS de aplicar. Las
+        existencias y las reservas que ya había antes de la carga no estorban
+        (una reserva anterior no reduce lo que la carga puede retirar)."""
+        if not lines:
+            return {}
+        MoveLine = self.env['stock.move.line']
+        on_hand = defaultdict(float)
+        for location, product, lot, quantity in self.env['stock.quant']._read_group(
+                [('location_id', 'in', lines.location_id.ids), ('product_id', 'in', lines.product_id.ids)],
+                ['location_id', 'product_id', 'lot_id'], ['quantity:sum']):
+            on_hand[(location.id, product.id, lot.id)] = quantity or 0.0
+        # Reservas posteriores a la carga: líneas de movimiento creadas después de las de la carga.
+        self.env.cr.execute('SELECT max(id) FROM stock_move_line WHERE move_id = ANY(%s)', [lines.move_id.ids])
+        last_line_id = self.env.cr.fetchone()[0] or 0
+        reserved_later = defaultdict(float)
+        for location, product, lot, quantity in MoveLine._read_group(
+                [('id', '>', last_line_id), ('state', 'in', ('assigned', 'partially_available')),
+                 ('location_id', 'in', lines.location_id.ids), ('product_id', 'in', lines.product_id.ids)],
+                ['location_id', 'product_id', 'lot_id'], ['quantity_product_uom:sum']):
+            reserved_later[(location.id, product.id, lot.id)] = quantity or 0.0
+        available = {key: quantity - reserved_later.get(key, 0.0) for key, quantity in on_hand.items()}
+        problems = {}
         for line in lines:
             key = (line.location_id.id, line.product_id.id, line.lot_id.id)
-            available[key] -= line.quantity
-            if available[key] < -0.0001:
-                problems.append('%s %s (%s)' % (line.product_id.display_name, line.lot_name or '',
-                                                SITE_NAMES.get(line.site_number, line.destination or '')))
-        if problems:
-            raise UserError(
-                'No se puede deshacer: %d líneas de la carga ya se han movido, vendido o reservado después. '
-                'Por ejemplo:\n- %s' % (len(problems), '\n- '.join(problems[:10])))
-        returned = load.cession_ids.rms_unit_ids.filtered(lambda u: u.state != 'out' or u.qty_returned)
-        if returned:
-            raise UserError('No se puede deshacer: hay depósitos heredados con devoluciones ya registradas (%s).'
-                            % ', '.join(returned.cession_id.mapped('name')[:10]))
-        Move = self.env['stock.move'].with_context(inventory_mode=False)
+            left = available.get(key, 0.0)
+            if left - line.quantity < -0.0001:
+                reserved = reserved_later.get(key, 0.0)
+                problems[line.id] = (
+                    'No se puede deshacer: en %s quedan %s y la carga metió %s%s. Se ha movido, vendido o '
+                    'reservado después de aplicar la carga.' % (
+                        line.location_id.display_name, _qty(max(on_hand.get(key, 0.0), 0.0)), _qty(line.quantity),
+                        (' (%s reservadas después en un albarán)' % _qty(reserved)) if reserved else ''))
+            else:
+                available[key] = left - line.quantity
+        return problems
+
+    def _undo_blocked_action(self, count):
+        return self._lines_action('No se ha podido deshacer: %d líneas ya se han movido o reservado' % count,
+                                  [('undo_note', '!=', False)])
+
+    def action_view_undo_blocked(self):
+        self.ensure_one()
+        return self._undo_blocked_action(self.undo_blocked_count)
+
+    def action_undo_partial(self):
+        """«Deshacer lo que se pueda»: revierte todo lo que sigue disponible y
+        deja marcadas, con su motivo, las líneas que no se han podido deshacer."""
+        return self.action_undo(partial=True)
+
+    def action_undo(self, partial=False):
+        """Revierte lo aplicado: movimientos contrarios, depósitos heredados
+        borrados y marcas de los nº de serie quitadas. Si algo de lo cargado ya
+        se ha movido o reservado no deshace nada: marca esas líneas con su
+        motivo y las enseña (salvo con «Deshacer lo que se pueda»)."""
+        self.ensure_one()
+        self._check_manager()
+        load = self.sudo()
+        retry = self.state == 'undone' and load.line_ids.filtered(lambda l: l.apply_result == 'not_undone')
+        if self.state != 'applied' and not retry:
+            raise UserError('Solo se puede deshacer una carga aplicada.')
+        lines = load.line_ids.filtered(
+            lambda l: l.apply_result in ('done', 'not_undone') and l.move_id and not l.undo_move_id)
+        self._check_companies(lines)
+        problems = self._undo_problems(lines)
+        load.line_ids.filtered('undo_note').write({'undo_note': False})
         Line = self.env['rms.initial.load.line']
+        blocked = Line.browse(list(problems))
+        for line in blocked:
+            line.write({'undo_note': problems[line.id]})
+        if problems and not partial:
+            return self._undo_blocked_action(len(problems))
+        lines -= blocked
+        Move = self.env['stock.move'].with_context(inventory_mode=False)
         name = 'Deshacer carga de arranque: %s' % self.name
         ids = lines.ids
         for start in range(0, len(ids), BATCH):
@@ -278,12 +322,30 @@ class InitialLoad(models.Model):
                 line.write({'undo_move_id': move.id, 'apply_result': 'undone'})
             self.env.flush_all()
             self.env.invalidate_all()
+        blocked = Line.browse(list(problems))
+        # Depósitos heredados: fuera las unidades deshechas; el depósito se borra si se queda vacío.
         cessions = load.cession_ids
         if cessions:
-            cessions.write({'state': 'cancel'})
-            cessions.unlink()
-        self.env['stock.lot'].search([('rms_initial_load_id', '=', load.id)]).write({
-            'rms_unverified': False, 'rms_alta_review': False, 'rms_initial_load_id': False})
+            kept = set()
+            for line in blocked.filtered('cession_id'):
+                unit = cessions.rms_unit_ids.filtered(
+                    lambda u: u.id not in kept and u.cession_id == line.cession_id
+                    and u.product_id == line.product_id and u.lot_id == line.lot_id)[:1]
+                kept.update(unit.ids)
+            cessions.rms_unit_ids.filtered(lambda u: u.id not in kept).unlink()
+            empty = cessions.filtered(lambda c: not c.rms_unit_ids)
+            if empty:
+                empty.write({'state': 'cancel'})
+                empty.unlink()
+        lots = self.env['stock.lot'].search([('rms_initial_load_id', '=', load.id)]) - blocked.lot_id
+        lots.write({'rms_unverified': False, 'rms_alta_review': False, 'rms_initial_load_id': False})
+        blocked.write({'apply_result': 'not_undone'})
         load.line_ids.filtered(lambda l: l.apply_result == 'duplicate').write({'apply_result': 'undone'})
         load.write({'state': 'undone', 'undone_at': fields.Datetime.now(), 'undone_by': self.env.user.id})
+        if blocked:
+            return self._undo_blocked_action(len(blocked))
         return True
+
+
+def _qty(value):
+    return ('%.3f' % (value or 0.0)).rstrip('0').rstrip('.')

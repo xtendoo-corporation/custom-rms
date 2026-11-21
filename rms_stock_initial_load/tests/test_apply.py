@@ -181,9 +181,89 @@ class TestLoadApply(LoadCommon):
         move = self.env['stock.move'].create(self.Load._rms_move_vals(
             self.c1, self.product, 1, self.wh['RMS7'].lot_stock_id, scrap_location, lot=lot, name='salida'))
         move._action_done()
-        with self.assertRaises(UserError):
-            load.action_undo()
+        action = load.action_undo()
+        # No deshace nada: marca la línea con su motivo y la enseña.
         self.assertEqual(load.state, 'applied')
+        self.assertEqual(action['res_model'], 'rms.initial.load.line')
+        blocked = load.line_ids.filtered('undo_note')
+        self.assertEqual(blocked.mapped('lot_name'), ['LT-READ'])
+        self.assertIn('No se puede deshacer', blocked.undo_note)
+        self.assertEqual(load.undo_blocked_count, 1)
+        self.assertEqual(self.stock(self.product), 4, 'no se ha deshecho nada')
+        from openpyxl import load_workbook
+        book = load_workbook(io.BytesIO(load._export_workbook()))
+        self.assertEqual([row[6].value for row in book['No se pudo deshacer'].iter_rows(min_row=2)], ['LT-READ'])
+        # «Deshacer lo que se pueda»: revierte el resto y deja marcada la que no se pudo.
+        load.action_undo_partial()
+        self.assertEqual(load.state, 'undone')
+        self.assertEqual(self.stock(self.product), 0)
+        line = self.line(load, 'LT-READ')
+        self.assertEqual(line.apply_result, 'not_undone')
+        self.assertTrue(line.undo_note)
+        self.assertFalse(line.undo_move_id)
+        self.assertEqual(set((load.line_ids.filtered('move_id') - line).mapped('apply_result')), {'undone'})
+        self.assertEqual(lot.rms_initial_load_id, load, 'el que no se pudo deshacer conserva su marca')
+
+    def _out_picking(self, product, quantity, warehouse):
+        customers = self.env.ref('stock.stock_location_customers')
+        picking = self.env['stock.picking'].create({
+            'picking_type_id': warehouse.out_type_id.id, 'location_id': warehouse.lot_stock_id.id,
+            'location_dest_id': customers.id, 'company_id': warehouse.company_id.id,
+            'move_ids': [(0, 0, {
+                'product_id': product.id, 'product_uom_qty': quantity, 'product_uom': product.uom_id.id,
+                'location_id': warehouse.lot_stock_id.id, 'location_dest_id': customers.id,
+                'company_id': warehouse.company_id.id})]})
+        picking.action_confirm()
+        picking.action_assign()
+        return picking
+
+    def test_undo_ignores_previous_stock_and_reservations(self):
+        """Caso real: el producto por cantidad ya tenía existencias y una reserva
+        ANTES de la carga. Deshacer tiene que funcionar y dejarlo como estaba."""
+        stock7, stock6 = self.wh['RMS7'].lot_stock_id, self.wh['RMS6'].lot_stock_id
+        Quant = self.env['stock.quant']
+        # Sevilla: 5 uds previas con 2 reservadas en un albarán.
+        Quant._update_available_quantity(self.cable, stock7, 5)
+        picking = self._out_picking(self.cable, 2, self.wh['RMS7'])
+        self.assertEqual(picking.move_ids.state, 'assigned')
+        # Mallorca: reserva vieja colgada sobre un quant sin existencias (como en la copia real).
+        stale = Quant.sudo().create({'product_id': self.cable.id, 'location_id': stock6.id, 'quantity': 0})
+        self.env.cr.execute('UPDATE stock_quant SET reserved_quantity = 2 WHERE id = %s', [stale.id])
+        stale.invalidate_recordset()
+        self.sage('01', self.cable, None, qty=8)
+        self.sage('01', self.cable, None, qty=8, wh='A.6')
+        self.count_qty(self.cable, 8)
+        load = self.new_load()
+        load.action_apply()
+        self.assertEqual(self.stock(self.cable, stock7), 13)
+        self.assertEqual(self.stock(self.cable, stock6), 8)
+        result = load.action_undo()
+        self.assertIs(result, True)
+        self.assertEqual(load.state, 'undone')
+        self.assertFalse(load.line_ids.filtered('undo_note'))
+        self.assertEqual(self.stock(self.cable, stock7), 5, 'vuelve a lo que había antes de la carga')
+        self.assertEqual(self.stock(self.cable, stock6), 0)
+        self.assertEqual(picking.move_ids.state, 'assigned', 'la reserva anterior sigue en pie')
+        self.assertEqual(picking.move_ids.quantity, 2)
+
+    def test_undo_blocked_by_reservation_after_the_load(self):
+        self.sage('01', self.cable, None, qty=8)
+        self.sage('01', self.cable2, None, qty=4)
+        self.count_qty(self.cable, 8)
+        self.count_qty(self.cable2, 4)
+        load = self.new_load()
+        load.action_apply()
+        self._out_picking(self.cable, 3, self.wh['RMS7'])   # reservado DESPUÉS de la carga
+        load.action_undo()
+        self.assertEqual(load.state, 'applied')
+        blocked = load.line_ids.filtered('undo_note')
+        self.assertEqual(blocked.product_id, self.cable)
+        self.assertIn('reservadas después', blocked.undo_note)
+        load.action_undo_partial()
+        self.assertEqual(load.state, 'undone')
+        self.assertEqual(self.stock(self.cable2), 0)
+        self.assertEqual(self.stock(self.cable), 8)
+        self.assertEqual(blocked.apply_result, 'not_undone')
 
     # ---- No duplicar un nº de serie que ya tiene stock ----
     def test_existing_serial_with_stock_is_not_duplicated(self):

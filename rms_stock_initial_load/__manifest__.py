@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Carga de arranque del stock',
-    'version': '19.0.1.0.1',
+    'version': '19.0.1.0.2',
     'category': 'Inventory/Inventory',
     'summary': 'Carga inicial del stock en Odoo a partir de lo contado con la pistola y de Sage '
                '(arranque del 7-ene-2027): simulación, revisión de estados, aplicar y deshacer.',

@@ -36,6 +36,7 @@
                 <field name="sage_warehouse_code" readonly="1" optional="hide"/>
                 <field name="review_state" readonly="1" optional="hide"/>
                 <field name="apply_result" readonly="1" optional="show"/>
+                <field name="undo_note" optional="show"/>
                 <field name="lot_id" readonly="1" optional="hide"/>
                 <field name="move_id" readonly="1" optional="hide"/>
                 <field name="cession_id" readonly="1" optional="hide"/>
@@ -67,6 +68,7 @@
                 <filter name="no_cost" string="Sin coste" domain="[('cost_pending', '=', True)]"/>
                 <filter name="to_close" string="Depósito a cerrar en Sage" domain="[('deposit_to_close', '=', True)]"/>
                 <filter name="moved" string="Con movimiento de Sage posterior" domain="[('sage_move_id', '!=', False)]"/>
+                <filter name="undo_blocked" string="No se pudo deshacer" domain="[('undo_note', '!=', False)]"/>
                 <filter name="duplicate" string="Ya tenían existencias" domain="[('apply_result', '=', 'duplicate')]"/>
                 <group>
                     <filter name="group_kind" string="Tipo" context="{'group_by': 'kind'}"/>
@@ -111,6 +113,10 @@
                     <button name="action_undo" type="object" string="Deshacer carga"
                             invisible="state != 'applied'" groups="stock.group_stock_manager"
                             confirm="Se va a revertir todo lo que creó esta carga: las existencias vuelven a como estaban y se borran los depósitos heredados. ¿Deshacer la carga?"/>
+                    <button name="action_undo_partial" type="object" string="Deshacer lo que se pueda"
+                            invisible="undo_blocked_count == 0 or state not in ('applied', 'undone')"
+                            groups="stock.group_stock_manager"
+                            confirm="Se revierte todo lo que sigue disponible. Las líneas que ya se han movido, vendido o reservado se quedan como están, marcadas con su motivo. ¿Seguir?"/>
                     <button name="action_back_to_draft" type="object" string="Vaciar y volver a borrador"
                             invisible="state not in ('prepared', 'undone')"
                             confirm="Se borran las líneas calculadas y las revisiones de estado de esta carga. ¿Seguir?"/>
@@ -149,6 +155,13 @@
                     </div>
                     <div class="alert alert-success" role="alert" invisible="state != 'applied'">
                         Carga aplicada. Las existencias están creadas. «Deshacer carga» lo revierte todo.
+                    </div>
+                    <div class="alert alert-danger" role="alert" invisible="undo_blocked_count == 0">
+                        <b><field name="undo_blocked_count" class="oe_inline"/> líneas no se pueden deshacer</b>:
+                        lo que metió la carga ya se ha movido, vendido o reservado después.
+                        <span invisible="state != 'applied'">No se ha deshecho nada; con «Deshacer lo que se pueda» se revierte el resto.</span>
+                        <button name="action_view_undo_blocked" type="object" string="Ver las líneas y su motivo"
+                                class="btn-link p-0 align-baseline"/>
                     </div>
                     <div class="alert alert-secondary" role="alert" invisible="state != 'undone'">
                         Carga deshecha: el stock ha vuelto a como estaba. Se puede volver a preparar y aplicar.

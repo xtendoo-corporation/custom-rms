@@ -9,7 +9,7 @@ from .initial_load import KIND_HELP, KINDS, NO_PARTNER, SITE_NAMES, _fmt
 
 SAGE_STATE = {'nuevo': 'Nuevo', 'demo': 'Demo', '2mano': '2ª Mano'}
 RESULT = {'pending': 'Sin aplicar', 'done': 'Cargado', 'duplicate': 'Ya tenía existencias: no duplicado',
-          'undone': 'Deshecho'}
+          'undone': 'Deshecho', 'not_undone': 'No se pudo deshacer'}
 SHEET_TITLES = {
     'counted': 'Contado', 'sage_unverified': 'Según Sage sin verificar', 'alta': 'Altas',
     'phantom': 'Pendiente de localizar', 'deposit': 'Depósitos heredados', 'qty_counted': 'Cantidad contada',
@@ -18,7 +18,8 @@ SHEET_TITLES = {
 HEAD = ['Nave', 'Empresa', 'Entra en', 'Referencia', 'Producto', 'Artículo Sage', 'Nº de serie', 'Estado final',
         'Estado en Sage', 'Cantidad', 'Cantidad en Sage', 'Contado en la nave', 'Coste unitario', 'Coste en Sage',
         'No verificado', 'Cliente del depósito', 'Cliente según Sage', 'Fecha del depósito', 'Depósito a cerrar en Sage',
-        'Movimiento de Sage aplicado', 'Recuento', 'Leído el', 'Almacén Sage', 'Resultado', 'Motivo']
+        'Movimiento de Sage aplicado', 'Recuento', 'Leído el', 'Almacén Sage', 'Resultado', 'Motivo',
+        'Por qué no se pudo deshacer']
 
 
 class InitialLoad(models.Model):
@@ -34,7 +35,7 @@ class InitialLoad(models.Model):
             line.partner_id.name if line.kind == 'deposit' else '', line.sage_partner_name,
             line.deposit_date, 'Sí' if line.deposit_to_close else '',
             move._label() if move else '', line.session_id.name, line.scanned_at, line.sage_warehouse_code,
-            RESULT.get(line.apply_result), line.note,
+            RESULT.get(line.apply_result), line.note, line.undo_note,
         ]
 
     def _cell(self, value):
@@ -98,6 +99,9 @@ class InitialLoad(models.Model):
              'Equipos cuyo estado leído no coincidía con Sage y se ha revisado uno a uno.'),
             ('Ya estaban en Odoo', [('apply_result', '=', 'duplicate')],
              'Nº de serie que ya tenían existencias en Odoo al aplicar: no se han duplicado.'),
+            ('No se pudo deshacer', [('undo_note', '!=', False)],
+             'Líneas que «Deshacer carga» no ha podido revertir porque lo cargado ya se había movido, vendido '
+             'o reservado. El motivo de cada una está en la última columna.'),
         ]
         sheets = [(SHEET_TITLES[kind], [('kind', '=', kind)], KIND_HELP[kind]) for kind, _label in KINDS] + extra_sheets
         for title, domain, description in sheets:

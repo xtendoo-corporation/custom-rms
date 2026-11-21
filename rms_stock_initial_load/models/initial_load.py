@@ -78,6 +78,7 @@ class InitialLoad(models.Model):
     review_count = fields.Integer(string='Casos de estado', compute='_compute_counters')
     cession_count = fields.Integer(string='Depósitos', compute='_compute_counters')
     duplicate_count = fields.Integer(string='Ya estaban en Odoo', compute='_compute_counters')
+    undo_blocked_count = fields.Integer(string='No se pueden deshacer', compute='_compute_counters')
     prepared_at = fields.Datetime(string='Preparada el', readonly=True, copy=False)
     prepared_by = fields.Many2one('res.users', string='Preparada por', readonly=True, copy=False)
     applied_at = fields.Datetime(string='Aplicada el', readonly=True, copy=False)
@@ -97,7 +98,7 @@ class InitialLoad(models.Model):
         for load in self:
             load.counted_sites_label = ', '.join(SITE_NAMES[n] for n in sorted(load._counted_sites())) or 'Ninguna'
 
-    @api.depends('line_ids.cost', 'line_ids.kind', 'line_ids.quantity', 'line_ids.apply_result',
+    @api.depends('line_ids.cost', 'line_ids.kind', 'line_ids.quantity', 'line_ids.apply_result', 'line_ids.undo_note',
                  'review_ids.state', 'cession_ids')
     def _compute_counters(self):
         Line = self.env['rms.initial.load.line']
@@ -113,6 +114,7 @@ class InitialLoad(models.Model):
             load.review_pending_count = len(load.review_ids.filtered(lambda r: r.state == 'pending'))
             load.cession_count = len(load.cession_ids)
             load.duplicate_count = Line.search_count([('load_id', '=', load.id), ('apply_result', '=', 'duplicate')])
+            load.undo_blocked_count = Line.search_count([('load_id', '=', load.id), ('undo_note', '!=', False)])
 
     def _check_manager(self):
         if not self.env.user.has_group('stock.group_stock_manager'):
@@ -379,8 +381,9 @@ class InitialLoadLine(models.Model):
     # Resultado de «Aplicar»
     apply_result = fields.Selection([
         ('pending', 'Sin aplicar'), ('done', 'Cargado'), ('duplicate', 'Ya tenía existencias: no duplicado'),
-        ('undone', 'Deshecho'),
+        ('undone', 'Deshecho'), ('not_undone', 'No se pudo deshacer'),
     ], string='Resultado', default='pending', required=True, index=True, copy=False)
+    undo_note = fields.Char(string='Por qué no se pudo deshacer', copy=False, readonly=True)
     lot_id = fields.Many2one('stock.lot', string='Nº de serie en Odoo', copy=False, ondelete='set null')
     lot_created = fields.Boolean(copy=False)
     move_id = fields.Many2one('stock.move', string='Movimiento de entrada', copy=False, ondelete='set null')
