@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Piezas comunes de las pantallas de pistola. Se usan con t-call desde
+         un componente que tenga «queue» (ScanQueue) y «audio» (ScanAudio).
+         Mismos textos que el escáner del recuento. -->
+
+    <!-- Indicador fijo: dónde están las lecturas ahora mismo. -->
+    <t t-name="rms_scan_queue.SaveStatus">
+        <t t-set="save" t-value="queue.status"/>
+        <button class="btn o_rms_sq_save o_rms_sq_keep_focus" t-att-class="'o_rms_sq_save_' + save.kind"
+                role="status" aria-live="polite"
+                t-att-title="save.retry ? 'Toca para reintentar el envío ahora' : save.text"
+                t-on-click="() => queue.retryNow(true)">
+            <i class="fa" t-att-class="save.icon"/><span t-esc="save.text"/>
+            <span t-if="save.retry" class="o_rms_sq_save_retry"><i class="fa fa-refresh"/><span class="o_rms_sq_save_retry_label"> Reintentar</span></span>
+        </button>
+    </t>
+
+    <!-- Sesión caducada: enlace a la MISMA base y pantalla. -->
+    <t t-name="rms_scan_queue.Expired">
+        <div t-if="queue.state.conn === 'expired'" class="o_rms_sq_expired o_rms_sq_keep_focus" role="alert">
+            <i class="fa fa-lock"/>
+            <span>Tu sesión ha caducado. Las lecturas están guardadas en este dispositivo.</span>
+            <a class="btn btn-light" t-att-href="queue.loginUrl" t-on-click="() => queue.onLoginClick()">Pulsa aquí para volver a entrar</a>
+        </div>
+    </t>
+
+    <!-- Avisos junto a la casilla de lectura. -->
+    <t t-name="rms_scan_queue.Notes">
+        <div t-if="queue.state.stuck" class="o_rms_sq_note o_rms_sq_note_warn o_rms_sq_stuck" role="alert">
+            <i class="fa fa-exclamation-triangle"/>
+            <span>Lectura sin procesar: pulsa Añadir o vuelve a leer</span>
+        </div>
+        <div t-if="queue.state.conn === 'offline' or queue.state.conn === 'server' or (queue.state.pending.length and queue.state.queueSlow and queue.state.conn === 'ok')"
+             class="o_rms_sq_note o_rms_sq_keep_focus o_rms_sq_queue_note"
+             t-att-class="queue.state.conn === 'offline' ? 'o_rms_sq_note_bad' : 'o_rms_sq_note_warn'" role="status">
+            <i class="fa" t-att-class="queue.state.conn === 'offline' ? 'fa-exclamation-triangle' : 'fa-clock-o'"/>
+            <span>
+                <t t-if="queue.state.conn === 'offline'">Sin conexión. </t>
+                <t t-elif="queue.state.conn === 'server'">El servidor está dando errores. </t>
+                <t t-if="queue.state.pending.length"><t t-esc="queue.state.pending.length"/> lectura(s) pendientes de enviar: están guardadas en este dispositivo y se envían solas.</t>
+                <t t-else="">Las lecturas nuevas se guardan en este dispositivo y se envían solas al volver.</t>
+            </span>
+            <button class="btn btn-sm btn-dark" t-on-click="() => queue.retryNow(true)"><i class="fa fa-refresh"/> Reintentar ahora</button>
+        </div>
+        <button t-if="queue.state.audioLocked" class="o_rms_sq_note o_rms_sq_note_quiet o_rms_sq_audio_note"
+                t-on-click="() => audio.unlock()">
+            <i class="fa fa-volume-off"/>
+            <span>Toca la pantalla para activar el sonido</span>
+        </button>
+    </t>
+
+    <!-- Lecturas que el servidor rechaza: a la vista hasta reintentar o descartar. -->
+    <t t-name="rms_scan_queue.Failed">
+        <div t-if="queue.state.failed.length" class="o_rms_sq_failed o_rms_sq_keep_focus" role="alert">
+            <div class="o_rms_sq_failed_head">
+                <span><i class="fa fa-exclamation-circle"/> Lecturas con error: revisar (<t t-esc="queue.state.failed.length"/>)</span>
+                <button t-if="queue.state.failed.length > 1" class="btn btn-sm btn-outline-danger"
+                        t-on-click="() => queue.retryAllFailed()">Reintentar todas</button>
+            </div>
+            <div t-foreach="queue.state.failed" t-as="bad" t-key="bad.uid" class="o_rms_sq_failed_row">
+                <div class="o_rms_sq_failed_text">
+                    <span class="o_rms_sq_code" t-esc="bad.code"/>
+                    <span class="o_rms_sq_failed_error" t-esc="bad.error"/>
+                </div>
+                <button class="btn btn-danger" t-on-click="() => queue.retryFailed(bad.uid)"><i class="fa fa-refresh"/> Reintentar</button>
+                <button class="btn btn-outline-secondary" t-on-click="() => queue.discardFailed(bad.uid)">Descartar</button>
+            </div>
+        </div>
+    </t>
+
+    <!-- Leído pero aún sin confirmar por el servidor: gris con reloj. -->
+    <t t-name="rms_scan_queue.Pending">
+        <ul t-if="queue.state.pending.length" class="o_rms_sq_pending">
+            <li t-foreach="queue.pendingRows" t-as="wait" t-key="'p' + wait.uid" class="o_rms_sq_pending_row">
+                <span class="o_rms_sq_pending_icon" aria-hidden="true"><i class="fa fa-clock-o"/></span>
+                <span class="o_rms_sq_pending_main">
+                    <span class="o_rms_sq_code" t-esc="wait.code"/>
+                    <span class="o_rms_sq_pending_label">Pendiente de enviar ·
+                        <t t-if="queue.state.sendingUid === wait.uid and queue.state.conn === 'ok'">Enviando…</t>
+                        <t t-else="">Guardado en este dispositivo</t>
+                    </span>
+                </span>
+            </li>
+        </ul>
+    </t>
+
+</templates>

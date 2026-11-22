@@ -1,5 +1,14 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models
+import logging
+
+import psycopg2
+
+from odoo import api, fields, models
+from odoo.exceptions import ConcurrencyError
+
+_logger = logging.getLogger(__name__)
+
+_CLIENT_UID_INDEX = "rms_reception_scan_reception_client_uid_uniq"
 
 VERDICTS = [
     ("ok", "Verde: coincide"),
@@ -43,7 +52,47 @@ class RmsReceptionScan(models.Model):
     message = fields.Char(string="Detalle")
     manual = fields.Boolean(string="Escrito a mano")
     undone = fields.Boolean(string="Deshecha")
-    client_uid = fields.Char(string="Id. de lectura en el dispositivo", index=True)
+    client_uid = fields.Char(
+        string="Id. de lectura en el dispositivo", index=True, readonly=True, copy=False,
+        help="Evita duplicar una lectura si el aparato la reenvía tras perder la conexión.",
+    )
+
+    def init(self):
+        """Índice único parcial (reception_id, client_uid). Se crea a mano para
+        que una base con duplicados antiguos no rompa la actualización: en ese
+        caso se avisa en el registro y sigue valiendo la comprobación previa."""
+        cr = self.env.cr
+        cr.execute("SELECT 1 FROM pg_indexes WHERE indexname = %s", (_CLIENT_UID_INDEX,))
+        if cr.fetchone():
+            return
+        cr.execute("""
+            SELECT 1 FROM rms_reception_scan WHERE client_uid IS NOT NULL
+             GROUP BY reception_id, client_uid HAVING count(*) > 1 LIMIT 1
+        """)
+        if cr.fetchone():
+            _logger.warning(
+                "rms_reception_scan: hay lecturas antiguas con el mismo client_uid; "
+                "no se crea el índice único %s.", _CLIENT_UID_INDEX)
+            return
+        cr.execute(
+            "CREATE UNIQUE INDEX %s ON rms_reception_scan (reception_id, client_uid) "
+            "WHERE client_uid IS NOT NULL" % _CLIENT_UID_INDEX)
+
+    @api.model
+    def _create_scan(self, vals):
+        """Crea la lectura. Si otra petición con el mismo client_uid (la misma
+        lectura reenviada mientras la primera seguía en curso) se ha
+        adelantado, se repite la llamada entera: en el reintento ya se ve la
+        fila guardada y se contesta con su mismo veredicto."""
+        if not vals.get("client_uid"):
+            return self.create(vals)
+        try:
+            with self.env.cr.savepoint():
+                return self.create(vals)
+        except psycopg2.errors.UniqueViolation as exc:
+            if getattr(exc.diag, "constraint_name", "") != _CLIENT_UID_INDEX:
+                raise
+            raise ConcurrencyError("Lectura reenviada a la vez: %s" % vals["client_uid"]) from exc
 
     def _payload(self):
         self.ensure_one()
@@ -60,4 +109,6 @@ class RmsReceptionScan(models.Model):
             "time": fields.Datetime.context_timestamp(self, self.scanned_at).strftime("%H:%M"),
             "undone": self.undone,
             "can_undo": bool(self.effect != "none" and not self.undone),
+            # Un código de producto leído vale para la caja siguiente.
+            "sets_context": self.verdict == "product_code" and bool(self.product_id),
         }

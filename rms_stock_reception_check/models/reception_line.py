@@ -188,10 +188,17 @@ class RmsReceptionLine(models.Model):
         return reception.checklist_state()
 
     def checklist_set_qty(self, quantity):
-        """Líneas por cantidad: fija lo contado (botones +/− o tecleado)."""
+        """Líneas por cantidad: fija lo contado (botones +/− o tecleado). Se
+        recibe la cantidad FINAL, nunca un incremento: repetir la llamada con
+        el mismo valor no cambia nada."""
         self.ensure_one()
         reception = self.reception_id
         reception._check_receiving()
+        # De una en una: dos toques seguidos (o un reenvío) con la misma
+        # cantidad final no apuntan dos veces la diferencia.
+        reception._lock()
+        if not self.exists():
+            return reception.checklist_state()
         if not self.by_quantity:
             raise UserError("Esta línea va con número de serie: lee la caja con la pistola.")
         try:

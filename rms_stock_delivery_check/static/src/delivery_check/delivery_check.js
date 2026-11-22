@@ -1,18 +1,21 @@
 /** @odoo-module **/
 
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
+import {
+    BurstReader, QtyWriter, ScanAudio, ScanQueue, actionErrorText, callAction, errorKind, sendRpc,
+} from "@rms_scan_queue/scan_queue";
 
-// La pistola Honeywell no manda Enter: "teclea" el código entero en pocos
-// milisegundos. Una ráfaga rápida seguida de una pausa es una lectura.
-// (Mismos valores probados en el escáner del recuento.)
-const BURST_GAP_MS = 45;
-const BURST_PAUSE_MS = 160;
-const BURST_MIN_CHARS = 4;
+// La cola de lecturas (una lectura nunca se pierde en silencio), el corte de
+// ráfagas de la pistola sin Enter y el sonido son comunes a las pantallas de
+// pistola: rms_scan_queue.
 const REFRESH_MS = 5000;
+const TONE_OK = [[880, 0.08]];
+const TONE_BAD = [[220, 0.3]];
 const FRAME_ID = "o_rms_dc_label_frame";
 
 function isIOS() {
@@ -60,6 +63,7 @@ export class DeliveryCheck extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
         this.dialog = useService("dialog");
+        this.notification = useService("notification");
         this.inputRef = useRef("codeInput");
         const action = this.props.action || {};
         this.pickingId = (action.params && action.params.picking_id) || (action.context && action.context.active_id);
@@ -71,18 +75,66 @@ export class DeliveryCheck extends Component {
             banner: null, // última lectura hecha en ESTE aparato
             lastScanId: 0,
         });
-        this._queue = [];
-        this._working = false;
-        this._burst = null;
-        this._onGlobalKeydown = (ev) => this._redirectScannerKey(ev);
+        this._generation = 0; // sube con cada respuesta aplicada: un refresco viejo no pisa lo nuevo
+
+        // Cola de lecturas de ESTE albarán, operario y aparato.
+        this.queueState = useState(ScanQueue.initialState());
+        this.queue = new ScanQueue({
+            state: this.queueState,
+            name: `delivery.${this.pickingId}.u${user.userId}`,
+            dialog: this.dialog,
+            notification: this.notification,
+            where: "en el albarán",
+            // Se envían en orden y de una en una (paquetes, unidades leídas).
+            send: (item) => sendRpc("stock.picking", "rms_check_scan", [[this.pickingId], item.code],
+                { client_uid: item.uid }),
+            reject: (item, result) => (result && result.scan_id ? false
+                : "Lectura vacía: no es un código que se pueda guardar."),
+            onSaved: (item, result) => this._applyScan(result),
+            onAside: (item, message) => {
+                this.state.banner = { result: "red", code: item.code, label: "No se ha guardado la lectura", message };
+                this._beep(false);
+            },
+            probe: () => this._load(true),
+            afterAction: () => this._focusInput(),
+        });
+        this.reader = new BurstReader({
+            state: this.queueState,
+            getInput: () => this.inputRef.el,
+            onCode: (code) => this._enqueue(code),
+        });
+        this.audio = new ScanAudio(this.queueState);
+        this.qtyWriter = new QtyWriter({
+            send: (moveId, qty) => callAction(this.queue, "stock.picking", "rms_check_set_qty", [[this.pickingId], moveId, qty]),
+            onSaved: (moveId, qty, data, isLast) => {
+                if (isLast) {
+                    this._setData(data);
+                }
+            },
+            onFailed: (moveId, confirmed, message) => {
+                this._showQty(moveId, confirmed);
+                this.state.error = message;
+                this._beep(false);
+            },
+        });
+        this._onGlobalKeydown = (ev) => {
+            if (this.canScan) {
+                this.reader.redirectKey(ev);
+            }
+        };
 
         onMounted(async () => {
             window.addEventListener("keydown", this._onGlobalKeydown, true);
+            this.audio.start();
+            if (this.pickingId) {
+                // Lo que quedó sin enviar en este aparato se ve (y se envía) desde ya.
+                this.queue.start();
+            }
             await this._load();
             this._focusInput();
             // Varios operarios a la vez: se refresca solo.
             this._refreshTimer = setInterval(() => {
-                if (!this._working && !this.state.busy && !document.hidden) {
+                if (!this.state.busy && !document.hidden) {
                     this._load(true);
                 }
             }, REFRESH_MS);
@@ -90,52 +142,71 @@ export class DeliveryCheck extends Component {
         onWillUnmount(() => {
             window.removeEventListener("keydown", this._onGlobalKeydown, true);
             clearInterval(this._refreshTimer);
-            clearTimeout(this._burstTimer);
+            this.queue.destroy();
+            this.reader.destroy();
+            this.audio.destroy();
         });
     }
 
     // ------------------------------------------------------------ servidor
-    async _rpc(method, args = []) {
-        try {
-            this.state.error = "";
-            return await this.orm.call("stock.picking", method, [[this.pickingId], ...args]);
-        } catch (error) {
-            const message = (error && error.data && error.data.message) || (error && error.message) || String(error);
-            this.state.error = message;
-            this._beep(false);
-            return null;
-        }
+    _setData(data) {
+        this._generation += 1;
+        this.state.data = data;
     }
 
+    // Con lecturas pendientes no se refresca: la cola trae el estado al entrar.
     async _load(silent = false) {
         if (!this.pickingId) {
             this.state.loading = false;
             this.state.error = "No se sabe qué albarán abrir. Vuelve al albarán y pulsa «Abrir checklist».";
             return;
         }
-        let data = null;
-        try {
-            data = await this.orm.call("stock.picking", "rms_check_get_state", [[this.pickingId]]);
-        } catch (error) {
-            if (!silent) {
-                this.state.error = (error && error.data && error.data.message) || "No se ha podido cargar el albarán.";
-            }
+        if (silent && (this.queueState.pending.length || this.qtyWriter.busy)) {
+            return;
         }
-        if (data && !this._working) {
-            this.state.data = data;
+        const generation = this._generation;
+        try {
+            const data = await sendRpc("stock.picking", "rms_check_get_state", [[this.pickingId]]);
+            this.queue.noteOk();
+            if (generation === this._generation && !this.queueState.pending.length && !this.qtyWriter.busy) {
+                this.state.data = data;
+                if (this._loadFailed) {
+                    this._loadFailed = false;
+                    this.state.error = "";
+                }
+            }
+        } catch (error) {
+            const kind = await errorKind(error);
+            this.queue.noteError(kind);
+            if (!this.state.data) {
+                this._loadFailed = true;
+                this.state.error = kind === "user" ? actionErrorText(error, kind)
+                    : "No se ha podido cargar el albarán: no hay conexión. Se vuelve a intentar sola.";
+            }
         }
         this.state.loading = false;
     }
 
+    // Botones que no son lecturas (He terminado, validar, aprobar, Revisado,
+    // deshacer): NO van a la cola. La llamada siempre termina y, si falla, se
+    // dice claro y el botón queda libre para volver a pulsar.
     async _do(method, args = []) {
         if (this.state.busy) {
             return null;
         }
         this.state.busy = true;
-        const result = await this._rpc(method, args);
+        this.state.error = "";
+        const answer = await callAction(this.queue, "stock.picking", method, [[this.pickingId], ...args]);
         this.state.busy = false;
-        if (result) {
-            this.state.data = result.state || result;
+        let result = null;
+        if (answer.ok) {
+            result = answer.result;
+            if (result) {
+                this._setData(result.state || result);
+            }
+        } else {
+            this.state.error = answer.message;
+            this._beep(false);
         }
         this._focusInput();
         return result;
@@ -153,145 +224,45 @@ export class DeliveryCheck extends Component {
         }
     }
 
-    _redirectScannerKey(ev) {
-        if (!this.canScan || ev.ctrlKey || ev.metaKey || ev.altKey || ev.isComposing) {
-            return;
-        }
-        const input = this.inputRef.el;
-        const target = ev.target;
-        if (!input || target === input) {
-            return;
-        }
-        if (target && target.closest && target.closest("input, textarea, select, [contenteditable='true'], .modal")) {
-            return;
-        }
-        if (document.querySelector(".modal.show, .o_dialog")) {
-            return;
-        }
-        if (ev.key === "Enter") {
-            if (input.value) {
-                ev.preventDefault();
-                ev.stopPropagation();
-                this._submitInput();
-            }
-            return;
-        }
-        if (ev.key.length !== 1) {
-            return;
-        }
-        ev.preventDefault();
-        ev.stopPropagation();
-        input.focus({ preventScroll: true });
-        input.value += ev.key;
-        this.onCodeInput({ target: input });
-    }
-
     onCodeKeydown(ev) {
-        if (ev.key === "Enter") {
-            ev.preventDefault();
-            this._submitInput();
-        }
+        this.reader.onKeydown(ev);
     }
 
     onCodeInput(ev) {
-        const input = ev.target;
-        const now = performance.now();
-        const burst = this._burst;
-        if (!burst || now - burst.last > BURST_GAP_MS) {
-            this._burst = { start: now, last: now, chars: 1, from: Math.max(0, input.value.length - 1) };
-        } else {
-            burst.last = now;
-            burst.chars += 1;
-        }
-        clearTimeout(this._burstTimer);
-        this._burstTimer = setTimeout(() => this._flushBurst(input), BURST_PAUSE_MS);
-    }
-
-    _flushBurst(input) {
-        const burst = this._burst;
-        this._resetBurst();
-        if (!burst || !input || burst.chars < BURST_MIN_CHARS) {
-            return;
-        }
-        if ((burst.last - burst.start) / (burst.chars - 1) > BURST_GAP_MS) {
-            return;
-        }
-        const code = input.value.slice(burst.from);
-        input.value = input.value.slice(0, burst.from);
-        this._enqueue(code);
-    }
-
-    _resetBurst() {
-        clearTimeout(this._burstTimer);
-        this._burst = null;
-    }
-
-    _submitInput() {
-        const input = this.inputRef.el;
-        if (!input) {
-            return;
-        }
-        this._resetBurst();
-        const code = input.value;
-        input.value = "";
-        this._enqueue(code);
-        this._focusInput();
+        this.reader.onInput(ev);
     }
 
     addTypedCode() {
-        this._submitInput();
+        this.reader.submit();
+        this._focusInput();
     }
 
+    // Cada lectura queda guardada en el aparato ANTES de enviarla: o entra en
+    // el servidor o sigue a la vista como pendiente / con error.
     _enqueue(code) {
         code = (code || "").trim();
         if (!code) {
             return;
         }
-        this._queue.push(code);
-        this._processQueue();
+        this.queue.enqueue(code);
+        if (this.queueState.conn !== "ok") {
+            this.state.banner = { result: "grey", code, label: "Pendiente de enviar",
+                message: "Guardada en este dispositivo: se enviará sola al volver la conexión." };
+        }
     }
 
-    async _processQueue() {
-        if (this._working) {
-            return;
+    _applyScan(result) {
+        this._setData(result.state);
+        const scan = result.scan || result.state.feed.find((row) => row.id === result.scan_id);
+        if (scan) {
+            this.state.lastScanId = scan.id;
+            this.state.banner = scan;
+            this._beep(scan.result === "ok");
         }
-        this._working = true;
-        while (this._queue.length) {
-            const code = this._queue.shift();
-            const result = await this._rpc("rms_check_scan", [code]);
-            if (!result) {
-                this.state.banner = { result: "red", code, label: "No se ha guardado la lectura", message: this.state.error };
-                continue;
-            }
-            this.state.data = result.state;
-            const scan = result.state.feed.find((row) => row.id === result.scan_id);
-            if (scan) {
-                this.state.lastScanId = scan.id;
-                this.state.banner = scan;
-                this._beep(scan.result === "ok");
-            }
-        }
-        this._working = false;
     }
 
     _beep(ok) {
-        try {
-            const Ctx = window.AudioContext || window.webkitAudioContext;
-            if (!Ctx) {
-                return;
-            }
-            this._audio = this._audio || new Ctx();
-            const osc = this._audio.createOscillator();
-            const gain = this._audio.createGain();
-            osc.frequency.value = ok ? 880 : 220;
-            gain.gain.value = 0.08;
-            osc.connect(gain);
-            gain.connect(this._audio.destination);
-            osc.start();
-            osc.stop(this._audio.currentTime + (ok ? 0.08 : 0.3));
-        } catch {
-            // sin sonido
-        }
+        this.audio.play(ok ? TONE_OK : TONE_BAD);
     }
 
     // ------------------------------------------------------------- acciones
@@ -341,9 +312,22 @@ export class DeliveryCheck extends Component {
         return this._do("rms_check_set_reviewed", [unit.scan_id, !unit.reviewed]);
     }
 
+    // + y −: se envía la cantidad FINAL (no "+1"), de una en una. Un doble
+    // toque o un reenvío no cuentan dos veces; si falla, vuelve a lo guardado.
     setQty(group, qty) {
         qty = Math.max(0, Math.min(group.demand, qty));
-        return this._do("rms_check_set_qty", [group.move_id, qty]);
+        const confirmed = group.done;
+        this.state.error = "";
+        this._showQty(group.move_id, qty);
+        this.qtyWriter.set(group.move_id, qty, confirmed);
+    }
+
+    _showQty(moveId, qty) {
+        const group = this.state.data.groups.find((row) => row.move_id === moveId);
+        if (group) {
+            group.done = qty;
+            group.complete = qty >= group.demand;
+        }
     }
 
     onQtyChange(group, ev) {
@@ -358,6 +342,10 @@ export class DeliveryCheck extends Component {
     }
 
     async finish() {
+        // Con lecturas sin enviar o con error no se termina: se quedarían fuera.
+        if (this.queue.blocked("terminar") || this._qtyPending()) {
+            return;
+        }
         const result = await this._do("rms_check_finish");
         if (result) {
             this.state.banner = null;
@@ -366,6 +354,15 @@ export class DeliveryCheck extends Component {
 
     reopen() {
         return this._do("rms_check_reopen");
+    }
+
+    _qtyPending() {
+        if (this.qtyWriter.busy) {
+            this.notification.add("Se está guardando una cantidad: espera un momento y vuelve a pulsar.",
+                { type: "warning" });
+            return true;
+        }
+        return false;
     }
 
     _confirm(title, body, confirmLabel, callback) {
@@ -377,6 +374,9 @@ export class DeliveryCheck extends Component {
     }
 
     validate() {
+        if (this.queue.blocked("validar")) {
+            return;
+        }
         const data = this.state.data;
         const body = data.counters.missing
             ? `Sale INCOMPLETO: ${this.fmt(data.counters.read)} de ${this.fmt(data.counters.total)} unidades (autorizado por el administrador). ¿Validar el albarán?`
@@ -413,6 +413,9 @@ export class DeliveryCheck extends Component {
     }
 
     back() {
+        if (this.canScan && this.queue.blocked("salir")) {
+            return;
+        }
         this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "stock.picking",

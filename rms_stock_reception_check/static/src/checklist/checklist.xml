@@ -6,6 +6,13 @@
             <div t-if="state.loading" class="o_rms_rc_message">Cargando la recepción…</div>
             <div t-elif="state.error" class="o_rms_rc_message">
                 <p t-esc="state.error"/>
+                <!-- Aunque la recepción no cargue, lo que quedó sin enviar sigue a la vista. -->
+                <div class="o_rms_rc_message_queue" t-if="queue.busy or queueState.conn !== 'ok'">
+                    <t t-call="rms_scan_queue.SaveStatus"/>
+                    <t t-call="rms_scan_queue.Expired"/>
+                    <t t-call="rms_scan_queue.Failed"/>
+                    <t t-call="rms_scan_queue.Pending"/>
+                </div>
             </div>
             <t t-else="">
                 <!-- Cabecera: de qué recepción se trata + marcador -->
@@ -25,6 +32,8 @@
                             · <t t-esc="data.reception.warehouse"/> (<t t-esc="data.reception.company"/>)
                         </div>
                     </div>
+                    <!-- Dónde están las lecturas ahora mismo: siempre a la vista. -->
+                    <t t-call="rms_scan_queue.SaveStatus"/>
                     <div class="o_rms_rc_score">
                         <div class="o_rms_rc_tile o_rms_rc_tile_green">
                             <div class="o_rms_rc_tile_num">
@@ -47,6 +56,8 @@
                         </div>
                     </div>
                 </div>
+
+                <t t-call="rms_scan_queue.Expired"/>
 
                 <div t-if="readonly" class="o_rms_rc_banner">
                     <t t-if="data.reception.state == 'review'">
@@ -167,6 +178,9 @@
                                    t-on-keydown="onCodeKeydown" t-on-input="onCodeInput"/>
                             <button class="btn btn-primary btn-lg" t-on-click="addTypedCode">Añadir</button>
                         </div>
+                        <div class="o_rms_rc_notes">
+                            <t t-call="rms_scan_queue.Notes"/>
+                        </div>
 
                         <div t-if="state.verdict" class="o_rms_rc_verdict" t-att-class="'o_rms_rc_verdict_' + state.verdict.kind">
                             <div class="o_rms_rc_verdict_title" t-esc="state.verdict.title"/>
@@ -194,6 +208,10 @@
                                 <i class="fa fa-file-text-o"/> Cargar otro documento
                             </button>
                         </div>
+
+                        <!-- Lecturas que aún no están en el servidor: con error o pendientes de enviar. -->
+                        <t t-call="rms_scan_queue.Failed"/>
+                        <t t-call="rms_scan_queue.Pending"/>
 
                         <div class="o_rms_rc_box" t-if="data.extras.length">
                             <div class="o_rms_rc_box_title" t-att-class="blind ? 'o_rms_rc_text_blue' : 'o_rms_rc_text_red'">
@@ -272,7 +290,7 @@
                         </label>
                         <div class="o_rms_rc_panel_error" t-if="state.panel.error" t-esc="state.panel.error"/>
                         <div class="o_rms_rc_panel_buttons">
-                            <button class="btn btn-primary btn-lg o_rms_rc_manual_save" t-on-click="saveNoLabel">Guardar</button>
+                            <button class="btn btn-primary btn-lg o_rms_rc_manual_save" t-att-disabled="state.panel.busy" t-on-click="saveNoLabel">Guardar</button>
                             <button class="btn btn-light btn-lg" t-on-click="closePanel">Cancelar</button>
                         </div>
                     </div>

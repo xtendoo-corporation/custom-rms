@@ -1,5 +1,13 @@
+import logging
+
+import psycopg2
+
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import ConcurrencyError, UserError
+
+_logger = logging.getLogger(__name__)
+
+_CLIENT_UID_INDEX = 'rms_delivery_scan_picking_client_uid_uniq'
 
 RESULTS = [
     ('ok', 'Correcto'),
@@ -74,6 +82,46 @@ class RmsDeliveryScan(models.Model):
     incident_resolved = fields.Boolean(string='Incidencia resuelta')
     incident_resolved_by_id = fields.Many2one('res.users', string='Resuelta por')
     incident_note = fields.Char(string='Nota de la incidencia')
+    client_uid = fields.Char(
+        string='Id. de lectura en el dispositivo', readonly=True, copy=False, index=True,
+        help="Evita duplicar una lectura si el aparato la reenvía tras perder la conexión.")
+
+    def init(self):
+        """Índice único parcial (picking_id, client_uid): la misma lectura
+        reenviada no puede guardarse dos veces. A mano, para que solo afecte a
+        las lecturas que traen identificador."""
+        cr = self.env.cr
+        cr.execute("SELECT 1 FROM pg_indexes WHERE indexname = %s", (_CLIENT_UID_INDEX,))
+        if cr.fetchone():
+            return
+        cr.execute("""
+            SELECT 1 FROM rms_delivery_scan WHERE client_uid IS NOT NULL
+             GROUP BY picking_id, client_uid HAVING count(*) > 1 LIMIT 1
+        """)
+        if cr.fetchone():
+            _logger.warning(
+                "rms_delivery_scan: hay lecturas con el mismo client_uid; no se crea el índice único %s.",
+                _CLIENT_UID_INDEX)
+            return
+        cr.execute(
+            "CREATE UNIQUE INDEX %s ON rms_delivery_scan (picking_id, client_uid) "
+            "WHERE client_uid IS NOT NULL" % _CLIENT_UID_INDEX)
+
+    @api.model
+    def _create_scan(self, vals):
+        """Crea la lectura. Si otra petición con el mismo client_uid (la misma
+        lectura reenviada mientras la primera seguía en curso) se ha
+        adelantado, se repite la llamada entera: en el reintento ya se ve la
+        fila guardada y se contesta con su mismo veredicto."""
+        if not vals.get('client_uid'):
+            return self.create(vals)
+        try:
+            with self.env.cr.savepoint():
+                return self.create(vals)
+        except psycopg2.errors.UniqueViolation as exc:
+            if getattr(exc.diag, 'constraint_name', '') != _CLIENT_UID_INDEX:
+                raise
+            raise ConcurrencyError("Lectura reenviada a la vez: %s" % vals['client_uid']) from exc
 
     @api.model_create_multi
     def create(self, vals_list):

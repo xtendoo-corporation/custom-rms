@@ -1,0 +1,144 @@
+// Piezas comunes de las pantallas de pistola (cola de lecturas).
+// Mismos colores que el escáner del recuento. Compatible con libsass.
+
+$rms-sq-ok-bg: #d1e7dd;
+$rms-sq-bad: #dc3545;
+$rms-sq-bad-bg: #f8d7da;
+$rms-sq-grey: #6c757d;
+$rms-sq-grey-bg: #e9ecef;
+
+// Indicador fijo de la barra: verde / ámbar / rojo.
+.o_rms_sq_save {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 6px;
+    height: 40px;
+    padding: 0 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    border-radius: 6px;
+}
+.o_rms_sq_save_ok,
+.o_rms_sq_save_ok:hover { background: $rms-sq-ok-bg; color: #0f5132; border-color: #b7dfc7; }
+.o_rms_sq_save_busy,
+.o_rms_sq_save_busy:hover { background: $rms-sq-grey-bg; color: #343a40; border-color: #ced4da; }
+.o_rms_sq_save_warn,
+.o_rms_sq_save_warn:hover { background: #ffc107; color: #3d2f00; border-color: #d99200; }
+.o_rms_sq_save_bad,
+.o_rms_sq_save_bad:hover { background: $rms-sq-bad; color: #fff; border-color: #a71d2a; }
+.o_rms_sq_save_retry {
+    padding-left: 8px;
+    border-left: 1px solid currentColor;
+    font-weight: 600;
+}
+
+.o_rms_sq_expired {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 8px 12px;
+    padding: 10px 12px;
+    background: $rms-sq-bad;
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 600;
+    > span { flex: 1 1 16rem; }
+    .btn { flex: 0 0 auto; min-height: 44px; font-weight: 700; }
+}
+
+.o_rms_sq_note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 4px;
+    padding: 6px 10px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    text-align: left;
+    > span { flex: 1 1 auto; min-width: 0; }
+    .btn { flex: 0 0 auto; min-height: 36px; white-space: nowrap; }
+}
+.o_rms_sq_note_warn { background: #ffe69c; color: #3d2f00; border-color: #d99200; font-weight: 600; }
+.o_rms_sq_note_bad { background: $rms-sq-bad-bg; color: #842029; border-color: #f1b0b7; font-weight: 600; }
+.o_rms_sq_note_quiet {
+    background: transparent;
+    color: $rms-sq-grey;
+    border-color: #dee2e6;
+    font-size: 0.85rem;
+    padding: 3px 10px;
+}
+
+.o_rms_sq_code {
+    font-family: monospace;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+// Lecturas que el servidor rechaza: a la vista hasta resolverlas.
+.o_rms_sq_failed {
+    margin: 6px 0;
+    border: 2px solid $rms-sq-bad;
+    border-radius: 6px;
+    background: $rms-sq-bad-bg;
+}
+.o_rms_sq_failed_head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    color: #842029;
+    font-weight: 700;
+}
+.o_rms_sq_failed_row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-top: 1px solid #f1b0b7;
+    .btn { flex: 0 0 auto; min-height: 40px; white-space: nowrap; }
+}
+.o_rms_sq_failed_text {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 12rem;
+    min-width: 0;
+}
+.o_rms_sq_failed_error { color: #842029; font-size: 0.9rem; }
+
+// Leído pero aún sin confirmar por el servidor: gris con reloj.
+.o_rms_sq_pending {
+    list-style: none;
+    margin: 6px 0;
+    padding: 0;
+}
+.o_rms_sq_pending_row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 3px;
+    padding: 6px 10px;
+    border: 1px dashed #adb5bd;
+    border-left: 4px dashed $rms-sq-grey;
+    border-radius: 6px;
+    background: #f8f9fa;
+    color: #495057;
+}
+.o_rms_sq_pending_icon { color: $rms-sq-grey; }
+.o_rms_sq_pending_main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.o_rms_sq_pending_label { font-size: 0.85rem; color: $rms-sq-grey; }
+
+@media (max-width: 575.98px) {
+    .o_rms_sq_save_retry_label { display: none; }
+}

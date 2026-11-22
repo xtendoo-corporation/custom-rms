@@ -7,6 +7,13 @@
             </div>
             <div t-elif="!state.data" class="p-4">
                 <div class="alert alert-danger" t-esc="state.error || 'No se ha podido abrir el checklist.'"/>
+                <!-- Aunque el albarán no cargue, lo que quedó sin enviar sigue a la vista. -->
+                <t t-if="queue.busy or queueState.conn !== 'ok'">
+                    <t t-call="rms_scan_queue.SaveStatus"/>
+                    <t t-call="rms_scan_queue.Expired"/>
+                    <t t-call="rms_scan_queue.Failed"/>
+                    <t t-call="rms_scan_queue.Pending"/>
+                </t>
             </div>
             <t t-else="">
                 <t t-set="data" t-value="state.data"/>
@@ -22,6 +29,8 @@
                         <span t-if="data.picking.origin" class="o_rms_dc_origin" t-esc="data.picking.origin"/>
                     </div>
                     <span t-attf-class="o_rms_dc_kind o_rms_dc_kind_#{data.picking.kind}" t-esc="data.picking.kind_label"/>
+                    <!-- Dónde están las lecturas ahora mismo: siempre a la vista. -->
+                    <t t-call="rms_scan_queue.SaveStatus"/>
                     <div class="o_rms_dc_counters">
                         <span class="o_rms_dc_counter o_rms_dc_c_ok" title="Leídos">
                             <b><t t-esc="fmt(c.read)"/> de <t t-esc="fmt(c.total)"/></b> leídos
@@ -41,6 +50,8 @@
                     </div>
                 </div>
 
+                <t t-call="rms_scan_queue.Expired"/>
+
                 <!-- Lectura -->
                 <div class="o_rms_dc_scanbar" t-if="data.editable">
                     <input t-ref="codeInput" type="text" class="form-control o_rms_dc_input"
@@ -48,6 +59,9 @@
                            autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="none"
                            t-on-keydown="onCodeKeydown" t-on-input="onCodeInput"/>
                     <button class="btn btn-secondary o_rms_dc_add" t-on-click="addTypedCode">Añadir</button>
+                </div>
+                <div class="o_rms_dc_notes">
+                    <t t-call="rms_scan_queue.Notes"/>
                 </div>
                 <div t-if="state.error" class="o_rms_dc_error">
                     <i class="fa fa-exclamation-circle me-2"/><span t-esc="state.error"/>
@@ -144,8 +158,11 @@
                                 </li>
                             </ul>
                         </t>
+                        <!-- Lecturas que aún no están en el servidor: con error o pendientes de enviar. -->
+                        <t t-call="rms_scan_queue.Failed"/>
+                        <t t-call="rms_scan_queue.Pending"/>
                         <div class="o_rms_dc_side_title">Últimas lecturas</div>
-                        <div t-if="!data.feed.length" class="text-muted p-2">Todavía no se ha leído nada.</div>
+                        <div t-if="!data.feed.length and !queue.busy" class="text-muted p-2">Todavía no se ha leído nada.</div>
                         <ul class="o_rms_dc_feed">
                             <li t-foreach="data.feed" t-as="row" t-key="row.id"
                                 t-attf-class="o_rms_dc_feed_row o_rms_dc_r_#{row.result} #{row.undone ? 'o_rms_dc_undone' : ''} #{row.id === data.last_scan_id ? 'o_rms_dc_last' : ''}">

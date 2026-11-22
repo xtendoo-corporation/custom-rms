@@ -845,3 +845,15 @@ $rc-line: #dfe3e8;
         transition: none;
     }
 }
+
+// Avisos de la cola de lecturas (rms_scan_queue).
+.o_rms_rc .o_rms_rc_notes:empty { display: none; }
+.o_rms_rc .o_rms_rc_notes .o_rms_sq_note:first-child { margin-top: 0; }
+.o_rms_rc .o_rms_rc_message_queue {
+    max-width: 640px;
+    margin: 16px auto 0;
+    font-size: 1rem;
+    text-align: left;
+}
+.o_rms_rc .o_rms_sq_failed,
+.o_rms_rc .o_rms_sq_pending { margin: 0; }

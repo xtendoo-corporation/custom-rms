@@ -276,3 +276,18 @@ $rms-info-bg: #e3edff;
     from { filter: brightness(0.82); }
     to { filter: brightness(1); }
 }
+
+// Avisos de la cola de lecturas (rms_scan_queue) junto a la casilla.
+.o_rms_dc .o_rms_dc_notes {
+    flex: 0 0 auto;
+    padding: 0 10px;
+}
+.o_rms_dc .o_rms_sq_expired { margin: 0; }
+.o_rms_dc .o_rms_sq_failed,
+.o_rms_dc .o_rms_sq_pending { margin-right: 6px; }
+// Con el indicador de guardado la barra no cabe en una línea en el iPad:
+// baja a dos antes que cortar el nº de albarán.
+@media (max-width: 1199.98px) {
+    .o_rms_dc .o_rms_dc_bar { flex-wrap: wrap; }
+    .o_rms_dc .o_rms_dc_title { flex: 1 1 14rem; }
+}

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError, ConcurrencyError, UserError
 from odoo.tests.common import tagged
+from odoo.tools import mute_logger
 
 from .common import ReceptionCommon
 
@@ -63,6 +64,76 @@ class TestReceptionChecklist(ReceptionCommon):
         second = self._scan(self.reception, "26476604", client_uid="abc-1")
         self.assertEqual(first["id"], second["id"])
         self.assertTrue(second["resent"])
+        self.assertEqual(len(self.reception.scan_ids), 1)
+
+    def test_resent_reading_keeps_verdict_and_effects(self):
+        """Reenviar la misma lectura (mismo client_uid) no cambia nada: ni
+        otra fila, ni otra unidad, ni otro veredicto."""
+        code = self._scan(self.reception, "0933800104", client_uid="uid-code")
+        self.assertTrue(code["sets_context"])
+        again = self._scan(self.reception, "0933800104", client_uid="uid-code")
+        self.assertTrue(again["sets_context"])     # el reenvío sigue fijando el producto de la caja siguiente
+        ok = self._scan(self.reception, "26476604", product=self.ultra, client_uid="uid-1")
+        self.assertEqual(ok["verdict"], "ok")
+        # otra lectura (otro uid) de la misma caja: «ya leído»
+        repeat = self._scan(self.reception, "26476604", client_uid="uid-2")
+        self.assertEqual(repeat["verdict"], "repeat")
+        # el reenvío de la primera sigue siendo verde, no «ya leído»
+        resent = self._scan(self.reception, "26476604", product=self.ultra, client_uid="uid-1")
+        self.assertEqual((resent["id"], resent["verdict"], resent["line_id"]), (ok["id"], "ok", ok["line_id"]))
+        self.assertEqual(self._scan(self.reception, "26476604", client_uid="uid-2")["verdict"], "repeat")
+        # sin nº de serie: el código del producto suma UNA unidad aunque se reenvíe
+        self._scan(self.reception, "0733004033808", client_uid="uid-q")
+        self._scan(self.reception, "0733004033808", client_uid="uid-q")
+        self.assertEqual(self.lines[4].qty_received, 1)
+        self.assertEqual(self.reception.count_received, 2)
+        self.assertEqual(len(self.reception.scan_ids), 4)
+        # el mismo uid en OTRA recepción es otra lectura
+        other = self._reception([(self.rack, "168-102760", 1)])
+        other.action_start()
+        self.assertEqual(self._scan(other, "168-102760", client_uid="uid-1")["verdict"], "ok")
+
+    def test_resent_reading_after_finish_answers_the_same(self):
+        ok = self._scan(self.reception, "26476604", client_uid="uid-1")
+        self.reception.with_user(self.operator).action_finish()
+        # la respuesta se perdió y la cola reenvía cuando la recepción ya está en revisión
+        resent = self._scan(self.reception, "26476604", client_uid="uid-1")
+        self.assertEqual((resent["id"], resent["verdict"]), (ok["id"], "ok"))
+        with self.assertRaises(UserError):          # una lectura NUEVA sí se rechaza
+            self._scan(self.reception, "26476605", client_uid="uid-3")
+        self.assertEqual(len(self.reception.scan_ids), 1)
+
+    def test_client_uid_unique_index(self):
+        self.env.cr.execute(
+            "SELECT indexdef FROM pg_indexes WHERE indexname = 'rms_reception_scan_reception_client_uid_uniq'")
+        row = self.env.cr.fetchone()
+        self.assertTrue(row)
+        self.assertIn("UNIQUE", row[0])
+        self._scan(self.reception, "26476604", client_uid="uid-1")
+        with self.assertRaises(ConcurrencyError), mute_logger("odoo.sql_db"):
+            self.env["rms.reception.scan"]._create_scan({
+                "reception_id": self.reception.id, "code": "26476604", "verdict": "ok", "client_uid": "uid-1"})
+        self.assertEqual(len(self.reception.scan_ids), 1)
+
+    def test_set_qty_is_final_quantity_not_increment(self):
+        """Doble pulsación o reenvío de +: llega dos veces la misma cantidad
+        final y solo cuenta una."""
+        line = self.lines[4]
+        line.with_user(self.operator).checklist_set_qty(2)
+        line.with_user(self.operator).checklist_set_qty(2)
+        self.assertEqual(line.qty_received, 2)
+        qty_scans = self.reception.scan_ids.filtered(lambda s: s.effect == "qty")
+        self.assertEqual(sum(qty_scans.mapped("quantity")), 2)
+        self.assertEqual(len(qty_scans), 1)
+
+    def test_manual_serial_resent_is_not_duplicated(self):
+        Reception = self.reception.with_user(self.operator)
+        first = Reception.checklist_manual_serial("26476604", "26476604", self.ultra.id, client_uid="uid-m")
+        second = Reception.checklist_manual_serial("26476604", "26476604", self.ultra.id, client_uid="uid-m")
+        self.assertEqual(first["result"]["verdict"], "ok")
+        self.assertEqual(second["result"]["verdict"], "ok")
+        self.assertEqual(first["result"]["id"], second["result"]["id"])
+        self.assertTrue(second["print_action"])
         self.assertEqual(len(self.reception.scan_ids), 1)
 
     def test_grey_product_codes_do_not_count(self):

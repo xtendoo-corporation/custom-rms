@@ -1,18 +1,19 @@
 /** @odoo-module **/
 
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { Component, onMounted, onPatched, onWillUnmount, useRef, useState } from "@odoo/owl";
+import {
+    BurstReader, QtyWriter, ScanAudio, ScanQueue, actionErrorText, callAction, errorKind, newUid, sendRpc,
+    storageGet, storageSet,
+} from "@rms_scan_queue/scan_queue";
 
-// La pistola Honeywell viene de fábrica SIN Enter al final: "teclea" el código
-// entero en pocos milisegundos. Una ráfaga de >= 4 caracteres con < 45 ms
-// entre teclas seguida de 160 ms de pausa es una lectura completa.
-// (Mismos valores, ya probados, que el escáner de rms_stock_count_session.)
-const BURST_GAP_MS = 45;
-const BURST_PAUSE_MS = 160;
-const BURST_MIN_CHARS = 4;
+// La cola de lecturas (una lectura nunca se pierde en silencio), el corte de
+// ráfagas de la pistola sin Enter y el sonido son comunes a las pantallas de
+// pistola: rms_scan_queue.
 const REFRESH_MS = 6000;
 // El código de producto leído vale para la caja siguiente, no para siempre.
 const CONTEXT_TTL_MS = 30000;
@@ -27,6 +28,7 @@ const VERDICTS = {
     ignored: { kind: "grey", title: "No cuenta" },
     repeat: { kind: "grey", title: "Ya leído" },
     error: { kind: "red", title: "No se ha guardado" },
+    queued: { kind: "grey", title: "Pendiente de enviar" },
 };
 const TONES = {
     green: [[1200, 0.09]],
@@ -35,13 +37,6 @@ const TONES = {
     grey: [[500, 0.06]],
     blue: [[900, 0.08]],
 };
-
-function newUid() {
-    if (window.crypto && window.crypto.randomUUID) {
-        return window.crypto.randomUUID();
-    }
-    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 export class ReceptionChecklist extends Component {
     static template = "rms_stock_reception_check.Checklist";
@@ -68,14 +63,58 @@ export class ReceptionChecklist extends Component {
             collapsed: {},
             openLine: false,
             lastLine: false,
-            pending: 0,
         });
-        this._queue = Promise.resolve();
         this._scrollTo = false;
+        this._generation = 0; // sube con cada respuesta aplicada: un refresco viejo no pisa lo nuevo
 
-        this._onGlobalKeydown = (ev) => this._redirectScannerKey(ev);
+        // Cola de lecturas de ESTA recepción, operario y aparato.
+        const queueName = `reception.${this.receptionId}.u${user.userId}`;
+        this.contextKey = `rms_scan_queue.${queueName}.context`;
+        this.queueState = useState(ScanQueue.initialState());
+        this.queue = new ScanQueue({
+            state: this.queueState,
+            name: queueName,
+            dialog: this.dialog,
+            notification: this.notification,
+            where: "en la recepción",
+            send: (item) => this._sendScan(item),
+            onSaved: (item, response) => this._applyScan(response, { item }),
+            onAside: (item, message) => {
+                this._setVerdict("error", message, item.code);
+                this._beep("red");
+            },
+            probe: () => this._refresh(true),
+            afterAction: () => this._focusInput(),
+        });
+        this.reader = new BurstReader({
+            state: this.queueState,
+            getInput: () => this.inputRef.el,
+            onCode: (code) => this._enqueue(code),
+        });
+        this.audio = new ScanAudio(this.queueState);
+        this.qtyWriter = new QtyWriter({
+            send: (lineId, quantity) =>
+                callAction(this.queue, "rms.reception.line", "checklist_set_qty", [[lineId], quantity]),
+            onSaved: (lineId, quantity, data, isLast) => {
+                if (isLast) {
+                    this._setData(data);
+                    this.state.lastLine = lineId;
+                }
+            },
+            onFailed: (lineId, confirmed, message) => {
+                this._showQty(lineId, confirmed);
+                this.notification.add(message, { type: "danger" });
+            },
+        });
+
+        this._onGlobalKeydown = (ev) => {
+            if (!this.readonly && !this.state.panel) {
+                this.reader.redirectKey(ev);
+            }
+        };
         onMounted(() => {
             window.addEventListener("keydown", this._onGlobalKeydown, true);
+            this.audio.start();
             this._load();
             this._refreshTimer = setInterval(() => this._refresh(), REFRESH_MS);
         });
@@ -83,8 +122,10 @@ export class ReceptionChecklist extends Component {
         onWillUnmount(() => {
             window.removeEventListener("keydown", this._onGlobalKeydown, true);
             clearInterval(this._refreshTimer);
-            clearTimeout(this._burstTimer);
             clearTimeout(this._contextTimer);
+            this.queue.destroy();
+            this.reader.destroy();
+            this.audio.destroy();
         });
     }
 
@@ -179,81 +220,62 @@ export class ReceptionChecklist extends Component {
         return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100);
     }
 
+    _setData(data) {
+        this._generation += 1;
+        this.state.data = data;
+        this.state.error = "";
+    }
+
     async _load() {
         if (!this.receptionId) {
             this.state.loading = false;
             this.state.error = "Abre esta pantalla desde una recepción.";
             return;
         }
-        try {
-            this.state.data = await this.orm.call("rms.reception", "checklist_state", [[this.receptionId]]);
+        // Lo que quedó sin enviar en este aparato se ve (y se envía) desde ya.
+        this.queue.start();
+        this._restoreContext();
+        const answer = await callAction(this.queue, "rms.reception", "checklist_state", [[this.receptionId]]);
+        if (answer.ok) {
+            this._setData(answer.result);
             this.state.error = "";
-        } catch (error) {
-            this.state.error = this._errorMessage(error);
+        } else if (!this.state.data) {
+            this.state.error = answer.kind === "user" ? answer.message
+                : "No se ha podido cargar la recepción: no hay conexión. Se vuelve a intentar sola.";
         }
         this.state.loading = false;
         this._focusInput();
     }
 
-    // Varios operarios a la vez: se refresca lo que han leído los demás.
-    async _refresh() {
-        if (this.state.pending || this.state.panel || !this.data || document.hidden) {
+    // Varios operarios a la vez: se refresca lo que han leído los demás. Con
+    // lecturas pendientes no se refresca: la cola trae el estado al entrar.
+    async _refresh(force = false) {
+        if (!this.receptionId || this.queueState.pending.length || this.qtyWriter.busy ||
+                (!force && (this.state.panel || document.hidden))) {
             return;
         }
+        const generation = this._generation;
         try {
-            const data = await this.orm.call("rms.reception", "checklist_state", [[this.receptionId]], {
-                context: { bin_size: true },
-            });
-            if (!this.state.pending) {
+            const data = await sendRpc("rms.reception", "checklist_state", [[this.receptionId]]);
+            this.queue.noteOk();
+            if (generation === this._generation && !this.queueState.pending.length && !this.qtyWriter.busy) {
                 this.state.data = data;
+                this.state.error = "";
             }
-        } catch {
-            // Sin red un momento: se reintenta en el siguiente ciclo.
+        } catch (error) {
+            // Sin red un momento: se reintenta en el siguiente ciclo; el
+            // indicador de la barra lo dice.
+            const kind = await errorKind(error);
+            this.queue.noteError(kind);
+            if (kind === "user" && !this.state.data) {
+                this.state.error = actionErrorText(error, kind);
+            }
         }
-    }
-
-    _errorMessage(error) {
-        const data = error && error.data;
-        return (data && (data.message || (data.arguments && data.arguments[0]))) || (error && error.message) || "Error";
     }
 
     // ------------------------------------------------------------------
     // Lectura con la pistola
     // ------------------------------------------------------------------
-    _redirectScannerKey(ev) {
-        if (this.readonly || this.state.panel || ev.ctrlKey || ev.metaKey || ev.altKey) {
-            return;
-        }
-        const input = this.inputRef.el;
-        if (!input || ev.target === input) {
-            return;
-        }
-        const target = ev.target;
-        const tag = target && target.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (target && target.isContentEditable)) {
-            return;
-        }
-        if (document.querySelector(".modal.show, .o_dialog")) {
-            return;
-        }
-        if (ev.key === "Enter") {
-            if (input.value) {
-                ev.preventDefault();
-                ev.stopPropagation();
-                this.addTypedCode();
-            }
-            return;
-        }
-        if (ev.key.length !== 1) {
-            return;
-        }
-        ev.preventDefault();
-        ev.stopPropagation();
-        input.focus();
-        input.value += ev.key;
-        this.onCodeInput({ target: input });
-    }
-
     _focusInput() {
         if (this.readonly || this.state.panel) {
             return;
@@ -265,94 +287,53 @@ export class ReceptionChecklist extends Component {
     }
 
     onCodeKeydown(ev) {
-        if (ev.key !== "Enter") {
-            return;
-        }
-        ev.preventDefault();
-        this._resetBurst();
-        const code = ev.target.value;
-        ev.target.value = "";
-        this._enqueue(code);
+        this.reader.onKeydown(ev);
     }
 
     onCodeInput(ev) {
-        const input = ev.target;
-        const now = performance.now();
-        const burst = this._burst;
-        if (!burst || now - burst.last > BURST_GAP_MS) {
-            this._burst = { start: now, last: now, chars: 1, from: Math.max(0, input.value.length - 1) };
-        } else {
-            burst.last = now;
-            burst.chars += 1;
-        }
-        clearTimeout(this._burstTimer);
-        this._burstTimer = setTimeout(() => this._flushBurst(input), BURST_PAUSE_MS);
-    }
-
-    _flushBurst(input) {
-        const burst = this._burst;
-        this._resetBurst();
-        if (!burst || !input || burst.chars < BURST_MIN_CHARS) {
-            return;
-        }
-        if ((burst.last - burst.start) / (burst.chars - 1) > BURST_GAP_MS) {
-            return;
-        }
-        const code = input.value.slice(burst.from);
-        input.value = input.value.slice(0, burst.from);
-        this._enqueue(code);
-    }
-
-    _resetBurst() {
-        clearTimeout(this._burstTimer);
-        this._burst = null;
+        this.reader.onInput(ev);
     }
 
     addTypedCode() {
-        const input = this.inputRef.el;
-        if (!input) {
-            return;
-        }
-        this._resetBurst();
-        const code = input.value;
-        input.value = "";
-        this._enqueue(code);
+        this.reader.submit();
         this._focusInput();
     }
 
+    // Cada lectura queda guardada en el aparato ANTES de enviarla: o entra en
+    // el servidor o sigue a la vista como pendiente / con error.
     _enqueue(rawCode) {
         const code = (rawCode || "").trim();
-        if (!code || this.readonly) {
+        if (!code) {
             return;
         }
-        this._unlockAudio();
-        const uid = newUid();
-        this.state.pending += 1;
-        this._queue = this._queue.then(() => this._send(code, uid)).finally(() => {
-            this.state.pending -= 1;
-        });
-        return this._queue;
+        if (this.readonly) {
+            this.notification.add(`La recepción ya no admite lecturas: «${code}» no se ha guardado.`,
+                { type: "danger", sticky: true });
+            return;
+        }
+        this.queue.enqueue(code);
+        if (this.queueState.conn !== "ok") {
+            this._setVerdict("queued", "Guardada en este dispositivo: se enviará sola al volver la conexión.", code);
+        }
     }
 
-    async _send(code, uid) {
-        const context = this._currentContext();
-        try {
-            const response = await this.orm.call("rms.reception", "checklist_scan", [[this.receptionId], code], {
-                product_id: context ? context.id : false,
-                client_uid: uid,
-            });
-            this._applyScan(response);
-        } catch (error) {
-            this._setVerdict("error", this._errorMessage(error), code);
-            this._beep("red");
-        }
+    // El orden importa: código de producto y luego nº de serie. La cola envía
+    // de una en una y en orden, así el producto de la lectura anterior ya se
+    // conoce cuando le toca a la siguiente (aunque hayan esperado sin red).
+    _sendScan(item) {
+        const context = this._contextFor(item);
+        return sendRpc("rms.reception", "checklist_scan", [[this.receptionId], item.code], {
+            product_id: context ? context.id : false,
+            client_uid: item.uid,
+        });
     }
 
     _applyScan(response, options = {}) {
         const result = response.result;
-        this.state.data = response.state;
+        this._setData(response.state);
+        const at = options.item ? options.item.at : Date.now();
         if (result.sets_context) {
-            this._setContext({ id: result.product_id, name: result.product_name });
+            this._setContext({ id: result.product_id, name: result.product_name, at });
         } else if (!["product_code", "ignored", "repeat"].includes(result.verdict)) {
             // El código de producto leído solo vale para UNA caja.
             this._setContext(null);
@@ -388,10 +369,20 @@ export class ReceptionChecklist extends Component {
         this.state.verdict = { kind, title, message: message || "", code: code || "" };
     }
 
+    // El código de producto vale para la caja leída DESPUÉS, dentro de los
+    // 30 s siguientes (hora de lectura, no de envío: sin red también vale).
+    _contextFor(item) {
+        const context = this.state.context;
+        if (context && item.at >= context.at && item.at - context.at <= CONTEXT_TTL_MS) {
+            return context;
+        }
+        return null;
+    }
+
     _currentContext() {
         const context = this.state.context;
-        if (context && context.expires < Date.now()) {
-            this.state.context = null;
+        if (context && Date.now() - context.at > CONTEXT_TTL_MS && !this.queueState.pending.length) {
+            this._setContext(null);
             return null;
         }
         return context;
@@ -401,12 +392,41 @@ export class ReceptionChecklist extends Component {
         clearTimeout(this._contextTimer);
         if (!product) {
             this.state.context = null;
+            storageSet(this.contextKey, null);
             return;
         }
-        this.state.context = { id: product.id, name: product.name, expires: Date.now() + CONTEXT_TTL_MS };
+        this.state.context = { id: product.id, name: product.name, at: product.at || Date.now() };
+        storageSet(this.contextKey, JSON.stringify(this.state.context));
+        this._armContextTimer();
+    }
+
+    _armContextTimer() {
+        clearTimeout(this._contextTimer);
+        const context = this.state.context;
+        if (!context) {
+            return;
+        }
+        const left = Math.max(context.at + CONTEXT_TTL_MS - Date.now(), 0);
         this._contextTimer = setTimeout(() => {
-            this.state.context = null;
-        }, CONTEXT_TTL_MS);
+            if (this.queueState.pending.length) {
+                // Aún hay lecturas esperando que pueden necesitarlo.
+                this._contextTimer = setTimeout(() => this._armContextTimer(), 1000);
+            } else {
+                this._setContext(null);
+            }
+        }, left);
+    }
+
+    // Tras recargar: el producto leído justo antes sigue valiendo para las
+    // lecturas que quedaron pendientes.
+    _restoreContext() {
+        try {
+            const context = JSON.parse(storageGet(this.contextKey) || "null");
+            if (context && context.id && context.at) {
+                this.state.context = context;
+                this._armContextTimer();
+            }
+        } catch { /* sin contexto guardado */ }
     }
 
     clearContext() {
@@ -428,53 +448,23 @@ export class ReceptionChecklist extends Component {
     // ------------------------------------------------------------------
     // Sonido (opcional)
     // ------------------------------------------------------------------
-    _unlockAudio() {
-        try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!this._audio && AudioCtx) {
-                this._audio = new AudioCtx();
-            }
-            if (this._audio && this._audio.state === "suspended") {
-                this._audio.resume().catch(() => {});
-            }
-        } catch {
-            // El sonido es opcional.
-        }
-    }
-
     _beep(kind) {
-        const audio = this._audio;
-        if (!audio || audio.state !== "running") {
-            return;
-        }
-        try {
-            let start = audio.currentTime;
-            for (const [frequency, duration] of TONES[kind] || TONES.grey) {
-                const osc = audio.createOscillator();
-                const gain = audio.createGain();
-                osc.frequency.value = frequency;
-                gain.gain.value = 0.15;
-                osc.connect(gain);
-                gain.connect(audio.destination);
-                osc.start(start);
-                osc.stop(start + duration);
-                start += duration + 0.05;
-            }
-        } catch {
-            // El sonido es opcional.
-        }
+        this.audio.play(TONES[kind] || TONES.grey);
     }
 
     // ------------------------------------------------------------------
     // Botones
     // ------------------------------------------------------------------
+    // Botones que no son lecturas: no van a la cola. La llamada siempre
+    // termina (también con un corte por tiempo agotado) y, si falla, se dice
+    // claro y el botón queda libre para volver a pulsar.
     async _call(model, method, args, kwargs = {}) {
-        try {
-            return await this.orm.call(model, method, args, kwargs);
-        } catch (error) {
-            this.notification.add(this._errorMessage(error), { type: "danger" });
+        const answer = await callAction(this.queue, model, method, args, kwargs);
+        if (!answer.ok) {
+            this.notification.add(answer.message, { type: "danger" });
             return null;
         }
+        return answer.result;
     }
 
     setFilter(filter) {
@@ -494,14 +484,22 @@ export class ReceptionChecklist extends Component {
     }
 
     async undo(scanId) {
-        if (this.readonly) {
+        if (this.readonly || this._undoing || this.queue.blocked("deshacer")) {
             return;
         }
+        if (!scanId) {
+            // Se deshace UNA lectura concreta (la última mía a la vista): si
+            // la respuesta se pierde y se vuelve a pulsar, no se deshace otra.
+            const mine = this.data.scans.find((scan) => scan.mine && scan.can_undo);
+            scanId = mine ? mine.id : false;
+        }
+        this._undoing = true;
         const response = await this._call("rms.reception", "checklist_undo", [[this.receptionId]], {
             scan_id: scanId || false,
         });
+        this._undoing = false;
         if (response) {
-            this.state.data = response.state;
+            this._setData(response.state);
             this.state.lastLine = false;
             this.state.verdict = { kind: "grey", title: "Deshecho", message: `Se ha quitado la lectura ${response.undone}.`, code: "" };
         }
@@ -511,33 +509,48 @@ export class ReceptionChecklist extends Component {
     async unreceive(line) {
         const data = await this._call("rms.reception.line", "checklist_unreceive", [[line.id]]);
         if (data) {
-            this.state.data = data;
+            this._setData(data);
             this.state.openLine = false;
         }
         this._focusInput();
     }
 
-    async changeQty(line, delta) {
-        await this.setQty(line, Math.max(0, line.qty_received + delta));
+    changeQty(line, delta) {
+        this.setQty(line, Math.max(0, line.qty_received + delta));
     }
 
-    async onQtyChange(line, ev) {
+    onQtyChange(line, ev) {
         const value = parseFloat(String(ev.target.value).replace(",", "."));
         if (Number.isNaN(value)) {
             ev.target.value = this.fmt(line.qty_received);
             return;
         }
-        await this.setQty(line, value);
+        this.setQty(line, Math.max(0, value));
     }
 
-    async setQty(line, quantity) {
+    // + y −: se envía la cantidad FINAL (no "+1"), de una en una. Un doble
+    // toque o un reenvío no cuentan dos veces; si falla, vuelve a lo guardado.
+    setQty(line, quantity) {
         if (this.readonly) {
             return;
         }
-        const data = await this._call("rms.reception.line", "checklist_set_qty", [[line.id], quantity]);
-        if (data) {
-            this.state.data = data;
-            this.state.lastLine = line.id;
+        const confirmed = line.qty_received;
+        this._showQty(line.id, quantity);
+        this.qtyWriter.set(line.id, quantity, confirmed);
+    }
+
+    _showQty(lineId, quantity) {
+        for (const group of this.data.groups) {
+            for (const line of group.lines) {
+                if (line.id === lineId) {
+                    line.qty_received = quantity;
+                }
+            }
+        }
+        for (const extra of this.data.extras) {
+            if (extra.id === lineId) {
+                extra.qty_received = quantity;
+            }
         }
     }
 
@@ -556,7 +569,7 @@ export class ReceptionChecklist extends Component {
             note: panel.note,
         });
         if (data) {
-            this.state.data = data;
+            this._setData(data);
             this.closePanel();
         }
     }
@@ -564,7 +577,7 @@ export class ReceptionChecklist extends Component {
     async clearDamaged(line) {
         const data = await this._call("rms.reception.line", "checklist_set_damaged", [[line.id]], { damaged: false });
         if (data) {
-            this.state.data = data;
+            this._setData(data);
         }
         this._focusInput();
     }
@@ -577,7 +590,9 @@ export class ReceptionChecklist extends Component {
         if (!productId && products.length === 1) {
             productId = products[0].product_id;
         }
-        this.state.panel = { type: "nolabel", products, productId, serial: "", confirm: "", error: "", print: true };
+        // uid: volver a pulsar Guardar tras un corte no duplica la lectura.
+        this.state.panel = { type: "nolabel", products, productId, serial: "", confirm: "", error: "", print: true,
+            uid: newUid(), busy: false };
     }
 
     async saveNoLabel() {
@@ -591,16 +606,22 @@ export class ReceptionChecklist extends Component {
             panel.error = "Los dos números no coinciden. Vuelve a mirar la placa del equipo.";
             return;
         }
-        let response;
-        try {
-            response = await this.orm.call(
-                "rms.reception", "checklist_manual_serial", [[this.receptionId], serial, panel.confirm.trim()],
-                { product_id: panel.productId ? Number(panel.productId) : false, print_label: panel.print }
-            );
-        } catch (error) {
-            panel.error = this._errorMessage(error);
+        if (panel.busy) {
             return;
         }
+        panel.busy = true;
+        panel.error = "";
+        const answer = await callAction(
+            this.queue, "rms.reception", "checklist_manual_serial", [[this.receptionId], serial, panel.confirm.trim()],
+            { product_id: panel.productId ? Number(panel.productId) : false, print_label: panel.print,
+                client_uid: panel.uid }
+        );
+        panel.busy = false;
+        if (!answer.ok) {
+            panel.error = answer.message;
+            return;
+        }
+        const response = answer.result;
         this.closePanel();
         this._applyScan(response);
         if (response.print_action) {
@@ -624,6 +645,10 @@ export class ReceptionChecklist extends Component {
     }
 
     finish() {
+        // Con lecturas sin enviar o con error no se termina: se quedarían fuera.
+        if (this.queue.blocked("terminar")) {
+            return;
+        }
         const counters = this.data.counters;
         const missing = counters.missing
             ? `Quedan ${this.fmt(counters.missing)} sin leer: pasarán a «Falta». `
@@ -634,9 +659,12 @@ export class ReceptionChecklist extends Component {
             confirmLabel: "Sí, he terminado",
             cancelLabel: "Seguir leyendo",
             confirm: async () => {
+                if (this.queue.blocked("terminar")) {
+                    return;
+                }
                 const done = await this._call("rms.reception", "action_finish", [[this.receptionId]]);
                 if (done) {
-                    this.openForm();
+                    this._openForm();
                 }
             },
             cancel: () => this._focusInput(),
@@ -644,6 +672,13 @@ export class ReceptionChecklist extends Component {
     }
 
     openForm() {
+        if (!this.readonly && this.queue.blocked("salir")) {
+            return;
+        }
+        this._openForm();
+    }
+
+    _openForm() {
         this.action.doAction(
             {
                 type: "ir.actions.act_window",

@@ -1,7 +1,8 @@
 from odoo import Command
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import AccessError, ConcurrencyError, UserError, ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import new_test_user
+from odoo.tools import mute_logger
 
 from ..models.tools import clean_code, is_valid_gtin
 from .common import DeliveryCheckCommon
@@ -71,6 +72,98 @@ class TestDeliveryCheck(DeliveryCheckCommon):
         self.assertEqual(scan.undone_by_id, self.operator)
         self.assertEqual(picking._rms_summary()['read'], 0)
         self.assertEqual(self._scan(picking, 'GLX-A').result, 'ok')
+
+    # ------------------------------------------- reenvíos (cola del aparato)
+    def _send(self, picking, code, uid, user=None):
+        result = picking.with_user(user or self.operator).rms_check_scan(code, client_uid=uid)
+        picking.invalidate_recordset()
+        return result
+
+    def test_resent_scan_is_not_duplicated(self):
+        """La misma lectura reenviada (mismo client_uid) no se guarda ni
+        cuenta dos veces y devuelve el mismo veredicto."""
+        self._lot(self.galaxy, 'GLX-A')
+        self._lot(self.galaxy, 'GLX-B')
+        picking = self._picking([(self.galaxy, 2)])
+        first = self._send(picking, 'GLX-A', 'uid-1')
+        self.assertEqual(first['scan']['result'], 'ok')
+        self.assertNotIn('resent', first)
+        again = self._send(picking, 'GLX-A', 'uid-1')
+        self.assertTrue(again['resent'])
+        self.assertEqual((again['scan_id'], again['scan']['result']), (first['scan_id'], 'ok'))
+        self.assertEqual(len(picking.rms_check_scan_ids), 1)
+        self.assertEqual(again['state']['counters']['read'], 1)
+        self.assertEqual(again['state']['groups'][0]['done'], 1)
+        # otra lectura (otro uid) de la misma caja: «ya leído», y su reenvío también
+        dup = self._send(picking, 'GLX-A', 'uid-2')
+        self.assertEqual(dup['scan']['result'], 'duplicate')
+        self.assertEqual(self._send(picking, 'GLX-A', 'uid-2')['scan_id'], dup['scan_id'])
+        # el reenvío de la primera sigue siendo verde, no «ya leído»
+        self.assertEqual(self._send(picking, 'GLX-A', 'uid-1')['scan']['result'], 'ok')
+        self.assertEqual(len(picking.rms_check_scan_ids), 2)
+        self.assertEqual(picking.rms_check_get_state()['counters']['read'], 1)
+        # el mismo uid en OTRO albarán es otra lectura
+        other = self._picking([(self.galaxy, 1)])
+        self.assertEqual(self._send(other, 'GLX-B', 'uid-1')['scan']['result'], 'ok')
+        # sin uid (llamadas antiguas) sigue funcionando
+        self.assertEqual(self._scan(picking, 'GLX-B').result, 'red')
+
+    def test_resent_scan_does_not_count_pack_twice(self):
+        lots = self._lot(self.galaxy, 'GLX-2M1', 'second_hand') | self._lot(self.galaxy, 'GLX-2M2', 'second_hand')
+        self._pack(lots)
+        picking = self._used_picking(2)
+        first = self._send(picking, 'GLX-2M1', 'uid-1')
+        self.assertEqual(first['scan']['result'], 'amber')
+        self.assertEqual(self._send(picking, 'GLX-2M1', 'uid-1')['scan']['result'], 'amber')
+        self.assertEqual(len(picking.rms_check_scan_ids), 1)
+        second = self._send(picking, 'GLX-2M2', 'uid-2')
+        self.assertEqual(second['scan']['result'], 'ok')
+        # el paquete ya está completo: los reenvíos devuelven la lectura tal y como está guardada
+        self.assertEqual(self._send(picking, 'GLX-2M1', 'uid-1')['scan']['result'], 'ok')
+        self.assertEqual(self._send(picking, 'GLX-2M2', 'uid-2')['scan_id'], second['scan_id'])
+        self.assertEqual(len(picking.rms_check_scan_ids), 2)
+        state = picking.rms_check_get_state()
+        self.assertEqual((state['counters']['read'], state['counters']['amber']), (2, 0))
+        # «Revisado» se envía con su valor: repetirlo no lo desmarca
+        for _i in range(2):
+            picking.with_user(self.operator).rms_check_set_reviewed(first['scan_id'], True)
+        self.assertTrue(self.env['rms.delivery.scan'].browse(first['scan_id']).reviewed)
+
+    def test_resent_scan_after_finish_answers_the_same(self):
+        self._lot(self.galaxy, 'GLX-A')
+        self._lot(self.galaxy, 'GLX-B')
+        picking = self._picking([(self.galaxy, 1)])
+        first = self._send(picking, 'GLX-A', 'uid-1')
+        self.assertEqual(picking.with_user(self.operator).rms_check_finish()['status'], 'ready')
+        # la respuesta se perdió y la cola reenvía con el checklist ya terminado
+        again = self._send(picking, 'GLX-A', 'uid-1')
+        self.assertEqual((again['scan_id'], again['scan']['result']), (first['scan_id'], 'ok'))
+        with self.assertRaises(UserError):          # una lectura NUEVA sí se rechaza
+            self._send(picking, 'GLX-B', 'uid-2')
+        self.assertEqual(len(picking.rms_check_scan_ids), 1)
+        self.assertEqual(picking.rms_check_state, 'ready')
+
+    def test_client_uid_unique_index(self):
+        self.env.cr.execute(
+            "SELECT indexdef FROM pg_indexes WHERE indexname = 'rms_delivery_scan_picking_client_uid_uniq'")
+        row = self.env.cr.fetchone()
+        self.assertTrue(row)
+        self.assertIn('UNIQUE', row[0])
+        self._lot(self.galaxy, 'GLX-A')
+        picking = self._picking([(self.galaxy, 1)])
+        self._send(picking, 'GLX-A', 'uid-1')
+        with self.assertRaises(ConcurrencyError), mute_logger('odoo.sql_db'):
+            self.env['rms.delivery.scan']._create_scan({
+                'picking_id': picking.id, 'code': 'GLX-A', 'result': 'ok', 'reason': 'ok', 'client_uid': 'uid-1'})
+        self.assertEqual(len(picking.rms_check_scan_ids), 1)
+
+    def test_set_qty_is_final_quantity_not_increment(self):
+        picking = self._picking([(self.cover, 5)])
+        move = picking.move_ids
+        for _i in range(2):                         # doble pulsación / reenvío de «+»
+            state = picking.with_user(self.operator).rms_check_set_qty(move.id, 3)
+        self.assertEqual(move.rms_check_qty, 3)
+        self.assertEqual(state['groups'][0]['done'], 3)
 
     def test_demo_blocked_in_sale(self):
         self._lot(self.galaxy, 'GLX-DEMO', state='demo')

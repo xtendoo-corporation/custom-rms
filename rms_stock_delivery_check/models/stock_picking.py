@@ -191,22 +191,34 @@ class StockPicking(models.Model):
         return action
 
     # -------------------------------------------------------------- lectura
-    def rms_check_scan(self, code):
+    def rms_check_scan(self, code, client_uid=False):
+        """Una lectura de la pistola. ``client_uid`` identifica la lectura en
+        el aparato: si llega otra vez (se perdió la respuesta y la cola la
+        reenvía) no se guarda de nuevo ni cuenta dos veces (unidad leída,
+        paquete, revisado); se contesta con la MISMA lectura, aunque el
+        checklist ya se haya dado por terminado."""
         self._rms_lock()
+        Scan = self.env['rms.delivery.scan'].sudo()
+        client_uid = (client_uid or '').strip()[:64] or False
+        if client_uid:
+            previous = Scan.search([('picking_id', '=', self.id), ('client_uid', '=', client_uid)], limit=1)
+            if previous:
+                return {'scan_id': previous.id, 'resent': True, 'scan': self._rms_feed_row(previous),
+                        'state': self.rms_check_get_state()}
         self._rms_check_can_operate()
         cleaned = clean_code(code)
         if not cleaned:
-            return {'scan_id': False, 'state': self.rms_check_get_state()}
+            return {'scan_id': False, 'scan': False, 'state': self.rms_check_get_state()}
         vals = self._rms_evaluate_code(cleaned)
         vals.update({
             'picking_id': self.id, 'code': (code or '').strip()[:200], 'code_clean': cleaned[:200],
-            'user_id': self.env.uid, 'scanned_at': fields.Datetime.now(),
+            'user_id': self.env.uid, 'scanned_at': fields.Datetime.now(), 'client_uid': client_uid,
         })
         if vals['result'] == 'amber':
             vals['approval_state'] = 'pending'
-        scan = self.env['rms.delivery.scan'].sudo().create(vals)
+        scan = Scan._create_scan(vals)
         self._rms_sync_packs()
-        return {'scan_id': scan.id, 'state': self.rms_check_get_state()}
+        return {'scan_id': scan.id, 'scan': self._rms_feed_row(scan), 'state': self.rms_check_get_state()}
 
     def _rms_find_lot(self, code, products):
         Lot = self.env['stock.lot'].sudo()
@@ -644,6 +656,26 @@ class StockPicking(models.Model):
         return res
 
     # ---------------------------------------------------------- para la pantalla
+    def _rms_feed_row(self, scan, editable=None):
+        """Una lectura tal y como la pinta la pantalla (lista «Últimas lecturas»)."""
+        self.ensure_one()
+        if editable is None:
+            editable = self.rms_check_state in ('none', 'in_progress') and self.state not in ('done', 'cancel', 'draft')
+        when = fields.Datetime.context_timestamp(self, scan.scanned_at).strftime('%H:%M') if scan.scanned_at else ''
+        return {
+            'id': scan.id,
+            'code': scan.lot_id.name or scan.code_clean or scan.code,
+            'product': scan.product_id.display_name or '',
+            'result': scan.result,
+            'label': dict(REASONS).get(scan.reason, ''),
+            'message': scan.message or '',
+            'user': scan.user_id.name,
+            'time': when,
+            'undone': scan.undone,
+            'can_undo': editable and not scan.undone and scan.result in ('ok', 'amber'),
+            'lot_id': scan.lot_id.id,
+        }
+
     def rms_check_get_state(self):
         self.ensure_one()
         self.check_access('read')
@@ -695,19 +727,7 @@ class StockPicking(models.Model):
                 'units': [unit(s) for s in move_scans.sorted(lambda s: (s.scanned_at, s.id))],
             })
 
-        feed = [{
-            'id': scan.id,
-            'code': scan.lot_id.name or scan.code_clean or scan.code,
-            'product': scan.product_id.display_name or '',
-            'result': scan.result,
-            'label': reason_labels.get(scan.reason, ''),
-            'message': scan.message or '',
-            'user': scan.user_id.name,
-            'time': when(scan.scanned_at),
-            'undone': scan.undone,
-            'can_undo': editable and not scan.undone and scan.result in ('ok', 'amber'),
-            'lot_id': scan.lot_id.id,
-        } for scan in scans_all[:40]]
+        feed = [self._rms_feed_row(scan, editable) for scan in scans_all[:40]]
 
         outside = []
         if self.rms_check_kind == 'deposit_return' and self.rms_cession_id:

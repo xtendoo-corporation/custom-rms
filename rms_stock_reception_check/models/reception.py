@@ -317,26 +317,30 @@ class RmsReception(models.Model):
 
     def checklist_scan(self, raw_code, product_id=False, client_uid=False, manual=False):
         """Una lectura de la pistola (o tecleada). Devuelve el veredicto y el
-        estado completo de la pantalla."""
+        estado completo de la pantalla.
+
+        ``client_uid`` identifica la lectura en el aparato: si llega otra vez
+        (se perdió la respuesta y la cola la reenvía) no se guarda ni cuenta
+        de nuevo; se contesta con el MISMO veredicto, aunque la recepción ya
+        se haya dado por terminada."""
         self.ensure_one()
-        self._check_receiving()
+        self.check_access("read")
         self._lock()
         Scan = self.env["rms.reception.scan"]
         if client_uid:
             previous = Scan.search([("reception_id", "=", self.id), ("client_uid", "=", client_uid)], limit=1)
             if previous:
                 return {"result": dict(previous._payload(), resent=True), "state": self.checklist_state()}
+        self._check_receiving()
         code = clean_code(raw_code)
         if not code:
             raise UserError("Lectura vacía.")
         context_product = self.env["product.product"].browse(product_id or []).exists()
         vals = self._classify(code, context_product, manual=manual, raw=(raw_code or "").strip())
-        scan = Scan.create(dict(
+        scan = Scan._create_scan(dict(
             vals, reception_id=self.id, raw_code=raw_code, code=code, manual=manual, client_uid=client_uid or False,
         ))
-        result = scan._payload()
-        result["sets_context"] = scan.verdict == "product_code" and bool(scan.product_id)
-        return {"result": result, "state": self.checklist_state()}
+        return {"result": scan._payload(), "state": self.checklist_state()}
 
     def _mark_line(self, line, state, serial, context_product, manual):
         vals = {
@@ -559,9 +563,10 @@ class RmsReception(models.Model):
                 line._clear_reading()
         return {"undone": scan.code, "state": self.checklist_state()}
 
-    def checklist_manual_serial(self, serial, serial_confirm, product_id=False, print_label=True):
+    def checklist_manual_serial(self, serial, serial_confirm, product_id=False, print_label=True, client_uid=False):
         """Botón «Sin etiqueta»: el nº de serie se escribe dos veces, cuenta
-        como una lectura normal y se imprime la etiqueta sustituta."""
+        como una lectura normal y se imprime la etiqueta sustituta. Con
+        ``client_uid``, volver a pulsar Guardar tras un corte no la duplica."""
         self.ensure_one()
         serial = (serial or "").strip()
         if not serial:
@@ -570,7 +575,7 @@ class RmsReception(models.Model):
             raise UserError(
                 "El número de serie repetido no coincide con el primero. Revisa la placa "
                 "del equipo y vuelve a escribirlo.")
-        response = self.checklist_scan(serial, product_id=product_id, manual=True)
+        response = self.checklist_scan(serial, product_id=product_id, manual=True, client_uid=client_uid)
         line = self.env["rms.reception.line"].browse(response["result"]["line_id"] or []).exists()
         product = line._stock_product() if line else self.env["product.product"].browse(product_id or [])
         response["print_action"] = False

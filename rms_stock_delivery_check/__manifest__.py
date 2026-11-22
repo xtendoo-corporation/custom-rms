@@ -1,6 +1,6 @@
 {
     'name': 'RMS Checklist de salida con pistola',
-    'version': '19.0.1.2.0',
+    'version': '19.0.1.3.0',
     'category': 'Inventory/Inventory',
     'summary': 'Checklist de salida: cada caja se lee con la pistola y pone en verde su línea '
                'del albarán. Paquetes de 2ª mano y depósitos en clientes (salida y vuelta).',
@@ -26,10 +26,15 @@ Checklist de salida con pistola
   responsable de inventario puede validar sin checklist indicando el motivo.
 * Aviso diario de depósitos largos (días configurables) al comercial del cliente.
 * Todas las lecturas quedan guardadas; lo inesperado queda como incidencia.
+* Una lectura nunca se pierde en silencio: se guarda en el aparato hasta que el
+  servidor la confirma (sin conexión, error del servidor o sesión caducada se
+  reintenta sola y se ve como «Pendiente de enviar»); reenviarla no la duplica.
+  No se puede terminar ni validar con lecturas sin enviar o con error.
     """,
     'author': 'Custom RMS',
     'license': 'LGPL-3',
-    'depends': ['stock', 'sale_stock', 'rms_product_state', 'stock_cession', 'rms_stock_lot_label_print'],
+    'depends': ['stock', 'sale_stock', 'rms_product_state', 'stock_cession', 'rms_stock_lot_label_print',
+                'rms_scan_queue'],
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',
