@@ -20,39 +20,39 @@
                     <strong>Cliente:</strong>
                     <span t-field="o.partner_id" t-options="{'widget': 'contact', 'fields': ['name', 'address'], 'no_marker': True}"/>
                 </div>
-                <table class="table table-sm">
+                <table class="table table-sm o_main_table" style="width: 100%; table-layout: fixed;">
+                    <colgroup><col style="width: 34%;"/><col style="width: 16%;"/><col style="width: 22%;"/><col style="width: 14%;"/><col style="width: 14%;"/></colgroup>
                     <thead>
                         <tr>
-                            <th>Producto</th>
-                            <th>Referencia</th>
-                            <th>Nº de serie</th>
-                            <th>Estado del equipo</th>
-                            <th class="text-end">Cantidad</th>
+                            <th style="vertical-align: bottom;">Producto</th>
+                            <th style="vertical-align: bottom;">Referencia</th>
+                            <th style="vertical-align: bottom;">Nº de serie</th>
+                            <th style="vertical-align: bottom;">Estado del equipo</th>
+                            <th class="text-end" style="vertical-align: bottom;">Cantidad</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr t-foreach="units" t-as="unit">
                             <td><span t-out="unit.product_id.name"/></td>
-                            <td><span t-out="unit.product_id.default_code or ''"/></td>
-                            <td><span t-out="unit.lot_id.name or '—'"/></td>
+                            <td style="white-space: nowrap;"><span t-out="unit.product_id.default_code or ''"/></td>
+                            <td style="white-space: nowrap;"><span t-out="unit.lot_id.name or '—'" style="font-family: monospace; font-size: 9pt; white-space: nowrap;"/></td>
                             <td><span t-out="unit.product_state_id.name or ''"/></td>
                             <td class="text-end"><span t-out="'%g' % unit.quantity"/></td>
                         </tr>
                     </tbody>
                 </table>
                 <p class="mt-3" t-out="terms"/>
-                <div class="row mt-5" style="page-break-inside: avoid;">
-                    <div class="col-6">
-                        <div style="border: 1px solid #444; height: 150px; padding: 6px;">
+                <table class="mt-5" style="width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; page-break-inside: avoid;">
+                    <tr style="page-break-inside: avoid;">
+                        <td style="width: 48%; height: 32mm; border: 1px solid #444; padding: 6px; vertical-align: top;">
                             <strong>Entregado por RMS (nombre, fecha y firma)</strong>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div style="border: 1px solid #444; height: 150px; padding: 6px;">
+                        </td>
+                        <td style="width: 4%; border: 0;"></td>
+                        <td style="width: 48%; height: 32mm; border: 1px solid #444; padding: 6px; vertical-align: top;">
                             <strong>Recibido por el cliente (nombre, DNI, fecha y firma)</strong>
-                        </div>
-                    </div>
-                </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
         </t>
     </template>
@@ -81,24 +81,25 @@
                     <span t-field="o.partner_id" t-options="{'widget': 'contact', 'fields': ['name', 'address'], 'no_marker': True}"/>
                 </div>
                 <h4>Equipos devueltos</h4>
-                <table class="table table-sm">
+                <table class="table table-sm o_main_table" style="width: 100%; table-layout: fixed;">
+                    <colgroup><col style="width: 19%;"/><col style="width: 14%;"/><col style="width: 21%;"/><col style="width: 7%;"/><col style="width: 9%;"/><col style="width: 12%;"/><col style="width: 12%;"/><col style="width: 6%;"/></colgroup>
                     <thead>
                         <tr>
-                            <th>Producto</th>
-                            <th>Referencia</th>
-                            <th>Nº de serie</th>
-                            <th>Estado</th>
-                            <th class="text-end">Cantidad</th>
-                            <th>Fecha de salida</th>
-                            <th>Fecha de vuelta</th>
-                            <th class="text-end">Días fuera</th>
+                            <th style="vertical-align: bottom;">Producto</th>
+                            <th style="vertical-align: bottom;">Referencia</th>
+                            <th style="vertical-align: bottom;">Nº de serie</th>
+                            <th style="vertical-align: bottom;">Estado</th>
+                            <th class="text-end" style="vertical-align: bottom;">Cantidad</th>
+                            <th style="vertical-align: bottom;">Fecha de salida</th>
+                            <th style="vertical-align: bottom;">Fecha de vuelta</th>
+                            <th class="text-end" style="vertical-align: bottom;">Días fuera</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr t-foreach="units" t-as="unit">
                             <td><span t-out="unit.product_id.name"/></td>
-                            <td><span t-out="unit.product_id.default_code or ''"/></td>
-                            <td><span t-out="unit.lot_id.name or '—'"/></td>
+                            <td style="white-space: nowrap;"><span t-out="unit.product_id.default_code or ''"/></td>
+                            <td style="white-space: nowrap;"><span t-out="unit.lot_id.name or '—'" style="font-family: monospace; font-size: 9pt; white-space: nowrap;"/></td>
                             <td><span t-out="unit.product_state_id.name or ''"/></td>
                             <td class="text-end"><span t-out="'%g' % unit.qty_returned"/></td>
                             <td><span t-out="unit.date_out" t-options="{'widget': 'date'}"/></td>
@@ -110,23 +111,24 @@
                 <t t-set="still_out" t-value="still_out_of(o)"/>
                 <t t-if="still_out">
                     <h4 class="mt-4">Sigue en depósito en el cliente</h4>
-                    <table class="table table-sm">
-                        <thead>
+                    <table class="table table-sm o_main_table" style="width: 100%; table-layout: fixed;">
+                    <colgroup><col style="width: 24%;"/><col style="width: 15%;"/><col style="width: 19%;"/><col style="width: 9%;"/><col style="width: 10%;"/><col style="width: 12%;"/><col style="width: 11%;"/></colgroup>
+                    <thead>
                             <tr>
-                                <th>Producto</th>
-                                <th>Referencia</th>
-                                <th>Nº de serie</th>
-                                <th>Estado</th>
-                                <th class="text-end">Cantidad</th>
-                                <th>Fecha de salida</th>
-                                <th class="text-end">Días fuera</th>
+                                <th style="vertical-align: bottom;">Producto</th>
+                                <th style="vertical-align: bottom;">Referencia</th>
+                                <th style="vertical-align: bottom;">Nº de serie</th>
+                                <th style="vertical-align: bottom;">Estado</th>
+                                <th class="text-end" style="vertical-align: bottom;">Cantidad</th>
+                                <th style="vertical-align: bottom;">Fecha de salida</th>
+                                <th class="text-end" style="vertical-align: bottom;">Días fuera</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr t-foreach="still_out" t-as="unit">
                                 <td><span t-out="unit.product_id.name"/></td>
-                                <td><span t-out="unit.product_id.default_code or ''"/></td>
-                                <td><span t-out="unit.lot_id.name or '—'"/></td>
+                                <td style="white-space: nowrap;"><span t-out="unit.product_id.default_code or ''"/></td>
+                                <td style="white-space: nowrap;"><span t-out="unit.lot_id.name or '—'" style="font-family: monospace; font-size: 9pt; white-space: nowrap;"/></td>
                                 <td><span t-out="unit.product_state_id.name or ''"/></td>
                                 <td class="text-end"><span t-out="'%g' % (unit.quantity - unit.qty_returned)"/></td>
                                 <td><span t-out="unit.date_out" t-options="{'widget': 'date'}"/></td>
@@ -135,18 +137,17 @@
                         </tbody>
                     </table>
                 </t>
-                <div class="row mt-5" style="page-break-inside: avoid;">
-                    <div class="col-6">
-                        <div style="border: 1px solid #444; height: 150px; padding: 6px;">
+                <table class="mt-5" style="width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; page-break-inside: avoid;">
+                    <tr style="page-break-inside: avoid;">
+                        <td style="width: 48%; height: 32mm; border: 1px solid #444; padding: 6px; vertical-align: top;">
                             <strong>Devuelto por el cliente (nombre, DNI, fecha y firma)</strong>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div style="border: 1px solid #444; height: 150px; padding: 6px;">
+                        </td>
+                        <td style="width: 4%; border: 0;"></td>
+                        <td style="width: 48%; height: 32mm; border: 1px solid #444; padding: 6px; vertical-align: top;">
                             <strong>Recibido en almacén por RMS (nombre, fecha y firma)</strong>
-                        </div>
-                    </div>
-                </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
         </t>
     </template>
