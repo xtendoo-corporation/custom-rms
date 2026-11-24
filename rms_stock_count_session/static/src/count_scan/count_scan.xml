@@ -377,7 +377,27 @@
                                 <span>Toca la pantalla para activar el sonido</span>
                             </button>
                         </div>
-                        <section class="o_rms_cs_readings" aria-label="Equipos leídos">
+                        <!-- Debajo de la casilla: "Lecturas" (lo que llevas, la de siempre)
+                             o "Lista" (todo lo que Sage dice que hay en la nave). La
+                             pistola lee igual en las dos. -->
+                        <div class="o_rms_cs_content">
+                        <div class="o_rms_cs_views o_rms_cs_keep_focus">
+                            <div class="o_rms_cs_tabs" role="tablist" aria-label="Qué se ve debajo">
+                                <button class="btn o_rms_cs_tab_scans" role="tab" t-att-class="state.view !== 'list' ? 'active' : ''"
+                                        t-att-aria-selected="state.view !== 'list' ? 'true' : 'false'"
+                                        title="Lo que llevas leído" t-on-click="() => this.setView('scans')">
+                                    <i class="fa fa-barcode"/> Lecturas
+                                </button>
+                                <button class="btn o_rms_cs_tab_list" role="tab" t-att-class="state.view === 'list' ? 'active' : ''"
+                                        t-att-aria-selected="state.view === 'list' ? 'true' : 'false'"
+                                        title="Todo lo que Sage dice que hay en esta nave, y lo que falta" t-on-click="() => this.setView('list')">
+                                    <i class="fa fa-list-ul"/> Lista
+                                </button>
+                            </div>
+                            <t t-if="state.view === 'list'" t-call="rms_stock_count_session.ScanListToolbar"/>
+                        </div>
+                        <t t-if="state.view === 'list'" t-call="rms_stock_count_session.ScanList"/>
+                        <section t-else="" class="o_rms_cs_readings" aria-label="Equipos leídos">
                             <div class="o_rms_cs_readings_scroll" t-ref="readingsScroll">
                                 <!-- Lecturas que el servidor rechaza: a la vista hasta reintentar o descartar. -->
                                 <div t-if="state.failed.length" class="o_rms_cs_failed o_rms_cs_keep_focus" role="alert">
@@ -462,6 +482,7 @@
                                 </ul>
                             </div>
                         </section>
+                        </div>
                     </div>
                     <div class="o_rms_cs_footer o_rms_cs_keep_focus">
                         <button class="btn btn-secondary" t-on-click="backToSession">Salir</button>

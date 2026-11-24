@@ -1,0 +1,437 @@
+// Vista "Lista" del escáner de recuento: marca > producto > nº de serie, con
+// los mismos colores que "Lecturas" (clases o_rms_cs_k_* de count_scan.scss).
+// Filas altas para el dedo (iPad). Ojo: el libsass de Odoo no entiende
+// max()/min()/env() de CSS: usar unquote() si hicieran falta.
+
+$rms-l-ok: #198754;
+$rms-l-ok-bg: #e3f4ea;
+$rms-l-warn-bg: #fff6d9;
+$rms-l-bad-bg: #fbe3e5;
+$rms-l-grey: #6c757d;
+$rms-l-grey-bg: #f1f3f5;
+$rms-l-accent: #6f42c1;
+$rms-l-line: #dee2e6;
+
+.o_rms_count_scan {
+    // Hueco que antes ocupaba solo la lista de lecturas.
+    .o_rms_cs_content {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 0;
+        min-width: 0;
+    }
+
+    // ------------------------------------------- conmutador Lecturas / Lista
+    .o_rms_cs_views {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        flex: 0 0 auto;
+        padding: 4px 8px;
+        border-top: 1px solid var(--border-color, #{$rms-l-line});
+        background: #f8f9fa;
+        > * { margin: 2px 6px 2px 0; }
+        > *:last-child { margin-right: 0; }
+    }
+
+    .o_rms_cs_tabs {
+        display: inline-flex;
+        flex: 0 0 auto;
+        .btn {
+            height: 40px;
+            padding: 0 16px;
+            font-size: 1rem;
+            font-weight: 700;
+            border: 2px solid $rms-l-accent;
+            color: $rms-l-accent;
+            background: #fff;
+            border-radius: 0;
+            white-space: nowrap;
+            &:first-child { border-radius: 8px 0 0 8px; }
+            &:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+            &.active { background: $rms-l-accent; color: #fff; }
+        }
+    }
+
+    .o_rms_cs_lfilters {
+        display: inline-flex;
+        flex: 0 0 auto;
+        .btn {
+            height: 40px;
+            padding: 0 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: 1px solid #495057;
+            color: #212529;
+            background: #fff;
+            border-radius: 0;
+            white-space: nowrap;
+            &:first-child { border-radius: 6px 0 0 6px; }
+            &:last-child { border-radius: 0 6px 6px 0; }
+            & + .btn { border-left: 0; }
+            &.active { background: #343a40; color: #fff; }
+        }
+    }
+
+    .o_rms_cs_lsearch {
+        position: relative;
+        display: flex;
+        flex: 1 1 12rem;
+        min-width: 9rem;
+        > .fa-search {
+            position: absolute;
+            left: 10px;
+            top: 12px;
+            color: $rms-l-grey;
+            pointer-events: none;
+        }
+        input {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 40px;
+            padding-left: 30px;
+            font-size: 0.95rem;
+        }
+        .o_rms_cs_lsearch_clear {
+            flex: 0 0 auto;
+            height: 40px;
+            width: 40px;
+            padding: 0;
+            border: 1px solid #ced4da;
+            border-left: 0;
+            background: #fff;
+        }
+    }
+
+    .o_rms_cs_lbtn {
+        flex: 0 0 auto;
+        height: 40px;
+        padding: 0 12px;
+        font-size: 0.9rem;
+        border: 1px solid #adb5bd;
+        background: #fff;
+        color: #212529;
+        white-space: nowrap;
+        &.active { background: #343a40; color: #fff; }
+    }
+
+    // ------------------------------------------------------------- la lista
+    .o_rms_cs_list {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 0;
+        min-width: 0;
+        border-top: 1px solid var(--border-color, #{$rms-l-line});
+    }
+
+    // Última lectura: una línea con el color de siempre (o_rms_cs_k_*).
+    .o_rms_cs_llast {
+        flex: 0 0 auto;
+        background: $rms-l-grey-bg;
+        border-bottom: 1px solid var(--border-color, #{$rms-l-line});
+    }
+    .o_rms_cs_llast_row {
+        display: grid;
+        grid-template-columns: auto 1.4rem minmax(0, 13rem) minmax(0, 15rem) minmax(0, 1fr);
+        grid-column-gap: 10px;
+        align-items: center;
+        min-height: 40px;
+        padding: 2px 10px;
+        border-left-width: 8px;
+        border-left-style: solid;
+        cursor: pointer;
+        > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        &.o_rms_cs_k_unknown, &.o_rms_cs_k_nos { border-left-color: $rms-l-grey; }
+    }
+    .o_rms_cs_llast_label { font-size: 0.75rem; text-transform: uppercase; color: #495057; }
+
+    .o_rms_cs_list_scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .o_rms_cs_lprint {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        flex: 0 0 auto;
+        padding: 6px 8px 2px;
+        background: #e3edff;
+        border-bottom: 1px solid #9ec5fe;
+        > * { margin: 0 6px 4px 0; }
+        .btn { min-height: 44px; font-weight: 600; }
+        .o_rms_cs_lprint_title { font-weight: 700; color: #084298; }
+        .o_rms_cs_lprint_hint { color: #084298; font-size: 0.85rem; }
+    }
+
+    .o_rms_cs_lloading,
+    .o_rms_cs_lempty {
+        padding: 12px 16px;
+        color: #495057;
+        list-style: none;
+    }
+    .o_rms_cs_lempty_all { font-size: 1.05rem; padding: 20px 16px; }
+    .o_rms_cs_lerror { margin: 6px 8px; width: auto; }
+
+    // Nivel 1: marca. Abierta, su cabecera se queda arriba al desplazarse.
+    .o_rms_cs_lbrand {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
+        min-height: 58px;
+        padding: 6px 12px 10px;
+        border: 0;
+        border-bottom: 1px solid var(--border-color, #{$rms-l-line});
+        background: #fff;
+        color: #212529;
+        text-align: left;
+        font-size: 1.05rem;
+        touch-action: manipulation;
+        > * { margin-right: 10px; }
+        > *:last-child { margin-right: 0; }
+    }
+    .o_rms_cs_lgroup_open > .o_rms_cs_lbrand {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #f3effa;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    }
+    .o_rms_cs_lcaret { flex: 0 0 1rem; color: $rms-l-grey; font-size: 0.85rem; text-align: center; }
+    .o_rms_cs_lbrand_name {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .o_rms_cs_lbrand_note { flex: 0 1 auto; font-size: 0.85rem; }
+    .o_rms_cs_lcount {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+        b { font-size: 1.15rem; }
+        .fa-check { color: $rms-l-ok; margin-right: 4px; }
+    }
+    .o_rms_cs_lbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 5px;
+        margin: 0;
+        background: #e9ecef;
+        > span { display: block; height: 100%; background: $rms-l-ok; transition: width 0.4s ease; }
+    }
+    .o_rms_cs_lgroup_done > .o_rms_cs_lbrand .o_rms_cs_lbrand_name { color: #0f5132; }
+
+    .o_rms_cs_lpill {
+        flex: 0 0 auto;
+        padding: 2px 10px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+    .o_rms_cs_lpill_done { background: $rms-l-ok-bg; color: #0f5132; border-color: #b7dfc7; }
+    .o_rms_cs_lpill_left { background: #fff; color: #343a40; border-color: #adb5bd; }
+    .o_rms_cs_lpill_review { background: $rms-l-warn-bg; color: #664d03; border-color: #f3d58a; font-weight: 600; }
+    .o_rms_cs_lpill_qty { background: transparent; color: #495057; border: 1px dashed #adb5bd; }
+
+    // Altas: leído y no está en Sage.
+    .o_rms_cs_lextra > .o_rms_cs_lbrand {
+        background: $rms-l-bad-bg;
+        color: #842029;
+        border-left: 6px solid #dc3545;
+    }
+
+    // Nivel 2: producto.
+    .o_rms_cs_lproduct,
+    .o_rms_cs_lqty_item {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        min-height: 50px;
+        padding: 4px 12px 4px 28px;
+        border: 0;
+        border-bottom: 1px solid var(--border-color, #{$rms-l-line});
+        background: #f8f9fa;
+        color: #212529;
+        text-align: left;
+        touch-action: manipulation;
+        > * { margin-right: 10px; }
+        > *:last-child { margin-right: 0; }
+    }
+    .o_rms_cs_lproduct_open { background: #eceff3; font-weight: 600; }
+    .o_rms_cs_lproduct_done .o_rms_cs_lcount { color: #0f5132; }
+    .o_rms_cs_lproduct_ref {
+        flex: 0 0 11rem;
+        min-width: 0;
+        font-family: SFMono-Regular, Menlo, Consolas, monospace;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .o_rms_cs_lproduct_name {
+        flex: 1 1 auto;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .o_rms_cs_lproduct_flag { color: #805400; font-weight: 600; }
+
+    // Nivel 3: nº de serie. El color lo ponen o_rms_cs_k_ok / o_rms_cs_k_est /
+    // o_rms_cs_k_none (los de "Lecturas"); aquí solo lo que está sin leer.
+    .o_rms_cs_lserials {
+        list-style: none;
+        margin: 0;
+        padding: 0 0 0 28px;
+        background: #fff;
+    }
+    .o_rms_cs_lserial {
+        border-left-width: 6px;
+        border-left-style: solid;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .o_rms_cs_l_todo {
+        background: #fff;
+        border-left-color: #adb5bd;
+        .o_rms_cs_row_icon { color: #868e96; }
+    }
+    .o_rms_cs_l_wait {
+        background: $rms-l-grey-bg;
+        border-left-style: dashed;
+        border-left-color: $rms-l-grey;
+    }
+    .o_rms_cs_l_open { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.12); }
+    .o_rms_cs_k_ok.o_rms_cs_l_flash { animation: o_rms_cs_flash_ok 0.9s ease-out; }
+    .o_rms_cs_k_est.o_rms_cs_l_flash { animation: o_rms_cs_flash_warn 0.9s ease-out; }
+
+    .o_rms_cs_lserial_main {
+        display: grid;
+        grid-template-columns: 1.4rem minmax(0, 16rem) minmax(0, 1fr) auto;
+        grid-column-gap: 10px;
+        align-items: center;
+        min-height: 46px;
+        padding: 4px 10px;
+        cursor: pointer;
+        touch-action: manipulation;
+        > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .o_rms_cs_row_serial { font-size: 1.05rem; font-weight: 600; }
+    }
+    .o_rms_cs_lserial_tags { display: inline-flex; align-items: center; }
+    .o_rms_cs_ltag {
+        margin-left: 6px;
+        padding: 1px 8px;
+        border: 1px solid #ced4da;
+        border-radius: 999px;
+        background: #fff;
+        color: #343a40;
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+    .o_rms_cs_ltag_demo { color: #075985; border-color: #075985; }
+    .o_rms_cs_ltag_2mano { color: #6b21a8; border-color: #6b21a8; }
+
+    .o_rms_cs_lserial_detail {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 6px 10px 8px 2.4rem;
+        font-size: 0.9rem;
+        border-top: 1px dashed rgba(0, 0, 0, 0.15);
+        > * { margin: 0 10px 4px 0; }
+        .btn { min-height: 44px; font-weight: 700; white-space: nowrap; }
+        .o_rms_cs_lserial_hint { flex-basis: 100%; color: #664d03; }
+    }
+
+    .o_rms_cs_lmore {
+        list-style: none;
+        padding: 6px 10px;
+        .btn { min-height: 44px; width: 100%; }
+    }
+
+    // Lo que va por cantidad (sin nº de serie), al final de cada marca.
+    .o_rms_cs_lqty { margin: 0 0 6px 28px; border-left: 6px solid #adb5bd; }
+    .o_rms_cs_lqty_head {
+        padding: 8px 10px 6px;
+        font-weight: 700;
+        background: #eef1f4;
+        border-bottom: 1px solid var(--border-color, #{$rms-l-line});
+        > span { font-weight: 400; font-size: 0.85rem; color: #495057; }
+    }
+    .o_rms_cs_lqty_item { padding-left: 10px; background: #fff; }
+    .o_rms_cs_lqty_counted { background: $rms-l-ok-bg; }
+
+    .o_rms_cs_lhelp {
+        padding: 12px 14px 16px;
+        color: #495057;
+        font-size: 0.85rem;
+        background: #f8f9fa;
+        border-top: 1px solid var(--border-color, #{$rms-l-line});
+    }
+
+    // iPad y portátil: al desplazarse por un producto largo, su cabecera se
+    // queda debajo de la de la marca (siempre se ve qué se está mirando).
+    @media (min-width: 701px) {
+        .o_rms_cs_lbrand { height: 58px; }
+        .o_rms_cs_lproduct_open {
+            position: sticky;
+            top: 58px;
+            z-index: 1;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+        }
+    }
+
+    // iPad: el botón de orden se queda en su icono para dejar sitio al buscador.
+    @media (max-width: 1300px) {
+        .o_rms_cs_lbtn_order .o_rms_cs_button_label { display: none; }
+    }
+
+    // ------------------------------------------------------------ móvil
+    @media (max-width: 700px) {
+        .o_rms_cs_tabs { flex: 1 1 100%; .btn { flex: 1 1 50%; } }
+        .o_rms_cs_lfilters { flex: 1 1 100%; .btn { flex: 1 1 auto; padding: 0 6px; } }
+        .o_rms_cs_lbrand { flex-wrap: wrap; }
+        .o_rms_cs_lbrand_name { flex-basis: 60%; }
+        .o_rms_cs_lproduct, .o_rms_cs_lqty_item { flex-wrap: wrap; padding-left: 14px; }
+        .o_rms_cs_lproduct_ref { flex-basis: auto; }
+        .o_rms_cs_lproduct_name { flex-basis: 100%; order: 5; white-space: normal; }
+        .o_rms_cs_lserials { padding-left: 10px; }
+        .o_rms_cs_llast_row {
+            grid-template-columns: 1.4rem minmax(0, 1fr) minmax(0, 1fr);
+            .o_rms_cs_llast_label { display: none; }
+            .o_rms_cs_row_reason { grid-column: 2 / -1; }
+            .o_rms_cs_row_reason:empty { display: none; }
+        }
+        .o_rms_cs_lqty { margin-left: 10px; }
+        .o_rms_cs_lserial_main {
+            grid-template-columns: 1.4rem minmax(0, 1fr) auto;
+            .o_rms_cs_lserial_text { grid-column: 2 / -1; grid-row: 2; }
+            .o_rms_cs_lserial_text:empty { display: none; }
+        }
+    }
+
+    // iPad / portátil en horizontal con cámara: la raya de separación va en
+    // el hueco entero (pestañas + lista), no solo en la lista de lecturas.
+    @media (orientation: landscape) and (min-width: 700px) {
+        .o_rms_cs_camera_mode .o_rms_cs_content {
+            border-left: 1px solid var(--border-color, #{$rms-l-line});
+        }
+        .o_rms_cs_camera_mode .o_rms_cs_views { border-top: 0; }
+        .o_rms_cs_camera_mode .o_rms_cs_readings {
+            border-left: 0;
+            border-top: 1px solid var(--border-color, #{$rms-l-line});
+        }
+    }
+}

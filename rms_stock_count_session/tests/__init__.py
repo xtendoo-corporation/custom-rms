@@ -25,3 +25,5 @@ from . import test_sage_mismatch_export
 from . import test_count_by_quantity
 
 from . import test_scanner_robustness
+
+from . import test_scanner_list

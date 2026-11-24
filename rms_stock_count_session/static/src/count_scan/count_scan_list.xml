@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!-- Vista "Lista" del escáner de recuento (ver count_scan_list.js). Se
+         pinta dentro de la plantilla del escáner, debajo de la casilla. -->
+
+    <!-- Filtros, buscador y botones: en la misma franja que Lecturas / Lista. -->
+    <t t-name="rms_stock_count_session.ScanListToolbar">
+        <t t-set="ls" t-value="state.list"/>
+        <div class="o_rms_cs_lfilters" role="group" aria-label="Qué enseñar de la lista">
+            <button class="btn o_rms_cs_lfilter_all" t-att-class="ls.filter === 'all' ? 'active' : ''"
+                    t-att-aria-pressed="ls.filter === 'all' ? 'true' : 'false'"
+                    t-on-click="() => this.setListFilter('all')">Todo</button>
+            <button class="btn o_rms_cs_lfilter_pending" t-att-class="ls.filter === 'pending' ? 'active' : ''"
+                    t-att-aria-pressed="ls.filter === 'pending' ? 'true' : 'false'"
+                    t-on-click="() => this.setListFilter('pending')">Solo lo que falta</button>
+            <button class="btn o_rms_cs_lfilter_done" t-att-class="ls.filter === 'done' ? 'active' : ''"
+                    t-att-aria-pressed="ls.filter === 'done' ? 'true' : 'false'"
+                    t-on-click="() => this.setListFilter('done')">Solo leído</button>
+        </div>
+        <div class="o_rms_cs_lsearch">
+            <i class="fa fa-search" aria-hidden="true"/>
+            <input type="text" class="form-control o_rms_cs_lsearch_input" autocomplete="off" autocapitalize="off"
+                   spellcheck="false" aria-label="Buscar en la lista"
+                   placeholder="Buscar marca, referencia, nombre o nº de serie"
+                   t-att-value="ls.text" t-on-input="onListQueryInput" t-on-keydown="onListQueryKeydown"/>
+            <button t-if="ls.text or ls.query" class="btn o_rms_cs_lsearch_clear" title="Quitar la búsqueda"
+                    aria-label="Quitar la búsqueda" t-on-click="clearListQuery"><i class="fa fa-times"/></button>
+        </div>
+        <button class="btn o_rms_cs_lbtn o_rms_cs_lbtn_order" t-on-click="toggleListOrder"
+                t-att-title="ls.order === 'pending' ? 'Orden: las marcas con más pendientes primero. Toca para ordenar de la A a la Z.' : 'Orden: de la A a la Z. Toca para poner primero las marcas con más pendientes.'">
+            <i class="fa" t-att-class="ls.order === 'pending' ? 'fa-sort-amount-desc' : 'fa-sort-alpha-asc'"/>
+            <span class="o_rms_cs_button_label"><t t-if="ls.order === 'pending'">Más pendientes</t><t t-else="">A-Z</t></span>
+        </button>
+        <button class="btn o_rms_cs_lbtn o_rms_cs_lbtn_refresh" t-on-click="listRefreshNow"
+                t-att-title="'Traer lo que han leído los demás' + (ls.refreshedAt ? ' (actualizada a las ' + ls.refreshedAt + ')' : '')">
+            <i class="fa fa-refresh" t-att-class="ls.loading ? 'fa-spin' : ''"/><span class="o_rms_cs_button_label">Actualizar</span>
+        </button>
+        <button class="btn o_rms_cs_lbtn o_rms_cs_lbtn_print" t-att-class="ls.printOpen ? 'active' : ''"
+                title="Imprimir la lista en papel (PDF)" t-on-click="toggleListPrint">
+            <i class="fa fa-print"/><span class="o_rms_cs_button_label">Imprimir lista</span>
+        </button>
+    </t>
+
+    <t t-name="rms_stock_count_session.ScanList">
+        <t t-set="ls" t-value="state.list"/>
+        <t t-set="waiting" t-value="listWaiting"/>
+        <section class="o_rms_cs_list" aria-label="Lista de la nave">
+            <!-- Lo último que se ha leído, con su color de siempre: en la Lista
+                 también se ve si una lectura sale roja, ámbar o "Ya leído". -->
+            <t t-set="lastScan" t-value="visibleRows[0]"/>
+            <div t-if="lastScan" class="o_rms_cs_llast" role="status" aria-live="polite">
+                <t t-set="lastKind" t-value="verdictKind({scan: lastScan})"/>
+                <div class="o_rms_cs_llast_row" t-att-class="'o_rms_cs_k_' + lastKind"
+                     title="Tu última lectura. Toca para verlas todas en «Lecturas»." t-on-click="() => this.setView('scans')">
+                    <span class="o_rms_cs_llast_label">Última lectura</span>
+                    <span class="o_rms_cs_row_icon" aria-hidden="true" t-esc="verdictIcon(lastKind)"/>
+                    <span class="o_rms_cs_row_model" t-att-class="lastScan.product_name ? '' : 'o_rms_cs_row_noproduct'" t-esc="shortModel(lastScan)"/>
+                    <span class="o_rms_cs_row_serial" t-esc="lastScan.lot_name or lastScan.code"/>
+                    <span class="o_rms_cs_row_reason">
+                        <span t-if="state.dupId === lastScan.id" class="o_rms_cs_repeated_badge">Ya leído</span>
+                        <t t-esc="shortReason(lastScan, lastKind)"/>
+                    </span>
+                </div>
+            </div>
+            <!-- Qué imprimir: solo lo que falta o todo; la marca abierta o toda la nave. -->
+            <div t-if="ls.printOpen" class="o_rms_cs_lprint o_rms_cs_keep_focus" role="group" aria-label="Qué imprimir">
+                <span class="o_rms_cs_lprint_title"><i class="fa fa-print"/> ¿Qué imprimo?</span>
+                <t t-foreach="listOpenBrands" t-as="printBrand" t-key="printBrand.id">
+                    <button class="btn btn-primary" t-on-click="() => this.listPrint(printBrand.id, true)">
+                        Lo que falta de <t t-esc="printBrand.name"/></button>
+                    <button class="btn btn-outline-primary" t-on-click="() => this.listPrint(printBrand.id, false)">
+                        Todo <t t-esc="printBrand.name"/></button>
+                </t>
+                <button class="btn btn-primary o_rms_cs_lprint_site_pending" t-on-click="() => this.listPrint(false, true)">Lo que falta de toda la nave</button>
+                <button class="btn btn-outline-primary" t-on-click="() => this.listPrint(false, false)">Toda la nave</button>
+                <button class="btn btn-outline-secondary" t-on-click="toggleListPrint">Cancelar</button>
+                <span t-if="!listOpenBrands.length" class="o_rms_cs_lprint_hint">Para imprimir una sola marca, ábrela antes en la lista.</span>
+            </div>
+            <div class="o_rms_cs_list_scroll" t-ref="listScroll">
+                <div t-if="ls.error" class="o_rms_cs_note o_rms_cs_note_warn o_rms_cs_lerror" role="status">
+                    <i class="fa fa-exclamation-triangle"/><span t-esc="ls.error"/>
+                    <button class="btn btn-sm btn-dark" t-on-click="listRefreshNow"><i class="fa fa-refresh"/> Reintentar</button>
+                </div>
+                <div t-if="!ls.summary and !ls.error" class="o_rms_cs_lloading">
+                    <i class="fa fa-circle-o-notch fa-spin"/> Cargando la lista de la nave…
+                </div>
+                <t t-if="ls.summary">
+                    <div t-if="!ls.summary.has_sage" class="p-3 text-muted">
+                        Este recuento no está en una nave enlazada con Sage: no hay lista que enseñar.
+                    </div>
+
+                    <!-- Altas: leído en este recuento y no está en Sage. -->
+                    <div t-if="ls.summary.extra_count" class="o_rms_cs_lgroup o_rms_cs_lextra">
+                        <button class="o_rms_cs_lbrand" t-att-aria-expanded="ls.extraOpen ? 'true' : 'false'" t-on-click="toggleListExtra">
+                            <i class="fa o_rms_cs_lcaret" t-att-class="ls.extraOpen ? 'fa-chevron-down' : 'fa-chevron-right'"/>
+                            <span class="o_rms_cs_lbrand_name">No están en Sage (<t t-esc="ls.summary.extra_count"/>)</span>
+                            <span class="o_rms_cs_lbrand_note">leídos en este recuento · se darán de alta en la revisión</span>
+                        </button>
+                        <ul t-if="ls.extraOpen" class="o_rms_cs_lserials">
+                            <li t-if="!ls.extra" class="o_rms_cs_lloading"><i class="fa fa-circle-o-notch fa-spin"/> Cargando…</li>
+                            <t t-if="ls.extra">
+                                <li t-foreach="ls.extra.rows" t-as="alta" t-key="alta.id" class="o_rms_cs_lserial o_rms_cs_k_none">
+                                    <div class="o_rms_cs_lserial_main">
+                                        <span class="o_rms_cs_row_icon" aria-hidden="true">✕</span>
+                                        <span class="o_rms_cs_row_serial" t-esc="alta.serial"/>
+                                        <span class="o_rms_cs_lserial_text o_rms_cs_row_reason">
+                                            No está en Sage<t t-if="alta.ref or alta.name"> · <t t-esc="alta.ref"/> <t t-esc="alta.name"/></t>
+                                        </span>
+                                        <span class="o_rms_cs_lserial_tags"><span class="o_rms_cs_ltag"><t t-esc="alta.by"/> · <t t-esc="alta.at"/></span></span>
+                                    </div>
+                                </li>
+                                <li t-if="ls.extra.total > ls.extra.rows.length" class="o_rms_cs_lmore">
+                                    <button class="btn btn-outline-secondary" t-on-click="listMoreExtra">
+                                        Ver más (quedan <t t-esc="ls.extra.total - ls.extra.rows.length"/>)</button>
+                                </li>
+                            </t>
+                        </ul>
+                    </div>
+
+                    <!-- Nivel 1: marcas -->
+                    <div t-foreach="listBrands" t-as="brand" t-key="brand.id" class="o_rms_cs_lgroup"
+                         t-att-class="(ls.open[brand.id] ? 'o_rms_cs_lgroup_open' : '') + (brand.total and brand.counted >= brand.total ? ' o_rms_cs_lgroup_done' : '')"
+                         t-att-data-brand="brand.name">
+                        <button class="o_rms_cs_lbrand" t-att-aria-expanded="ls.open[brand.id] ? 'true' : 'false'"
+                                t-on-click="() => this.toggleListBrand(brand)">
+                            <i class="fa o_rms_cs_lcaret" t-att-class="ls.open[brand.id] ? 'fa-chevron-down' : 'fa-chevron-right'"/>
+                            <span class="o_rms_cs_lbrand_name" t-esc="brand.name"/>
+                            <span t-if="brand.total" class="o_rms_cs_lcount"><b t-esc="brand.counted"/> de <b t-esc="brand.total"/></span>
+                            <span t-if="brand.total and brand.counted >= brand.total" class="o_rms_cs_lpill o_rms_cs_lpill_done"><i class="fa fa-check"/> Completa</span>
+                            <span t-elif="brand.total" class="o_rms_cs_lpill o_rms_cs_lpill_left">faltan <b t-esc="brand.total - brand.counted"/></span>
+                            <span t-if="brand.review" class="o_rms_cs_lpill o_rms_cs_lpill_review" title="Leídos con un estado distinto al de Sage">
+                                ⚠ <t t-esc="brand.review"/> con otro estado</span>
+                            <span t-if="brand.qty_total" class="o_rms_cs_lpill o_rms_cs_lpill_qty" title="Artículos sin nº de serie: apuntados de los que hay">
+                                por cantidad <t t-esc="brand.qty_counted"/> de <t t-esc="brand.qty_total"/></span>
+                            <span t-if="brand.total" class="o_rms_cs_lbar" aria-hidden="true"><span t-att-style="'width:' + listPercent(brand) + '%'"/></span>
+                        </button>
+                        <div t-if="ls.open[brand.id]" class="o_rms_cs_lbrand_body">
+                            <t t-set="content" t-value="ls.products[brand.id]"/>
+                            <div t-if="!content" class="o_rms_cs_lloading"><i class="fa fa-circle-o-notch fa-spin"/> Cargando…</div>
+                            <t t-if="content">
+                                <!-- Nivel 2: productos -->
+                                <t t-foreach="content.products" t-as="product" t-key="product.key">
+                                    <t t-set="pkey" t-value="brand.id + '|' + product.key"/>
+                                    <t t-set="group" t-value="ls.serials[pkey]"/>
+                                    <button class="o_rms_cs_lproduct"
+                                            t-att-class="(ls.openProducts[pkey] ? 'o_rms_cs_lproduct_open' : '') + (product.counted >= product.total ? ' o_rms_cs_lproduct_done' : '')"
+                                            t-att-aria-expanded="ls.openProducts[pkey] ? 'true' : 'false'" t-att-data-ref="product.ref"
+                                            t-on-click="() => this.toggleListProduct(brand, product)">
+                                        <i class="fa o_rms_cs_lcaret" t-att-class="ls.openProducts[pkey] ? 'fa-chevron-down' : 'fa-chevron-right'"/>
+                                        <span class="o_rms_cs_lproduct_ref" t-esc="product.ref"/>
+                                        <span class="o_rms_cs_lproduct_name">
+                                            <t t-esc="product.name"/>
+                                            <span t-if="product.no_product" class="o_rms_cs_lproduct_flag"> · sin producto en Odoo</span>
+                                        </span>
+                                        <span t-if="product.review" class="o_rms_cs_lpill o_rms_cs_lpill_review">⚠ <t t-esc="product.review"/></span>
+                                        <span class="o_rms_cs_lcount">
+                                            <i t-if="product.counted >= product.total" class="fa fa-check"/>
+                                            <b t-esc="product.counted"/> de <b t-esc="product.total"/>
+                                        </span>
+                                    </button>
+                                    <!-- Nivel 3: nº de serie -->
+                                    <ul t-if="ls.openProducts[pkey]" class="o_rms_cs_lserials">
+                                        <li t-if="!group" class="o_rms_cs_lloading"><i class="fa fa-circle-o-notch fa-spin"/> Cargando…</li>
+                                        <t t-if="group">
+                                            <t t-foreach="group.rows" t-as="row" t-key="row.id">
+                                                <t t-set="kind" t-value="listRowKind(row, waiting)"/>
+                                                <li class="o_rms_cs_lserial" t-att-class="listRowClass(row, kind)" t-att-data-serial="row.serial" t-att-data-kind="kind">
+                                                    <div class="o_rms_cs_lserial_main" t-on-click="() => this.toggleListDetail(row)">
+                                                        <span class="o_rms_cs_row_icon" aria-hidden="true">
+                                                            <i t-if="kind === 'wait'" class="fa fa-clock-o"/>
+                                                            <t t-elif="kind === 'ok'">✓</t>
+                                                            <t t-elif="kind === 'est'">⚠</t>
+                                                            <i t-else="" class="fa fa-circle-thin"/>
+                                                        </span>
+                                                        <span class="o_rms_cs_row_serial" t-esc="row.serial"/>
+                                                        <span class="o_rms_cs_lserial_text o_rms_cs_row_reason" t-esc="listRowText(row, kind)"/>
+                                                        <span class="o_rms_cs_lserial_tags">
+                                                            <span class="o_rms_cs_ltag" t-att-title="'Empresa de Sage: ' + row.co + ' · almacén ' + row.wh" t-esc="row.co"/>
+                                                            <span class="o_rms_cs_ltag" t-att-class="'o_rms_cs_ltag_' + row.st" title="Estado en Sage" t-esc="row.st_name"/>
+                                                        </span>
+                                                    </div>
+                                                    <div t-if="ls.detail === row.id" class="o_rms_cs_lserial_detail o_rms_cs_keep_focus">
+                                                        <t t-if="kind === 'todo'">
+                                                            <span>Sin leer. Sage lo tiene en <b t-esc="row.co"/> (<t t-esc="row.wh"/>) como <b t-esc="row.st_name"/>.
+                                                                Si lo tienes delante sin pegatina (p. ej. en un flycase):</span>
+                                                            <button class="btn btn-success o_rms_cs_lprint_count" t-on-click="() => this.listPrintAndCount(row, product)">
+                                                                <i class="fa fa-print"/> Imprimir y contar</button>
+                                                        </t>
+                                                        <t t-elif="kind === 'wait'">
+                                                            <span>Leído en este dispositivo y pendiente de enviar al servidor: se pondrá en su color en cuanto se guarde.</span>
+                                                        </t>
+                                                        <t t-else="">
+                                                            <span>
+                                                                Lo leyó <b t-esc="row.by or 'alguien'"/><t t-if="row.at"> · <t t-esc="row.at"/></t>
+                                                                · recuento <t t-esc="row.sess"/><t t-if="!row.here"> (otro recuento)</t>
+                                                                <t t-if="row.read_state"> · leído como <b t-esc="row.read_state"/></t>
+                                                                · Sage: <t t-esc="row.co"/> (<t t-esc="row.wh"/>) <t t-esc="row.st_name"/>
+                                                            </span>
+                                                            <span t-if="kind === 'est'" class="o_rms_cs_lserial_hint">
+                                                                Si el estado correcto es otro, pulsa el estado arriba y vuelve a leerlo; si no, lo revisa Administración.</span>
+                                                        </t>
+                                                    </div>
+                                                </li>
+                                            </t>
+                                            <li t-if="!group.rows.length" class="o_rms_cs_lempty">Ningún equipo con este filtro.</li>
+                                            <li t-if="group.total > group.rows.length" class="o_rms_cs_lmore">
+                                                <button class="btn btn-outline-secondary" t-on-click="() => this.listMoreSerials(brand, product)">
+                                                    Ver más (quedan <t t-esc="group.total - group.rows.length"/>)</button>
+                                            </li>
+                                        </t>
+                                    </ul>
+                                </t>
+                                <!-- Lo que va por cantidad: a ciegas, sin la cantidad de Sage. -->
+                                <div t-if="content.qty.length" class="o_rms_cs_lqty">
+                                    <div class="o_rms_cs_lqty_head"><i class="fa fa-calculator"/> Por cantidad <span>(sin nº de serie: toca uno para apuntar las unidades que cuentes)</span></div>
+                                    <button t-foreach="content.qty" t-as="item" t-key="item.key" class="o_rms_cs_lqty_item"
+                                            t-att-class="item.is_counted ? 'o_rms_cs_lqty_counted' : ''" t-att-data-ref="item.ref"
+                                            t-on-click="() => this.listOpenQty(item)">
+                                        <span class="o_rms_cs_lproduct_ref" t-esc="item.ref"/>
+                                        <span class="o_rms_cs_lproduct_name">
+                                            <t t-esc="item.sage_name or item.name"/>
+                                            <span t-if="!item.ok" class="o_rms_cs_lproduct_flag"> · falta crear el producto</span>
+                                        </span>
+                                        <span t-if="item.is_counted" class="o_rms_cs_lpill o_rms_cs_lpill_done">contado: <b t-esc="formatQty(item.counted)"/></span>
+                                        <span t-else="" class="o_rms_cs_lpill o_rms_cs_lpill_left">sin contar</span>
+                                    </button>
+                                </div>
+                                <div t-if="!content.products.length and !content.qty.length" class="o_rms_cs_lempty">Nada que enseñar de esta marca con este filtro.</div>
+                            </t>
+                        </div>
+                    </div>
+
+                    <div t-if="ls.summary.has_sage and !listBrands.length and !ls.summary.extra_count" class="o_rms_cs_lempty o_rms_cs_lempty_all">
+                        <t t-if="ls.query">Nada en la lista con «<t t-esc="ls.query"/>».</t>
+                        <t t-elif="ls.filter === 'pending'">No falta nada: todo lo de la lista está leído.</t>
+                        <t t-elif="ls.filter === 'done'">Todavía no se ha leído nada de la lista.</t>
+                        <t t-else="">Sage no tiene nada en esta nave.</t>
+                    </div>
+
+                    <div t-if="ls.summary.has_sage" class="o_rms_cs_lhelp">
+                        <i class="fa fa-info-circle"/>
+                        Aquí no salen los equipos que Sage tiene en depósito en clientes ni los que tiene en otra nave:
+                        si se leen aquí siguen saliendo en ámbar en «Lecturas». Cuenta como leído lo que haya leído cualquiera, también en otro recuento.
+                    </div>
+                </t>
+            </div>
+        </section>
+    </t>
+</templates>

@@ -40,6 +40,29 @@ el otro.
 6. Cada operario pulsa **He terminado mi recorrido**. El responsable pulsa
    **Terminar recuento y cruzar**.
 
+### Vista "Lista" del escáner (19.0.2.15.0)
+
+Debajo de la casilla de lectura hay dos pestañas: **Lecturas** (lo que lleva el
+operario, la de siempre) y **Lista**: todo lo que Sage dice que hay en la nave
+que se cuenta (las 3 empresas juntas, los mismos números que el marcador), como
+un packing list. La pistola lee igual en las dos.
+
+- Tres niveles plegables: marca ("412 de 752" y barra), producto ("6 de 10") y
+  nº de serie. Sin leer en blanco, leído en verde, leído con otro estado en
+  ámbar ("Sage dice Demo, leído Nuevo"), pendiente de enviar con reloj gris.
+  Cuenta lo leído por cualquiera en cualquier recuento no cancelado.
+- Carga perezosa (`scanner_list_brands` / `_products` / `_serials`, SQL
+  agregado): marcas al abrir, productos al abrir una marca, nº de serie al abrir
+  un producto (de 200 en 200). `scanner_list_refresh` trae en una llamada los
+  totales y solo los grupos abiertos (al leer, con "Actualizar" y cada 30 s).
+- Filtros Todo / Solo lo que falta / Solo leído y buscador en el servidor.
+- "Por cantidad" al final de cada marca, a ciegas (nunca la cantidad de Sage):
+  "sin contar" o "contado: N"; al tocarlo abre el panel Por cantidad.
+- "No están en Sage (N)": altas de este recuento, arriba y en rojo.
+- No salen los equipos en depósito en clientes ni los de otra nave.
+- Tocar un equipo sin leer ofrece **Imprimir y contar**; uno leído dice quién y
+  cuándo. **Imprimir lista** saca el PDF (lo que falta o todo; una marca o la nave).
+
 ## Reglas de lectura y códigos alternativos
 
 - **Inventario > Configuración > Reglas de lectura de etiquetas**: códigos que se
