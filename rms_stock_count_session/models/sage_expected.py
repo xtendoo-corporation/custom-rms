@@ -36,6 +36,15 @@ def sql_same_serial(left, right):
             % {'l': left, 'r': right})
 
 
+def sql_scan_reads_line(scan='sc', line='l'):
+    """Fragmento SQL: la lectura `scan` es del equipo de la línea de Sage
+    `line`: mismo nº de serie (con sus formas alternativas) o lectura
+    emparejada a mano con ese nº de serie de Sage ("coincidencia probable"
+    confirmada: en Sage está mal escrito)."""
+    return ("(%s OR (%s.sage_match_state = 'confirmed' AND %s.sage_match_key = %s.serial_normalized))" % (
+        sql_same_serial(scan + '.serial_normalized', line + '.serial_normalized'), scan, scan, line))
+
+
 def sage_article_parts(article):
     article = article.strip()
     state = 'Nuevo'
@@ -201,7 +210,7 @@ class StockCountSession(models.Model):
             for scan in session.scan_ids.filtered(
                 lambda s: not s.ignored and s.scan_type in ('serial', 'product') and s.product_id
             ):
-                key = (scan.product_id.id, normalize_serial(scan.lot_name))
+                key = (scan.product_id.id, scan._sage_key())
                 per_operator[key][scan.operator_id.id] += scan.quantity
                 serial_names[key] = scan.lot_name
                 if scan.product_id.tracking == 'serial':

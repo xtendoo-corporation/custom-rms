@@ -11,7 +11,7 @@ recuentos (menos los cancelados). No guardan nada: siempre al día.
 """
 from odoo import fields, models, tools
 
-from .sage_expected import sql_same_serial
+from .sage_expected import sql_same_serial, sql_scan_reads_line
 from .sage_live import MOVE_TYPES
 
 SAGE_STATES = [('nuevo', 'Nuevo'), ('demo', 'Demo'), ('2mano', '2ª Mano')]
@@ -49,6 +49,10 @@ class SageChecklist(models.Model):
     serial = fields.Char(string='Nº de serie', readonly=True)
     product_id = fields.Many2one('product.product', string='Producto', readonly=True)
     counted = fields.Boolean(string='Leído', readonly=True)
+    matched = fields.Boolean(string='Emparejado con otro nº de serie', readonly=True,
+                             help='La etiqueta del equipo lleva otro nº de serie (en Sage está mal escrito) y '
+                                  'un operario confirmó en el escáner que es este.')
+    matched_serial = fields.Char(string='Nº de serie de la etiqueta', readonly=True)
     counted_qty = fields.Integer(string='Leídos', readonly=True)
     pending_qty = fields.Integer(string='Faltan', readonly=True)
     session_count = fields.Integer(string='Nº de recuentos', readonly=True, aggregator=False)
@@ -76,6 +80,7 @@ class SageChecklist(models.Model):
                    l.brand_categ_id, l.warehouse_code, l.sage_warehouse_id, l.article_code,
                    l.article_name, l.model_code, l.state AS sage_state, l.serial, l.product_id,
                    COALESCE(s.scan_count, 0) > 0 AS counted,
+                   s.matched_serial IS NOT NULL AS matched, s.matched_serial,
                    CASE WHEN COALESCE(s.scan_count, 0) > 0 THEN 1 ELSE 0 END AS counted_qty,
                    -- Lo que Sage tiene en depósito en un cliente no falta en la nave.
                    CASE WHEN COALESCE(s.scan_count, 0) > 0 OR COALESCE(l.in_deposit, FALSE) THEN 0 ELSE 1 END AS pending_qty,
@@ -100,7 +105,9 @@ class SageChecklist(models.Model):
                            min(sc.id) AS first_scan_id,
                            (array_agg(sc.session_id ORDER BY sc.scanned_at, sc.id))[1] AS first_session_id,
                            min(sc.scanned_at) AS first_scanned_at,
-                           (array_agg(sc.product_state_id ORDER BY sc.scanned_at DESC, sc.id DESC))[1] AS last_state_id
+                           (array_agg(sc.product_state_id ORDER BY sc.scanned_at DESC, sc.id DESC))[1] AS last_state_id,
+                           max(CASE WHEN sc.sage_match_state = 'confirmed' AND sc.sage_match_key = l.serial_normalized
+                                    THEN COALESCE(sc.lot_name, sc.code) END) AS matched_serial
                       FROM scans sc
                      WHERE %s
                        AND sc.scan_type = 'serial'
@@ -125,7 +132,7 @@ class SageChecklist(models.Model):
                      LIMIT 1
               ) dp ON TRUE
              WHERE l.is_current AND l.stock_kind = 'stock' AND l.quantity > 0 AND COALESCE(l.serial_normalized, '') <> ''
-            )""" % (self._table, _VALID_SCANS, sql_same_serial('sc.serial_normalized', 'l.serial_normalized')))
+            )""" % (self._table, _VALID_SCANS, sql_scan_reads_line('sc', 'l')))
 
 
 class SageChecklistExtra(models.Model):
@@ -176,5 +183,6 @@ class SageChecklistExtra(models.Model):
              WHERE sc.scan_type IN ('serial', 'unknown')
                AND NOT EXISTS (
                     SELECT 1 FROM rms_sage_stock_line l
-                     WHERE l.is_current AND %s)
+                     WHERE l.is_current AND (%s
+                           OR (sc.sage_match_state = 'confirmed' AND l.serial_normalized = sc.sage_match_key)))
             )""" % (self._table, _VALID_SCANS, sql_same_serial('l.serial_normalized', 'sc.serial_normalized')))

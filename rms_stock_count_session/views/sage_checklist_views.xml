@@ -19,6 +19,8 @@
                 <field name="serial"/>
                 <field name="sage_state"/>
                 <field name="counted"/>
+                <field name="matched" optional="show"/>
+                <field name="matched_serial" optional="show"/>
                 <field name="counted_qty" sum="Leídos" optional="show"/>
                 <field name="pending_qty" sum="Faltan" optional="show"/>
                 <field name="physical_state_id"/>
@@ -52,6 +54,7 @@
                 <filter name="counted" string="Leídos" domain="[('counted', '=', True)]"/>
                 <filter name="mismatch" string="Estado distinto" domain="[('state_mismatch', '=', True)]"/>
                 <filter name="multi" string="En varios recuentos" domain="[('multi_session', '=', True)]"/>
+                <filter name="matched" string="Emparejado con otro nº de serie" domain="[('matched', '=', True)]"/>
                 <separator/>
                 <filter name="in_warehouse" string="En la nave" domain="[('in_deposit', '=', False)]"/>
                 <filter name="in_deposit" string="En depósito en cliente" domain="[('in_deposit', '=', True)]"/>

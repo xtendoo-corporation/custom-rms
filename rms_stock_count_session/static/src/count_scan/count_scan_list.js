@@ -554,7 +554,7 @@ patch(StockCountScan.prototype, {
             if (!scan || !scan.id) {
                 continue;
             }
-            const signature = `${scan.type}|${scan.product_state_id}|${scan.quantity}|${scan.lot_name}`;
+            const signature = `${scan.type}|${scan.product_state_id}|${scan.quantity}|${scan.lot_name}|${scan.match ? scan.match.state : ""}`;
             if (this._listSeen.get(scan.id) === signature) {
                 continue;
             }
@@ -578,7 +578,9 @@ patch(StockCountScan.prototype, {
     _listMark(scan) {
         const ls = this.state.list;
         const os = this.state.operatorState;
-        const forms = new Set(serialForms(scan.lot_name || scan.code));
+        // Emparejada a mano con Sage ("Sí, es este"): la fila es la del nº de serie de Sage.
+        const matched = scan.match && scan.match.state === "confirmed" && scan.match.serial;
+        const forms = new Set(serialForms(matched || scan.lot_name || scan.code));
         const hits = [];
         for (const [pkey, group] of Object.entries(ls.serials)) {
             for (const row of group.rows) {
@@ -598,6 +600,7 @@ patch(StockCountScan.prototype, {
         Object.assign(row, {
             k: kind, here: true, at: scan.time || "ahora", by: os?.operator.name || "",
             sess: os?.session.name || "", read_state: STATE_LABEL[code] || scan.product_state_name || "",
+            read_as: matched ? (scan.lot_name || scan.code) : "", sug: false,
         });
         ls.flashId = row.id;
         const brandId = pkey.split("|")[0];

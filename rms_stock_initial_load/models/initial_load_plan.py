@@ -105,7 +105,10 @@ class InitialLoad(models.Model):
         cr.execute("""
             SELECT sc.id, sc.session_id, sc.scan_type, sc.product_id, COALESCE(sc.lot_name, sc.code),
                    COALESCE(sc.serial_normalized, ''), sc.product_state_id, sc.scanned_at, sc.quantity,
-                   COALESCE(substring(btrim(wh.code) from '[0-9]+$')::int, 0)
+                   COALESCE(substring(btrim(wh.code) from '[0-9]+$')::int, 0),
+                   -- Lectura emparejada a mano con un nº de serie de Sage mal escrito
+                   -- ("coincidencia probable" confirmada en el escáner).
+                   CASE WHEN sc.sage_match_state = 'confirmed' THEN COALESCE(sc.sage_match_key, '') ELSE '' END
               FROM rms_stock_count_scan sc
               JOIN rms_stock_count_session ss ON ss.id = sc.session_id
               LEFT JOIN stock_location loc ON loc.id = COALESCE(sc.location_id, ss.location_id)
@@ -114,7 +117,7 @@ class InitialLoad(models.Model):
                AND sc.scan_type IN ('serial', 'unknown', 'product')
              ORDER BY sc.scanned_at, sc.id""")
         keys = ('id', 'session_id', 'scan_type', 'product_id', 'lot_name', 'sn', 'state_id', 'scanned_at',
-                'quantity', 'site')
+                'quantity', 'site', 'match_sn')
         ctx['scan_rows'] = [dict(zip(keys, row)) for row in cr.fetchall()]
 
         # Inicio del recuento de cada nave: primera lectura (o apertura del recuento).
@@ -304,7 +307,10 @@ class InitialLoad(models.Model):
             group = groups.get((scan['sn'], product_id))
             if not group:
                 group = groups[(scan['sn'], product_id)] = {
-                    'sn': scan['sn'], 'product_id': product_id, 'first_at': scan['scanned_at'], 'unit': None}
+                    'sn': scan['sn'], 'product_id': product_id, 'first_at': scan['scanned_at'], 'unit': None,
+                    'match_sn': ''}
+            if scan['match_sn']:
+                group['match_sn'] = scan['match_sn']
             group.update(scan_id=scan['id'], session_id=scan['session_id'], last_at=scan['scanned_at'],
                          site=scan['site'], state_id=scan['state_id'], lot_name=(scan['lot_name'] or '').strip())
         typed_sn = {sn for (sn, product_id) in groups if product_id}
@@ -362,6 +368,10 @@ class InitialLoad(models.Model):
         # --- Cada lectura se casa con una unidad de Sage ---
         for group in sorted((g for g in groups.values() if g['product_id']), key=lambda g: (g['first_at'], g['scan_id'])):
             keys = [group['sn']] + serial_alternatives(group['sn'])
+            if group['match_sn']:
+                # Emparejada con un nº de serie de Sage distinto del de la etiqueta: se casa con
+                # esa unidad (entra el nº de la etiqueta; la de Sage no va a «Pendiente de localizar»).
+                keys = list(dict.fromkeys(keys + [group['match_sn']] + serial_alternatives(group['match_sn'])))
             candidates = list({id(unit): unit for key in keys for unit in sage_by_sn.get(key, ())
                                if unit['group'] is None
                                and (not unit['product_id'] or unit['product_id'] == group['product_id'])}.values())

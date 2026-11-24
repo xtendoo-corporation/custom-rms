@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!-- Coincidencia probable con Sage (ver count_scan_match.js): la pregunta
+         va en la propia fila de la lectura, siempre a la vista. -->
+    <t t-name="rms_stock_count_session.ScanMatchAsk">
+        <t t-set="cands" t-value="matchCandidates(scan)"/>
+        <div class="o_rms_cs_match o_rms_cs_keep_focus" role="group" aria-label="¿Es este equipo de Sage?">
+            <t t-if="cands.length === 1">
+                <span class="o_rms_cs_match_text">
+                    Se parece a <b class="o_rms_cs_row_serial" t-esc="cands[0].serial"/> de Sage
+                    (<t t-esc="cands[0].product"/>). ¿Es este?
+                    <small t-if="cands[0].why" class="o_rms_cs_match_why">Diferencia: <t t-esc="cands[0].why"/>.</small>
+                </span>
+                <button class="btn btn-success o_rms_cs_match_yes" t-att-disabled="state.matchBusy[scan.id]"
+                        t-on-click="() => this.matchConfirm(scan.id, cands[0].key)">
+                    <i t-if="state.matchBusy[scan.id]" class="fa fa-circle-o-notch fa-spin"/> Sí, es este</button>
+                <button class="btn btn-outline-dark o_rms_cs_match_no" t-att-disabled="state.matchBusy[scan.id]"
+                        t-on-click="() => this.matchReject(scan.id)">No, es otro</button>
+            </t>
+            <t t-else="">
+                <span class="o_rms_cs_match_text">No está en Sage, pero se parece a estos de Sage. ¿Cuál es?</span>
+                <button t-foreach="cands" t-as="cand" t-key="cand.key" class="btn btn-success o_rms_cs_match_pick"
+                        t-att-disabled="state.matchBusy[scan.id]" t-att-title="cand.product + ' · ' + cand.wh"
+                        t-on-click="() => this.matchConfirm(scan.id, cand.key)">
+                    <span class="o_rms_cs_row_serial" t-esc="cand.serial"/>
+                    <small><t t-esc="cand.why"/> · <t t-esc="cand.product"/></small>
+                </button>
+                <button class="btn btn-outline-dark o_rms_cs_match_no" t-att-disabled="state.matchBusy[scan.id]"
+                        t-on-click="() => this.matchReject(scan.id)">Ninguna</button>
+            </t>
+        </div>
+    </t>
+
+    <!-- Selector de producto: buscar el artículo en el catálogo (maestro) de
+         Sage cuando el producto no existe en Odoo, y crearlo (solo el
+         responsable de inventario). -->
+    <t t-name="rms_stock_count_session.ScanCatalog">
+        <t t-set="cat" t-value="state.catalog"/>
+        <div class="o_rms_cs_catalog">
+            <t t-if="!cat and state.panelQuery">
+                <div t-if="!state.panelResults.length" class="o_rms_cs_catalog_none">
+                    Ningún producto de Odoo con «<t t-esc="state.panelQuery"/>».
+                </div>
+                <button class="btn o_rms_cs_catalog_search"
+                        t-att-class="state.panelResults.length ? 'btn-outline-primary' : 'btn-primary btn-lg'"
+                        t-on-click="catalogSearch">
+                    <i class="fa fa-book"/>
+                    <t t-if="state.panelResults.length"> ¿No es ninguno de estos? Buscar en el catálogo de Sage</t>
+                    <t t-else=""> Buscar en el catálogo de Sage</t>
+                </button>
+            </t>
+            <t t-if="cat">
+                <div class="o_rms_cs_catalog_head">
+                    <i class="fa fa-book"/> Catálogo de Sage · «<t t-esc="cat.query"/>»
+                </div>
+                <div t-if="cat.loading" class="o_rms_cs_catalog_none"><i class="fa fa-circle-o-notch fa-spin"/> Buscando…</div>
+                <div t-elif="cat.error" class="o_rms_cs_catalog_warn" role="alert">
+                    <i class="fa fa-exclamation-triangle"/> <t t-esc="cat.error"/>
+                    <button class="btn btn-sm btn-dark" t-on-click="catalogSearch"><i class="fa fa-refresh"/> Reintentar</button>
+                </div>
+                <div t-elif="!cat.articles.length" class="o_rms_cs_catalog_warn o_rms_cs_catalog_missing" role="alert">
+                    <i class="fa fa-exclamation-triangle"/>
+                    No está en el catálogo de Sage. Apunta la referencia de la caja y avisa al responsable.
+                </div>
+                <ul t-else="" class="list-group list-group-flush">
+                    <t t-foreach="cat.articles" t-as="article" t-key="article.id">
+                        <li class="list-group-item list-group-item-action o_rms_cs_catalog_item" style="cursor:pointer"
+                            t-att-class="cat.pick and cat.pick.id === article.id ? 'active' : ''"
+                            t-on-click="() => this.catalogPick(article)">
+                            <div class="fw-bold"><t t-esc="article.name or article.model"/></div>
+                            <div class="small">
+                                <span class="o_rms_cs_row_serial" t-esc="article.code"/>
+                                <t t-if="article.brand"> · <t t-esc="article.brand"/></t>
+                                <span t-if="article.status === 'exists'" class="o_rms_cs_catalog_tag o_rms_cs_catalog_tag_ok"> · ya está en Odoo</span>
+                                <span t-elif="article.status === 'archived'" class="o_rms_cs_catalog_tag"> · archivado en Odoo</span>
+                                <span t-else="" class="o_rms_cs_catalog_tag"> · no existe en Odoo</span>
+                            </div>
+                        </li>
+                        <li t-if="cat.pick and cat.pick.id === article.id" class="list-group-item o_rms_cs_catalog_pick">
+                            <t t-if="article.status === 'exists'">
+                                <div>Ya existe en Odoo: <b t-esc="article.product_name"/></div>
+                                <button class="btn btn-success btn-lg o_rms_cs_catalog_use" t-on-click="() => this.catalogUse(article)">
+                                    <i class="fa fa-check"/> Elegir este producto</button>
+                            </t>
+                            <div t-elif="article.status === 'archived'" class="o_rms_cs_catalog_warn" role="alert">
+                                <i class="fa fa-archive"/> <b t-esc="article.product_name"/> ya existe en Odoo pero está archivado:
+                                avisa al responsable para reactivarlo. No se crea otro.
+                            </div>
+                            <div t-elif="article.status === 'ambiguous'" class="o_rms_cs_catalog_warn" role="alert">
+                                <i class="fa fa-exclamation-triangle"/> Hay varios productos de Odoo con la referencia
+                                <b t-esc="article.model"/>: avisa al responsable.
+                            </div>
+                            <t t-elif="cat.can_create">
+                                <div>Este producto no existe en Odoo. Se creará como <b t-esc="article.name or article.model"/>
+                                    (referencia <b t-esc="article.model"/><t t-if="article.brand">, marca <t t-esc="article.brand"/></t>).</div>
+                                <label class="o_rms_cs_catalog_check">
+                                    <input type="checkbox" t-att-checked="cat.byQuantity"
+                                           t-on-change="(ev) => { this.state.catalog.byQuantity = ev.target.checked; }"/>
+                                    Va por cantidad, sin nº de serie
+                                </label>
+                                <button class="btn btn-success btn-lg o_rms_cs_catalog_create" t-att-disabled="cat.busy" t-on-click="catalogCreate">
+                                    <i class="fa" t-att-class="cat.busy ? 'fa-circle-o-notch fa-spin' : 'fa-plus'"/> Crear este producto</button>
+                            </t>
+                            <div t-else="" class="o_rms_cs_catalog_warn o_rms_cs_catalog_ask" role="alert">
+                                <i class="fa fa-exclamation-triangle"/> Este producto no existe en Odoo: avisa al responsable.
+                                Mientras tanto puedes seguir leyendo otras cosas.
+                            </div>
+                            <div t-if="cat.note" class="o_rms_cs_catalog_warn o_rms_cs_catalog_note" role="alert" t-esc="cat.note"/>
+                        </li>
+                    </t>
+                </ul>
+            </t>
+        </div>
+    </t>
+</templates>

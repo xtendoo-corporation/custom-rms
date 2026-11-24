@@ -1,0 +1,97 @@
+// Coincidencia probable con Sage (ámbar, con "¿Es este?") y catálogo de Sage
+// en el selector de producto. Mismos colores que count_scan.scss.
+// Ojo: el libsass de Odoo no entiende max()/min()/env() de CSS.
+
+$rms-m-warn: #d99200;
+$rms-m-warn-bg: #fff6d9;
+$rms-m-warn-text: #664d03;
+
+.o_rms_count_scan {
+    // Fila en ámbar, como "estado distinto".
+    .o_rms_cs_k_prob {
+        background: $rms-m-warn-bg;
+        border-left-color: $rms-m-warn;
+        .o_rms_cs_row_icon { color: $rms-m-warn; font-size: 1.15rem; }
+    }
+    .o_rms_cs_row_last.o_rms_cs_k_prob { animation-name: o_rms_cs_flash_warn; }
+    .o_rms_cs_sage_prob { background: #fff3cd; color: $rms-m-warn-text; }
+
+    // La pregunta y sus botones, a lo ancho de la fila.
+    .o_rms_cs_match {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 10px 10px 2rem;
+        color: $rms-m-warn-text;
+
+        .o_rms_cs_match_text {
+            flex: 1 1 16rem;
+            min-width: 0;
+            font-weight: 600;
+        }
+        .btn {
+            min-height: 44px;
+            padding: 6px 16px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .o_rms_cs_match_why { display: block; font-weight: 400; }
+        .o_rms_cs_match_no { background: #fff; }
+        .o_rms_cs_match_pick {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+            white-space: normal;
+            small { font-weight: 400; opacity: 0.9; }
+        }
+    }
+    .o_rms_cs_lserial .o_rms_cs_match { padding-left: 2.4rem; }
+
+    // ------------------------------------------------ catálogo de Sage
+    .o_rms_cs_catalog {
+        padding: 8px;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+
+        .o_rms_cs_catalog_search { width: 100%; min-height: 48px; font-weight: 600; }
+        .o_rms_cs_catalog_none { padding: 8px 4px; color: #6c757d; }
+        .o_rms_cs_catalog_head {
+            padding: 6px 4px;
+            font-weight: 700;
+            border-bottom: 2px solid #0d6efd;
+        }
+        .o_rms_cs_catalog_warn {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+            padding: 10px 12px;
+            border-left: 6px solid $rms-m-warn;
+            background: $rms-m-warn-bg;
+            color: $rms-m-warn-text;
+            font-weight: 600;
+        }
+        .o_rms_cs_catalog_item.active { background: #e3edff; color: inherit; border-color: #0d6efd; }
+        .o_rms_cs_catalog_tag { color: #805400; font-weight: 600; }
+        .o_rms_cs_catalog_tag_ok { color: #198754; }
+        .o_rms_cs_catalog_pick {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #f8f9fa;
+            border-left: 6px solid #0d6efd;
+        }
+        .o_rms_cs_catalog_check {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 44px;
+            margin: 0;
+            font-weight: 600;
+            input { width: 24px; height: 24px; }
+        }
+    }
+}

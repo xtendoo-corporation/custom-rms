@@ -13,7 +13,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
-from .sage_expected import sql_same_serial
+from .sage_expected import sql_same_serial, sql_scan_reads_line
 from .scan_rule import normalize_code
 from .stock_count_scan import SAGE_STATE_LABEL, label_print_action
 
@@ -24,7 +24,7 @@ _LIST_SAGE_WHERE = (
 )
 # La misma lectura válida que el marcador y el checklist global.
 _LIST_SCAN_MATCH = (
-    sql_same_serial('sc.serial_normalized', 'l.serial_normalized')
+    sql_scan_reads_line('sc', 'l')
     + " AND sc.scan_type = 'serial' AND ss.state <> 'cancel' AND NOT COALESCE(sc.ignored, FALSE)"
       " AND (l.product_id IS NULL OR sc.product_id = l.product_id)"
 )
@@ -113,21 +113,33 @@ class RmsStockCountOperator(models.Model):
                              OR (ps.code = 'demo' AND l.state = 'demo')
                              OR (ps.code = 'second_hand' AND l.state = '2mano')) THEN 'est'
                         ELSE 'ok' END AS k,
-                   (%s) AS shown
+                   (%s) AS shown,
+                   CASE WHEN s.sage_match_state = 'confirmed' AND s.sage_match_key = l.serial_normalized
+                        THEN s.lot_name END AS read_as,
+                   g.id AS sug_id, g.lot_name AS sug_serial
               FROM rms_sage_stock_line l
               LEFT JOIN rms_sage_warehouse w ON w.id = l.sage_warehouse_id
               LEFT JOIN product_product pp ON pp.id = l.product_id
               LEFT JOIN product_template pt ON pt.id = pp.product_tmpl_id
               LEFT JOIN product_category pc ON pc.id = l.brand_categ_id
               LEFT JOIN LATERAL (
-                    SELECT sc.id, sc.product_state_id, sc.operator_id, sc.session_id, sc.scanned_at
+                    SELECT sc.id, sc.product_state_id, sc.operator_id, sc.session_id, sc.scanned_at,
+                           sc.lot_name, sc.sage_match_state, sc.sage_match_key
                       FROM rms_stock_count_scan sc
                       JOIN rms_stock_count_session ss ON ss.id = sc.session_id
                      WHERE """ + _LIST_SCAN_MATCH + """
                      ORDER BY sc.scanned_at DESC, sc.id DESC LIMIT 1
               ) s ON TRUE
               LEFT JOIN product_state ps ON ps.id = s.product_state_id
-             WHERE %s""", shown, SQL(" AND ").join(where))
+              -- Coincidencia probable de ESTE recuento aún sin confirmar (una sola candidata).
+              LEFT JOIN LATERAL (
+                    SELECT sc.id, COALESCE(sc.lot_name, sc.code) AS lot_name
+                      FROM rms_stock_count_scan sc
+                     WHERE sc.sage_match_state = 'suggested' AND sc.sage_match_key = l.serial_normalized
+                       AND sc.session_id = %s AND NOT COALESCE(sc.ignored, FALSE)
+                     ORDER BY sc.id DESC LIMIT 1
+              ) g ON s.id IS NULL
+             WHERE %s""", shown, self.session_id.id, SQL(" AND ").join(where))
 
     def _list_qty_sql(self, warehouses, flt='all', query=''):
         """Una fila por artículo SIN nº de serie de Sage en la nave (los que
@@ -194,7 +206,8 @@ class RmsStockCountOperator(models.Model):
                AND NOT EXISTS (
                     SELECT 1 FROM rms_sage_stock_line l
                      WHERE l.is_current AND l.serial_normalized <> '' AND l.stock_kind = 'stock' AND l.quantity > 0
-                       AND """ + sql_same_serial('l.serial_normalized', 'sc.serial_normalized') + """)
+                       AND (""" + sql_same_serial('l.serial_normalized', 'sc.serial_normalized') + """
+                            OR (sc.sage_match_state = 'confirmed' AND l.serial_normalized = sc.sage_match_key)))
                AND %s
              GROUP BY sc.product_id, sc.serial_normalized""",
             self.session_id.id, SQL(" AND ").join(conditions) if conditions else SQL("TRUE"))
@@ -294,7 +307,8 @@ class RmsStockCountOperator(models.Model):
         offset = max(0, int(offset or 0))
         self.env.cr.execute(SQL("""
             SELECT x.id, x.serial, x.serial_normalized, x.state, x.sage_company_code, x.wh, x.k, x.read_code,
-                   x.scanned_at, op.name, ss.name, x.session_id, x.product_id, x.scan_id, count(*) OVER ()
+                   x.scanned_at, op.name, ss.name, x.session_id, x.product_id, x.scan_id, count(*) OVER (),
+                   x.read_as, x.sug_id, x.sug_serial
               FROM (%s) x
               LEFT JOIN rms_stock_count_operator op ON op.id = x.operator_id
               LEFT JOIN rms_stock_count_session ss ON ss.id = x.session_id
@@ -315,6 +329,10 @@ class RmsStockCountOperator(models.Model):
                 "at": self._list_time(r[8]), "by": r[9] or "", "sess": r[10] or "",
                 "here": bool(r[11] and r[11] == self.session_id.id),
                 "product_id": r[12] or False,
+                # Emparejado a mano: la etiqueta lleva otro nº de serie.
+                "read_as": r[15] or "",
+                # Coincidencia probable sin confirmar: {lectura, nº de serie leído}.
+                "sug": {"id": r[16], "serial": r[17] or ""} if r[16] else False,
             } for r in rows],
         }
 

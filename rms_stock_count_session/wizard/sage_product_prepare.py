@@ -7,6 +7,7 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+from ..models.sage_library import article_parts
 from ..models.scan_rule import normalize_code
 
 
@@ -93,19 +94,13 @@ class SageProductPrepare(models.TransientModel):
                 brand = self.env['product.category'].browse(brand_id) if brand_id else lines.brand_categ_id[:1]
                 if not brand:
                     if not unknown_brand:
-                        unknown_brand = self.env['product.category'].search(
-                            [('name', '=', 'Sin marca'), ('parent_id', '=', False)], limit=1
-                        ) or self.env['product.category'].create({'name': 'Sin marca'})
+                        unknown_brand = self._unknown_brand()
                     brand = unknown_brand
                 has_serials = any(line.serial_normalized and line.quantity == 1 for line in lines)
                 name = (next((master_names[c] for c in codes if c in master_names), False)
                         or next((line.article_name for line in lines if line.article_name), False) or model)
-                template = self.env['product.template'].create({
-                    'name': name, 'default_code': model, 'categ_id': brand.id,
-                    'type': 'consu', 'is_storable': True,
-                    'tracking': 'serial' if has_serials else 'none',
-                    'company_id': False,
-                })
+                template = self.env['product.template'].create(
+                    self._new_template_vals(model, name, brand, has_serials))
                 created += 1
             else:
                 assigned += 1
@@ -125,6 +120,79 @@ class SageProductPrepare(models.TransientModel):
             "Productos desde Sage",
             "Creados: %d · Asignados a uno existente: %d · Con varias coincidencias (a mano): %d"
             % (created, assigned, skipped))
+
+    # ------------------------------------------------------------------
+    # Piezas comunes con "Crear este producto" del escáner del recuento
+    # ------------------------------------------------------------------
+
+    @api.model
+    def _unknown_brand(self):
+        Category = self.env['product.category']
+        return (Category.search([('name', '=', 'Sin marca'), ('parent_id', '=', False)], limit=1)
+                or Category.create({'name': 'Sin marca'}))
+
+    @api.model
+    def _new_template_vals(self, model, name, brand, tracked):
+        """Producto nuevo a partir de un artículo de Sage: referencia sin el
+        prefijo de marca, categoría de marca de primer nivel, almacenable y
+        con nº de serie si en Sage lo lleva."""
+        return {
+            'name': name, 'default_code': model, 'categ_id': brand.id,
+            'type': 'consu', 'is_storable': True,
+            'tracking': 'serial' if tracked else 'none',
+            'company_id': False,
+        }
+
+    @api.model
+    def _article_template(self, article, model=None):
+        """Producto que ya corresponde a un artículo del maestro de Sage:
+        primero los enlaces hechos (alias), después la referencia. Mira
+        también los archivados para no crear nunca un duplicado.
+        {'model', 'template', 'status': missing | exists | archived | ambiguous}"""
+        model = (model or article_parts(self.env, article.code)[0]).strip()
+        codes = list({normalize_code(model), normalize_code(article.code)} - {''})
+        Template = self.env['product.template'].sudo().with_context(active_test=False)
+        found = self.env['rms.sage.article.map'].sudo().search(
+            [('article_code', 'in', codes)]).with_context(active_test=False).product_tmpl_id
+        if not found:
+            found = Template.search([('default_code', '=ilike', model)], limit=3)
+        active = found.filtered('active')
+        if len(active) == 1:
+            return {'model': model, 'template': active, 'status': 'exists'}
+        if active:
+            return {'model': model, 'template': Template.browse(), 'status': 'ambiguous'}
+        if found:
+            return {'model': model, 'template': found[:1], 'status': 'archived'}
+        return {'model': model, 'template': Template.browse(), 'status': 'missing'}
+
+    @api.model
+    def _create_from_article(self, article, by_quantity=False):
+        """Crea el producto de un artículo del maestro de Sage que no tiene
+        existencias (no hay líneas de las que partir), igual que
+        action_create_products: nombre y marca del maestro, alias apuntado y
+        líneas de Sage de ese artículo enlazadas. Quien llama comprueba el
+        permiso; aquí se crea con sudo()."""
+        info = self._article_template(article)
+        if info['status'] != 'missing':
+            return info['template']
+        model = info['model']
+        sudo = self.sudo()
+        brand_id = self.env['rms.sage.article'].sudo()._brands_by_article([article.code]).get(
+            article.code_normalized)
+        brand = self.env['product.category'].sudo().browse(brand_id) if brand_id else sudo._unknown_brand()
+        template = self.env['product.template'].sudo().create(
+            self._new_template_vals(model, article.name or model, brand, not by_quantity))
+        Map = self.env['rms.sage.article.map'].sudo()
+        code = normalize_code(article.code)
+        if code and not Map.search_count([('article_code', '=', code)], limit=1):
+            Map.create({'article_code': code, 'product_tmpl_id': template.id})
+        lines = self.env['rms.sage.stock.line'].sudo().search(
+            ['|', ('article_normalized', '=', code), ('model_normalized', '=', normalize_code(model))])
+        if lines:
+            lines._resolve_products()
+            self.env['rms.stock.count.scan'].sudo()._refresh_sage_suggestions(
+                lines.filtered('is_current').mapped('serial_normalized'))
+        return template.with_env(self.env)
 
     @api.model
     def _products_to_track(self, lines):

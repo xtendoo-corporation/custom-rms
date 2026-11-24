@@ -6,7 +6,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
-from .sage_expected import sql_same_serial
+from .sage_expected import sql_scan_reads_line
 from .scan_rule import normalize_code
 
 
@@ -251,7 +251,7 @@ class RmsStockCountOperator(models.Model):
                        count(*) FILTER (WHERE EXISTS (
                            SELECT 1 FROM rms_stock_count_scan sc
                              JOIN rms_stock_count_session ss ON ss.id = sc.session_id
-                            WHERE """ + sql_same_serial('sc.serial_normalized', 'l.serial_normalized') + """
+                            WHERE """ + sql_scan_reads_line('sc', 'l') + """
                               AND sc.scan_type = 'serial'
                               AND ss.state <> 'cancel'
                               AND NOT COALESCE(sc.ignored, FALSE)
@@ -269,7 +269,7 @@ class RmsStockCountOperator(models.Model):
         scans = Scan.search([("session_id", "=", session.id), ("ignored", "=", False),
                              ("scan_type", "in", ("serial", "unknown"))])
         serials = scans.filtered(lambda s: s.scan_type == "serial" and s.lot_name)
-        verdicts = Scan._sage_verdict([s.lot_name for s in serials], session, [s.product_id.id for s in serials],
+        verdicts = Scan._sage_verdict([s._verdict_serial() for s in serials], session, [s.product_id.id for s in serials],
                                       [s.product_state_id.code for s in serials], operator=self) if serials else []
         kinds = [v.get("v") for v in verdicts]
         result.update(
@@ -315,7 +315,7 @@ class RmsStockCountOperator(models.Model):
                AND NOT EXISTS (
                    SELECT 1 FROM rms_stock_count_scan sc
                      JOIN rms_stock_count_session ss ON ss.id = sc.session_id
-                    WHERE """ + sql_same_serial('sc.serial_normalized', 'l.serial_normalized') + """
+                    WHERE """ + sql_scan_reads_line('sc', 'l') + """
                       AND sc.scan_type = 'serial' AND ss.state <> 'cancel'
                       AND NOT COALESCE(sc.ignored, FALSE)
                       AND (l.product_id IS NULL OR sc.product_id = l.product_id))
@@ -630,7 +630,7 @@ class RmsStockCountOperator(models.Model):
             if scan.product_id:
                 counted_products.add(scan.product_id.id)
                 if scan.lot_name:
-                    seen.add((scan.product_id.id, normalize_serial(scan.lot_name)))
+                    seen.add((scan.product_id.id, scan._sage_key()))
         groups = {}
         lines = session._sage_lines()
         if not lines:
@@ -694,7 +694,7 @@ class RmsStockCountOperator(models.Model):
                AND NOT EXISTS (
                    SELECT 1 FROM rms_stock_count_scan sc
                      JOIN rms_stock_count_session ss ON ss.id = sc.session_id
-                    WHERE """ + sql_same_serial('sc.serial_normalized', 'l.serial_normalized') + """
+                    WHERE """ + sql_scan_reads_line('sc', 'l') + """
                       AND sc.scan_type = 'serial' AND ss.state <> 'cancel'
                       AND NOT COALESCE(sc.ignored, FALSE)
                       AND (l.product_id IS NULL OR sc.product_id = l.product_id))

@@ -16,6 +16,10 @@ COMPANY = dict(SAGE_COMPANIES)
 SHEETS = [
     ('missing', 'No leídos', 'Sage lo tiene en la nave y nadie lo ha leído. Buscarlo o darlo de baja en Sage.'),
     ('extra', 'Altas', 'Se ha leído y Sage no lo tiene. Darlo de alta o corregir el nº de serie en Sage.'),
+    ('typo', 'Nº de serie mal escrito en Sage',
+     'La etiqueta del equipo lleva un nº de serie y Sage otro muy parecido (un carácter de más, de menos o '
+     'cambiado). Arriba, los que un operario ha confirmado: corregir el nº de serie en Sage. Abajo, «por '
+     'confirmar»: sugerencias que nadie ha contestado todavía en el escáner.'),
     ('state', 'Estado distinto', 'El estado marcado al leer no es el de Sage. Cambiar el artículo en Sage (D-, 2M-).'),
     ('deposit', 'En depósito y en nave', 'Sage lo tiene en depósito en un cliente pero se ha leído en la nave. Cerrar el depósito.'),
     ('site', 'En otra nave', 'Se ha leído en una nave distinta de la que dice Sage. Hacer el traspaso en Sage.'),
@@ -131,7 +135,59 @@ class SageMismatchExport(models.TransientModel):
         data['extra'] = (['Empresa del recuento', 'Leído en', 'Marca', 'Referencia', 'Producto', 'Estado marcado',
                           'Nº de serie', 'Recuento', 'Operario', 'Leído el'], extra_rows)
         data['qty'] = self._collect_qty()
+        data['typo'] = self._collect_typo()
         return data
+
+    def _typo_lines(self, key, product_id=False):
+        """Líneas vigentes de Sage con ese nº de serie (dentro del filtro del asistente)."""
+        Line = self.env['rms.sage.stock.line'].sudo()
+        domain = self._base_domain() + [('is_current', '=', True), ('stock_kind', '=', 'stock'),
+                                        ('serial_normalized', '=', key)]
+        lines = Line.search(domain + ([('product_id', '=', product_id)] if product_id else []))
+        return lines or Line.search(domain)
+
+    def _collect_typo(self):
+        """Hoja "Nº de serie mal escrito en Sage": lecturas emparejadas a mano
+        con un nº de serie parecido de Sage y, en otra sección, las sugerencias
+        del escáner que siguen sin confirmar."""
+        Scan = self.env['rms.stock.count.scan'].sudo()
+        head = ['Empresa', 'Almacén Sage', 'Artículo Sage', 'Nº de serie en Sage', 'Nº de serie leído en la etiqueta',
+                'Quién lo confirmó', 'Cuándo', 'Recuento']
+        base = [('session_id.state', '!=', 'cancel'), ('ignored', '=', False)]
+        filtered = bool(self.sage_company_code or self.site_number)
+        confirmed, seen = [], set()
+        for scan in Scan.search(base + [('sage_match_state', '=', 'confirmed'), ('scan_type', '=', 'serial')],
+                                order='sage_match_date, id'):
+            mark = (scan.sage_match_key, scan.serial_normalized, scan.product_id.id)
+            if mark in seen:
+                continue  # la misma etiqueta leída por varios operarios
+            seen.add(mark)
+            lines = self._typo_lines(scan.sage_match_key, scan.product_id.id)
+            if not lines and filtered:
+                continue
+            who = scan.sage_match_operator_id.name or scan.sage_match_user_id.name or ''
+            for line in lines or [False]:
+                confirmed.append([
+                    COMPANY.get(line.sage_company_code, '') if line else '',
+                    self._warehouse_label(line) if line else '(ya no está en las existencias de Sage)',
+                    (line.article_code if line else '') or scan.product_id.default_code or '',
+                    (line.serial if line else '') or scan.sage_match_serial or '',
+                    scan.lot_name or scan.code or '', who, scan.sage_match_date, scan.session_id.name or ''])
+        pending = []
+        for scan in Scan.search(base + [('sage_match_state', '=', 'suggested')], order='scanned_at, id'):
+            for candidate in scan.sage_match_candidates or []:
+                for line in self._typo_lines(candidate['key'], candidate.get('product_id')):
+                    pending.append([
+                        COMPANY.get(line.sage_company_code, ''), self._warehouse_label(line), line.article_code or '',
+                        line.serial or candidate.get('serial') or '', scan.lot_name or scan.code or '',
+                        'POR CONFIRMAR (leído por %s)' % (scan.operator_id.name or ''), scan.scanned_at,
+                        scan.session_id.name or ''])
+        rows = list(confirmed)
+        if pending:
+            rows += [[''] * len(head),
+                     ['POR CONFIRMAR: el escáner lo ha propuesto y nadie ha dicho todavía si es ese'] + [''] * (len(head) - 1)]
+            rows += pending
+        return (head, rows, len(confirmed), len(pending))
 
     def _collect_qty(self):
         """Hoja "Por cantidad": artículos sin nº de serie con diferencia o sin
@@ -184,9 +240,16 @@ class SageMismatchExport(models.TransientModel):
             cell.font, cell.fill = bold, fill
         lines = []
         for key, title, help_text in SHEETS:
-            head, rows = data[key]
-            cover.append([title, len(rows), help_text])
-            lines.append('%s: %d' % (title, len(rows)))
+            head, rows = data[key][:2]
+            if key == 'typo':
+                # Las filas de la sección "por confirmar" no cuentan como descuadres ya vistos.
+                cover.append([title, data[key][2], help_text])
+                cover.append(['   … por confirmar', data[key][3],
+                              'Sugerencias del escáner sin contestar («Sí, es este» / «No, es otro»).'])
+                lines.append('%s: %d (por confirmar: %d)' % (title, data[key][2], data[key][3]))
+            else:
+                cover.append([title, len(rows), help_text])
+                lines.append('%s: %d' % (title, len(rows)))
             sheet = book.create_sheet(title[:31])
             sheet.append(head)
             for cell in sheet[1]:

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Productos creados desde el escáner del recuento ("Crear este producto"):
+         lista para que Administración los revise. -->
+    <record id="view_sage_scanner_product_list" model="ir.ui.view">
+        <field name="name">rms.sage.scanner.product.list</field>
+        <field name="model">rms.sage.scanner.product</field>
+        <field name="arch" type="xml">
+            <list create="false" delete="false" editable="bottom" decoration-muted="reviewed">
+                <field name="create_date" string="Creado el" readonly="1"/>
+                <field name="product_tmpl_id"/>
+                <field name="default_code" readonly="1"/>
+                <field name="categ_id" readonly="1"/>
+                <field name="tracking" readonly="1"/>
+                <field name="by_quantity" optional="hide"/>
+                <field name="article_code"/>
+                <field name="article_name" optional="show"/>
+                <field name="session_id"/>
+                <field name="operator_name"/>
+                <field name="user_id"/>
+                <field name="reviewed"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_sage_scanner_product_search" model="ir.ui.view">
+        <field name="name">rms.sage.scanner.product.search</field>
+        <field name="model">rms.sage.scanner.product</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="product_tmpl_id"/>
+                <field name="article_code"/>
+                <field name="session_id"/>
+                <filter name="to_review" string="Sin revisar" domain="[('reviewed', '=', False)]"/>
+                <filter name="reviewed" string="Revisados" domain="[('reviewed', '=', True)]"/>
+                <group>
+                    <filter name="by_session" string="Recuento" context="{'group_by': 'session_id'}"/>
+                    <filter name="by_user" string="Creado por" context="{'group_by': 'user_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_sage_scanner_products" model="ir.actions.act_window">
+        <field name="name">Productos creados desde el escáner</field>
+        <field name="res_model">rms.sage.scanner.product</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_to_review': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Nadie ha creado productos desde el escáner.</p>
+            <p>Aquí salen los productos que el responsable crea desde el escáner del recuento cuando el
+               artículo está en el catálogo de Sage pero no existía en Odoo. Revisa nombre, marca y
+               seguimiento y marca "Revisado".</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_sage_scanner_products" name="Productos creados desde el escáner"
+              parent="menu_sage_group_config" action="action_sage_scanner_products" sequence="15"
+              groups="stock.group_stock_manager"/>
+</odoo>

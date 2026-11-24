@@ -283,6 +283,20 @@ class TestLoadPlan(LoadCommon):
         self.assertEqual(sorted(lines.mapped('kind')), ['counted', 'counted'])
         self.assertEqual(sorted(lines.mapped('lot_name')), ['77001', 'SN88002'], 'entra con lo que dice la etiqueta')
 
+    def test_confirmed_probable_match_pairs_with_sage_unit(self):
+        """Caso real FC-8ST: Sage tiene el nº de serie con un "4" de más. Con la
+        coincidencia confirmada en el escáner, entra UNA unidad con el nº de la
+        etiqueta: ni alta, ni la línea de Sage a «Pendiente de localizar»."""
+        self.sage('01', self.product, 'DQ7031901524040014')
+        scan = self.scan('DQ703190152400014', self.product, 'new')
+        load = self.new_load()
+        self.assertEqual(sorted(load.line_ids.mapped('kind')), ['alta', 'phantom'], 'sin emparejar: alta + fantasma')
+        scan.write({'sage_match_state': 'confirmed', 'sage_match_key': 'DQ7031901524040014'})
+        load.action_prepare()
+        lines = self.env['rms.initial.load.line'].search([('load_id', '=', load.id)])
+        self.assertEqual(lines.mapped('kind'), ['counted'])
+        self.assertEqual(lines.lot_name, 'DQ703190152400014', 'entra con lo que dice la etiqueta')
+
     def test_sage_duplicate_serial_is_loaded_once(self):
         self.sage('01', self.product, 'LT-DUP', wh='A.6')
         self.sage('02', self.product, 'LT-DUP', wh='A.6')

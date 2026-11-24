@@ -330,6 +330,8 @@
                                 <span t-if="rec.tracking === 'lot'" class="badge text-bg-light border ms-1">lote</span>
                             </li>
                         </ul>
+                        <!-- No existe en Odoo: buscarlo en el catálogo de Sage y crearlo. -->
+                        <t t-if="state.panel === 'product'" t-call="rms_stock_count_session.ScanCatalog"/>
                     </div>
                 </t>
 
@@ -454,6 +456,8 @@
                                                 </select>
                                                 <span t-else="" class="o_rms_cs_row_state_text" t-esc="scan.product_state_name"/>
                                             </div>
+                                            <!-- Coincidencia probable con Sage: "¿Es este?" siempre a la vista. -->
+                                            <t t-if="kind === 'prob'" t-call="rms_stock_count_session.ScanMatchAsk"/>
                                             <div t-if="state.expandedId === scan.id" class="o_rms_cs_row_detail o_rms_cs_keep_focus">
                                                 <t t-set="full" t-value="verdictFor({scan: scan})"/>
                                                 <div t-if="scan.product_name"><span class="text-muted">Odoo:</span> <b t-esc="scan.product_name"/></div>
@@ -473,6 +477,9 @@
                                                     <button t-if="scan.type === 'product'"
                                                             class="btn btn-sm btn-outline-primary" title="Corregir la cantidad apuntada"
                                                             t-on-click="() => this.openQtyEdit(scan)"><i class="fa fa-pencil"/> Cambiar cantidad</button>
+                                                    <button t-if="scan.type === 'unknown' and kind !== 'prob'"
+                                                            class="btn btn-sm btn-outline-primary o_rms_cs_pick_product" title="Elegir el producto de este equipo (después vuelve a leerlo)"
+                                                            t-on-click="() => this.openPanel('product')"><i class="fa fa-cube"/> Elegir producto</button>
                                                     <button class="btn btn-sm btn-outline-danger" title="Borrar lectura"
                                                             t-on-click="() => this.deleteScan(scan.id)"><i class="fa fa-trash"/> Borrar</button>
                                                 </div>

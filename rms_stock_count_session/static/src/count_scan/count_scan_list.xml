@@ -170,6 +170,7 @@
                                                             <i t-if="kind === 'wait'" class="fa fa-clock-o"/>
                                                             <t t-elif="kind === 'ok'">✓</t>
                                                             <t t-elif="kind === 'est'">⚠</t>
+                                                            <t t-elif="kind === 'prob'">≈</t>
                                                             <i t-else="" class="fa fa-circle-thin"/>
                                                         </span>
                                                         <span class="o_rms_cs_row_serial" t-esc="row.serial"/>
@@ -179,8 +180,16 @@
                                                             <span class="o_rms_cs_ltag" t-att-class="'o_rms_cs_ltag_' + row.st" title="Estado en Sage" t-esc="row.st_name"/>
                                                         </span>
                                                     </div>
+                                                    <!-- Coincidencia probable sin confirmar: se contesta aquí mismo. -->
+                                                    <div t-if="kind === 'prob'" class="o_rms_cs_match o_rms_cs_keep_focus" role="group" aria-label="¿Es este equipo?">
+                                                        <span class="o_rms_cs_match_text">Se ha leído <b class="o_rms_cs_row_serial" t-esc="row.sug.serial"/>, que no está en Sage y se parece a este. ¿Es este?</span>
+                                                        <button class="btn btn-success o_rms_cs_match_yes" t-att-disabled="state.matchBusy[row.sug.id]"
+                                                                t-on-click="() => this.matchConfirm(row.sug.id, row.norm)">Sí, es este</button>
+                                                        <button class="btn btn-outline-dark o_rms_cs_match_no" t-att-disabled="state.matchBusy[row.sug.id]"
+                                                                t-on-click="() => this.matchReject(row.sug.id)">No, es otro</button>
+                                                    </div>
                                                     <div t-if="ls.detail === row.id" class="o_rms_cs_lserial_detail o_rms_cs_keep_focus">
-                                                        <t t-if="kind === 'todo'">
+                                                        <t t-if="kind === 'todo' or kind === 'prob'">
                                                             <span>Sin leer. Sage lo tiene en <b t-esc="row.co"/> (<t t-esc="row.wh"/>) como <b t-esc="row.st_name"/>.
                                                                 Si lo tienes delante sin pegatina (p. ej. en un flycase):</span>
                                                             <button class="btn btn-success o_rms_cs_lprint_count" t-on-click="() => this.listPrintAndCount(row, product)">
@@ -193,6 +202,7 @@
                                                             <span>
                                                                 Lo leyó <b t-esc="row.by or 'alguien'"/><t t-if="row.at"> · <t t-esc="row.at"/></t>
                                                                 · recuento <t t-esc="row.sess"/><t t-if="!row.here"> (otro recuento)</t>
+                                                                <t t-if="row.read_as"> · la etiqueta dice <b class="o_rms_cs_row_serial" t-esc="row.read_as"/> (en Sage está mal escrito)</t>
                                                                 <t t-if="row.read_state"> · leído como <b t-esc="row.read_state"/></t>
                                                                 · Sage: <t t-esc="row.co"/> (<t t-esc="row.wh"/>) <t t-esc="row.st_name"/>
                                                             </span>

@@ -461,6 +461,12 @@ class RmsStockCountScan(models.Model):
                 message="Código de barras de producto (UPC/EAN) que Odoo no conoce: no es un nº de "
                         "serie. Escanea el nº de serie del equipo.",
             )
+        # No está en Sage: ¿se parece a un nº de serie de Sage aún sin leer
+        # (un carácter de más, de menos, cambiado...)? Coincidencia probable.
+        if not self.env.context.get("rms_no_similar"):
+            similar = self._classify_similar(operator, serial, base, brand_note)
+            if similar:
+                return similar
         if current and current.tracking != "none" and operator.product_explicit:
             return dict(
                 base, scan_type="serial", product_id=current.id, lot_name=serial,
@@ -504,7 +510,8 @@ class RmsStockCountScan(models.Model):
         classified = []
         for index, raw_code in enumerate(codes):
             code = clean_code(raw_code)
-            vals = self._classify(operator, code) if code else {"scan_type": "unknown"}
+            vals = (self.with_context(rms_no_similar=True)._classify(operator, code)
+                    if code else {"scan_type": "unknown"})
             kind = vals["scan_type"]
             serial = kind == "serial" or (
                 kind == "unknown" and (vals.get("lot_name") or _CAMERA_SERIAL_RE.match(code))
@@ -614,13 +621,13 @@ class RmsStockCountScan(models.Model):
             ("session_id", "=", operator.session_id.id),
             ("scan_type", "!=", "location"),
         ])
-        verdicts = self._sage_verdict([scan.lot_name or '' for scan in scans], operator.session_id,
+        verdicts = self._sage_verdict([scan._verdict_serial() for scan in scans], operator.session_id,
                                       [scan.product_id.id for scan in scans],
                                       [scan.product_state_id.code for scan in scans], operator=operator)
         payloads = [scan.with_context(sage_batch=True)._scanner_payload() for scan in scans]
         moved = scans._moved_after_labels()
         for scan, payload, verdict in zip(scans, payloads, verdicts):
-            payload['sage'] = verdict
+            payload['sage'] = scan._match_verdict(verdict)
             payload['moved_after'] = moved.get(scan.id, '')
         return payloads
 
@@ -763,6 +770,20 @@ class RmsStockCountScan(models.Model):
                         "state": operator._scanner_state() if not self.env.context.get("sage_batch") else None,
                     }
 
+        if vals.get("sage_match_state") == "suggested":
+            # La misma etiqueta con la pregunta aún sin contestar: no se repite.
+            previous = self.search([
+                ("operator_id", "=", operator.id), ("sage_match_state", "=", "suggested"),
+                ("serial_normalized", "=", normalize_serial(vals["lot_name"])), ("ignored", "=", False),
+            ], limit=1)
+            if previous:
+                return {
+                    "status": "duplicate",
+                    "scan": previous._scanner_payload(),
+                    "message": "Ya habías leído %s: falta decir si es el de Sage." % vals["lot_name"],
+                    "state": operator._scanner_state() if not self.env.context.get("sage_batch") else None,
+                }
+
         vals.update({
             "session_id": operator.session_id.id,
             "operator_id": operator.id,
@@ -888,11 +909,13 @@ class RmsStockCountScan(models.Model):
             "found_in_search": self.found_in_search,
             "time": fields.Datetime.context_timestamp(self, self.scanned_at).strftime("%H:%M:%S"),
             "also_in": self._counted_elsewhere(),
+            "match": self._match_payload(),
         }
 
         if not self.env.context.get("sage_batch"):
-            payload['sage'] = self._sage_verdict([self.lot_name or ''], self.session_id, self.product_id,
-                                                 [self.product_state_id.code], operator=self.operator_id)[0]
+            payload['sage'] = self._match_verdict(self._sage_verdict(
+                [self._verdict_serial()], self.session_id, self.product_id,
+                [self.product_state_id.code], operator=self.operator_id)[0])
             payload['moved_after'] = self._moved_after_labels().get(self.id, '')
         return payload
 
@@ -996,9 +1019,10 @@ class RmsStockCountScan(models.Model):
         scans = [item.get('scan') for item in results]
         # One lookup for all serials; sort each result's matches against its product.
         records = [self.browse(scan["id"]) if scan else self.browse() for scan in scans]
-        verdicts = self._sage_verdict([scan.get('lot_name', '') if scan else '' for scan in scans],
+        verdicts = self._sage_verdict([rec._verdict_serial() if rec else '' for rec in records],
                                       operator.session_id, [rec.product_id.id for rec in records],
                                       [rec.product_state_id.code for rec in records], operator=operator)
+        verdicts = [rec._match_verdict(verdict) if rec else verdict for rec, verdict in zip(records, verdicts)]
         for item, verdict in zip(results, verdicts):
             item.pop('state', None)
             item['sage'] = verdict
@@ -1020,6 +1044,8 @@ class RmsStockCountScan(models.Model):
                 raise UserError("Este número de pieza es un código de producto; usa Es el código del producto.")
             product = scan.product_id
             vals = {"quantity": 1.0, "message": "Asignado a mano a %s" % product.display_name}
+            if scan.sage_match_state == "suggested":
+                vals.update(scan._match_reject_vals())
             if product.tracking == "none":
                 vals["scan_type"] = "product"
             else:
