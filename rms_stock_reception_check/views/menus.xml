@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Inventario > Recepción de proveedor (se llama así para no confundirlo
-         con «Recepciones» de Operaciones, que son los albaranes de Odoo). -->
+    <!-- Inventario > Operaciones > Recepción de proveedor (se llama así para no
+         confundirlo con «Recepciones», que son los albaranes de Odoo). Va dentro de
+         Operaciones y no en la barra: con más entradas la barra de Inventario no
+         cabe y se monta sobre los iconos de la derecha. -->
     <menuitem id="menu_rms_reception_root" name="Recepción de proveedor"
-              parent="stock.menu_stock_root" sequence="3" groups="stock.group_stock_user"/>
+              parent="stock.menu_stock_warehouse_mgmt" sequence="60" groups="stock.group_stock_user"/>
     <menuitem id="menu_rms_reception" name="Recepciones" parent="menu_rms_reception_root"
               action="action_rms_reception" sequence="10"/>
     <menuitem id="menu_rms_reception_incident" name="Incidencias" parent="menu_rms_reception_root"

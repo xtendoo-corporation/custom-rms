@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Dentro de Operaciones (no en la barra, que no cabe). -->
     <menuitem id="menu_delivery_check_root" name="Salidas con checklist"
-              parent="stock.menu_stock_root" sequence="4" groups="stock.group_stock_user"/>
+              parent="stock.menu_stock_warehouse_mgmt" sequence="61" groups="stock.group_stock_user"/>
     <menuitem id="menu_delivery_check_pending" name="Pendientes"
               parent="menu_delivery_check_root" sequence="10" action="action_picking_check_pending"/>
     <menuitem id="menu_delivery_check_admin" name="Pendientes de administrador"
