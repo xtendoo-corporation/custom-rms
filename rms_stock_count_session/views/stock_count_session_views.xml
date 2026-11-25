@@ -215,7 +215,8 @@
                         </button>
                     </div>
                     <div class="oe_title">
-                        <h1><field name="name"/></h1>
+                        <label for="name" string="Nombre del recuento"/>
+                        <h1><field name="name" readonly="0" placeholder="Por ejemplo: Nave 15 - Pasillo 2"/></h1>
                     </div>
                     <group>
                         <group>

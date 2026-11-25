@@ -58,6 +58,17 @@ class TestCountSession(TransactionCase):
             lambda l: l.product_id == product and (l.lot_name or False) == lot_name
         )
 
+    def test_session_name_is_editable(self):
+        Session = self.env["rms.stock.count.session"]
+        auto = Session.create({"location_id": self.stock.id})
+        self.assertNotEqual(auto.name, "Nuevo")  # numerado solo
+        named = Session.create({"location_id": self.stock.id, "name": "  Nave 15 - Pasillo 1 "})
+        self.assertEqual(named.name, "Nave 15 - Pasillo 1")
+        auto.write({"name": "Nave 15 - Pasillo 2"})
+        self.assertEqual(auto.name, "Nave 15 - Pasillo 2")
+        with self.assertRaises(UserError):
+            auto.write({"name": "   "})
+
     def test_clean_code(self):
         self.assertEqual(clean_code("S/N: AB123"), "AB123")
         self.assertEqual(clean_code("SN AB123"), "AB123")

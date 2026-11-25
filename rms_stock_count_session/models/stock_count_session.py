@@ -20,8 +20,13 @@ class RmsStockCountSession(models.Model):
     _order = "id desc"
     _check_company_auto = True
 
+    # Editable: se le puede poner un nombre que diga qué se cuenta ("Nave 15 -
+    # Pasillo 2"). Si se deja "Nuevo" (o vacío) se numera solo (REC/2026/0001).
     name = fields.Char(
-        string="Referencia", required=True, copy=False, readonly=True, default="Nuevo",
+        string="Nombre del recuento", required=True, copy=False, default="Nuevo",
+        help="Ponle un nombre que diga qué se cuenta, por ejemplo «Nave 15 - Pasillo 2». "
+             "Se puede cambiar en cualquier momento; las lecturas no se ven afectadas. "
+             "Si lo dejas en «Nuevo» se numera solo.",
     )
     company_id = fields.Many2one(
         "res.company", string="Compañía", required=True, default=lambda self: self.env.company,
@@ -90,11 +95,19 @@ class RmsStockCountSession(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            if vals.get("name", "Nuevo") == "Nuevo":
+            vals["name"] = (vals.get("name") or "").strip() or "Nuevo"
+            if vals["name"] == "Nuevo":
                 vals["name"] = (
                     self.env["ir.sequence"].next_by_code("rms.stock.count.session") or "Nuevo"
                 )
         return super().create(vals_list)
+
+    def write(self, vals):
+        if "name" in vals:
+            vals = dict(vals, name=(vals["name"] or "").strip())
+            if not vals["name"]:
+                raise UserError("El recuento tiene que tener un nombre.")
+        return super().write(vals)
 
     @api.depends("operator_ids", "scan_ids", "scan_ids.scan_type", "scan_ids.ignored",
                  "line_ids", "line_ids.status")
