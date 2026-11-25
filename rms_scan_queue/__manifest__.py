@@ -1,6 +1,6 @@
 {
     'name': 'RMS Cola de lecturas (técnico)',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'category': 'Inventory/Inventory',
     'summary': 'Librería común de las pantallas de pistola: una lectura nunca se pierde en silencio.',
     'description': """

@@ -13,15 +13,18 @@ import { Component, onMounted, onWillUnmount, useEffect, useRef, useState } from
 const WORKER_URL = "/rms_stock_count_session/static/lib/zxing-wasm/zxing_worker.js";
 const RESCAN_COOLDOWN_MS = 2000;
 const PROGRESS_DEBOUNCE_MS = 700;
-// Lector sin Enter: ráfaga de >= 4 caracteres a < 45 ms de media por tecla =
-// una lectura. Se cierra con 160 ms de pausa o en cuanto empieza la siguiente
-// (un hueco de más de 90 ms entre teclas), así dos lecturas seguidas no se
-// funden. Un tropiezo del Bluetooth de hasta 90 ms dentro de un código no lo
-// parte: partir un nº de serie es peor que fundir dos (lo fundido se ve como
-// "?" en la lista; lo partido podría contarse como otro equipo).
-const BURST_GAP_MS = 45;
+// Lector sin Enter: ráfaga de >= 4 caracteres tecleados a máquina (al menos
+// 3 huecos rápidos, < 80 ms de media) = una lectura. Se cierra con 450 ms de
+// pausa. Las pistolas Bluetooth a veces se atascan a mitad de código (se
+// midieron pausas de 100-150 ms, sobre todo tras el primer carácter): hasta
+// 3 pausas de hasta 400 ms dentro de un código NO lo parten. Partir un nº de
+// serie es peor que fundir dos lecturas: lo fundido se ve como sobrante; lo
+// partido se guardaba como un nº de serie falso y dejaba restos en la casilla.
+const BURST_GAP_MS = 80;
 const BURST_JOIN_MS = 90;
-const BURST_PAUSE_MS = 160;
+const BURST_STALL_MS = 400;
+const BURST_MAX_STALLS = 3;
+const BURST_PAUSE_MS = 450;
 const BURST_MIN_CHARS = 4;
 const DETECT_INTERVAL_MS = 350;
 // Reintentos de la cola con espera creciente mientras haya pendientes.
@@ -622,7 +625,15 @@ export class StockCountScan extends Component {
         // eventos llegan a trompicones y dos lecturas parecerían una sola.
         const now = ev.timeStamp || performance.now();
         const burst = this._burst;
-        if (burst && now - burst.last <= BURST_JOIN_MS) {
+        const gap = burst ? now - burst.last : Infinity;
+        if (burst && gap <= BURST_JOIN_MS) {
+            burst.fast += 1;
+            burst.fastTime += Math.max(0, gap);
+            burst.last = now;
+            burst.chars += 1;
+        } else if (burst && gap <= BURST_STALL_MS && burst.stalls < BURST_MAX_STALLS) {
+            // Tropiezo de la pistola a mitad de código: sigue siendo la misma lectura.
+            burst.stalls += 1;
             burst.last = now;
             burst.chars += 1;
         } else {
@@ -637,7 +648,7 @@ export class StockCountScan extends Component {
                 this._burst = null;
                 this._enqueue(code);
             }
-            this._burst = { start: now, last: now, chars: 1, from };
+            this._burst = { last: now, chars: 1, from, fast: 0, fastTime: 0, stalls: 0 };
         }
         clearTimeout(this._burstTimer);
         this._burstTimer = setTimeout(() => this._flushBurst(input), BURST_PAUSE_MS);
@@ -645,8 +656,8 @@ export class StockCountScan extends Component {
     }
 
     _isScannerBurst(burst) {
-        return burst.chars >= BURST_MIN_CHARS &&
-            (burst.last - burst.start) / (burst.chars - 1) <= BURST_GAP_MS;
+        return burst.chars >= BURST_MIN_CHARS && burst.fast >= BURST_MIN_CHARS - 1 &&
+            burst.fastTime / burst.fast <= BURST_GAP_MS;
     }
 
     _flushBurst(input) {
