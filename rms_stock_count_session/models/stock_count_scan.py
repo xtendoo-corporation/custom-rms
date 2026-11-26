@@ -63,6 +63,10 @@ def clean_code(raw):
     code = code.replace("'", "-")
     code = _AIM_PREFIX_RE.sub("", code)
     code = _SERIAL_PREFIX_RE.sub("", code).strip()
+    # Etiquetas que llevan "#" delante del nº de serie (Meyer antiguas,
+    # Hollyland: "#15215254"): la almohadilla no es parte del número y en
+    # Sage está sin ella.
+    code = code.lstrip("#").strip() or code
     return code
 
 

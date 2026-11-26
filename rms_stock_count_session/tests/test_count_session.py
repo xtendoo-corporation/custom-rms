@@ -101,6 +101,9 @@ class TestCountSession(TransactionCase):
         self.assertEqual(clean_code("Serial No. 99"), "99")
         self.assertEqual(clean_code("SN12345"), "SN12345")
         self.assertEqual(clean_code("]C1ABC\x1d"), "ABC")
+        self.assertEqual(clean_code("#15215254"), "15215254")
+        self.assertEqual(clean_code("# 266X422224X"), "266X422224X")
+        self.assertEqual(clean_code("#"), "#")
 
     def test_join_starts_session_and_reuses_operator(self):
         self.assertEqual(self.session.state, "counting")
