@@ -177,3 +177,57 @@ class TestMapAllPartnersSecurity(TransactionCase):
                 controller.get_global_equipment_map_partners()
             with self.assertRaises(AccessError):
                 controller.export_global_equipment_map_xlsx(self.partners.ids)
+
+
+@tagged("post_install", "-at_install")
+class TestMapSalespersonSecurity(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.company = cls.env.company
+        values = {"company_id": cls.company.id, "company_ids": [(6, 0, cls.company.ids)]}
+        cls.internal = new_test_user(cls.env, login="map_sales_internal", groups="base.group_user", **values)
+        cls.privileged = new_test_user(
+            cls.env, login="map_sales_all", groups="base.group_user,rms_global_equipment_map.group_map_all_partners", **values,
+        )
+        cls.system = new_test_user(cls.env, login="map_sales_system", groups="base.group_user,base.group_system", **values)
+        cls.salesperson = new_test_user(cls.env, login="map_sales_person", groups="base.group_user", **values)
+        cls.partner = cls.env["res.partner"].create({
+            "name": "Mapa cliente comercial", "company_id": cls.company.id,
+            "partner_latitude": 40.4, "partner_longitude": -3.7,
+            "user_id": cls.salesperson.id,
+        })
+
+    def _request(self, user):
+        return patch(
+            "odoo.addons.rms_global_equipment_map.controllers.main.request",
+            SimpleNamespace(env=self.env["res.partner"].with_user(user).with_context(
+                allowed_company_ids=self.company.ids,
+            ).env),
+        )
+
+    def _read_and_export(self, user):
+        with self._request(user):
+            controller = GlobalEquipmentMapController()
+            rows = controller.get_global_equipment_map_partners()
+            result = controller.export_global_equipment_map_xlsx([self.partner.id])
+        row = next(row for row in rows if row["id"] == self.partner.id)
+        sheet = openpyxl.load_workbook(io.BytesIO(base64.b64decode(result["content"]))).active
+        return row, sheet
+
+    def test_internal_cannot_see_salesperson(self):
+        row, sheet = self._read_and_export(self.internal)
+        self.assertNotIn("salesperson", row)
+        self.assertNotIn("Comercial", [cell.value for cell in sheet[1]])
+
+    def test_all_partners_user_sees_salesperson(self):
+        row, sheet = self._read_and_export(self.privileged)
+        self.assertEqual(row["salesperson"], {"id": self.salesperson.id, "name": self.salesperson.name})
+        self.assertEqual(sheet.cell(1, 2).value, "Comercial")
+        self.assertEqual(sheet.cell(2, 2).value, self.salesperson.name)
+
+    def test_system_user_sees_salesperson(self):
+        row, sheet = self._read_and_export(self.system)
+        self.assertEqual(row["salesperson"], {"id": self.salesperson.id, "name": self.salesperson.name})
+        self.assertEqual(sheet.cell(1, 2).value, "Comercial")
+        self.assertEqual(sheet.cell(2, 2).value, self.salesperson.name)

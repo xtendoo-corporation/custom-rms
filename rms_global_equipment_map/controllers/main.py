@@ -14,6 +14,13 @@ except ImportError:
 
 
 class GlobalEquipmentMapController(http.Controller):
+    def _can_see_salesperson(self):
+        return (
+            request.env.su
+            or request.env.user.has_group("rms_global_equipment_map.group_map_all_partners")
+            or request.env.user.has_group("base.group_system")
+        )
+
     def _read_partners(self, partner_ids=None):
         Partner = request.env["res.partner"]
         company_domain = []
@@ -39,29 +46,35 @@ class GlobalEquipmentMapController(http.Controller):
         }
 
         result = []
+        can_see_salesperson = self._can_see_salesperson()
         for partner in partners:
             contact = Partner.search([
                 ("parent_id", "=", partner.id),
                 ("type", "=", "contact"),
                 ("name", "!=", False),
             ] + company_domain, limit=1)
-            result.append(
-                {
-                    "id": partner.id,
-                    "name": partner.name or "",
-                    "city": partner.city or "",
-                    "latitude": partner.partner_latitude,
-                    "longitude": partner.partner_longitude,
-                    "contact_name": contact.name or "",
-                    "email": partner.email or contact.email or "",
-                    "phone": partner.phone or contact.phone or "",
-                    "equipment_models": [
-                        {"id": model.id, "name": equipment_models[model.id]}
-                        for model in partner.equipment_model_tag_ids
-                        if model.id in equipment_models
-                    ],
-                }
-            )
+            row = {
+                "id": partner.id,
+                "name": partner.name or "",
+                "city": partner.city or "",
+                "latitude": partner.partner_latitude,
+                "longitude": partner.partner_longitude,
+                "contact_name": contact.name or "",
+                "email": partner.email or contact.email or "",
+                "phone": partner.phone or contact.phone or "",
+                "equipment_models": [
+                    {"id": model.id, "name": equipment_models[model.id]}
+                    for model in partner.equipment_model_tag_ids
+                    if model.id in equipment_models
+                ],
+            }
+            if can_see_salesperson:
+                salesperson = partner.user_id or partner.commercial_partner_id.user_id
+                row["salesperson"] = (
+                    {"id": salesperson.id, "name": salesperson.sudo().name}
+                    if salesperson else False
+                )
+            result.append(row)
         return result
 
     @http.route(
@@ -95,6 +108,7 @@ class GlobalEquipmentMapController(http.Controller):
             )
 
         partners = self._read_partners(partner_ids or [])
+        can_see_salesperson = self._can_see_salesperson()
 
         workbook = openpyxl.Workbook()
         sheet = workbook.active
@@ -111,27 +125,32 @@ class GlobalEquipmentMapController(http.Controller):
             "Latitud",
             "Longitud",
         ]
+        if can_see_salesperson:
+            headers.insert(1, "Comercial")
         sheet.append(headers)
         for cell in sheet[1]:
             cell.font = Font(bold=True)
 
         for partner in partners:
             model_names = ", ".join(model["name"] for model in partner["equipment_models"])
-            sheet.append(
-                [
-                    partner["name"],
-                    partner["city"],
-                    partner["contact_name"],
-                    partner["email"],
-                    partner["phone"],
-                    len(partner["equipment_models"]),
-                    model_names,
-                    partner["latitude"],
-                    partner["longitude"],
-                ]
-            )
+            row = [
+                partner["name"],
+                partner["city"],
+                partner["contact_name"],
+                partner["email"],
+                partner["phone"],
+                len(partner["equipment_models"]),
+                model_names,
+                partner["latitude"],
+                partner["longitude"],
+            ]
+            if can_see_salesperson:
+                row.insert(1, partner["salesperson"]["name"] if partner["salesperson"] else "")
+            sheet.append(row)
 
         widths = [40, 20, 24, 28, 18, 14, 60, 12, 12]
+        if can_see_salesperson:
+            widths.insert(1, 24)
         for index, width in enumerate(widths, start=1):
             sheet.column_dimensions[sheet.cell(row=1, column=index).column_letter].width = width
 

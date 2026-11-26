@@ -58,6 +58,7 @@ export class GlobalEquipmentMap extends Component {
             exporting: false,
             filters: {
                 equipmentModelIds: [],
+                salespersonIds: [],
                 operator: "or",
             },
         });
@@ -102,6 +103,7 @@ export class GlobalEquipmentMap extends Component {
                     partner.contact_name,
                     partner.email,
                     partner.phone,
+                    partner.salesperson?.name || "",
                     ...partner.equipment_models.map((model) => model.name),
                 ]
                     .join(" ")
@@ -112,6 +114,29 @@ export class GlobalEquipmentMap extends Component {
         this.filterCache = null;
         this.equipmentModelsCache = null;
         this.state.dataVersion++;
+    }
+
+    get showSalesperson() {
+        return this.partners.some((partner) => "salesperson" in partner);
+    }
+
+    get salespeople() {
+        const people = new Map();
+        for (const partner of this.partners) {
+            const id = partner.salesperson ? `${partner.salesperson.id}` : "none";
+            const person = people.get(id) || {
+                id, name: partner.salesperson?.name || "Sin comercial", count: 0,
+            };
+            person.count++;
+            people.set(id, person);
+        }
+        return [...people.values()].sort((a, b) =>
+            a.id === "none" ? 1 : b.id === "none" ? -1 : a.name.localeCompare(b.name)
+        );
+    }
+
+    get selectedSalespeople() {
+        return this.salespeople.filter((person) => this.isSalespersonSelected(person.id));
     }
 
     get equipmentModels() {
@@ -150,19 +175,24 @@ export class GlobalEquipmentMap extends Component {
     }
 
     get activeFilterCount() {
-        return this.state.filters.equipmentModelIds.length;
+        return this.state.filters.equipmentModelIds.length + this.state.filters.salespersonIds.length;
     }
 
     get filteredPartners() {
         const term = this.state.search.trim().toLowerCase();
         const selectedModelIds = this.state.filters.equipmentModelIds;
+        const selectedSalespersonIds = this.state.filters.salespersonIds;
         const operator = this.state.filters.operator;
         const version = this.state.dataVersion;
-        const key = [version, term, operator, selectedModelIds.join(",")].join("|");
+        const key = [version, term, operator, selectedModelIds.join(","), selectedSalespersonIds.join(",")].join("|");
         if (this.filterCache?.key === key) {
             return this.filterCache.result;
         }
         const result = this.partners.filter((partner) => {
+            const salespersonId = partner.salesperson ? `${partner.salesperson.id}` : "none";
+            if (selectedSalespersonIds.length && !selectedSalespersonIds.includes(salespersonId)) {
+                return false;
+            }
             if (selectedModelIds.length) {
                 const partnerModelIds = new Set(
                     partner.equipment_models.map((model) => `${model.id}`)
@@ -252,8 +282,30 @@ export class GlobalEquipmentMap extends Component {
         this.renderMarkers();
     }
 
+    isSalespersonSelected(id) {
+        return this.state.filters.salespersonIds.includes(`${id}`);
+    }
+
+    toggleSalespersonFilter(id) {
+        id = `${id}`;
+        if (this.isSalespersonSelected(id)) {
+            this.removeSalespersonFilter(id);
+        } else {
+            this.state.filters.salespersonIds = [...this.state.filters.salespersonIds, id];
+            this.renderMarkers();
+        }
+    }
+
+    removeSalespersonFilter(id) {
+        this.state.filters.salespersonIds = this.state.filters.salespersonIds.filter(
+            (selectedId) => selectedId !== `${id}`
+        );
+        this.renderMarkers();
+    }
+
     clearFilters() {
         this.state.filters.equipmentModelIds = [];
+        this.state.filters.salespersonIds = [];
         this.renderMarkers();
     }
 
@@ -351,6 +403,7 @@ export class GlobalEquipmentMap extends Component {
 
         const metaLines = [
             { icon: "fa-map-marker", value: partner.city },
+            { icon: "fa-briefcase", value: this.showSalesperson && partner.salesperson ? `Comercial: ${partner.salesperson.name}` : "" },
             { icon: "fa-user", value: partner.contact_name },
             { icon: "fa-phone", value: partner.phone },
             { icon: "fa-envelope", value: partner.email },

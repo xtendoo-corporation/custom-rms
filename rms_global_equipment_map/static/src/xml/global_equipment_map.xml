@@ -36,6 +36,12 @@
                                 t-on-click="() => this.removeEquipmentModelFilter(model.id)"
                             />
                         </span>
+                        <span t-foreach="selectedSalespeople" t-as="person" t-key="person.id"
+                            class="o_global_equipment_map_facet badge rounded-pill text-bg-primary me-1 mb-1">
+                            <span class="me-1">Comercial:</span><t t-esc="person.name"/>
+                            <button type="button" class="btn-close btn-close-white ms-2"
+                                aria-label="Quitar filtro" t-on-click="() => this.removeSalespersonFilter(person.id)"/>
+                        </span>
                         <input
                             type="search"
                             class="o_global_equipment_map_search_input border-0 flex-grow-1"
@@ -60,6 +66,17 @@
                                 <div class="o_global_equipment_map_filter_title d-flex align-items-center gap-2 px-3 py-2">
                                     <i class="fa fa-filter text-primary"/>
                                     <span>Filtros</span>
+                                </div>
+                                <div t-if="showSalesperson" class="px-3 py-2 border-bottom">
+                                    <div class="mb-2">Comercial</div>
+                                    <div class="o_global_equipment_map_filter_options d-flex flex-wrap gap-2">
+                                        <button t-foreach="salespeople" t-as="person" t-key="person.id" type="button"
+                                            t-attf-class="o_global_equipment_map_chip o_global_equipment_map_chip_toggle {{ isSalespersonSelected(person.id) ? 'o_global_equipment_map_chip_toggle_active' : '' }}"
+                                            t-on-click="() => this.toggleSalespersonFilter(person.id)">
+                                            <i t-if="isSalespersonSelected(person.id)" class="fa fa-check me-1"/>
+                                            <t t-esc="person.name"/> (<t t-esc="person.count"/>)
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="px-3 pb-2 d-flex flex-column gap-1 border-bottom">
                                     <div class="form-check">
@@ -176,12 +193,16 @@
                             />
                         </div>
                         <div
-                            t-if="partner.city or partner.contact_name or partner.email or partner.phone"
+                            t-if="partner.city or partner.contact_name or partner.email or partner.phone or (showSalesperson and partner.salesperson)"
                             class="o_global_equipment_map_partner_meta mt-2"
                         >
                             <div t-if="partner.city" class="d-flex align-items-center gap-1">
                                 <i class="fa fa-map-marker"/>
                                 <span class="text-truncate" t-esc="partner.city"/>
+                            </div>
+                            <div t-if="showSalesperson and partner.salesperson" class="d-flex align-items-center gap-1 text-muted small">
+                                <i class="fa fa-briefcase"/>
+                                <span class="text-truncate" t-esc="partner.salesperson.name"/>
                             </div>
                             <div t-if="partner.contact_name" class="d-flex align-items-center gap-1">
                                 <i class="fa fa-user"/>
