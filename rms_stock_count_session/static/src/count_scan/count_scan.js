@@ -1302,6 +1302,7 @@ export class StockCountScan extends Component {
     }
 
     openPanel(panel) {
+        this.state.assignScan = null;
         this.state.panel = panel;
         this.state.panelQuery = "";
         this.state.panelResults = [];
@@ -1312,6 +1313,7 @@ export class StockCountScan extends Component {
     }
 
     closePanel() {
+        this.state.assignScan = null;
         this.state.panel = null;
         this.state.sagePick = null;
         this._resetQty();
@@ -1511,7 +1513,36 @@ export class StockCountScan extends Component {
         }
     }
 
+    // "Elegir producto" en una lectura sin producto: el producto se le pone a
+    // ESA lectura (no hace falta volver a leer la caja).
+    openAssignProduct(scan) {
+        this.openPanel("product");
+        this.state.assignScan = { id: scan.id, code: scan.lot_name || scan.code };
+    }
+
+    async assignProductToScan(record) {
+        const target = this.state.assignScan;
+        try {
+            const payload = await this.orm.call(
+                "rms.stock.count.scan", "scanner_assign_product", [[target.id], record.id]
+            );
+            this._mergeHistory([payload]);
+            this._feedback("ok", "ok");
+            this._scheduleProgress(0);
+            this.closePanel();
+        } catch (error) {
+            this.notification.add((error.data && error.data.message) ||
+                "No se pudo poner el producto. Comprueba la conexión y vuelve a intentarlo.", { type: "warning" });
+        }
+        if (this.state.inputMode === "pda") {
+            this._focusInput();
+        }
+    }
+
     async pickPanelResult(record) {
+        if (this.state.panel === "product" && this.state.assignScan) {
+            return this.assignProductToScan(record);
+        }
         const op = this.state.operatorState.operator;
         const method = this.state.panel === "location" ? "scanner_set_location" : "scanner_set_product";
         const operatorState = await this.orm.call(

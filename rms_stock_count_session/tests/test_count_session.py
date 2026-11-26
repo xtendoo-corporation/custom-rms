@@ -58,6 +58,32 @@ class TestCountSession(TransactionCase):
             lambda l: l.product_id == product and (l.lot_name or False) == lot_name
         )
 
+    def test_scanner_assign_product_to_unknown_reading(self):
+        session, operator = self.session, self.ana
+        result = self.scan(operator, "SERIE-SIN-PRODUCTO-77")
+        scan = self.env["rms.stock.count.scan"].browse(result["scan"]["id"])
+        self.assertEqual(scan.scan_type, "unknown")
+        payload = scan.scanner_assign_product(self.mic.id)
+        self.assertEqual((payload["type"], scan.scan_type, scan.product_id, scan.lot_name),
+                         ("serial", "serial", self.mic, "SERIE-SIN-PRODUCTO-77"))
+        with self.assertRaises(UserError):          # ya tiene producto
+            scan.scanner_assign_product(self.console.id)
+        # La misma caja leída otra vez sin producto: no se puede duplicar.
+        operator.current_product_id = False
+        other = self.env["rms.stock.count.scan"].create({
+            "session_id": session.id, "operator_id": operator.id, "code": "SERIE-SIN-PRODUCTO-77",
+            "raw_code": "SERIE-SIN-PRODUCTO-77", "scan_type": "unknown",
+        })
+        with self.assertRaises(UserError):
+            other.scanner_assign_product(self.mic.id)
+        # Producto por cantidad: la lectura pasa a ser una unidad de ese producto.
+        loose = self.env["rms.stock.count.scan"].create({
+            "session_id": session.id, "operator_id": operator.id, "code": "CODIGO-RARO-1",
+            "raw_code": "CODIGO-RARO-1", "scan_type": "unknown",
+        })
+        self.assertEqual(loose.scanner_assign_product(self.cable.id)["type"], "product")
+        self.assertEqual(loose.quantity, 1.0)
+
     def test_session_name_is_editable(self):
         Session = self.env["rms.stock.count.session"]
         auto = Session.create({"location_id": self.stock.id})

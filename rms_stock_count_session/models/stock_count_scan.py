@@ -1065,6 +1065,33 @@ class RmsStockCountScan(models.Model):
         self.session_id.filtered(lambda s: s.state == "review")._build_reconciliation()
         return True
 
+    def scanner_assign_product(self, product_id):
+        """Botón "Elegir producto" de una lectura sin producto en el escáner:
+        el equipo ya está leído, solo faltaba decir de qué producto es. No
+        hace falta volver a leer la caja."""
+        self.ensure_one()
+        self.operator_id._check_counting()
+        if self.scan_type != "unknown" or self.ignored:
+            raise UserError("Esta lectura ya tiene producto.")
+        product = self.env["product.product"].browse(product_id or []).exists()
+        if not product:
+            raise UserError("Elige un producto.")
+        serial = self.lot_name or self.code
+        if product.tracking != "none":
+            again = self.search([
+                ("session_id", "=", self.session_id.id), ("id", "!=", self.id), ("scan_type", "=", "serial"),
+                ("ignored", "!=", True), ("product_id", "=", product.id),
+                ("serial_normalized", "=", self.serial_normalized),
+            ], limit=1)
+            if again:
+                raise UserError(
+                    "%s con nº de serie %s ya está leído en este recuento: borra esta lectura repetida."
+                    % (product.display_name, serial))
+        self.product_id = product
+        self.action_assign_product()
+        self.message = "Producto elegido a mano por %s: %s" % (self.env.user.name, product.display_name)
+        return self._scanner_payload()
+
     def action_learn_product_code(self):
         """El código desconocido era una referencia del producto (part number
         de la caja, código del ERP anterior...): se guarda como código

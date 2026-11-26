@@ -318,6 +318,9 @@
                         </div>
                     </div>
                     <div t-else="" class="flex-grow-1 overflow-auto">
+                        <div t-if="state.panel === 'product' and state.assignScan" class="alert alert-info m-2 py-2 o_rms_cs_assign_note">
+                            <i class="fa fa-cube"/> Elige el producto del equipo leído <b t-esc="state.assignScan.code"/>. Se le pondrá a esa lectura.
+                        </div>
                         <ul class="list-group list-group-flush">
                             <li t-foreach="state.panelResults" t-as="rec" t-key="rec.id"
                                 class="list-group-item list-group-item-action" style="cursor:pointer"
@@ -478,8 +481,8 @@
                                                             class="btn btn-sm btn-outline-primary" title="Corregir la cantidad apuntada"
                                                             t-on-click="() => this.openQtyEdit(scan)"><i class="fa fa-pencil"/> Cambiar cantidad</button>
                                                     <button t-if="scan.type === 'unknown' and kind !== 'prob'"
-                                                            class="btn btn-sm btn-outline-primary o_rms_cs_pick_product" title="Elegir el producto de este equipo (después vuelve a leerlo)"
-                                                            t-on-click="() => this.openPanel('product')"><i class="fa fa-cube"/> Elegir producto</button>
+                                                            class="btn btn-sm btn-outline-primary o_rms_cs_pick_product" title="Elegir el producto de este equipo (no hace falta volver a leerlo)"
+                                                            t-on-click="() => this.openAssignProduct(scan)"><i class="fa fa-cube"/> Elegir producto</button>
                                                     <button class="btn btn-sm btn-outline-danger" title="Borrar lectura"
                                                             t-on-click="() => this.deleteScan(scan.id)"><i class="fa fa-trash"/> Borrar</button>
                                                 </div>
