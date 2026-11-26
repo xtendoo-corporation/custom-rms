@@ -16,10 +16,15 @@ except ImportError:
 class GlobalEquipmentMapController(http.Controller):
     def _read_partners(self, partner_ids=None):
         Partner = request.env["res.partner"]
+        company_domain = []
+        if request.env.user.has_group("rms_global_equipment_map.group_map_all_partners"):
+            Partner = Partner.sudo()
+            company_domain = [("company_id", "in", [False] + request.env.companies.ids)]
         domain = [
             ("partner_latitude", "!=", 0.0),
             ("partner_longitude", "!=", 0.0),
         ]
+        domain += company_domain
         if partner_ids is not None:
             domain.append(("id", "in", partner_ids))
         partners = Partner.search(domain, order="name, id")
@@ -39,7 +44,7 @@ class GlobalEquipmentMapController(http.Controller):
                 ("parent_id", "=", partner.id),
                 ("type", "=", "contact"),
                 ("name", "!=", False),
-            ], limit=1)
+            ] + company_domain, limit=1)
             result.append(
                 {
                     "id": partner.id,

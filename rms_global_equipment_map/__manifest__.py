@@ -1,6 +1,6 @@
 {
     "name": "RMS Global Equipment Map",
-    "version": "19.0.1.4.3",
+    "version": "19.0.1.5.0",
     "category": "Services/Maintenance",
     "summary": "Mapa global de clientes con Equipos del Cliente",
     "author": "Xtendoo",
@@ -14,6 +14,7 @@
     ],
     "external_dependencies": {"python": ["openpyxl"]},
     "data": [
+        "security/res_groups.xml",
         "views/global_equipment_map_views.xml",
     ],
     "assets": {

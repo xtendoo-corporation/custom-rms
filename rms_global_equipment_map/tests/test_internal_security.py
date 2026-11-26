@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import openpyxl
 
+from odoo.exceptions import AccessError
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase, TransactionCase, new_test_user
 
@@ -111,3 +112,68 @@ class TestMapCompanySecurity(TransactionCase):
         self.assertEqual(row["contact_name"], "")
         self.assertEqual(row["email"], "")
         self.assertEqual(row["phone"], "")
+
+
+@tagged("post_install", "-at_install")
+class TestMapAllPartnersSecurity(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.company_a = cls.env["res.company"].create({"name": "Mapa todos compañía A"})
+        cls.company_b = cls.env["res.company"].create({"name": "Mapa todos compañía B"})
+        company_values = {
+            "company_id": cls.company_a.id,
+            "company_ids": [(6, 0, cls.company_a.ids)],
+        }
+        cls.internal = new_test_user(
+            cls.env, login="map_all_internal", groups="base.group_user", **company_values,
+        )
+        cls.all_partners_user = new_test_user(
+            cls.env, login="map_all_privileged",
+            groups="base.group_user,rms_global_equipment_map.group_map_all_partners",
+            **company_values,
+        )
+        cls.portal = new_test_user(cls.env, login="map_all_portal", groups="base.group_portal")
+        cls.partners = cls.env["res.partner"].create([
+            {"name": "Mapa cliente oculto", "company_id": cls.company_a.id,
+             "partner_latitude": 40.4, "partner_longitude": -3.7},
+            {"name": "Mapa cliente otra compañía", "company_id": cls.company_b.id,
+             "partner_latitude": 41.4, "partner_longitude": 2.1},
+        ])
+        cls.env["ir.rule"].create({
+            "name": "Mapa ocultar cliente", "model_id": cls.env.ref("base.model_res_partner").id,
+            "domain_force": "[('id', '!=', %s)]" % cls.partners[0].id,
+        })
+
+    def _request(self, user):
+        return patch(
+            "odoo.addons.rms_global_equipment_map.controllers.main.request",
+            SimpleNamespace(env=self.env["res.partner"].with_user(user).with_context(
+                allowed_company_ids=self.company_a.ids,
+            ).env),
+        )
+
+    def test_restricted_partner_requires_group(self):
+        with self._request(self.internal):
+            rows = GlobalEquipmentMapController().get_global_equipment_map_partners()
+        self.assertNotIn(self.partners[0].id, [row["id"] for row in rows])
+
+    def test_group_sees_and_exports_restricted_partner_in_allowed_company(self):
+        with self._request(self.all_partners_user):
+            controller = GlobalEquipmentMapController()
+            rows = controller.get_global_equipment_map_partners()
+            result = controller.export_global_equipment_map_xlsx(self.partners.ids)
+        ids = {row["id"] for row in rows}
+        self.assertIn(self.partners[0].id, ids)
+        self.assertNotIn(self.partners[1].id, ids)
+        workbook = openpyxl.load_workbook(io.BytesIO(base64.b64decode(result["content"])))
+        names = [row[0] for row in workbook.active.iter_rows(min_row=2, values_only=True)]
+        self.assertEqual(names, [self.partners[0].name])
+
+    def test_portal_is_denied(self):
+        with self._request(self.portal):
+            controller = GlobalEquipmentMapController()
+            with self.assertRaises(AccessError):
+                controller.get_global_equipment_map_partners()
+            with self.assertRaises(AccessError):
+                controller.export_global_equipment_map_xlsx(self.partners.ids)
