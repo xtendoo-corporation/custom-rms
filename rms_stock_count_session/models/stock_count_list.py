@@ -141,11 +141,21 @@ class RmsStockCountOperator(models.Model):
               ) g ON s.id IS NULL
              WHERE %s""", shown, self.session_id.id, SQL(" AND ").join(where))
 
+    def _list_show_sage_qty(self):
+        """Por defecto lo que va por cantidad se cuenta a ciegas (la Lista no
+        enseña la cifra de Sage). Con el parámetro activado, la Lista enseña
+        «3 de 6» y el artículo sigue en "Solo lo que falta" hasta completarlo:
+        para material suelto que se va encontrando de uno en uno."""
+        value = self.env["ir.config_parameter"].sudo().get_param("rms_stock_count_session.list_show_sage_qty")
+        return str(value or "").strip().lower() in ("1", "true", "yes", "si", "sí")
+
     def _list_qty_sql(self, warehouses, flt='all', query=''):
         """Una fila por artículo SIN nº de serie de Sage en la nave (los que
         ofrece el botón "Por cantidad") con lo apuntado en la nave. La cantidad
-        de Sage no sale de aquí: recuento a ciegas."""
+        de Sage (última columna) solo se devuelve al escáner si está activado
+        _list_show_sage_qty; si no, recuento a ciegas."""
         sites = sorted(set(warehouses.mapped("site_number")) - {0})
+        partial = self._list_show_sage_qty()
         shown = SQL("bool_or(%s)", self._list_query_sql(query, "''"))
         return SQL("""
             WITH counted AS (
@@ -161,12 +171,12 @@ class RmsStockCountOperator(models.Model):
             )
             SELECT g.brand, g.product_id, g.article_code, g.article_name, g.ok,
                    c.product_id IS NOT NULL AS is_counted, COALESCE(c.qty, 0) AS counted,
-                   (g.shown AND %s) AS shown
+                   (g.shown AND %s) AS shown, g.sage_qty
               FROM (
                 SELECT COALESCE(min(l.brand_categ_id), 0) AS brand, l.product_id,
                        min(l.article_code) AS article_code, min(l.article_name) AS article_name,
                        bool_and(l.product_id IS NOT NULL AND COALESCE(l.match_state, '') = 'ok') AS ok,
-                       %s AS shown
+                       %s AS shown, sum(l.quantity) AS sage_qty
                   FROM rms_sage_stock_line l
                   LEFT JOIN product_product pp ON pp.id = l.product_id
                   LEFT JOIN product_template pt ON pt.id = pp.product_tmpl_id
@@ -178,6 +188,7 @@ class RmsStockCountOperator(models.Model):
               ) g
               LEFT JOIN counted c ON c.product_id = g.product_id""",
             sites,
+            SQL("COALESCE(c.qty, 0) < g.sage_qty") if flt == 'pending' and partial else
             SQL("c.product_id IS NULL") if flt == 'pending' else
             SQL("c.product_id IS NOT NULL") if flt == 'done' else SQL("TRUE"),
             shown, warehouses.ids)
@@ -228,12 +239,17 @@ class RmsStockCountOperator(models.Model):
               FROM (%s) x GROUP BY 1""", self._list_base(warehouses, flt, query)))
         brands = {row[0]: {"id": row[0], "total": row[1], "counted": row[2], "review": row[3], "shown": row[4],
                            "qty_total": 0, "qty_counted": 0, "qty_shown": 0} for row in cr.fetchall()}
+        show_qty = self._list_show_sage_qty()
         cr.execute(SQL("""
-            SELECT q.brand, count(*), count(*) FILTER (WHERE q.is_counted), count(*) FILTER (WHERE q.shown)
+            SELECT q.brand, count(*), count(*) FILTER (WHERE q.is_counted), count(*) FILTER (WHERE q.shown),
+                   COALESCE(sum(q.sage_qty), 0), COALESCE(sum(LEAST(q.counted, q.sage_qty)), 0)
               FROM (%s) q GROUP BY 1""", self._list_qty_sql(warehouses, flt, query)))
-        for brand, total, counted, shown in cr.fetchall():
+        for brand, total, counted, shown, units, units_counted in cr.fetchall():
             entry = brands.setdefault(brand, {"id": brand, "total": 0, "counted": 0, "review": 0, "shown": 0})
             entry.update(qty_total=total, qty_counted=counted, qty_shown=shown)
+            if show_qty:
+                # Unidades: es lo que se mueve con cada lectura de material suelto.
+                entry.update(qty_units=units, qty_units_counted=units_counted)
         names = {categ.id: categ.name for categ in
                  self.env["product.category"].sudo().browse([b for b in brands if b]).exists()}
         for brand in brands.values():
@@ -285,7 +301,8 @@ class RmsStockCountOperator(models.Model):
         qty_rows = qty_by_brand.get(int(brand_id or 0), [])
         by_id = {p.id: p for p in self.env["product.product"].browse([r[1] for r in qty_rows if r[1]]).exists()}
         qty = []
-        for _brand, product_id, article, name, ok, is_counted, counted, _shown in qty_rows:
+        show_qty = self._list_show_sage_qty()
+        for _brand, product_id, article, name, ok, is_counted, counted, _shown, sage_qty in qty_rows:
             product = by_id.get(product_id)
             if product_id and not product:
                 continue
@@ -299,6 +316,8 @@ class RmsStockCountOperator(models.Model):
                 "in_sage": True, "ok": bool(ok and product),
                 "is_counted": bool(is_counted), "counted": counted or 0.0,
             })
+            if show_qty:
+                qty[-1]["sage_qty"] = sage_qty or 0.0
         return {"products": products, "qty": qty}
 
     def _list_serials(self, warehouses, brand_id, key, flt, query, offset=0, limit=None):
@@ -477,7 +496,7 @@ class RmsStockCountOperator(models.Model):
         qty_rows = [row for brand, brand_rows in self._list_qty_rows(warehouses, flt, "").items()
                     if brand_filter is None or brand == brand_filter for row in brand_rows]
         products = {p.id: p for p in self.env["product.product"].browse([r[1] for r in qty_rows if r[1]]).exists()}
-        for brand, product_id, article, name, _ok, is_counted, counted, _shown in qty_rows:
+        for brand, product_id, article, name, _ok, is_counted, counted, _shown, _sage_qty in qty_rows:
             product = products.get(product_id)
             by_brand.setdefault(brand, {"products": {}, "qty": []})["qty"].append({
                 "ref": (product.default_code if product else "") or article or "",

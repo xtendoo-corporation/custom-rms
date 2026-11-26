@@ -256,6 +256,30 @@ class TestScannerList(TransactionCase):
         self.assertNotIn(str(SAGE_QTY * 2), text)
         self.assertNotIn('cost', text)
 
+    def test_by_quantity_with_sage_quantity_enabled(self):
+        """Con el parámetro activado: «N de M», el artículo sigue en "lo que
+        falta" hasta completarlo y la marca cuenta unidades."""
+        self.env['ir.config_parameter'].sudo().set_param('rms_stock_count_session.list_show_sage_qty', '1')
+        total = SAGE_QTY * 2                      # LT-CABLE está en dos empresas
+        item = self.operator.scanner_list_products(self.atlas.id)['qty'][0]
+        self.assertEqual((item['ref'], item['counted'], item['sage_qty']), ('LT-CABLE', 0, total))
+        self.operator.scanner_qty_count(self.cable.id, 3, self.states['new'])
+        item = self.operator.scanner_list_products(self.atlas.id)['qty'][0]
+        self.assertEqual((item['is_counted'], item['counted'], item['sage_qty']), (True, 3, total))
+        # A medias: sigue saliendo en "Solo lo que falta" (y también en "Solo leído").
+        self.assertEqual([q['ref'] for q in self.operator.scanner_list_products(self.atlas.id, 'pending')['qty']], ['LT-CABLE'])
+        self.assertEqual([q['ref'] for q in self.operator.scanner_list_products(self.atlas.id, 'done')['qty']], ['LT-CABLE'])
+        atlas = self._brand(self.operator.scanner_list_brands(), self.atlas)
+        self.assertEqual((atlas['qty_units'], atlas['qty_units_counted']), (total, 3))
+        # Completo: deja de salir en "lo que falta"; lo que sobra no infla el avance.
+        self.operator.scanner_qty_count(self.cable.id, total, self.states['new'], 'add')
+        self.assertFalse(self.operator.scanner_list_products(self.atlas.id, 'pending')['qty'])
+        atlas = self._brand(self.operator.scanner_list_brands(), self.atlas)
+        self.assertEqual((atlas['qty_units'], atlas['qty_units_counted']), (total, total))
+        # El marcador fijo del escáner no cambia de significado.
+        data, progress = self.operator.scanner_list_brands(), self.operator.scanner_progress()
+        self.assertEqual(data['qty_total'] - data['qty_counted'], progress['qty_pending'])
+
     def test_pagination(self):
         for index in range(1, 8):
             self._line('01', self.galaxy, 'PAG-%04d' % index)

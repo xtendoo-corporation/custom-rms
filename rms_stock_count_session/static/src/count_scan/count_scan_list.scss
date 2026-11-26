@@ -245,6 +245,7 @@ $rms-l-line: #dee2e6;
     .o_rms_cs_lpill_left { background: #fff; color: #343a40; border-color: #adb5bd; }
     .o_rms_cs_lpill_review { background: $rms-l-warn-bg; color: #664d03; border-color: #f3d58a; font-weight: 600; }
     .o_rms_cs_lpill_qty { background: transparent; color: #495057; border: 1px dashed #adb5bd; }
+    .o_rms_cs_lpill_partial { background: $rms-l-warn-bg; color: #664d03; border-color: #f3d58a; }
 
     // Altas: leído y no está en Sage.
     .o_rms_cs_lextra > .o_rms_cs_lbrand {
@@ -372,6 +373,7 @@ $rms-l-line: #dee2e6;
     }
     .o_rms_cs_lqty_item { padding-left: 10px; background: #fff; }
     .o_rms_cs_lqty_counted { background: $rms-l-ok-bg; }
+    .o_rms_cs_lqty_partial { background: lighten($rms-l-warn-bg, 4%); }
 
     .o_rms_cs_lhelp {
         padding: 12px 14px 16px;

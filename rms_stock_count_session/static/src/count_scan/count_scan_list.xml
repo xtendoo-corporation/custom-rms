@@ -130,7 +130,11 @@
                             <span t-elif="brand.total" class="o_rms_cs_lpill o_rms_cs_lpill_left">faltan <b t-esc="brand.total - brand.counted"/></span>
                             <span t-if="brand.review" class="o_rms_cs_lpill o_rms_cs_lpill_review" title="Leídos con un estado distinto al de Sage">
                                 ⚠ <t t-esc="brand.review"/> con otro estado</span>
-                            <span t-if="brand.qty_total" class="o_rms_cs_lpill o_rms_cs_lpill_qty" title="Artículos sin nº de serie: apuntados de los que hay">
+                            <span t-if="brand.qty_total and brand.qty_units !== undefined" class="o_rms_cs_lpill o_rms_cs_lpill_qty"
+                                  t-att-class="brand.qty_units_counted >= brand.qty_units ? 'o_rms_cs_lpill_done' : ''"
+                                  title="Sin nº de serie: unidades apuntadas de las que tiene Sage">
+                                por cantidad <b t-esc="formatQty(brand.qty_units_counted)"/> de <b t-esc="formatQty(brand.qty_units)"/> uds</span>
+                            <span t-elif="brand.qty_total" class="o_rms_cs_lpill o_rms_cs_lpill_qty" title="Artículos sin nº de serie: apuntados de los que hay">
                                 por cantidad <t t-esc="brand.qty_counted"/> de <t t-esc="brand.qty_total"/></span>
                             <span t-if="brand.total" class="o_rms_cs_lbar" aria-hidden="true"><span t-att-style="'width:' + listPercent(brand) + '%'"/></span>
                         </button>
@@ -224,14 +228,20 @@
                                 <div t-if="content.qty.length" class="o_rms_cs_lqty">
                                     <div class="o_rms_cs_lqty_head"><i class="fa fa-calculator"/> Por cantidad <span>(sin nº de serie: toca uno para apuntar las unidades que cuentes)</span></div>
                                     <button t-foreach="content.qty" t-as="item" t-key="item.key" class="o_rms_cs_lqty_item"
-                                            t-att-class="item.is_counted ? 'o_rms_cs_lqty_counted' : ''" t-att-data-ref="item.ref"
+                                            t-att-class="item.sage_qty === undefined ? (item.is_counted ? 'o_rms_cs_lqty_counted' : '') : (item.counted >= item.sage_qty ? 'o_rms_cs_lqty_counted' : (item.is_counted ? 'o_rms_cs_lqty_partial' : ''))" t-att-data-ref="item.ref"
                                             t-on-click="() => this.listOpenQty(item)">
                                         <span class="o_rms_cs_lproduct_ref" t-esc="item.ref"/>
                                         <span class="o_rms_cs_lproduct_name">
                                             <t t-esc="item.sage_name or item.name"/>
                                             <span t-if="!item.ok" class="o_rms_cs_lproduct_flag"> · falta crear el producto</span>
                                         </span>
-                                        <span t-if="item.is_counted" class="o_rms_cs_lpill o_rms_cs_lpill_done">contado: <b t-esc="formatQty(item.counted)"/></span>
+                                        <t t-if="item.sage_qty !== undefined">
+                                            <span t-if="item.counted > item.sage_qty" class="o_rms_cs_lpill o_rms_cs_lpill_review"><b t-esc="formatQty(item.counted)"/> de <b t-esc="formatQty(item.sage_qty)"/> · sobran <b t-esc="formatQty(item.counted - item.sage_qty)"/></span>
+                                            <span t-elif="item.counted >= item.sage_qty" class="o_rms_cs_lpill o_rms_cs_lpill_done"><i class="fa fa-check"/> <b t-esc="formatQty(item.counted)"/> de <b t-esc="formatQty(item.sage_qty)"/></span>
+                                            <span t-elif="item.is_counted" class="o_rms_cs_lpill o_rms_cs_lpill_partial"><b t-esc="formatQty(item.counted)"/> de <b t-esc="formatQty(item.sage_qty)"/> · faltan <b t-esc="formatQty(item.sage_qty - item.counted)"/></span>
+                                            <span t-else="" class="o_rms_cs_lpill o_rms_cs_lpill_left"><b>0</b> de <b t-esc="formatQty(item.sage_qty)"/></span>
+                                        </t>
+                                        <span t-elif="item.is_counted" class="o_rms_cs_lpill o_rms_cs_lpill_done">contado: <b t-esc="formatQty(item.counted)"/></span>
                                         <span t-else="" class="o_rms_cs_lpill o_rms_cs_lpill_left">sin contar</span>
                                     </button>
                                 </div>
