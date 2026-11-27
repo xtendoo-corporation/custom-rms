@@ -455,6 +455,10 @@ class RmsReception(models.Model):
             ], limit=3)
             if len(lots.product_id) == 1:
                 product = lots.product_id
+        if product and product.tracking != "none":
+            result = self._classify_serial_on_quantity(product, serial, context_product, manual)
+            if result:
+                return result
         extra = lines.create({
             "reception_id": self.id, "origin": "scan", "state": "extra", "product_id": product.id,
             "product_state_id": self.default_product_state_id.id, "scanned_serial": serial,
@@ -466,6 +470,29 @@ class RmsReception(models.Model):
             "verdict": "extra", "effect": "extra", "line_id": extra.id, "product_id": product.id,
             "message": ("Leído %s. Todavía no hay lista: se cuadrará al cargar el documento." % serial) if blind
             else ("%s NO está en la lista: queda como sobrante para que lo decida un responsable." % serial),
+        }
+
+    def _classify_serial_on_quantity(self, product, serial, context_product, manual):
+        candidates = self.line_ids.filtered(
+            lambda l: l.origin == "list" and l.by_quantity and l.product_id == product
+            and l.state != "damaged" and l.qty_received < l.qty_expected
+        ).sorted(lambda l: (l.sequence, l.id))
+        if not candidates:
+            return False
+        line = candidates[0]
+        if line.qty_expected != 1 or line.qty_received != 0:
+            line.qty_expected -= 1
+            line._sync_qty_state()
+            line = line.create({
+                "reception_id": self.id, "origin": "list", "product_id": product.id,
+                "supplier_code": line.supplier_code, "description": line.description,
+                "product_state_id": line.product_state_id.id, "sequence": line.sequence,
+                "serial": False, "qty_expected": 1.0,
+            })
+        self._mark_line(line, "received", serial, context_product, manual)
+        return {
+            "verdict": "ok", "effect": "line", "line_id": line.id, "product_id": product.id,
+            "message": "%s · %s" % (product.display_name, serial),
         }
 
     def _classify_exact(self, exact, serial, context_product, manual):

@@ -117,7 +117,8 @@
                                          t-att-class="lineClass(line)" t-att-data-line="line.id">
                                         <div class="o_rms_rc_line_mark"><i class="fa fa-cubes"/></div>
                                         <div class="o_rms_rc_line_main">
-                                            <div class="o_rms_rc_serial">Sin nº de serie: se cuenta</div>
+                                            <div class="o_rms_rc_serial" t-if="group.tracked">Sin nº de serie en la lista: lee su etiqueta con la pistola</div>
+                                            <div class="o_rms_rc_serial" t-else="">Sin nº de serie: se cuenta</div>
                                             <div class="o_rms_rc_line_status" t-esc="lineStatus(line)"/>
                                         </div>
                                         <div class="o_rms_rc_qty">
@@ -141,7 +142,7 @@
                                                 <i t-elif="line.state == 'missing'" class="fa fa-times"/>
                                             </div>
                                             <div class="o_rms_rc_line_main">
-                                                <div class="o_rms_rc_serial" t-esc="line.serial"/>
+                                                <div class="o_rms_rc_serial" t-esc="line.serial || line.scanned_serial"/>
                                                 <div class="o_rms_rc_line_status" t-esc="lineStatus(line)"/>
                                             </div>
                                             <span class="o_rms_rc_chip" t-if="line.state_name and line.state_name != 'Nuevo'" t-esc="line.state_name"/>

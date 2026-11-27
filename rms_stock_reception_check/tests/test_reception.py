@@ -26,6 +26,61 @@ class TestReceptionChecklist(ReceptionCommon):
         self.assertFalse(self.lines[0].by_quantity)
         self.assertEqual(self.reception.count_expected, 7)
 
+    def test_serial_on_quantity_single_manual_and_unreceive(self):
+        reception = self._reception([(self.ultra, False, 1)])
+        reception.action_start()
+        line = reception.line_ids
+        response = reception.with_user(self.operator).checklist_manual_serial(
+            "QTY-1001", "QTY-1001", self.ultra.id, print_label=False)
+        self.assertEqual(response["result"]["verdict"], "ok")
+        self.assertEqual(response["result"]["line_id"], line.id)
+        self.assertEqual((line.state, line.scanned_serial, line.by_quantity), ("received", "QTY-1001", False))
+        self.assertTrue(line.manual_entry)
+        line.with_user(self.operator).checklist_unreceive()
+        self.assertEqual((line.state, line.qty_expected, line.qty_received), ("pending", 1, 0))
+        self.assertTrue(line.by_quantity)
+        self.assertFalse(line.scanned_serial)
+
+    def test_serial_on_quantity_split_repeat_extra_and_undo(self):
+        reception = self._reception([(self.ultra, False, 2)])
+        reception.action_start()
+        response = reception.with_user(self.operator).checklist_scan("QTY-2001", product_id=self.ultra.id)
+        self.assertEqual(response["result"]["verdict"], "ok")
+        group = response["state"]["groups"][0]
+        self.assertEqual((group["done"], group["total"], len(group["lines"])), (1, 2, 2))
+        self.assertEqual((response["state"]["counters"]["received"],
+                          response["state"]["counters"]["expected"]), (1, 2))
+        self.assertEqual(self._scan(reception, "QTY-2001", product=self.ultra)["verdict"], "repeat")
+        second = self._scan(reception, "QTY-2002", product=self.ultra)
+        self.assertEqual(second["verdict"], "ok")
+        self.assertEqual(len(reception.line_ids.filtered(lambda l: l.state == "received")), 2)
+        self.assertEqual(reception._counters()["missing"], 0)
+        self.assertEqual(reception._counters()["expected"], 2)
+        self.assertEqual(self._scan(reception, "QTY-2003", product=self.ultra)["verdict"], "extra")
+        reception.with_user(self.operator).checklist_undo(scan_id=second["id"])
+        line = self.env["rms.reception.line"].browse(second["line_id"])
+        self.assertEqual((line.state, line.qty_expected, line.qty_received), ("pending", 1, 0))
+        self.assertTrue(line.by_quantity)
+        self.assertFalse(line.scanned_serial)
+
+    def test_serial_on_quantity_resolves_existing_lot_and_enters_stock(self):
+        lot = self.env["stock.lot"].create({"name": "QTY-3001", "product_id": self.ultra.id})
+        reception = self._reception([(self.ultra, False, 1)])
+        reception.action_start()
+        self.assertEqual(self._scan(reception, "QTY-3001")["verdict"], "ok")
+        reception.with_user(self.operator).action_finish()
+        reception.with_user(self.manager).action_validate_stock()
+        self.assertEqual(reception.picking_id.state, "done")
+        self.assertEqual(reception.picking_id.move_line_ids.lot_id, lot)
+        self.assertEqual(reception.picking_id.move_line_ids.quantity, 1)
+
+    def test_serial_on_untracked_quantity_remains_extra(self):
+        reception = self._reception([(self.bracket, False, 1)])
+        reception.action_start()
+        self.assertEqual(self._scan(reception, "QTY-4001", product=self.bracket)["verdict"], "extra")
+        line = reception.line_ids.filtered(lambda l: l.origin == "list")
+        self.assertEqual((line.state, line.qty_received, line.by_quantity), ("pending", 0, True))
+
     def test_green_needs_product_and_serial(self):
         result = self._scan(self.reception, "26476604")
         self.assertEqual(result["verdict"], "ok")
