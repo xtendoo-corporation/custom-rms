@@ -326,7 +326,7 @@ class RmsReception(models.Model):
             "user": self.env.user.name,
         }
 
-    def checklist_scan(self, raw_code, product_id=False, client_uid=False, manual=False):
+    def checklist_scan(self, raw_code, product_id=False, client_uid=False, manual=False, force_extra=False):
         """Una lectura de la pistola (o tecleada). Devuelve el veredicto y el
         estado completo de la pantalla.
 
@@ -341,17 +341,25 @@ class RmsReception(models.Model):
         if client_uid:
             previous = Scan.search([("reception_id", "=", self.id), ("client_uid", "=", client_uid)], limit=1)
             if previous:
-                return {"result": dict(previous._payload(), resent=True), "state": self.checklist_state()}
+                result = dict(previous._payload(), resent=True)
+                if previous.verdict == "choose":
+                    result["candidates"] = self._quantity_candidates()
+                return {"result": result, "state": self.checklist_state()}
         self._check_receiving()
         code = clean_code(raw_code)
         if not code:
             raise UserError("Lectura vacía.")
         context_product = self.env["product.product"].browse(product_id or []).exists()
-        vals = self._classify(code, context_product, manual=manual, raw=(raw_code or "").strip())
+        vals = self._classify(code, context_product, manual=manual, raw=(raw_code or "").strip(),
+                              force_extra=force_extra)
+        candidates = vals.pop("candidates", None)
         scan = Scan._create_scan(dict(
             vals, reception_id=self.id, raw_code=raw_code, code=code, manual=manual, client_uid=client_uid or False,
         ))
-        return {"result": scan._payload(), "state": self.checklist_state()}
+        result = scan._payload()
+        if candidates is not None:
+            result["candidates"] = candidates
+        return {"result": result, "state": self.checklist_state()}
 
     def _mark_line(self, line, state, serial, context_product, manual):
         vals = {
@@ -383,7 +391,7 @@ class RmsReception(models.Model):
         })
         return extra
 
-    def _classify(self, code, context_product, manual=False, raw=""):
+    def _classify(self, code, context_product, manual=False, raw="", force_extra=False):
         """Decide qué es lo leído. Reglas (análisis del Caso 1, sección 5):
 
         - VERDE solo si coinciden producto + nº de serie con una línea
@@ -424,8 +432,9 @@ class RmsReception(models.Model):
                 (value for value in (serial, code, raw) if serial_key(value) in exact.mapped("serial_key")), serial)
             return self._classify_exact(exact, matched, context_product, manual)
 
-        replaced_keys = {serial_key(value) for line in lines for value in
-                         re.split(r"[,\s]+", line.replaced_serials or "") if value}
+        replaced_keys = {serial_key(value) for line in lines
+                         if not context_product or not line.product_id or line.product_id == context_product
+                         for value in re.split(r"[,\s]+", line.replaced_serials or "") if value}
         if any(key in replaced_keys for key in keys):
             return {"verdict": "ignored", "message": (
                 "%s es el nº de serie del equipo que se envió a RA: no llega. "
@@ -477,6 +486,11 @@ class RmsReception(models.Model):
             result = self._classify_serial_on_quantity(product, serial, context_product, manual)
             if result:
                 return result
+        if not product and not force_extra:
+            candidates = self._quantity_candidates()
+            if candidates:
+                return {"verdict": "choose", "message": "%s no está en la lista. ¿De qué artículo es?" % serial,
+                        "candidates": candidates}
         extra = lines.create({
             "reception_id": self.id, "origin": "scan", "state": "extra", "product_id": product.id,
             "product_state_id": self.default_product_state_id.id, "scanned_serial": serial,
@@ -489,6 +503,36 @@ class RmsReception(models.Model):
             "message": ("Leído %s. Todavía no hay lista: se cuadrará al cargar el documento." % serial) if blind
             else ("%s NO está en la lista: queda como sobrante para que lo decida un responsable." % serial),
         }
+
+    def _quantity_candidates(self):
+        """Productos con unidades por cantidad pendientes, en orden de documento."""
+        lines = self.line_ids.filtered(
+            lambda l: l.origin == "list" and l.by_quantity and l.product_id
+            and l.product_id.tracking == "serial" and l.state != "damaged"
+            and l.qty_received < l.qty_expected
+        ).sorted(lambda l: (l.sequence, l.id))
+        groups = OrderedDict()
+        for line in lines:
+            candidate = groups.setdefault(line.product_id.id, {
+                "product_id": line.product_id.id, "name": line.product_id.display_name,
+                "refs": [], "pending": 0, "replacement": False, "replaced_values": [],
+                "sequence": line.sequence, "line_id": line.id,
+            })
+            ref = " · ".join(filter(None, [(line.supplier_code or "").strip(), (line.description or "").strip()]))
+            if ref and ref not in candidate["refs"]:
+                candidate["refs"].append(ref)
+            candidate["pending"] += line.qty_expected - line.qty_received
+            candidate["replacement"] = candidate["replacement"] or line.is_replacement
+            for value in re.split(r"[,\s]+", line.replaced_serials or ""):
+                if value and value not in candidate["replaced_values"]:
+                    candidate["replaced_values"].append(value)
+        result = sorted(groups.values(), key=lambda c: (not c["replacement"], c["sequence"], c["line_id"]))
+        for candidate in result:
+            candidate["doc_ref"] = " / ".join(candidate.pop("refs"))
+            candidate["replaced"] = ", ".join(candidate.pop("replaced_values"))
+            candidate.pop("sequence")
+            candidate.pop("line_id")
+        return result
 
     def _classify_serial_on_quantity(self, product, serial, context_product, manual):
         line = self._take_quantity_unit(product)
@@ -633,7 +677,7 @@ class RmsReception(models.Model):
         product = line._stock_product() if line else self.env["product.product"].browse(product_id or [])
         response["print_action"] = False
         response["print_message"] = ""
-        if print_label and response["result"]["verdict"] not in ("repeat", "ignored"):
+        if print_label and response["result"]["verdict"] not in ("repeat", "ignored", "choose"):
             if product and product.tracking != "none":
                 wizard = self.env["rms.lot.label.wizard"].create({
                     "product_id": product.id, "serial_text": serial, "serial_confirm": serial,
@@ -680,7 +724,9 @@ class RmsReception(models.Model):
                         and l.serial_fuzzy == fuzzy_key)
                     if len(fuzzy) == 1:
                         target, state = fuzzy, "probable"
-                if not target and extra.product_id.tracking == "serial":
+                replaced_keys = {serial_key(value) for line in reception.line_ids for value in
+                                 re.split(r"[,\s]+", line.replaced_serials or "") if value}
+                if not target and extra.product_id.tracking == "serial" and extra.scanned_key not in replaced_keys:
                     target = reception._take_quantity_unit(extra.product_id)
                 if not target:
                     continue

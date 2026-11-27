@@ -16,6 +16,7 @@ VERDICTS = [
     ("wrong_model", "Ámbar: modelo distinto"),
     ("ambiguous", "Ámbar: está en varios modelos"),
     ("extra", "Rojo: no está en la lista"),
+    ("choose", "Pendiente de elegir artículo"),
     ("product_code", "Gris: código de producto"),
     ("ignored", "Gris: ignorado"),
     ("repeat", "Ya leído"),

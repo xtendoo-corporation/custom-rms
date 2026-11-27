@@ -707,7 +707,8 @@ $rc-line: #dfe3e8;
 
     .o_rms_rc_scan_probable .o_rms_rc_dot,
     .o_rms_rc_scan_wrong_model .o_rms_rc_dot,
-    .o_rms_rc_scan_ambiguous .o_rms_rc_dot {
+    .o_rms_rc_scan_ambiguous .o_rms_rc_dot,
+    .o_rms_rc_scan_choose .o_rms_rc_dot {
         background: #e8a100;
     }
 
@@ -790,6 +791,27 @@ $rc-line: #dfe3e8;
             }
         }
     }
+
+    .o_rms_rc_choose {
+        width: min(90vw, 800px);
+        max-width: 800px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .o_rms_rc_choice {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+        min-height: 80px;
+        margin: 10px 0;
+        padding: 14px;
+        text-align: left;
+        white-space: normal;
+    }
+
+    .o_rms_rc_choice_ref { font-size: 20px; }
 
     .o_rms_rc_panel_error {
         margin-top: 12px;

@@ -337,7 +337,8 @@ class RmsReceptionLoadWizard(models.TransientModel):
         scanned_without_serial = {}
         for existing_line in reception.line_ids:
             if existing_line.origin == "list" and not existing_line.serial_key and existing_line.scanned_key:
-                scanned_without_serial.setdefault(existing_line.scanned_key, existing_line)
+                key = (existing_line.product_id.id, existing_line.scanned_key)
+                scanned_without_serial.setdefault(key, []).append(existing_line)
         sequence = max(reception.line_ids.filtered(lambda l: l.origin == "list").mapped("sequence") or [0])
         vals_list = []
         skipped = 0
@@ -348,8 +349,21 @@ class RmsReceptionLoadWizard(models.TransientModel):
                 if key in existing:
                     skipped += 1
                     continue
-                if key[1] in scanned_without_serial:
-                    scanned_without_serial.pop(key[1]).serial = serial
+                # Prioriza el mismo producto; una línea sin producto puede
+                # cuadrarse con cualquiera, pero dos productos distintos no.
+                matching_key = key if scanned_without_serial.get(key) else (False, key[1])
+                if not key[0] and not scanned_without_serial.get(matching_key):
+                    matching_key = next((candidate for candidate, lines in scanned_without_serial.items()
+                                         if candidate[1] == key[1] and lines), matching_key)
+                if scanned_without_serial.get(matching_key):
+                    scanned = scanned_without_serial[matching_key].pop(0)
+                    scanned.write({
+                        "serial": serial,
+                        "is_replacement": line.is_replacement,
+                        "replaced_serials": line.replaced_serials,
+                        "supplier_code": scanned.supplier_code or line.supplier_code,
+                        "description": scanned.description or line.description,
+                    })
                     existing.add(key)
                     skipped += 1
                     continue

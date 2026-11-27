@@ -26,6 +26,64 @@ class TestReceptionChecklist(ReceptionCommon):
         self.assertFalse(self.lines[0].by_quantity)
         self.assertEqual(self.reception.count_expected, 7)
 
+    def test_choose_unknown_serial_and_assign(self):
+        reception = self._reception([(self.ultra, False, 2), (self.galaxy, False, 1)])
+        first, second = reception.line_ids.sorted("sequence")
+        first.write({"supplier_code": "A", "description": "Normal"})
+        second.write({"supplier_code": "B", "description": "Cambio", "is_replacement": True,
+                      "replaced_serials": "OLD-1"})
+        reception.action_start()
+        before = len(reception.line_ids)
+        result = reception.with_user(self.operator).checklist_scan("NEW-123", client_uid="choose-1")["result"]
+        self.assertEqual(result["verdict"], "choose")
+        self.assertEqual(len(reception.line_ids), before)
+        self.assertEqual([c["product_id"] for c in result["candidates"]], [self.galaxy.id, self.ultra.id])
+        self.assertEqual(result["candidates"][0]["doc_ref"], "B · Cambio")
+        self.assertEqual((result["candidates"][0]["pending"], result["candidates"][0]["replacement"],
+                          result["candidates"][0]["replaced"]), (1, True, "OLD-1"))
+        self.assertEqual(result["candidates"][1]["pending"], 2)
+        response = reception.with_user(self.operator).checklist_scan(
+            "NEW-123", product_id=self.galaxy.id, client_uid="choose-2")
+        self.assertEqual(response["result"]["verdict"], "ok")
+        self.assertEqual(second.scanned_serial, "NEW-123")
+        reception.with_user(self.operator).action_finish()
+
+    def test_choose_force_extra_and_manual_without_product(self):
+        reception = self._reception([(self.ultra, False, 1)])
+        reception.action_start()
+        manual = reception.with_user(self.operator).checklist_manual_serial(
+            "MANUAL-123", "MANUAL-123", print_label=True)
+        self.assertEqual(manual["result"]["verdict"], "choose")
+        self.assertFalse(manual["print_action"])
+        self.assertFalse(manual["print_message"])
+        forced = reception.with_user(self.operator).checklist_scan("MANUAL-123", force_extra=True)
+        self.assertEqual(forced["result"]["verdict"], "extra")
+        self.assertEqual(len(reception.line_ids.filtered(lambda l: l.origin == "scan")), 1)
+
+    def test_unknown_without_candidates_is_extra(self):
+        reception = self._reception([(self.bracket, False, 1)])
+        reception.action_start()
+        self.assertEqual(self._scan(reception, "UNKNOWN-987")["verdict"], "extra")
+
+    def test_blind_replaced_serial_is_not_reconciled_to_quantity(self):
+        reception = self._reception()
+        reception.action_start()
+        self._scan(reception, "OLD-543", product=self.ultra)
+        line = self.env["rms.reception.line"].create({
+            "reception_id": reception.id, "origin": "list", "product_id": self.ultra.id,
+            "qty_expected": 1, "is_replacement": True, "replaced_serials": "OLD-543",
+        })
+        reception._reconcile_extras()
+        self.assertEqual(line.state, "pending")
+        self.assertEqual(len(reception.line_ids.filtered(lambda l: l.origin == "scan")), 1)
+
+    def test_replaced_serial_of_another_product_does_not_block_context(self):
+        reception = self._reception([(self.ultra, False, 1), (self.galaxy, False, 1)])
+        reception.line_ids.sorted("sequence")[0].write({"replaced_serials": "OLD-543"})
+        reception.action_start()
+        self.assertEqual(self._scan(reception, "OLD-543")["verdict"], "ignored")
+        self.assertEqual(self._scan(reception, "OLD-543", product=self.galaxy)["verdict"], "ok")
+
     def test_serial_on_quantity_single_manual_and_unreceive(self):
         reception = self._reception([(self.ultra, False, 1)])
         reception.action_start()

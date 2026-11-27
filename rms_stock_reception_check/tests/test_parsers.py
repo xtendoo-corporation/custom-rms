@@ -89,6 +89,24 @@ SERVICE TO ONE GALAXY 408, SER.# 19249087
         self.assertFalse(items["001.230"][0]["is_replacement"])
         self.assertFalse(items["001.237"][0]["is_replacement"])
 
+    def test_meyer_annotation_on_article_header(self):
+        text = """Meyer Sound
+1 1 40.125.001.02 ARTICULO ANTERIOR
+2 1 001.230 SERVICE TO ONE GALAXY, SER.# 22256208
+3 1 40.328.007.01 REPLACEMENT TO SERIAL NUMBER 26102802
+Referencia 40.287.450.05 REPLACEMENTS TO SERIAL NUMBERS 23250629, 25445566
+"""
+        _fmt, lines = parsers.parse_document(text)
+        items = _by_code(lines)
+        self.assertEqual(_serials(items["40.125.001.02"]), [""])
+        self.assertFalse(items["40.125.001.02"][0]["is_replacement"])
+        self.assertEqual(_serials(items["001.230"]), ["22256208"])
+        self.assertFalse(items["001.230"][0]["is_replacement"])
+        self.assertEqual(items["40.328.007.01"][0]["replaced_serials"], "26102802")
+        self.assertTrue(items["40.328.007.01"][0]["is_replacement"])
+        self.assertEqual(items["40.287.450.05"][0]["replaced_serials"], "23250629, 25445566")
+        self.assertTrue(items["40.287.450.05"][0]["is_replacement"])
+
     def test_meyer_tolerant_to_spacing(self):
         text = "Meyer Sound\r\n1   2   09.338.001.04    ULTRA-X40\r\n\r\n   S / N :   26476604  \r\nS/N 26476605\r\n"
         _fmt, lines = parsers.parse_document(text)

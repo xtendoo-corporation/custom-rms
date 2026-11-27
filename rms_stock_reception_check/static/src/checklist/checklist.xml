@@ -248,6 +248,7 @@
                                  t-att-class="'o_rms_rc_scan_' + scan.verdict + (scan.undone ? ' o_rms_rc_scan_undone' : '')">
                                 <span class="o_rms_rc_dot"/>
                                 <span class="o_rms_rc_scan_code" t-esc="scan.code"/>
+                                <span t-if="scan.verdict == 'choose'" class="o_rms_rc_scan_who">Sin asignar · </span>
                                 <span class="o_rms_rc_scan_who"><t t-esc="scan.user"/> · <t t-esc="scan.time"/></span>
                             </div>
                         </div>
@@ -260,6 +261,20 @@
 
                 <!-- Ventanas: dañado / sin etiqueta -->
                 <div t-if="state.panel" class="o_rms_rc_overlay">
+                    <div class="o_rms_rc_panel o_rms_rc_choose" t-if="state.panel.type == 'choose'">
+                        <h3 t-esc="state.panel.message"/>
+                        <button t-foreach="state.panel.candidates" t-as="candidate" t-key="candidate.product_id"
+                                class="btn btn-light o_rms_rc_choice" t-on-click="() => this.chooseArticle(candidate.product_id)">
+                            <strong class="o_rms_rc_choice_ref"><t t-esc="candidate.doc_ref || candidate.name"/><t t-if="candidate.replacement"> *</t></strong>
+                            <span t-esc="candidate.name"/>
+                            <span>Faltan <t t-esc="fmt(candidate.pending)"/><t t-if="candidate.replacement"> · Sustitución RA</t></span>
+                            <span t-if="candidate.replacement and candidate.replaced">Sustituye a: <t t-esc="candidate.replaced"/></span>
+                        </button>
+                        <div class="o_rms_rc_panel_buttons">
+                            <button class="btn btn-outline-danger btn-lg" t-on-click="() => this.chooseArticle(false, true)">Ninguno: es un sobrante</button>
+                            <button class="btn btn-light btn-lg" t-on-click="closePanel">Cancelar</button>
+                        </div>
+                    </div>
                     <div class="o_rms_rc_panel" t-if="state.panel.type == 'damaged'">
                         <h3>Caja dañada</h3>
                         <p class="o_rms_rc_serial" t-esc="state.panel.line.scanned_serial or state.panel.line.serial"/>

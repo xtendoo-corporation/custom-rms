@@ -250,3 +250,49 @@ class TestLoadDocument(ReceptionCommon):
         line = self.reception.line_ids
         self.assertTrue(line.is_replacement)
         self.assertEqual(line.replaced_serials, "OLD-1, OLD-2")
+
+    def test_scanned_quantity_reuse_requires_compatible_product(self):
+        for scanned_product, document_product, reused in (
+            (self.ultra, self.galaxy, False),
+            (self.ultra, self.ultra, True),
+            (False, self.ultra, True),
+            (self.ultra, False, True),
+        ):
+            reception = self._reception()
+            scanned = self.env["rms.reception.line"].create({
+                "reception_id": reception.id,
+                "product_id": scanned_product.id if scanned_product else False,
+                "scanned_serial": "SAME-123", "state": "received", "qty_received": 1,
+            })
+            wizard = self.env["rms.reception.load.wizard"].create({
+                "reception_id": reception.id, "source": "paste",
+            })
+            self.env["rms.reception.load.line"].create({
+                "wizard_id": wizard.id, "serial": "same-123",
+                "product_id": document_product.id if document_product else False,
+            })
+            wizard.action_confirm()
+            self.assertEqual(bool(scanned.serial), reused)
+            self.assertEqual(len(reception.line_ids), 1 if reused else 2)
+
+    def test_scanned_quantity_reuse_copies_replacement_and_missing_references(self):
+        reception = self._reception()
+        scanned = self.env["rms.reception.line"].create({
+            "reception_id": reception.id, "product_id": self.ultra.id,
+            "scanned_serial": "NEW-123", "state": "received", "qty_received": 1,
+            "supplier_code": "EXISTENTE",
+        })
+        wizard = self.env["rms.reception.load.wizard"].create({
+            "reception_id": reception.id, "source": "paste",
+        })
+        self.env["rms.reception.load.line"].create({
+            "wizard_id": wizard.id, "product_id": self.ultra.id, "serial": "NEW-123",
+            "supplier_code": "DOCUMENTO", "description": "Artículo del documento",
+            "is_replacement": True, "replaced_serials": "OLD-1, OLD-2",
+        })
+        wizard.action_confirm()
+        self.assertEqual(len(reception.line_ids), 1)
+        self.assertTrue(scanned.is_replacement)
+        self.assertEqual(scanned.replaced_serials, "OLD-1, OLD-2")
+        self.assertEqual(scanned.supplier_code, "EXISTENTE")
+        self.assertEqual(scanned.description, "Artículo del documento")

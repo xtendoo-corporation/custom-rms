@@ -224,6 +224,24 @@ def _parse_meyer(lines):
         index += 1
         if not line:
             continue
+        # Una cabecera también puede contener la anotación de servicio o RA.
+        # Abrirla primero para que la anotación no afecte al artículo anterior.
+        match = _MEYER_LINE_RE.match(line)
+        part = _MEYER_PART_RE.search(line) if not match else None
+        if match:
+            current = {"code": match.group(3), "description": _clean_description(match.group(4)),
+                       "qty": float(match.group(2)), "serials": [],
+                       "is_replacement": False, "replaced_serials": []}
+            items.append(current)
+        elif part:
+            unit = _QTY_UNIT_RE.search(line)
+            rest = line[part.end():]
+            if unit:
+                rest = rest[: max(unit.start() - part.end(), 0)] or rest
+            current = {"code": part.group(1), "description": _clean_description(rest),
+                       "qty": float(unit.group(1)) if unit else 0, "serials": [],
+                       "is_replacement": False, "replaced_serials": []}
+            items.append(current)
         replacement = _MEYER_REPLACEMENT_RE.search(line)
         if replacement and current is not None:
             current["is_replacement"] = True
@@ -250,29 +268,13 @@ def _parse_meyer(lines):
         if service and current is not None:
             _add_serials(current, [service.group(1)])
             continue
+        if match or part:
+            continue
         marker = _MARKER_RE.search(line)
-        if marker and current is not None and not _MEYER_PART_RE.search(line):
+        if marker and current is not None:
             serials, index = _collect_serials(lines, index, line[marker.end():])
             _add_serials(current, serials)
             continue
-        match = _MEYER_LINE_RE.match(line)
-        if match:
-            current = {"code": match.group(3), "description": _clean_description(match.group(4)),
-                       "qty": float(match.group(2)), "serials": [],
-                       "is_replacement": False, "replaced_serials": []}
-            items.append(current)
-            continue
-        part = _MEYER_PART_RE.search(line)
-        if part:
-            # Otra maquetación: al menos la referencia y, si se ve, «4 EA»
-            unit = _QTY_UNIT_RE.search(line)
-            rest = line[part.end():]
-            if unit:
-                rest = rest[: max(unit.start() - part.end(), 0)] or rest
-            current = {"code": part.group(1), "description": _clean_description(rest),
-                       "qty": float(unit.group(1)) if unit else 0, "serials": [],
-                       "is_replacement": False, "replaced_serials": []}
-            items.append(current)
     return _finish(items)
 
 

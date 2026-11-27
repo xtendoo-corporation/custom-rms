@@ -24,6 +24,7 @@ const VERDICTS = {
     wrong_model: { kind: "amber", title: "Modelo distinto" },
     ambiguous: { kind: "amber", title: "Lee antes el código del producto" },
     extra: { kind: "red", title: "No está en la lista" },
+    choose: { kind: "amber", title: "Sin asignar" },
     product_code: { kind: "grey", title: "Código de producto" },
     ignored: { kind: "grey", title: "No cuenta" },
     repeat: { kind: "grey", title: "Ya leído" },
@@ -108,7 +109,16 @@ export class ReceptionChecklist extends Component {
         });
 
         this._onGlobalKeydown = (ev) => {
-            if (!this.readonly && !this.state.panel) {
+            if (this.state.panel?.type === "choose" && !ev.ctrlKey && !ev.metaKey && !ev.altKey &&
+                    (ev.key.length === 1 || ev.key === "Enter")) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (!this._choiceWarning || Date.now() - this._choiceWarning > 1500) {
+                    this._choiceWarning = Date.now();
+                    this.notification.add("Elige primero el artículo", { type: "warning" });
+                    this._beep("amber");
+                }
+            } else if (!this.readonly && !this.state.panel) {
                 this.reader.redirectKey(ev);
             }
         };
@@ -124,6 +134,7 @@ export class ReceptionChecklist extends Component {
             clearInterval(this._refreshTimer);
             clearTimeout(this._contextTimer);
             this.queue.destroy();
+            if (this._resumeChoiceQueue) { this._resumeChoiceQueue(); }
             this.reader.destroy();
             this.audio.destroy();
         });
@@ -317,6 +328,11 @@ export class ReceptionChecklist extends Component {
                 { type: "danger", sticky: true });
             return;
         }
+        if (this.state.panel?.type === "choose") {
+            this.notification.add("Elige primero el artículo", { type: "warning" });
+            this._beep("amber");
+            return;
+        }
         this.queue.enqueue(code);
         if (this.queueState.conn !== "ok") {
             this._setVerdict("queued", "Guardada en este dispositivo: se enviará sola al volver la conexión.", code);
@@ -326,10 +342,15 @@ export class ReceptionChecklist extends Component {
     // El orden importa: código de producto y luego nº de serie. La cola envía
     // de una en una y en orden, así el producto de la lectura anterior ya se
     // conoce cuando le toca a la siguiente (aunque hayan esperado sin red).
-    _sendScan(item) {
+    async _sendScan(item) {
+        while (this.state.panel?.type === "choose") {
+            await new Promise((resolve) => { this._resumeChoiceQueue = resolve; });
+        }
         const context = this._contextFor(item);
         return sendRpc("rms.reception", "checklist_scan", [[this.receptionId], item.code], {
-            product_id: context ? context.id : false,
+            product_id: item.choice ? item.productId || false : context ? context.id : false,
+            force_extra: Boolean(item.forceExtra),
+            manual: Boolean(item.manual),
             client_uid: item.uid,
         });
     }
@@ -348,6 +369,10 @@ export class ReceptionChecklist extends Component {
             this._setVerdict(result.verdict, result.message, result.code);
             const colour = this.state.verdict.kind;
             this._beep(colour);
+        }
+        if (result.verdict === "choose") {
+            this.state.panel = { type: "choose", code: options.item?.code || result.code,
+                message: result.message, candidates: result.candidates || [], manual: Boolean(options.manual || options.item?.manual) };
         }
         if (result.line_id) {
             this.state.lastLine = result.line_id;
@@ -629,7 +654,7 @@ export class ReceptionChecklist extends Component {
         }
         const response = answer.result;
         this.closePanel();
-        this._applyScan(response);
+        this._applyScan(response, { manual: true });
         if (response.print_action) {
             await this.action.doAction(response.print_action);
         } else if (response.print_message) {
@@ -637,8 +662,18 @@ export class ReceptionChecklist extends Component {
         }
     }
 
+    chooseArticle(productId, forceExtra = false) {
+        const panel = this.state.panel;
+        this.queue.enqueue(panel.code, { choice: true, productId, forceExtra, manual: panel.manual });
+        this.closePanel();
+    }
+
     closePanel() {
         this.state.panel = null;
+        if (this._resumeChoiceQueue) {
+            this._resumeChoiceQueue();
+            this._resumeChoiceQueue = null;
+        }
         setTimeout(() => this._focusInput(), 50);
     }
 
