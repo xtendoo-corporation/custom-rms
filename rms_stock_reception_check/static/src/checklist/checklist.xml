@@ -98,9 +98,12 @@
                             <div class="o_rms_rc_group_head" t-on-click="() => this.toggleGroup(group)">
                                 <i class="fa o_rms_rc_caret" t-att-class="state.collapsed[group.key] ? 'fa-caret-right' : 'fa-caret-down'"/>
                                 <div class="o_rms_rc_group_name">
-                                    <strong t-esc="group.name"/>
+                                    <strong t-esc="group.name"/><span t-if="group.replacement" class="o_rms_rc_replacement_star"> *</span>
+                                    <span t-if="group.replacement" class="o_rms_rc_replacement_badge">Sustitución RA</span>
                                     <span class="o_rms_rc_group_code" t-if="group.code" t-esc="group.code"/>
                                     <span class="o_rms_rc_group_warn" t-if="group.no_product">sin producto asignado</span>
+                                    <div class="o_rms_rc_group_detail" t-if="documentRefs(group).length">Documento: <t t-esc="documentRefs(group).join(' / ')"/></div>
+                                    <div class="o_rms_rc_group_detail" t-if="group.replaced">Sustituye a: <t t-esc="group.replaced"/></div>
                                 </div>
                                 <button t-if="!readonly and (group.tracked or group.no_product)"
                                         class="btn btn-sm btn-outline-secondary o_rms_rc_nolabel_btn"
@@ -117,7 +120,8 @@
                                          t-att-class="lineClass(line)" t-att-data-line="line.id">
                                         <div class="o_rms_rc_line_mark"><i class="fa fa-cubes"/></div>
                                         <div class="o_rms_rc_line_main">
-                                            <div class="o_rms_rc_serial" t-if="group.tracked">Sin nº de serie en la lista: lee su etiqueta con la pistola</div>
+                                            <div class="o_rms_rc_serial" t-if="group.replacement">Sustitución: lee el nº de serie NUEVO de la etiqueta</div>
+                                            <div class="o_rms_rc_serial" t-elif="group.tracked">Sin nº de serie en la lista: lee su etiqueta con la pistola</div>
                                             <div class="o_rms_rc_serial" t-else="">Sin nº de serie: se cuenta</div>
                                             <div class="o_rms_rc_line_status" t-esc="lineStatus(line)"/>
                                         </div>

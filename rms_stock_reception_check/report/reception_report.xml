@@ -52,7 +52,8 @@
                                         <tr t-foreach="section[1]" t-as="line">
                                             <td><t t-esc="line.product_id.default_code or line.supplier_code or ''"/></td>
                                             <td>
-                                                <t t-esc="line.product_id.name or line.description or ''"/>
+                                                <t t-esc="line.product_id.name or line.description or ''"/><t t-if="line.is_replacement"> *</t>
+                                                <t t-if="line.is_replacement and line.replaced_serials"><br/><em>Sustituye a: <t t-esc="line.replaced_serials"/></em></t>
                                                 <t t-if="line.state == 'wrong_model' and line.scanned_product_id">
                                                     <br/><em>Leído como: <t t-esc="line.scanned_product_id.display_name"/></em>
                                                 </t>

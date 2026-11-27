@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RMS Recepción de proveedor con lista de números de serie',
-    'version': '19.0.1.3.0',
+    'version': '19.0.1.4.0',
     'category': 'Inventory/Inventory',
     'summary': (
         'Recepción de mercancía con la pistola como una lista de la compra: '
@@ -15,6 +15,7 @@ Recepción de proveedor con checklist de números de serie
 - "Cargar documento del proveedor": PDF con texto (Meyer Sound, DiGiCo, Luminex, DSPecialists/Harvey o genérico), Excel/CSV eligiendo columnas o texto pegado. Siempre con una vista previa que se puede corregir.
 - "Abrir lista": pantalla para iPad o portátil. Cada lectura de la pistola pone en verde su línea. Ámbar = a revisar, rojo = sobrante, gris = código de producto (no cuenta).
 - Los números de serie leídos también cuentan en líneas por cantidad sin serie en la lista para productos con seguimiento.
+- Identificación de sustituciones de RA y referencias del documento del proveedor.
 - Una lectura nunca se pierde en silencio: cada lectura se guarda en el aparato hasta que el servidor la confirma (sin conexión, error del servidor o sesión caducada se reintenta sola y se ve como «Pendiente de enviar»); reenviarla no la duplica. No se puede pulsar "He terminado" con lecturas sin enviar o con error.
 - "He terminado": pasa a revisión. El responsable decide faltantes, sobrantes y dañados y pulsa "Dar entrada en stock": se crea y valida el albarán de entrada solo con lo recibido y aprobado.
     """,

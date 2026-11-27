@@ -164,6 +164,12 @@ export class ReceptionChecklist extends Component {
         return groups;
     }
 
+    documentRefs(group) {
+        const displayed = [group.code, group.name].filter(Boolean).join(" · ");
+        const displayedReverse = [group.name, group.code].filter(Boolean).join(" · ");
+        return (group.doc_refs || []).filter((ref) => ref !== displayed && ref !== displayedReverse);
+    }
+
     isDone(line) {
         if (line.by_quantity) {
             return line.qty_received >= line.qty_expected;

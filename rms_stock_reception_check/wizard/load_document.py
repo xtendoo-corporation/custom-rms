@@ -284,6 +284,8 @@ class RmsReceptionLoadWizard(models.TransientModel):
                 "description": item["description"], "serial": item["serial"], "qty": item["qty"],
                 "product_id": product.id, "match": origin or "none", "warning": warning,
                 "product_state_id": self.product_state_id.id,
+                "is_replacement": item.get("is_replacement", False),
+                "replaced_serials": item.get("replaced_serials") or False,
             })
         self.line_ids.unlink()
         self.env["rms.reception.load.line"].create(vals_list)
@@ -332,6 +334,10 @@ class RmsReceptionLoadWizard(models.TransientModel):
             (line.product_id.id, line.serial_key)
             for line in reception.line_ids if line.origin == "list" and line.serial_key
         }
+        scanned_without_serial = {}
+        for existing_line in reception.line_ids:
+            if existing_line.origin == "list" and not existing_line.serial_key and existing_line.scanned_key:
+                scanned_without_serial.setdefault(existing_line.scanned_key, existing_line)
         sequence = max(reception.line_ids.filtered(lambda l: l.origin == "list").mapped("sequence") or [0])
         vals_list = []
         skipped = 0
@@ -342,6 +348,11 @@ class RmsReceptionLoadWizard(models.TransientModel):
                 if key in existing:
                     skipped += 1
                     continue
+                if key[1] in scanned_without_serial:
+                    scanned_without_serial.pop(key[1]).serial = serial
+                    existing.add(key)
+                    skipped += 1
+                    continue
                 existing.add(key)
             elif line.qty <= 0:
                 continue
@@ -350,6 +361,7 @@ class RmsReceptionLoadWizard(models.TransientModel):
                 "reception_id": reception.id, "origin": "list", "sequence": sequence,
                 "product_id": line.product_id.id, "supplier_code": line.supplier_code,
                 "description": line.description, "serial": serial or False,
+                "is_replacement": line.is_replacement, "replaced_serials": line.replaced_serials,
                 "qty_expected": 1.0 if serial else line.qty,
                 "product_state_id": (line.product_state_id or self.product_state_id).id,
                 "state": "pending",
@@ -392,6 +404,8 @@ class RmsReceptionLoadLine(models.TransientModel):
     supplier_code = fields.Char(string="Código del proveedor")
     description = fields.Char(string="Descripción")
     serial = fields.Char(string="Nº de serie")
+    is_replacement = fields.Boolean(string="Sustitución de RA / garantía")
+    replaced_serials = fields.Char(string="Nº de serie sustituidos (los que se enviaron)")
     qty = fields.Float(string="Cantidad", default=1.0)
     product_id = fields.Many2one("product.product", string="Producto en Odoo")
     product_state_id = fields.Many2one("product.state", string="Estado")

@@ -61,6 +61,8 @@ class RmsReceptionLine(models.Model):
     product_id = fields.Many2one("product.product", string="Producto", index=True)
     supplier_code = fields.Char(string="Código del proveedor")
     description = fields.Char(string="Descripción del documento")
+    is_replacement = fields.Boolean(string="Sustitución de RA / garantía")
+    replaced_serials = fields.Char(string="Nº de serie sustituidos (los que se enviaron)")
     serial = fields.Char(string="Nº de serie esperado")
     serial_key = fields.Char(compute="_compute_keys", store=True, index=True)
     serial_fuzzy = fields.Char(compute="_compute_keys", store=True, index=True)
@@ -342,4 +344,6 @@ class RmsReceptionLine(models.Model):
             "manual": self.manual_entry,
             "description": self.description or "",
             "supplier_code": self.supplier_code or "",
+            "is_replacement": self.is_replacement,
+            "replaced_serials": self.replaced_serials or "",
         }

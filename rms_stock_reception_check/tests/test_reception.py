@@ -81,6 +81,49 @@ class TestReceptionChecklist(ReceptionCommon):
         line = reception.line_ids.filtered(lambda l: l.origin == "list")
         self.assertEqual((line.state, line.qty_received, line.by_quantity), ("pending", 0, True))
 
+    def test_lot_serial_on_quantity_remains_extra(self):
+        product = self.ultra.copy({"name": "Producto por lote", "tracking": "lot"})
+        reception = self._reception([(product, False, 1)])
+        reception.action_start()
+        self.assertEqual(self._scan(reception, "LOT-9876", product=product)["verdict"], "extra")
+        self.assertEqual(reception.line_ids.filtered(lambda l: l.origin == "list").state, "pending")
+
+    def test_blind_serial_reconciles_quantity_and_preserves_replacement(self):
+        reception = self._reception()
+        reception.action_start()
+        scan = self._scan(reception, "NEW-9876", product=self.ultra)
+        line = self.env["rms.reception.line"].create({
+            "reception_id": reception.id, "origin": "list", "product_id": self.ultra.id,
+            "qty_expected": 2, "supplier_code": "DOC", "description": "Kit",
+            "is_replacement": True, "replaced_serials": "OLD-1, OLD-2",
+        })
+        reception._reconcile_extras()
+        received = reception.line_ids.filtered(lambda l: l.state == "received")
+        self.assertEqual(len(received), 1)
+        self.assertEqual((received.scanned_serial, received.is_replacement, received.replaced_serials),
+                         ("NEW-9876", True, "OLD-1, OLD-2"))
+        self.assertEqual(line.qty_expected, 1)
+        self.assertFalse(reception.line_ids.filtered(lambda l: l.origin == "scan"))
+        saved_scan = self.env["rms.reception.scan"].browse(scan["id"])
+        self.assertEqual((saved_scan.line_id, saved_scan.effect, saved_scan.verdict), (received, "line", "ok"))
+        group = reception.checklist_state()["groups"][0]
+        self.assertEqual(group["doc_refs"], ["DOC · Kit"])
+        self.assertTrue(group["replacement"])
+        self.assertEqual(group["replaced"], "OLD-1, OLD-2")
+        self.assertTrue(received._payload()["is_replacement"])
+        self.assertEqual(received._payload()["replaced_serials"], "OLD-1, OLD-2")
+
+    def test_replaced_serial_ignored_but_expected_serial_takes_priority(self):
+        reception = self._reception([(self.ultra, False, 1), (self.ultra, "OLD-2", 1)])
+        reception.line_ids[0].write({"is_replacement": True, "replaced_serials": "OLD-1, OLD-2"})
+        reception.action_start()
+        before = len(reception.line_ids)
+        result = self._scan(reception, "OLD-1", product=self.ultra)
+        self.assertEqual(result["verdict"], "ignored")
+        self.assertIn("equipo que se envió a RA", result["message"])
+        self.assertEqual(len(reception.line_ids), before)
+        self.assertEqual(self._scan(reception, "OLD-2", product=self.ultra)["verdict"], "ok")
+
     def test_green_needs_product_and_serial(self):
         result = self._scan(self.reception, "26476604")
         self.assertEqual(result["verdict"], "ok")

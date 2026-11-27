@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import base64
 import io
+import re
 from collections import OrderedDict
 
 import xlsxwriter
@@ -284,7 +285,17 @@ class RmsReception(models.Model):
                     "tracked": bool(product and product.tracking != "none"),
                     "no_product": not product,
                     "lines": [], "total": 0.0, "done": 0.0, "review": 0,
+                    "doc_refs": [], "replacement": False, "replaced": "",
                 }
+            ref = " · ".join(filter(None, [(line.supplier_code or "").strip(), (line.description or "").strip()]))
+            if ref and ref not in group["doc_refs"]:
+                group["doc_refs"].append(ref)
+            group["replacement"] = group["replacement"] or line.is_replacement
+            replaced = [value.strip() for value in group["replaced"].split(",") if value.strip()]
+            for value in re.split(r"[,\s]+", line.replaced_serials or ""):
+                if value and value not in replaced:
+                    replaced.append(value)
+            group["replaced"] = ", ".join(replaced)
             group["lines"].append(payload)
             if line.by_quantity:
                 group["total"] += line.qty_expected
@@ -413,6 +424,13 @@ class RmsReception(models.Model):
                 (value for value in (serial, code, raw) if serial_key(value) in exact.mapped("serial_key")), serial)
             return self._classify_exact(exact, matched, context_product, manual)
 
+        replaced_keys = {serial_key(value) for line in lines for value in
+                         re.split(r"[,\s]+", line.replaced_serials or "") if value}
+        if any(key in replaced_keys for key in keys):
+            return {"verdict": "ignored", "message": (
+                "%s es el nº de serie del equipo que se envió a RA: no llega. "
+                "Lee el nº de serie nuevo de la etiqueta." % serial)}
+
         # 3. Código de producto / EAN: gris, o +1 si el producto va por cantidad
         if not manual and (not rule or rule["action"] == "product_code"):
             product, _origin = self.env["rms.reception.supplier.code"]._find_product(self.partner_id, code)
@@ -455,7 +473,7 @@ class RmsReception(models.Model):
             ], limit=3)
             if len(lots.product_id) == 1:
                 product = lots.product_id
-        if product and product.tracking != "none":
+        if product and product.tracking == "serial":
             result = self._classify_serial_on_quantity(product, serial, context_product, manual)
             if result:
                 return result
@@ -473,12 +491,23 @@ class RmsReception(models.Model):
         }
 
     def _classify_serial_on_quantity(self, product, serial, context_product, manual):
+        line = self._take_quantity_unit(product)
+        if not line:
+            return False
+        self._mark_line(line, "received", serial, context_product, manual)
+        return {
+            "verdict": "ok", "effect": "line", "line_id": line.id, "product_id": product.id,
+            "message": "%s · %s" % (product.display_name, serial),
+        }
+
+    def _take_quantity_unit(self, product):
+        """Reserva una unidad pendiente de la lista, separándola si es necesario."""
         candidates = self.line_ids.filtered(
             lambda l: l.origin == "list" and l.by_quantity and l.product_id == product
             and l.state != "damaged" and l.qty_received < l.qty_expected
         ).sorted(lambda l: (l.sequence, l.id))
         if not candidates:
-            return False
+            return self.env["rms.reception.line"]
         line = candidates[0]
         if line.qty_expected != 1 or line.qty_received != 0:
             line.qty_expected -= 1
@@ -487,13 +516,10 @@ class RmsReception(models.Model):
                 "reception_id": self.id, "origin": "list", "product_id": product.id,
                 "supplier_code": line.supplier_code, "description": line.description,
                 "product_state_id": line.product_state_id.id, "sequence": line.sequence,
+                "is_replacement": line.is_replacement, "replaced_serials": line.replaced_serials,
                 "serial": False, "qty_expected": 1.0,
             })
-        self._mark_line(line, "received", serial, context_product, manual)
-        return {
-            "verdict": "ok", "effect": "line", "line_id": line.id, "product_id": product.id,
-            "message": "%s · %s" % (product.display_name, serial),
-        }
+        return line
 
     def _classify_exact(self, exact, serial, context_product, manual):
         pending = exact.filtered(lambda l: l.state == "pending")
@@ -607,7 +633,7 @@ class RmsReception(models.Model):
         product = line._stock_product() if line else self.env["product.product"].browse(product_id or [])
         response["print_action"] = False
         response["print_message"] = ""
-        if print_label and response["result"]["verdict"] != "repeat":
+        if print_label and response["result"]["verdict"] not in ("repeat", "ignored"):
             if product and product.tracking != "none":
                 wizard = self.env["rms.lot.label.wizard"].create({
                     "product_id": product.id, "serial_text": serial, "serial_confirm": serial,
@@ -654,6 +680,8 @@ class RmsReception(models.Model):
                         and l.serial_fuzzy == fuzzy_key)
                     if len(fuzzy) == 1:
                         target, state = fuzzy, "probable"
+                if not target and extra.product_id.tracking == "serial":
+                    target = reception._take_quantity_unit(extra.product_id)
                 if not target:
                     continue
                 vals = {
@@ -908,7 +936,9 @@ class RmsReception(models.Model):
             for line in lines:
                 values = [
                     states.get(line.state), line.product_id.default_code or "",
-                    line.product_id.name or line.description or "", line.supplier_code or "",
+                    (line.product_id.name or line.description or "") + (" *" if line.is_replacement else "")
+                    + (" · Sustituye a: %s" % line.replaced_serials
+                       if line.is_replacement and line.replaced_serials else ""), line.supplier_code or "",
                     line.serial or "", line.scanned_serial or "",
                     line.qty_expected, line.qty_received if line.by_quantity else (1 if line.scanned_serial else 0),
                     line.product_state_id.name or "", resolutions.get(line.resolution, ""),

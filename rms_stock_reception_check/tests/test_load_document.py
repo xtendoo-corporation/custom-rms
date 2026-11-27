@@ -222,3 +222,31 @@ class TestLoadDocument(ReceptionCommon):
             wizard.action_read()
             wizard.action_confirm()
         self.assertEqual(len(self.reception.line_ids), 2)
+
+    def test_loading_scanned_quantity_serial_reuses_line(self):
+        reception = self._reception(lines=[(self.ultra, False, 2)])
+        reception.action_start()
+        result = self._scan(reception, "QTY-2001", product=self.ultra)
+        self.assertEqual(result["verdict"], "ok")
+        scanned = reception.line_ids.filtered(lambda line: line.scanned_serial == "QTY-2001")
+        self.assertEqual(len(scanned), 1)
+        wizard = self.env["rms.reception.load.wizard"].with_user(self.operator).create({
+            "reception_id": reception.id, "source": "paste", "paste_text": "0933800104\tqty-2001\n",
+        })
+        wizard.action_read()
+        wizard.action_confirm()
+        self.assertEqual(len(reception.line_ids), 2)
+        self.assertEqual(scanned.serial, "qty-2001")
+        self.assertEqual(scanned.state, "received")
+        self.assertEqual(reception.count_expected, 2)
+        self.assertEqual(reception.count_received, 1)
+        self.assertEqual(reception.count_missing, 1)
+
+    def test_preview_replacement_fields_are_saved(self):
+        wizard = self._wizard(source="paste", paste_text="0933800104\tNEW-123\n")
+        wizard.action_read()
+        wizard.line_ids.write({"is_replacement": True, "replaced_serials": "OLD-1, OLD-2"})
+        wizard.action_confirm()
+        line = self.reception.line_ids
+        self.assertTrue(line.is_replacement)
+        self.assertEqual(line.replaced_serials, "OLD-1, OLD-2")

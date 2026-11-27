@@ -245,6 +245,29 @@ $rc-line: #dfe3e8;
         line-height: 1.25;
     }
 
+    .o_rms_rc_group_detail {
+        margin-top: 3px;
+        color: $rc-grey;
+        font-size: 13px;
+        font-weight: 400;
+    }
+
+    .o_rms_rc_replacement_star {
+        color: $rc-amber;
+        font-size: 22px;
+        font-weight: 800;
+    }
+
+    .o_rms_rc_replacement_badge {
+        margin-left: 6px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: $rc-amber-bg;
+        color: $rc-amber;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
     .o_rms_rc_group_code {
         margin-left: 8px;
         color: $rc-grey;

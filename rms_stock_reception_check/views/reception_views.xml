@@ -209,6 +209,8 @@
                                     <field name="product_id" options="{'no_create': True}"/>
                                     <field name="supplier_code" optional="show"/>
                                     <field name="description" optional="hide"/>
+                                    <field name="is_replacement" optional="show"/>
+                                    <field name="replaced_serials" optional="show"/>
                                     <field name="serial" readonly="origin == 'scan'"/>
                                     <field name="qty_expected" readonly="serial or origin == 'scan'"/>
                                     <field name="qty_received" readonly="1" optional="hide"/>

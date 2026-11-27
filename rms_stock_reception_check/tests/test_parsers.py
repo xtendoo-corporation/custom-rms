@@ -52,6 +52,43 @@ class TestSupplierParsers(BaseCase):
         self.assertEqual(lines[1]["description"], "MPS-488HP DC FILTER PCB ASSEMBLY & BOM")
         self.assertEqual(lines[3]["description"], "MS-2013M HF DRIVER W/HARDWARE KIT")
 
+    def test_meyer_replacements_and_repaired_equipment(self):
+        text = """Meyer Sound
+1 1 40.125.001.02 ST-418A DRIVER,REPLCMNT PARTS,SERVCE KIT
+WARRANTY REPLACEMENT TO SERIAL NUMBER 24251369
+2 2 40.328.007.01 2100-LFC LO DR SUBASSY REPL SERVICE KIT
+REPLACEMENTS TO SERIAL NUMBERS 26102802, 24110163
+9 5 40.287.450.05 ULTRA-X40/42 ELECTRONICS W/O PS SVC KIT
+WARRANTY REPLACEMENT TO SERIAL NUMBERS:
+23250629, 25445566, 23250594,
+22259973, 22259982
+S/N: 26441923
+S/N: 26441924
+S/N: 26441925
+S/N: 26441926
+S/N: 26441927
+15 1 001.230 GALAXY 816/AES/BH SERVICE
+WARRANTY SERVICE TO ONE GALAXY 816, SER.# 22256208
+17 1 001.237 GALAXY 408 SERVICE
+SERVICE TO ONE GALAXY 408, SER.# 19249087
+"""
+        fmt, lines = parsers.parse_document(text)
+        self.assertEqual(fmt, "meyer")
+        items = _by_code(lines)
+        self.assertEqual(_serials(items["40.125.001.02"]), [""])
+        self.assertEqual(items["40.125.001.02"][0]["replaced_serials"], "24251369")
+        self.assertEqual(_serials(items["40.328.007.01"]), [""])
+        self.assertEqual(items["40.328.007.01"][0]["replaced_serials"], "26102802, 24110163")
+        replacement = items["40.287.450.05"]
+        self.assertEqual(_serials(replacement), ["26441923", "26441924", "26441925", "26441926", "26441927"])
+        self.assertTrue(all(line["is_replacement"] for line in replacement))
+        self.assertEqual(replacement[0]["replaced_serials"],
+                         "23250629, 25445566, 23250594, 22259973, 22259982")
+        self.assertEqual(_serials(items["001.230"]), ["22256208"])
+        self.assertEqual(_serials(items["001.237"]), ["19249087"])
+        self.assertFalse(items["001.230"][0]["is_replacement"])
+        self.assertFalse(items["001.237"][0]["is_replacement"])
+
     def test_meyer_tolerant_to_spacing(self):
         text = "Meyer Sound\r\n1   2   09.338.001.04    ULTRA-X40\r\n\r\n   S / N :   26476604  \r\nS/N 26476605\r\n"
         _fmt, lines = parsers.parse_document(text)

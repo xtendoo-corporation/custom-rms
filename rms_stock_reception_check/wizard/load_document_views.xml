@@ -61,6 +61,8 @@
                             <field name="sequence" column_invisible="1"/>
                             <field name="supplier_code"/>
                             <field name="description" optional="show"/>
+                            <field name="is_replacement" optional="show"/>
+                            <field name="replaced_serials" optional="show"/>
                             <field name="product_id" options="{'no_create': True}"/>
                             <field name="serial"/>
                             <field name="qty" width="80px"/>
