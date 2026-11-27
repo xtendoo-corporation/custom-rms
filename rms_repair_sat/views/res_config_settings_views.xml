@@ -12,9 +12,8 @@
                 <setting string="Condiciones del resguardo" help="Borrador pendiente de revisión del asesor">
                     <field name="rms_sat_receipt_terms" widget="html"/>
                 </setting>
-                <setting string="Precio de piezas de 2ª mano" help="Fracción del precio nuevo si el lote no tiene precio propio (0,5 = mitad).">
-                    <field name="rms_sat_used_price_factor"/>
-                </setting>
+                <setting string="Descuento de piezas nuevas (%)"><field name="rms_sat_parts_discount"/></setting>
+                <setting string="Descuento adicional de piezas de 2ª mano (%)"><field name="rms_sat_used_extra_discount"/></setting>
             </xpath>
         </field>
     </record>

@@ -5,10 +5,6 @@
             <field name="key">rms_repair_sat.late_days</field>
             <field name="value">7</field>
         </record>
-        <record id="param_used_price_factor" model="ir.config_parameter">
-            <field name="key">rms_repair_sat.used_price_factor</field>
-            <field name="value">0.5</field>
-        </record>
         <record id="seq_rms_disassembly" model="ir.sequence">
             <field name="name">Despiece SAT</field>
             <field name="code">rms.disassembly</field>
@@ -36,6 +32,8 @@
         <record id="accessory_other" model="rms.repair.accessory"><field name="name">Otros</field><field name="sequence">60</field></record>
         <record id="accessory_none" model="rms.repair.accessory"><field name="name">Sin accesorios</field><field name="sequence">70</field></record>
         <record id="product_factory_repair" model="product.product"><field name="name">Reparación en fábrica</field><field name="type">service</field><field name="sale_ok" eval="True"/><field name="list_price">0</field></record>
-        <record id="product_labour_hour" model="product.product"><field name="name">Hora de taller</field><field name="type">service</field><field name="sale_ok" eval="True"/><field name="uom_id" ref="uom.product_uom_hour"/><field name="list_price">0</field></record>
+        <record id="product_labour_hour" model="product.product"><field name="name">Hora de taller</field><field name="type">service</field><field name="sale_ok" eval="True"/><field name="uom_id" ref="uom.product_uom_hour"/><field name="list_price">50</field></record>
+        <record id="param_parts_discount" model="ir.config_parameter"><field name="key">rms_repair_sat.parts_discount</field><field name="value">30</field></record>
+        <record id="param_used_extra_discount" model="ir.config_parameter"><field name="key">rms_repair_sat.used_extra_discount</field><field name="value">50</field></record>
     </data>
 </odoo>

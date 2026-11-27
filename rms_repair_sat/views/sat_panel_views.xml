@@ -35,7 +35,7 @@
         <field name="domain">[('rms_stage', 'not in', ('delivered', 'cancel'))]</field>
         <field name="search_view_id" ref="view_rms_panel_repair_search"/>
         <field name="context">{'group_by': ['rms_site', 'rms_stage']}</field>
-        <field name="view_ids" eval="[Command.create({'view_mode': 'kanban', 'view_id': ref('view_repair_order_kanban_sat')}), Command.create({'view_mode': 'list', 'view_id': ref('view_repair_order_list_sat')}), Command.create({'view_mode': 'pivot', 'view_id': ref('view_rms_panel_repair_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('view_rms_panel_repair_graph')})]"/>
+        <field name="view_ids" eval="[Command.clear(), Command.create({'view_mode': 'kanban', 'view_id': ref('view_repair_order_kanban_sat')}), Command.create({'view_mode': 'list', 'view_id': ref('view_repair_order_list_sat')}), Command.create({'view_mode': 'pivot', 'view_id': ref('view_rms_panel_repair_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('view_rms_panel_repair_graph')})]"/>
     </record>
     <record id="view_rms_ra_quant_list" model="ir.ui.view">
         <field name="name">stock.quant.ra.list</field><field name="model">stock.quant</field>
@@ -79,7 +79,7 @@
     <record id="action_rms_panel_lead_times" model="ir.actions.act_window">
         <field name="name">Días hasta entrega</field><field name="res_model">repair.order</field>
         <field name="view_mode">pivot,graph</field><field name="domain">[('rms_close_date', '!=', False)]</field>
-        <field name="view_ids" eval="[Command.create({'view_mode': 'pivot', 'view_id': ref('view_rms_panel_lead_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('view_rms_panel_lead_graph')})]"/>
+        <field name="view_ids" eval="[Command.clear(), Command.create({'view_mode': 'pivot', 'view_id': ref('view_rms_panel_lead_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('view_rms_panel_lead_graph')})]"/>
     </record>
     <record id="view_rms_panel_billing_pivot" model="ir.ui.view">
         <field name="name">repair.order.billing.pivot</field><field name="model">repair.order</field>
@@ -100,7 +100,7 @@
     <record id="action_rms_panel_billing" model="ir.actions.act_window">
         <field name="name">Facturación SAT</field><field name="res_model">repair.order</field>
         <field name="view_mode">pivot,graph</field><field name="domain">[('rms_close_date', '!=', False)]</field>
-        <field name="view_ids" eval="[Command.create({'view_mode': 'pivot', 'view_id': ref('view_rms_panel_billing_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('view_rms_panel_billing_graph')})]"/>
+        <field name="view_ids" eval="[Command.clear(), Command.create({'view_mode': 'pivot', 'view_id': ref('view_rms_panel_billing_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('view_rms_panel_billing_graph')})]"/>
     </record>
     <menuitem id="menu_rms_panel" name="Panel" parent="menu_rms_sat_root" sequence="80" groups="rms_repair_sat.group_sat_manager"/>
     <menuitem id="menu_rms_panel_open" name="Reparaciones abiertas" parent="menu_rms_panel" action="action_rms_panel_open" sequence="10"/>

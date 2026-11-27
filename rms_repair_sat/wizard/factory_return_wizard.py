@@ -15,7 +15,7 @@ class RepairFactoryReturnWizard(models.TransientModel):
     def action_confirm(self):
         self.ensure_one()
         repair = self.repair_id
-        if repair.rms_stage != 'factory':
+        if repair.rms_stage != 'factory' and not repair.rms_physically_at_factory:
             raise UserError('El equipo no está en fábrica.')
         if self.result == 'credited' and repair.rms_owner_type != 'company':
             raise UserError('Solo se pueden abonar equipos nuestros.')

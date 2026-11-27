@@ -1,0 +1,55 @@
+<odoo>
+    <record id="view_repair_form_factory_v4" model="ir.ui.view">
+        <field name="name">repair.order.form.factory.v4</field><field name="model">repair.order</field>
+        <field name="inherit_id" ref="view_repair_order_form_sat"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside"><field name="rms_physically_at_factory" invisible="1"/></xpath>
+            <xpath expr="//button[@name='action_rms_send_factory']" position="attributes">
+                <attribute name="invisible">not rms_in_sat or rms_stage == 'factory' or rms_physically_at_factory or state == 'cancel'</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_rms_back_from_factory']" position="attributes">
+                <attribute name="invisible">rms_stage != 'factory' and not rms_physically_at_factory</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_rms_deliver']" position="attributes">
+                <attribute name="invisible">not rms_in_sat or rms_stage == 'factory' or rms_physically_at_factory</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_rms_send_factory']" position="before">
+                <button name="action_rms_warranty_rejected" type="object" string="Garantía rechazada"
+                        groups="rms_repair_sat.group_sat_technician" invisible="not under_warranty"/>
+                <button name="action_rms_destroy_factory" type="object" string="Destruir (indicación de fábrica)"
+                        groups="rms_repair_sat.group_sat_technician" invisible="not rms_in_sat or rms_owner_type != 'company'"/>
+            </xpath>
+            <xpath expr="//field[@name='rms_factory_result']" position="after">
+                <field name="rms_warranty_rejected"/><field name="rms_warranty_rejected_date" invisible="not rms_warranty_rejected"/>
+                <field name="rms_warranty_rejected_reason" invisible="not rms_warranty_rejected"/>
+                <field name="rms_destroyed_date" invisible="rms_factory_result != 'destroyed'"/>
+                <field name="rms_destroyed_authorization_ref" invisible="rms_factory_result != 'destroyed'"/>
+                <field name="rms_destroyed_note" invisible="rms_factory_result != 'destroyed'"/>
+                <field name="rms_destroyed_move_id" invisible="rms_factory_result != 'destroyed'"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_repair_factory_return_v4" model="ir.ui.view">
+        <field name="name">repair.factory.return.v4</field><field name="model">rms.repair.factory.return.wizard</field>
+        <field name="inherit_id" ref="view_rms_repair_factory_return_wizard"/>
+        <field name="arch" type="xml"><xpath expr="//field[@name='result']" position="after">
+            <field name="warranty_rejected_reason" invisible="result != 'warranty_rejected'" required="result == 'warranty_rejected'"/>
+            <field name="authorization_ref" invisible="result != 'destroyed'" required="result == 'destroyed'"/>
+            <field name="destruction_note" invisible="result != 'destroyed'"/>
+        </xpath></field>
+    </record>
+    <record id="view_repair_warranty_reject_wizard_v4" model="ir.ui.view">
+        <field name="name">repair.warranty.reject.wizard.v4</field><field name="model">rms.repair.warranty.reject.wizard</field>
+        <field name="arch" type="xml"><form string="Garantía rechazada"><group>
+            <field name="repair_id" readonly="1"/><field name="reason"/>
+        </group><footer><button name="action_confirm" type="object" string="Confirmar" class="btn-primary"/>
+            <button special="cancel" string="Cancelar"/></footer></form></field>
+    </record>
+    <record id="view_repair_destroy_wizard_v4" model="ir.ui.view">
+        <field name="name">repair.destroy.wizard.v4</field><field name="model">rms.repair.destroy.wizard</field>
+        <field name="arch" type="xml"><form string="Destruir equipo"><group>
+            <field name="repair_id" readonly="1"/><field name="authorization_ref"/><field name="note"/>
+        </group><footer><button name="action_confirm" type="object" string="Destruir" class="btn-primary"/>
+            <button special="cancel" string="Cancelar"/></footer></form></field>
+    </record>
+</odoo>

@@ -140,9 +140,9 @@ class TestRmsRepairSat(TransactionCase):
         self.assertEqual(repair.rms_stage, 'repair')
         self.assertEqual(alt.product_uom_qty, 1)
         self.assertEqual(original.product_uom_qty, 0)
-        # 40 € del lote de 2ª mano con el 10 % automático de rms_product_state.
+        # El precio propio del lote no lleva descuentos.
         self.assertEqual(alt.price_unit, 40.0)
-        self.assertAlmostEqual(order.amount_untaxed, 36.0)
+        self.assertAlmostEqual(order.amount_untaxed, 40.0)
         self.assertEqual(alt.serial_ids.lot_id, used_lot)
         self.assertEqual(alt.serial_state_name, self.second_hand.name)
         repair.action_validate()

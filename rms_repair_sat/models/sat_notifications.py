@@ -3,8 +3,9 @@ from odoo.exceptions import UserError
 
 
 RETURN_SHIPPING = [
-    ('hand', 'Recoge en mano'), ('collect', 'Portes debidos'),
-    ('invoice', 'Portes en factura'), ('ours', 'Portes a nuestro cargo'),
+    ('invoice', 'Portes en factura'), ('collect', 'Portes debidos'),
+    ('customer', 'Por cuenta del cliente'), ('hand', 'Recoge en mano'),
+    ('ours', 'A nuestro cargo'),
 ]
 
 
@@ -14,8 +15,8 @@ class RepairOrder(models.Model):
     @api.model
     def _rms_default_return_shipping(self):
         value = self.env['ir.config_parameter'].sudo().get_param(
-            'rms_repair_sat.default_return_shipping', 'collect')
-        return value if value in dict(RETURN_SHIPPING) else 'collect'
+            'rms_repair_sat.default_return_shipping', 'invoice')
+        return value if value in dict(RETURN_SHIPPING) else 'invoice'
 
     rms_return_shipping = fields.Selection(RETURN_SHIPPING, string='Envío de vuelta',
                                             default=_rms_default_return_shipping, required=True)
@@ -86,6 +87,7 @@ class RepairOrder(models.Model):
                 'order_id': order.id, 'product_id': product.id, 'product_uom_qty': 1,
                 'name': product.display_name, 'price_unit': 0.0,
             })
+        self.rms_shipping_line_id._rms_clear_service_discounts()
         return True
 
     @api.model
@@ -137,7 +139,7 @@ class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     rms_sat_default_return_shipping = fields.Selection(RETURN_SHIPPING, string='Envío de vuelta por defecto',
-        config_parameter='rms_repair_sat.default_return_shipping', default='collect')
+        config_parameter='rms_repair_sat.default_return_shipping', default='invoice')
     rms_sat_reminder_1_days = fields.Integer(string='Primer aviso (días)',
         config_parameter='rms_repair_sat.reminder_1_days', default=30)
     rms_sat_reminder_2_days = fields.Integer(string='Segundo aviso (días)',

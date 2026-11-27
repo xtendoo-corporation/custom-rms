@@ -4,3 +4,4 @@ from . import swap_wizard
 from . import factory_return_wizard
 
 from . import sat_security
+from . import factory_v4

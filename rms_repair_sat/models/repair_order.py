@@ -14,7 +14,6 @@ SAT_STAGES = [
 ]
 STATE_TO_STAGE = {'confirmed': 'repair', 'under_repair': 'repair', 'done': 'ready',
                   'cancel': 'cancel', 'draft': 'received'}
-USED_FACTOR_PARAM = 'rms_repair_sat.used_price_factor'
 
 
 class RepairOrder(models.Model):
@@ -364,6 +363,7 @@ class RepairOrder(models.Model):
             self.rms_factory_bill_line_id.write(vals)
         else:
             self.rms_factory_bill_line_id = self.env['sale.order.line'].create(vals)
+        self.rms_factory_bill_line_id._rms_clear_service_discounts()
 
     def action_rms_add_labour(self):
         self.ensure_one()
@@ -389,6 +389,7 @@ class RepairOrder(models.Model):
             self.rms_labour_line_id.write(vals)
         else:
             self.rms_labour_line_id = self.env['sale.order.line'].create(vals)
+        self.rms_labour_line_id._rms_clear_service_discounts()
 
     def action_rms_send_quote(self):
         self.ensure_one()
@@ -418,6 +419,10 @@ class RepairOrder(models.Model):
     def action_create_sale_order(self):
         res = super().action_create_sale_order()
         self.filtered(lambda r: r.rms_stage in ('received', 'diagnosis')).write({'rms_stage': 'quoted'})
+        for repair in self:
+            lines = repair.sale_order_id.order_line.filtered(lambda line: line.move_ids.filtered(
+                lambda move: move.repair_id == repair and move.repair_line_type == 'add'))
+            lines._rms_apply_part_discounts()
         return res
 
     def action_repair_done(self):
@@ -439,8 +444,7 @@ class RepairOrder(models.Model):
     def _rms_used_price(self, product, lot):
         if lot and lot.custom_price:
             return lot.custom_price
-        factor = float(self.env['ir.config_parameter'].sudo().get_param(USED_FACTOR_PARAM, '0.5') or 0.5)
-        return product.lst_price * factor
+        return product.lst_price
 
     def action_rms_add_used_alternative(self):
         """Añade al presupuesto una sección OPCIONAL "Alternativa con piezas de
@@ -474,7 +478,8 @@ class RepairOrder(models.Model):
                     'sequence': sequence + index, 'rms_used_alternative_of_id': line.id,
                     'rms_used_lot_id': lot.id,
                 })
-            self.env['sale.order.line'].create(vals)
+            created = self.env['sale.order.line'].create(vals)
+            created.filtered('rms_used_alternative_of_id')._rms_apply_part_discounts()
         return True
 
     def action_rms_choose_used(self):
@@ -500,6 +505,7 @@ class RepairOrder(models.Model):
                 alt.write(vals)
                 alt.price_unit = price  # Odoo recalcula el precio al cambiar la cantidad
                 original.product_uom_qty = 0
+                alt._rms_apply_part_discounts()
                 if alt.rms_used_lot_id:
                     for move in moves:
                         move._do_unreserve()

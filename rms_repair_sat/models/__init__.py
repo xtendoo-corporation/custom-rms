@@ -11,3 +11,5 @@ from . import sat_panel
 from . import sat_security
 from . import sat_payment
 from . import sat_notifications
+from . import sat_factory_v4
+from . import sat_receipt_v4

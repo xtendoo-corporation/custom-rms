@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="mail_template_sat_receipt" model="mail.template">
+        <field name="name">SAT: acuse de recibo</field>
+        <field name="model_id" ref="repair.model_repair_order"/>
+        <field name="subject">SAT: acuse de recibo - {{ object.name }}</field>
+        <field name="email_to">{{ object.rms_contact_id.email or object.partner_id.email or '' }}</field>
+        <field name="report_template_ids" eval="[Command.link(ref('rms_repair_sat.action_report_receipt'))]"/>
+        <field name="auto_delete" eval="False"/>
+        <field name="body_html" type="html">
+            <div>
+                <p>Hemos recibido su equipo.</p>
+                <p>Reparación: <t t-out="object.name"/><br/>
+                   Equipo: <t t-out="object.product_id.display_name"/><br/>
+                   Nº de serie: <t t-out="object.lot_id.name or object.rms_serial_in or ''"/><br/>
+                   Fecha de entrada: <t t-out="format_date(object.rms_entry_date)"/></p>
+                <p>Le avisaremos con el diagnóstico.</p>
+            </div>
+        </field>
+    </record>
+</odoo>

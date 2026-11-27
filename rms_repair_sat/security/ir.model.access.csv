@@ -17,3 +17,5 @@ access_rms_return_wizard_user,rms.repair.factory.return.wizard user,model_rms_re
 access_repair_order_sat_commercial,repair.order SAT comercial,repair.model_repair_order,custom.comerciales,1,0,0,0
 access_rms_stage_log_technician,rms.repair.stage.log technician,model_rms_repair_stage_log,rms_repair_sat.group_sat_technician,1,0,0,0
 access_rms_stage_log_manager,rms.repair.stage.log manager,model_rms_repair_stage_log,rms_repair_sat.group_sat_manager,1,1,1,1
+access_sat_warranty_reject_wizard,rms.repair.warranty.reject.wizard technician,model_rms_repair_warranty_reject_wizard,rms_repair_sat.group_sat_technician,1,1,1,1
+access_sat_destroy_wizard,rms.repair.destroy.wizard technician,model_rms_repair_destroy_wizard,rms_repair_sat.group_sat_technician,1,1,1,1

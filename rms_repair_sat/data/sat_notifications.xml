@@ -2,7 +2,7 @@
 <odoo noupdate="1">
     <record id="param_return_shipping" model="ir.config_parameter">
         <field name="key">rms_repair_sat.default_return_shipping</field>
-        <field name="value">collect</field>
+        <field name="value">invoice</field>
     </record>
     <record id="param_reminder_1_days" model="ir.config_parameter">
         <field name="key">rms_repair_sat.reminder_1_days</field><field name="value">30</field>

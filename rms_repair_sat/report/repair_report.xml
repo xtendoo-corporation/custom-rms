@@ -39,10 +39,11 @@
             <div t-if="rms_receipt" id="rms_sat_conditions" class="mt-4 small">
                 <strong>Condiciones del servicio técnico</strong>
                 <div t-out="o._rms_receipt_terms()"/>
-                <div class="row mt-4" style="min-height:25mm;">
+                <div t-if="o.rms_entry_way == 'hand'" class="row mt-4" style="min-height:25mm;">
                     <div class="col-6">Firma del cliente: _______________________</div>
                     <div class="col-6">Firma RMS: _______________________</div>
                 </div>
+                <p t-else="" class="mt-4">Equipo recibido por transporte el <span t-field="o.rms_entry_date" t-options="{'widget': 'date'}"/>. Este documento es su acuse de recibo.</p>
             </div>
         </xpath>
     </template>

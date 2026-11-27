@@ -52,7 +52,8 @@
                 <div class="alert alert-danger" role="alert" invisible="not rms_needs_reapproval">
                     El presupuesto supera lo aceptado: hay que pedir nueva aceptación al cliente
                 </div>
-                <widget name="web_ribbon" title="Atascada" bg_color="text-bg-danger" invisible="not rms_late"/>
+                <widget name="web_ribbon" title="Atascada" bg_color="text-bg-danger" invisible="not rms_late or rms_stage in ('factory', 'waiting_part')"/>
+                <widget name="web_ribbon" title="Revisar plazo" bg_color="text-bg-danger" invisible="not rms_late or rms_stage not in ('factory', 'waiting_part')"/>
             </xpath>
             <xpath expr="//div[hasclass('oe_title')]" position="after">
                 <div class="mb-2">
@@ -168,11 +169,12 @@
             <kanban default_group_by="rms_stage" quick_create="false" sample="1" group_create="false"
                     group_delete="false" group_edit="false" records_draggable="1">
                 <field name="rms_late"/>
+                <field name="rms_stage"/>
                 <templates>
                     <t t-name="card">
                         <div class="d-flex justify-content-between">
                             <field name="name" class="fw-bolder"/>
-                            <span t-if="record.rms_late.raw_value" class="badge text-bg-danger">Atascada</span>
+                            <span t-if="record.rms_late.raw_value" class="badge text-bg-danger"><t t-if="record.rms_stage.raw_value === 'factory' || record.rms_stage.raw_value === 'waiting_part'">Revisar plazo</t><t t-else="">Atascada</t></span>
                         </div>
                         <field name="partner_id"/>
                         <div class="text-muted">
@@ -286,7 +288,7 @@
         <field name="arch" type="xml">
             <list editable="bottom">
                 <field name="stage"/>
-                <field name="days"/>
+                <field name="days" help="Solo avisa; nunca bloquea"/>
             </list>
         </field>
     </record>
@@ -295,6 +297,7 @@
         <field name="res_model">rms.repair.stage.limit</field>
         <field name="view_mode">list</field>
         <field name="view_id" ref="view_rms_repair_stage_limit_list"/>
+        <field name="help" type="html"><p>Solo avisa; nunca bloquea</p></field>
     </record>
 
     <record id="view_product_category_form_rms_warranty" model="ir.ui.view">
